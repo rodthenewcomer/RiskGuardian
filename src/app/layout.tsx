@@ -2,10 +2,10 @@ import type { Metadata, Viewport } from 'next';
 import './globals.css';
 
 export const metadata: Metadata = {
-  title: 'PropGuard — AI Prop Firm Risk Guardian',
+  title: 'RiskGuardian — AI Prop Firm Risk OS',
   description: 'Real-time AI that prevents prop firm account violations before they happen. Risk calculator, behavioral AI, Monte Carlo simulator and live bridge for DXTrade, MT5, and MatchTrader.',
   keywords: ['prop firm risk management', 'trading risk calculator', 'position size calculator', 'stop loss calculator', 'forex risk management', 'trading discipline', 'FTMO', 'Tradeify', 'FundedNext'],
-  authors: [{ name: 'PropGuard' }],
+  authors: [{ name: 'RiskGuardian' }],
   icons: {
     icon: [
       { url: '/favicon.svg', type: 'image/svg+xml' },
@@ -17,16 +17,16 @@ export const metadata: Metadata = {
     shortcut: '/favicon.svg',
   },
   openGraph: {
-    title: 'PropGuard — AI Prop Firm Risk Guardian',
+    title: 'RiskGuardian — AI Prop Firm Risk OS',
     description: 'Stop blowing accounts. Real-time AI risk protection for prop firm traders.',
     type: 'website',
-    images: [{ url: '/apple-touch-icon.png', width: 640, height: 640, alt: 'PropGuard' }],
+    images: [{ url: '/apple-touch-icon.png', width: 640, height: 640, alt: 'RiskGuardian' }],
   },
   manifest: '/manifest.json',
   appleWebApp: {
     capable: true,
     statusBarStyle: 'black-translucent',
-    title: 'PropGuard',
+    title: 'RiskGuardian',
   },
 };
 

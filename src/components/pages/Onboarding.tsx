@@ -115,8 +115,8 @@ export default function Onboarding() {
                     <div className={styles.doneIcon}>
                         <Check size={32} strokeWidth={3} />
                     </div>
-                    <h2 className={styles.doneTitle}>You&#39;re all set.</h2>
-                    <p className={styles.doneSub}>Your risk rules are locked in. Time to trade with discipline.</p>
+                    <h2 className={styles.doneTitle}>RiskGuardian is ready.</h2>
+                    <p className={styles.doneSub}>Your risk rules are locked in. Open the Risk Engine and enter your first trade to get started.</p>
                 </motion.div>
             </div>
         );
@@ -127,7 +127,7 @@ export default function Onboarding() {
             <div className={styles.header}>
                 <div className={styles.logo}>
                     <Shield size={16} strokeWidth={2.5} />
-                    <span>PropGuard</span>
+                    <span>RiskGuardian</span>
                 </div>
                 <div className={styles.stepCount}>{stepIndex + 1} / {STEPS.length}</div>
             </div>
@@ -161,7 +161,7 @@ export default function Onboarding() {
                                 </div>
                                 <h1 className={styles.stepTitle}>Who are you trading with?</h1>
                                 <p className={styles.stepSub}>
-                                    Select your prop firm to automatically sync their daily loss limits, drawdown rules, and leverage.
+                                    Select your prop firm. RiskGuardian will automatically load the correct daily loss limits, drawdown rules, leverage caps, and commission rates — so you never have to memorize the rulebook.
                                 </p>
 
                                 <div className={styles.assetGrid} style={{ gridTemplateColumns: 'minmax(0, 1fr)' }}>
@@ -208,7 +208,7 @@ export default function Onboarding() {
                                 </div>
                                 <h1 className={styles.stepTitle}>What&#39;s your account size?</h1>
                                 <p className={styles.stepSub}>
-                                    Enter the exact starting capital or current balance. We will use this to calculate your hard risk limits.
+                                    Enter your current account balance. RiskGuardian uses this to calculate your exact daily loss limit in dollars, your max risk per trade, and whether any position would breach your drawdown floor.
                                 </p>
                                 <div className={styles.bigInputWrap}>
                                     <span className={styles.bigInputPrefix}>$</span>
@@ -239,9 +239,9 @@ export default function Onboarding() {
                                 <div className={styles.stepIconRisk}>
                                     <Shield size={24} />
                                 </div>
-                                <h1 className={styles.stepTitle}>Review your risk limits</h1>
+                                <h1 className={styles.stepTitle}>Your risk limits, confirmed</h1>
                                 <p className={styles.stepSub}>
-                                    These are the maximum boundaries for your account. PropGuard will warn you before you hit them.
+                                    These hard limits are set by your prop firm. RiskGuardian will alert you — in real time — before any trade puts these at risk. You can adjust them later in Config.
                                 </p>
 
                                 {isCustom ? (
@@ -290,7 +290,7 @@ export default function Onboarding() {
                                 </div>
                                 <h1 className={styles.stepTitle}>What do you trade?</h1>
                                 <p className={styles.stepSub}>
-                                    Sets your default calculator. You can always switch per trade.
+                                    Sets your default instrument in the Risk Calculator. Crypto uses leverage and commission rules. Forex uses pip-based sizing. You can always switch per trade.
                                 </p>
                                 <div className={styles.assetGrid}>
                                     {ASSET_OPTIONS.map(opt => (

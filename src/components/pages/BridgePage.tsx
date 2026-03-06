@@ -1,7 +1,7 @@
 'use client';
 
 /**
- * BridgePage — PropGuard Live Bridge Dashboard
+ * BridgePage — RiskGuardian Live Bridge Dashboard
  * ─────────────────────────────────────────────────────────────────
  * Real-time trade monitoring when connected to local bridge software.
  * Three observation methods: Log File · Memory Read · Screen Parse.
@@ -176,7 +176,7 @@ export default function BridgePage() {
                         {setupStep === 'method' && (
                             <motion.div key="method" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className={styles.stepContent}>
                                 <h2 className={styles.stepTitle}>Choose your bridge method</h2>
-                                <p className={styles.stepSub}>Select how PropGuard Bridge reads your platform data. Start with Log File — it works on 90% of platforms.</p>
+                                <p className={styles.stepSub}>Select how RiskGuardian Bridge reads your platform data. Start with Log File — it works on 90% of platforms.</p>
                                 <div className={styles.methodCards}>
                                     {[
                                         { id: 'log' as const, icon: <FileText size={20} />, label: 'Log File Reader', sub: 'Reads trade logs DXTrade/MatchTrader write to disk. Zero permissions required.', difficulty: 'Easy', compat: '90% platforms' },
@@ -206,12 +206,12 @@ export default function BridgePage() {
 
                         {setupStep === 'install' && (
                             <motion.div key="install" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className={styles.stepContent}>
-                                <h2 className={styles.stepTitle}>Install PropGuard Bridge</h2>
+                                <h2 className={styles.stepTitle}>Install RiskGuardian Bridge</h2>
                                 <p className={styles.stepSub}>A lightweight background app that runs on your trading computer and sends trade data to this dashboard.</p>
                                 <div className={styles.codeBlock}>
                                     <div className={styles.codeHeader}><Terminal size={12} /> bridge_installer.sh</div>
                                     <pre className={styles.code}>{
-                                        `# Download PropGuard Bridge (macOS/Windows/Linux)
+                                        `# Download RiskGuardian Bridge (macOS/Windows/Linux)
 curl -fsSL https://bridge.riskguardia.com/install | bash
 
 # Or run directly from source:
@@ -264,7 +264,7 @@ C:\\Users\\{USER}\\AppData\\DXTrade\\logs\\trades.log
                                     }, null, 2)}</pre>
                                 </div>
                                 <div className={styles.archDiagram}>
-                                    {['Trading Platform', 'PropGuard Bridge', 'TLS/HTTPS', 'AI Risk Engine', 'This Dashboard'].map((node, i, arr) => (
+                                    {['Trading Platform', 'RiskGuardian Bridge', 'TLS/HTTPS', 'AI Risk Engine', 'This Dashboard'].map((node, i, arr) => (
                                         <div key={node} className={styles.archRow}>
                                             <div className={`${styles.archNode} ${i === arr.length - 1 ? styles.archNodeFinal : ''}`}>{node}</div>
                                             {i < arr.length - 1 && <div className={styles.archArrow}>↓</div>}
@@ -280,7 +280,7 @@ C:\\Users\\{USER}\\AppData\\DXTrade\\logs\\trades.log
                         {setupStep === 'live' && (
                             <motion.div key="live" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className={styles.stepContent}>
                                 <h2 className={styles.stepTitle}>Waiting for first trade…</h2>
-                                <p className={styles.stepSub}>PropGuard is listening. Execute any trade in your platform. The bridge will detect it within 500ms and AI analysis will appear here.</p>
+                                <p className={styles.stepSub}>RiskGuardian is listening. Execute any trade in your platform. The bridge will detect it within 500ms and AI analysis will appear here.</p>
                                 <div className={styles.listeningAnimation}>
                                     <div className={styles.sonarRing} />
                                     <div className={styles.sonarRing} style={{ animationDelay: '0.6s' }} />

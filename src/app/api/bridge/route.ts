@@ -1,5 +1,5 @@
 /**
- * PropGuard Bridge API — Vercel-Production-Ready
+ * RiskGuardian Bridge API — Vercel-Production-Ready
  * ─────────────────────────────────────────────────────────────────
  * Uses Vercel KV (Redis) when available, falls back to in-memory
  * for local dev. Zero env vars needed for local dev.
