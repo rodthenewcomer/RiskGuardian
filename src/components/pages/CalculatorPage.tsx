@@ -234,45 +234,60 @@ export default function CalculatorPage() {
                             onChange={e => { setAsset(e.target.value.toUpperCase()); setCommand(''); }}
                             placeholder="SOL"
                         />
-                        {showAssetBrowser && (
-                            <div className="absolute top-[100%] left-0 w-full z-50 mt-1 bg-[#1A1F2C] border border-white/10 rounded-lg shadow-2xl max-h-[300px] overflow-hidden flex flex-col">
-                                <div className="p-2 border-b border-white/5 flex items-center gap-2">
-                                    <Search size={14} className="text-muted" />
-                                    <input
-                                        className="bg-transparent border-none text-[12px] focus:ring-0 w-full"
-                                        placeholder="Search 100+ pairs..."
-                                        autoFocus
-                                        value={assetSearch}
-                                        onChange={e => setAssetSearch(e.target.value)}
-                                    />
-                                </div>
-                                <div className="overflow-y-auto flex-1 custom-scrollbar">
-                                    {(assetSearch ? TRADEIFY_ASSETS.filter(a => a.symbol.includes(assetSearch.toUpperCase()) || a.name.toLowerCase().includes(assetSearch.toLowerCase())) : TRADEIFY_ASSETS.slice(0, 15)).map(a => (
+                        <AnimatePresence>
+                            {showAssetBrowser && (
+                                <motion.div
+                                    initial={{ opacity: 0, y: -4, scale: 0.98 }}
+                                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                                    exit={{ opacity: 0, y: -4, scale: 0.98 }}
+                                    transition={{ duration: 0.15, ease: "easeOut" }}
+                                    className="absolute top-[100%] left-0 w-[300px] sm:w-[380px] z-50 mt-2 bg-[#12141A]/90 backdrop-blur-xl border border-white/10 rounded-xl shadow-2xl overflow-hidden flex flex-col max-h-[340px]"
+                                >
+                                    <div className="p-3 border-b border-white/5 flex items-center gap-3 bg-white/[0.02]">
+                                        <Search size={16} className="text-muted" />
+                                        <input
+                                            className="bg-transparent border-none text-[14px] font-medium text-white focus:ring-0 w-full placeholder-white/20 outline-none"
+                                            placeholder="Search 100+ instruments..."
+                                            autoFocus
+                                            value={assetSearch}
+                                            onChange={e => setAssetSearch(e.target.value)}
+                                        />
+                                    </div>
+                                    <div className="overflow-y-auto flex-1 custom-scrollbar py-2">
+                                        {(assetSearch ? TRADEIFY_ASSETS.filter(a => a.symbol.includes(assetSearch.toUpperCase()) || a.name.toLowerCase().includes(assetSearch.toLowerCase())) : TRADEIFY_ASSETS.slice(0, 15)).map(a => (
+                                            <button
+                                                key={a.symbol}
+                                                className="w-full text-left px-4 py-2 hover:bg-white/[0.04] flex justify-between items-center transition-all group"
+                                                onClick={() => {
+                                                    setAsset(a.symbol.split('/')[0]);
+                                                    setShowAssetBrowser(false);
+                                                    setAssetSearch('');
+                                                }}
+                                            >
+                                                <div className="flex flex-col">
+                                                    <span className="text-[14px] font-bold text-white group-hover:text-accent transition-colors">{a.symbol}</span>
+                                                    <span className="text-[11px] text-muted font-medium">{a.name}</span>
+                                                </div>
+                                                <span className="text-[10px] bg-accent/10 border border-accent/20 text-accent px-2 py-0.5 rounded-md font-bold tracking-wide">
+                                                    {a.leverage}x
+                                                </span>
+                                            </button>
+                                        ))}
+                                        {TRADEIFY_ASSETS.filter(a => a.symbol.includes(assetSearch.toUpperCase())).length === 0 && (
+                                            <div className="p-6 text-center text-[13px] text-muted font-medium italic">No matching instruments found</div>
+                                        )}
+                                    </div>
+                                    <div className="p-2 border-t border-white/5 bg-black/20 text-center">
                                         <button
-                                            key={a.symbol}
-                                            className="w-full text-left px-3 py-2 hover:bg-white/5 flex justify-between items-center transition-colors"
-                                            onClick={() => {
-                                                setAsset(a.symbol.split('/')[0]);
-                                                setShowAssetBrowser(false);
-                                                setAssetSearch('');
-                                            }}
+                                            className="text-[11px] font-semibold text-white/50 hover:text-white transition-colors uppercase tracking-wider px-4 py-1.5"
+                                            onClick={() => setShowAssetBrowser(false)}
                                         >
-                                            <div className="flex flex-col">
-                                                <span className="text-[13px] font-bold">{a.symbol}</span>
-                                                <span className="text-[10px] text-muted">{a.name}</span>
-                                            </div>
-                                            <span className="text-[10px] bg-accent/20 text-accent px-1.5 py-0.5 rounded font-bold">{a.leverage}x</span>
+                                            Close Browser
                                         </button>
-                                    ))}
-                                    {TRADEIFY_ASSETS.filter(a => a.symbol.includes(assetSearch.toUpperCase())).length === 0 && (
-                                        <div className="p-4 text-center text-[12px] text-muted italic">No matching Tradeify pairs</div>
-                                    )}
-                                </div>
-                                <button className="p-2 text-[11px] text-accent/60 bg-white/5 border-t border-white/5" onClick={() => setShowAssetBrowser(false)}>
-                                    Close Browser
-                                </button>
-                            </div>
-                        )}
+                                    </div>
+                                </motion.div>
+                            )}
+                        </AnimatePresence>
                     </div>
                 </div>
                 <div className={styles.inputCell}>

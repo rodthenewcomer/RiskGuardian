@@ -3,7 +3,8 @@
 import styles from './SettingsPage.module.css';
 import { useState } from 'react';
 import { useAppStore, PROP_FIRMS, type PropFirmPreset } from '@/store/appStore';
-import { Settings2, DollarSign, ShieldAlert, Check, RefreshCw, Building2 } from 'lucide-react';
+import { Settings2, DollarSign, ShieldAlert, Check, RefreshCw, Building2, Bitcoin, LineChart, CandlestickChart, CircleDollarSign } from 'lucide-react';
+
 
 export default function SettingsPage() {
     const { account, updateAccount, resetTodaySession, resetOnboarding } = useAppStore();
@@ -149,7 +150,10 @@ export default function SettingsPage() {
                         {(['crypto', 'forex', 'futures', 'stocks'] as const).map(type => (
                             <button key={type} className={`${styles.assetBtn} ${assetType === type ? styles.assetBtnActive : ''}`}
                                 onClick={() => setAssetType(type)} id={`asset-type-${type}`}>
-                                {type === 'crypto' ? '₿ Crypto' : type === 'forex' ? '💱 Forex' : type === 'futures' ? '📈 Futures' : '📊 Stocks'}
+                                {type === 'crypto' ? <div className="flex items-center gap-1.5 justify-center"><Bitcoin size={14} /> Crypto</div> :
+                                    type === 'forex' ? <div className="flex items-center gap-1.5 justify-center"><CircleDollarSign size={14} /> Forex</div> :
+                                        type === 'futures' ? <div className="flex items-center gap-1.5 justify-center"><LineChart size={14} /> Futures</div> :
+                                            <div className="flex items-center gap-1.5 justify-center"><CandlestickChart size={14} /> Stocks</div>}
                             </button>
                         ))}
                     </div>

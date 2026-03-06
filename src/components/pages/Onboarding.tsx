@@ -3,18 +3,18 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAppStore, PROP_FIRMS, type PropFirmPreset } from '@/store/appStore';
-import { Shield, DollarSign, TrendingUp, ChevronRight, ChevronLeft, Check, Building2, AlertTriangle } from 'lucide-react';
+import { Shield, DollarSign, TrendingUp, ChevronRight, ChevronLeft, Check, Building2, AlertTriangle, Bitcoin, LineChart, CandlestickChart, CircleDollarSign } from 'lucide-react';
 import styles from './Onboarding.module.css';
 
 const STEPS = ['firm', 'balance', 'rules', 'asset'] as const;
 type Step = typeof STEPS[number];
 
 const ASSET_OPTIONS = [
-    { value: 'crypto', label: 'Crypto', sub: 'BTC, ETH, SOL, DOGE', icon: '₿' },
-    { value: 'futures', label: 'Futures', sub: 'ES, NQ, MNQ, MES, CL', icon: '📈' },
-    { value: 'forex', label: 'Forex', sub: 'EUR/USD, GBP/USD, JPY', icon: '💱' },
-    { value: 'stocks', label: 'Stocks', sub: 'AAPL, TSLA, NVDA, SPY', icon: '📊' },
-] as const;
+    { value: 'crypto', label: 'Crypto', sub: 'BTC, ETH, SOL, DOGE', icon: <Bitcoin size={24} /> },
+    { value: 'futures', label: 'Futures', sub: 'ES, NQ, MNQ, MES, CL', icon: <LineChart size={24} /> },
+    { value: 'forex', label: 'Forex', sub: 'EUR/USD, GBP/USD, JPY', icon: <CircleDollarSign size={24} /> },
+    { value: 'stocks', label: 'Stocks', sub: 'AAPL, TSLA, NVDA, SPY', icon: <CandlestickChart size={24} /> },
+];
 
 const slideVariants = {
     enter: (dir: number) => ({ opacity: 0, x: dir > 0 ? 40 : -40 }),
