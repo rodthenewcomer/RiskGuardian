@@ -1,14 +1,15 @@
 'use client';
 
 import styles from './JournalPage.module.css';
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useRef } from 'react';
 import { useAppStore } from '@/store/appStore';
 import { motion, AnimatePresence } from 'framer-motion';
-import { BookOpen, TrendingUp, TrendingDown, Activity, DownloadCloud, LayoutList, CalendarDays, ChevronLeft, ChevronRight } from 'lucide-react';
+import { BookOpen, TrendingUp, TrendingDown, Activity, DownloadCloud, Upload, LayoutList, CalendarDays, ChevronLeft, ChevronRight, FileDown } from 'lucide-react';
 import { SEED_TRADES } from '@/data/seedTrades';
 
 export default function JournalPage() {
-    const { trades, setTrades } = useAppStore();
+    const { trades, setTrades, updateTradeNote } = useAppStore();
+    const csvRef = useRef<HTMLInputElement>(null);
     const [viewMode, setViewMode] = useState<'list' | 'calendar'>('list');
     const [calendarDate, setCalendarDate] = useState(new Date());
 
@@ -108,6 +109,109 @@ export default function JournalPage() {
         }
     };
 
+    // CSV Export
+    const handleExportCSV = () => {
+        const headers = ['Date', 'Asset', 'Type', 'Direction', 'Entry', 'SL', 'TP', 'Size', 'Risk$', 'Reward$', 'RR', 'Outcome', 'PnL', 'Note'];
+        const rows = trades.map(t => [
+            new Date(t.createdAt).toISOString().split('T')[0],
+            t.asset,
+            t.assetType,
+            t.isShort ? 'SHORT' : 'LONG',
+            t.entry,
+            t.stopLoss,
+            t.takeProfit,
+            t.lotSize,
+            t.riskUSD.toFixed(2),
+            t.rewardUSD.toFixed(2),
+            t.rr.toFixed(2),
+            t.outcome ?? 'open',
+            (t.pnl ?? 0).toFixed(2),
+            (t.note ?? '').replace(/,/g, ';'),
+        ]);
+        const csv = [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
+        const blob = new Blob([csv], { type: 'text/csv' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `riskguardian-trades-${new Date().toISOString().split('T')[0]}.csv`;
+        a.click();
+        URL.revokeObjectURL(url);
+    };
+
+    // CSV Import — handles MT4/MT5/DXTrade formats
+    const handleCSVImport = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = (ev) => {
+            const text = ev.target?.result as string;
+            const lines = text.split('\n').filter(l => l.trim());
+            if (lines.length < 2) return;
+
+            const header = lines[0].toLowerCase();
+            const isMT4 = header.includes('type') && header.includes('item');
+            const imported: typeof trades = [];
+
+            for (let i = 1; i < lines.length; i++) {
+                const cols = lines[i].split(',').map(c => c.trim().replace(/^"|"$/g, ''));
+                try {
+                    if (isMT4) {
+                        // MT4/MT5: #,Time,Type,Size,Item,Price,S/L,T/P,Profit,Balance
+                        const type = cols[2]?.toLowerCase();
+                        if (!['buy', 'sell'].includes(type)) continue;
+                        const entry = parseFloat(cols[5]);
+                        const sl = parseFloat(cols[6]) || entry * 0.99;
+                        const tp = parseFloat(cols[7]) || entry * 1.01;
+                        const pnl = parseFloat(cols[8]);
+                        const size = parseFloat(cols[3]);
+                        if (isNaN(entry) || isNaN(size)) continue;
+                        const risk = Math.abs(entry - sl) * size;
+                        const reward = Math.abs(tp - entry) * size;
+                        imported.push({
+                            id: `csv-${i}-${Date.now()}`,
+                            asset: cols[4]?.toUpperCase() || 'UNKNOWN',
+                            assetType: 'forex',
+                            entry, stopLoss: sl, takeProfit: tp, lotSize: size,
+                            riskUSD: risk, rewardUSD: reward,
+                            rr: risk > 0 ? reward / risk : 0,
+                            outcome: pnl > 0 ? 'win' : pnl < 0 ? 'loss' : 'open',
+                            createdAt: cols[1] || new Date().toISOString(),
+                            closedAt: cols[1] || new Date().toISOString(),
+                            pnl, isShort: type === 'sell',
+                        });
+                    } else {
+                        // DXTrade/Generic: Date,Symbol,Side,Qty,Price,Stop Loss,Take Profit,PnL
+                        const side = cols[2]?.toLowerCase();
+                        const entry = parseFloat(cols[4]);
+                        const sl = parseFloat(cols[5]);
+                        const tp = parseFloat(cols[6]);
+                        const pnl = parseFloat(cols[7]);
+                        const size = parseFloat(cols[3]);
+                        if (isNaN(entry) || isNaN(size)) continue;
+                        const risk = Math.abs(entry - (sl || entry * 0.99)) * size;
+                        const reward = Math.abs((tp || entry * 1.01) - entry) * size;
+                        imported.push({
+                            id: `csv-${i}-${Date.now()}`,
+                            asset: cols[1]?.toUpperCase() || 'UNKNOWN',
+                            assetType: 'forex',
+                            entry, stopLoss: sl || entry * 0.99, takeProfit: tp || entry * 1.01, lotSize: size,
+                            riskUSD: risk, rewardUSD: reward,
+                            rr: risk > 0 ? reward / risk : 0,
+                            outcome: pnl > 0 ? 'win' : pnl < 0 ? 'loss' : 'open',
+                            createdAt: cols[0] || new Date().toISOString(),
+                            closedAt: cols[0] || new Date().toISOString(),
+                            pnl, isShort: side === 'sell' || side === 'short',
+                        });
+                    }
+                } catch { continue; }
+            }
+
+            if (imported.length > 0) setTrades([...trades, ...imported]);
+        };
+        reader.readAsText(file);
+        e.target.value = '';
+    };
+
     // Use only closed trades to assess absolute win rate/pnl
     const closedTrades = trades.filter(t => t.outcome === 'win' || t.outcome === 'loss');
 
@@ -128,13 +232,34 @@ export default function JournalPage() {
 
     return (
         <div className={styles.page}>
+            <input ref={csvRef} type="file" accept=".csv,.txt" style={{ display: 'none' }} onChange={handleCSVImport} />
             <div className={styles.pageHeader}>
                 <div className={styles.pageIcon}>
                     <BookOpen size={24} />
                 </div>
-                <div>
+                <div style={{ flex: 1 }}>
                     <h1 className="text-subheading">HUD Flight Log</h1>
                     <p className="text-caption">Execution history & audit trail</p>
+                </div>
+                <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
+                    <button
+                        onClick={() => csvRef.current?.click()}
+                        className="btn btn--ghost btn--sm"
+                        title="Import CSV (MT4/MT5/DXTrade)"
+                        style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11 }}
+                    >
+                        <Upload size={13} /> Import CSV
+                    </button>
+                    {trades.length > 0 && (
+                        <button
+                            onClick={handleExportCSV}
+                            className="btn btn--ghost btn--sm"
+                            title="Export all trades as CSV"
+                            style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11 }}
+                        >
+                            <FileDown size={13} /> Export
+                        </button>
+                    )}
                 </div>
             </div>
 
@@ -242,6 +367,13 @@ export default function JournalPage() {
                                 <div className={styles.metaItem}>TP<strong className="text-success">{trade.takeProfit.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 5 })}</strong></div>
                                 <div className={styles.metaItem}>YIELD<strong className="text-cyan">{trade.rr.toFixed(1)}R</strong></div>
                             </div>
+                            <textarea
+                                className={styles.tradeNote}
+                                placeholder="Add a note — setup, emotions, mistakes…"
+                                value={trade.note ?? ''}
+                                onChange={e => updateTradeNote(trade.id, e.target.value)}
+                                rows={2}
+                            />
                         </motion.div>
                     ))}
                 </div>

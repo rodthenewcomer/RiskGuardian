@@ -13,9 +13,21 @@ import { Target, AlertTriangle, Info } from 'lucide-react';
 export default function AnalyticsPage() {
     const { trades, account } = useAppStore();
     const [activeTab, setActiveTab] = useState('OVERVIEW');
+    const [dateFrom, setDateFrom] = useState('');
+    const [dateTo, setDateTo] = useState('');
 
-    // Sort chronological
-    const closed = trades.filter(t => t.outcome === 'win' || t.outcome === 'loss').sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+    // Sort chronological + apply date range filter
+    const closed = useMemo(() => {
+        return trades
+            .filter(t => t.outcome === 'win' || t.outcome === 'loss')
+            .filter(t => {
+                const d = t.createdAt.split('T')[0];
+                if (dateFrom && d < dateFrom) return false;
+                if (dateTo && d > dateTo) return false;
+                return true;
+            })
+            .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+    }, [trades, dateFrom, dateTo]);
 
     // Process Algorithmic Forensics
     const forensics = useMemo(() => generateForensics(trades, account), [trades, account]);
@@ -92,6 +104,16 @@ export default function AnalyticsPage() {
 
     return (
         <div className={styles.page}>
+            <div className={styles.dateFilterRow}>
+                <label className={styles.dateLabel}>From</label>
+                <input type="date" className={styles.dateInput} value={dateFrom} onChange={e => setDateFrom(e.target.value)} />
+                <label className={styles.dateLabel}>To</label>
+                <input type="date" className={styles.dateInput} value={dateTo} onChange={e => setDateTo(e.target.value)} />
+                {(dateFrom || dateTo) && (
+                    <button className={styles.dateClear} onClick={() => { setDateFrom(''); setDateTo(''); }}>✕ Clear</button>
+                )}
+                <span className={styles.dateCount}>{closed.length} trades</span>
+            </div>
             <div className={styles.topTabsWrapper}>
                 <div className={styles.topTabs}>
                     {TABS.map(t => {

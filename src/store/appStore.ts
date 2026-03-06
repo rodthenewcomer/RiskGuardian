@@ -38,6 +38,7 @@ export interface TradeSession {
     closedAt?: string;
     pnl?: number;   // Realized PnL
     isShort?: boolean;
+    note?: string;  // Manual journal note
 }
 
 export interface AccountSettings {
@@ -78,6 +79,7 @@ interface AppState {
     addTrade: (trade: TradeSession) => void;
     setTrades: (trades: TradeSession[]) => void;
     updateTradeOutcome: (id: string, outcome: 'win' | 'loss' | 'open') => void;
+    updateTradeNote: (id: string, note: string) => void;
     setActiveTab: (tab: AppState['activeTab']) => void;
     getTodayRiskUsed: () => number;
     getDailyRiskRemaining: () => number;
@@ -150,6 +152,11 @@ export const useAppStore = create<AppState>()(
             updateTradeOutcome: (id, outcome) =>
                 set((s) => ({
                     trades: s.trades.map((t) => (t.id === id ? { ...t, outcome } : t)),
+                })),
+
+            updateTradeNote: (id, note) =>
+                set((s) => ({
+                    trades: s.trades.map((t) => (t.id === id ? { ...t, note } : t)),
                 })),
 
             setActiveTab: (tab) => set({ activeTab: tab }),

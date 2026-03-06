@@ -127,7 +127,7 @@ export default function Onboarding() {
             <div className={styles.header}>
                 <div className={styles.logo}>
                     <Shield size={16} strokeWidth={2.5} />
-                    <span>PropGuard</span>
+                    <span>RiskGuardian</span>
                 </div>
                 <div className={styles.stepCount}>{stepIndex + 1} / {STEPS.length}</div>
             </div>
@@ -241,7 +241,7 @@ export default function Onboarding() {
                                 </div>
                                 <h1 className={styles.stepTitle}>Review your risk limits</h1>
                                 <p className={styles.stepSub}>
-                                    These are the maximum boundaries for your account. PropGuard will warn you before you hit them.
+                                    These are the maximum boundaries for your account. RiskGuardian will warn you before you hit them.
                                 </p>
 
                                 {isCustom ? (

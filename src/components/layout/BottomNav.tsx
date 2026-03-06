@@ -2,16 +2,14 @@
 
 import styles from './BottomNav.module.css';
 import { useAppStore } from '@/store/appStore';
-import { LayoutDashboard, Terminal, ShieldCheck, Brain, BarChart2, Settings2, Calculator, BookOpen } from 'lucide-react';
+import { LayoutDashboard, Terminal, BookOpen, Brain, BarChart2, Settings2 } from 'lucide-react';
 import { motion } from 'framer-motion';
 
 const TABS = [
     { id: 'dashboard' as const, label: 'Home', icon: LayoutDashboard },
     { id: 'terminal' as const, label: 'HUD', icon: Terminal },
-    { id: 'bridge' as const, label: 'Guard', icon: ShieldCheck },
-    { id: 'calculator' as const, label: 'Risk', icon: Calculator },
-    { id: 'plan' as const, label: 'AI', icon: Brain },
     { id: 'journal' as const, label: 'Log', icon: BookOpen },
+    { id: 'plan' as const, label: 'AI', icon: Brain },
     { id: 'analytics' as const, label: 'Stats', icon: BarChart2 },
     { id: 'settings' as const, label: 'Config', icon: Settings2 },
 ];

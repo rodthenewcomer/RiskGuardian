@@ -9,10 +9,71 @@
     color: #e2e8f0;
 }
 
+/* Date range filter bar */
+.dateFilterRow {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 32px;
+    background: #0B0E14;
+    border-bottom: 1px solid #1a1c24;
+    flex-wrap: wrap;
+}
+
+.dateLabel {
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    color: #6b7280;
+    text-transform: uppercase;
+}
+
+.dateInput {
+    background: #0d1117;
+    border: 1px solid #1a1c24;
+    border-radius: 4px;
+    color: #c9d1d9;
+    font-size: 12px;
+    padding: 5px 10px;
+    font-family: var(--font-mono);
+    cursor: pointer;
+    outline: none;
+    transition: border-color 0.2s;
+}
+
+.dateInput:focus {
+    border-color: #A6FF4D;
+}
+
+.dateClear {
+    background: rgba(255, 71, 87, 0.1);
+    border: 1px solid rgba(255, 71, 87, 0.3);
+    border-radius: 4px;
+    color: #ff4757;
+    font-size: 11px;
+    font-weight: 600;
+    padding: 5px 10px;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.dateClear:hover {
+    background: rgba(255, 71, 87, 0.2);
+}
+
+.dateCount {
+    margin-left: auto;
+    font-size: 11px;
+    color: #A6FF4D;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+}
+
 .topTabsWrapper {
     background: #0B0E14;
     border-bottom: 1px solid #1a1c24;
     padding: 0 32px;
+    overflow-x: auto;
 }
 
 .topTabs {

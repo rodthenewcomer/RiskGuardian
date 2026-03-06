@@ -38,6 +38,14 @@
         color: var(--accent);
     }
 
+    .logoCompact {
+        display: flex;
+    }
+
+    .logoFull {
+        display: none;
+    }
+
     .list {
         list-style: none;
         display: flex;
@@ -107,6 +115,14 @@
         font-size: 16px;
         padding-left: 8px;
         margin-bottom: 28px;
+    }
+
+    .logoCompact {
+        display: none;
+    }
+
+    .logoFull {
+        display: flex;
     }
 
     .list {

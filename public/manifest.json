@@ -1,6 +1,6 @@
 {
-  "name": "PropGuard — AI Risk Guardian",
-  "short_name": "PropGuard",
+  "name": "RiskGuardian — AI Risk OS",
+  "short_name": "RiskGuardian",
   "description": "Real-time AI that prevents prop firm account violations before they happen.",
   "start_url": "/",
   "scope": "/",

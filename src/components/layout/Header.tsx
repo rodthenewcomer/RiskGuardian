@@ -26,7 +26,7 @@ export default function Header() {
                         <Shield size={16} strokeWidth={2.5} />
                     </div>
                     <span className={styles.logoText}>
-                        Prop<span className={styles.logoAccent}>Guard</span>
+                        Risk<span className={styles.logoAccent}>Guardian</span>
                     </span>
                 </div>
 

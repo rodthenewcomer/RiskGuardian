@@ -30,7 +30,12 @@ export default function Sidebar() {
     return (
         <nav className={styles.sidebar} aria-label="Main navigation">
             <div className={styles.logo}>
-                <span className={styles.logoAccent}>R</span>G
+                <span className={styles.logoCompact}>
+                    <span className={styles.logoAccent}>R</span>G
+                </span>
+                <span className={styles.logoFull}>
+                    <span className={styles.logoAccent}>Risk</span>Guardian
+                </span>
             </div>
             <ul className={styles.list}>
                 {TABS.map(({ id, label, Icon }) => (

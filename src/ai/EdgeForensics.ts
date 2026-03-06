@@ -98,7 +98,7 @@ export function generateForensics(trades: Trade[], accountData: any) {
                 if ((new Date(closed[j].createdAt).getTime() - lTime) <= 15 * 60000) {
                     count++;
                     imp += (closed[j].pnl ?? 0);
-                    ev.push(`Trade @ ${new Date(closed[j].createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} (${(closed[j].pnl ?? 0) >= 0 ? '+' : '-'}$${Math.abs(closed[j].pnl || 0).toFixed(0)})`);
+                    ev.push(`Trade @ ${new Date(closed[j].createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} (${(closed[j].pnl ?? 0) >= 0 ? '+' : '-'}$${Math.abs(closed[j].pnl ?? 0).toFixed(0)})`);
                 } else break;
             }
             if (count >= 3 && imp < 0) {

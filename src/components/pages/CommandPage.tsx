@@ -43,7 +43,9 @@ export default function CommandPage() {
     const [logs, setLogs] = useState<LogEntry[]>([]);
     const [history, setHistory] = useState<string[]>([]);
     const [historyIdx, setHistoryIdx] = useState(-1);
+    const [overrideConfirm, setOverrideConfirm] = useState<string | null>(null); // logId awaiting override confirm
     const endRef = useRef<HTMLDivElement>(null);
+    const inputRef = useRef<HTMLInputElement>(null);
 
     const remainingToday = useMemo(() => getDailyRiskRemaining(), [getDailyRiskRemaining]);
     const maxTradeRisk = useMemo(() => (account.balance * account.maxRiskPercent) / 100, [account.balance, account.maxRiskPercent]);
@@ -54,6 +56,13 @@ export default function CommandPage() {
         // Auto scroll to latest command
         endRef.current?.scrollIntoView({ behavior: 'smooth' });
     }, [logs]);
+
+    // iOS: scroll input into view when soft keyboard opens
+    const handleInputFocus = () => {
+        setTimeout(() => {
+            inputRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        }, 300);
+    };
 
     const getAssetType = (sym: string): 'crypto' | 'forex' | 'futures' | 'stocks' => {
         const clean = sym.toUpperCase();
@@ -390,8 +399,8 @@ export default function CommandPage() {
 
         const posValue = r_notional || (r_size * pentry * pointVal);
         const maxPosValue = account.balance * maxLev;
-        if ((atype === 'crypto' || passet.includes('USD')) && posValue > maxPosValue) {
-            warnings.push(`Leverage Overflow: $${posValue.toLocaleString()} > $${maxPosValue.toLocaleString()} (${maxLev}:1)`);
+        if (posValue > 0 && posValue > maxPosValue) {
+            warnings.push(`Leverage Cap: position $${posValue.toLocaleString(undefined, { maximumFractionDigits: 0 })} exceeds ${maxLev}:1 limit ($${maxPosValue.toLocaleString(undefined, { maximumFractionDigits: 0 })})`);
         }
 
         // Max Drawdown Check
@@ -665,14 +674,31 @@ export default function CommandPage() {
                                             <span className={`${styles.resTitle} ${log.approved ? styles.safe : styles.fail}`}>
                                                 {log.approved ? 'AUTHORIZED: SAFE TO EXECUTE' : 'REJECTED: RULE VIOLATION'}
                                             </span>
-                                            {log.approved && (
-                                                <button
-                                                    onClick={() => handleExecute(log)}
-                                                    className="bg-accent/10 border border-accent/20 px-2 py-0.5 rounded text-[10px] font-bold text-accent hover:bg-accent hover:text-black transition-colors"
-                                                >
-                                                    EXECUTE
-                                                </button>
-                                            )}
+                                            {log.approved && (() => {
+                                                const isDanger = log.aiEmotionalState === 'revenge' || log.aiEmotionalState === 'stressed';
+                                                const needsOverride = isDanger && overrideConfirm !== log.id;
+                                                return needsOverride ? (
+                                                    <button
+                                                        onClick={() => setOverrideConfirm(log.id)}
+                                                        className="bg-[rgba(255,149,0,0.1)] border border-[rgba(255,149,0,0.4)] px-2 py-0.5 rounded text-[10px] font-bold text-[var(--color-warning)] hover:bg-[rgba(255,149,0,0.2)] transition-colors"
+                                                    >
+                                                        ⚠ OVERRIDE REQUIRED
+                                                    </button>
+                                                ) : isDanger && overrideConfirm === log.id ? (
+                                                    <div className="flex gap-1 items-center">
+                                                        <span className="text-[10px] text-[var(--color-warning)] font-bold">Confirm revenge trade?</span>
+                                                        <button onClick={() => { handleExecute(log); setOverrideConfirm(null); }} className="bg-danger/10 border border-danger/30 px-2 py-0.5 rounded text-[10px] font-bold text-danger hover:bg-danger hover:text-white transition-colors">YES, EXECUTE</button>
+                                                        <button onClick={() => setOverrideConfirm(null)} className="bg-white/5 border border-white/10 px-2 py-0.5 rounded text-[10px] font-bold text-muted hover:bg-white/10 transition-colors">CANCEL</button>
+                                                    </div>
+                                                ) : (
+                                                    <button
+                                                        onClick={() => handleExecute(log)}
+                                                        className="bg-accent/10 border border-accent/20 px-2 py-0.5 rounded text-[10px] font-bold text-accent hover:bg-accent hover:text-black transition-colors"
+                                                    >
+                                                        EXECUTE
+                                                    </button>
+                                                );
+                                            })()}
                                         </div>
                                         <div className={styles.grid2}>
                                             <div className={styles.kv}><span className={styles.kvKey}>Entry</span><span className={styles.kvVal}>${log.entry.toLocaleString()}</span></div>
@@ -723,10 +749,12 @@ export default function CommandPage() {
             <div className={styles.inputArea}>
                 <span className={styles.promptSymbol}>&gt;</span>
                 <input
+                    ref={inputRef}
                     className={styles.input}
                     value={input}
                     onChange={e => setInput(e.target.value)}
                     onKeyDown={handleKeyDown}
+                    onFocus={handleInputFocus}
                     placeholder="Enter command (e.g. sol 91.65 800) and press Enter"
                     autoFocus
                     autoComplete="off"
