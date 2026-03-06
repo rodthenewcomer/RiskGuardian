@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAppStore, PROP_FIRMS, type PropFirmPreset } from '@/store/appStore';
-import { Shield, DollarSign, TrendingUp, ChevronRight, ChevronLeft, Check, Building2, AlertTriangle, Bitcoin, LineChart, CandlestickChart, CircleDollarSign } from 'lucide-react';
+import { Shield, DollarSign, TrendingUp, ChevronRight, ChevronLeft, Check, Building2, AlertTriangle, Bitcoin, LineChart, CandlestickChart, CircleDollarSign, Settings2 } from 'lucide-react';
 import styles from './Onboarding.module.css';
 
 const STEPS = ['firm', 'balance', 'rules', 'asset'] as const;
@@ -20,6 +20,14 @@ const slideVariants = {
     enter: (dir: number) => ({ opacity: 0, x: dir > 0 ? 40 : -40 }),
     center: { opacity: 1, x: 0 },
     exit: (dir: number) => ({ opacity: 0, x: dir > 0 ? -40 : 40 }),
+};
+
+const getFirmLogo = (name: string) => {
+    if (name.includes('Tradeify')) return 'https://www.google.com/s2/favicons?domain=tradeify.co&sz=128';
+    if (name.includes('Funding Pips')) return 'https://www.google.com/s2/favicons?domain=fundingpips.com&sz=128';
+    if (name.includes('FTMO')) return 'https://www.google.com/s2/favicons?domain=ftmo.com&sz=128';
+    if (name.includes('5%ers')) return 'https://www.google.com/s2/favicons?domain=the5ers.com&sz=128';
+    return null;
 };
 
 export default function Onboarding() {
@@ -164,7 +172,15 @@ export default function Onboarding() {
                                             onClick={() => setSelectedFirm(firm)}
                                             style={{ flexDirection: 'row', alignItems: 'center', textAlign: 'left', padding: '16px 20px', gap: '16px' }}
                                         >
-                                            <span style={{ fontSize: 24 }}>{firm.dailyPct > 0 ? '🛡️' : '⚙️'}</span>
+                                            <div style={{ width: 28, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                                                {getFirmLogo(firm.name) ? (
+                                                    <img src={getFirmLogo(firm.name) as string} alt={firm.name} style={{ width: '100%', height: '100%', borderRadius: 4, objectFit: 'contain' }} />
+                                                ) : (
+                                                    <span style={{ color: 'var(--text-muted)' }}>
+                                                        {firm.dailyPct > 0 ? <Building2 size={24} /> : <Settings2 size={24} />}
+                                                    </span>
+                                                )}
+                                            </div>
                                             <div style={{ flex: 1 }}>
                                                 <div className={styles.assetLabel} style={{ marginBottom: 4 }}>{firm.name}</div>
                                                 <div className={styles.assetSub}>
