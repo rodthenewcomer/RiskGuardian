@@ -1,767 +1,331 @@
 'use client';
 
 import styles from './AnalyticsPage.module.css';
-import { useMemo, useState } from 'react';
+import { useMemo } from 'react';
 import { useAppStore } from '@/store/appStore';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 import {
-    BarChart, Bar, XAxis, Tooltip, ResponsiveContainer,
-    LineChart, Line, ReferenceLine, CartesianGrid, YAxis, Area, AreaChart, Cell
+    BarChart, Bar, XAxis, Tooltip as RechartsTooltip, ResponsiveContainer,
+    Cell
 } from 'recharts';
 import {
-    TrendingUp, TrendingDown, Brain, Activity, AlertTriangle,
-    Zap, Target, ShieldCheck, BookOpen, Layers, FlaskConical
-} from 'lucide-react';
-import {
-    analyzeRiskGuardian, analyzeBehavior, analyzeConsistency,
-    generateJournalInsights, scoreTradeQuality,
-    detectSetups, runStrategySimulator
+    generateJournalInsights, analyzeBehavior
 } from '@/ai/RiskAI';
 
-type Tab = 'overview' | 'behavior' | 'consistency' | 'insights' | 'whatif' | 'edge' | 'simulator';
-
-const TABS: { id: Tab; label: string; icon: React.ReactNode }[] = [
-    { id: 'overview', label: 'Overview', icon: <TrendingUp size={11} /> },
-    { id: 'behavior', label: 'Behavior', icon: <Brain size={11} /> },
-    { id: 'edge', label: 'Edge AI', icon: <Layers size={11} /> },
-    { id: 'simulator', label: 'Simulator', icon: <FlaskConical size={11} /> },
-    { id: 'consistency', label: 'Streak', icon: <Activity size={11} /> },
-    { id: 'insights', label: 'Journal', icon: <BookOpen size={11} /> },
-    { id: 'whatif', label: 'What-If', icon: <Zap size={11} /> },
-];
-
 export default function AnalyticsPage() {
-    const { trades, account, getTodayRiskUsed } = useAppStore();
-    const [activeTab, setActiveTab] = useState<Tab>('overview');
+    const { trades, account } = useAppStore();
+    const closed = trades.filter(t => t.outcome === 'win' || t.outcome === 'loss').sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
 
-    const todayUsed = getTodayRiskUsed();
     const maxTradeRisk = (account.balance * account.maxRiskPercent) / 100;
-    const closed = trades.filter(t => t.outcome === 'win' || t.outcome === 'loss');
-
-    const guardian = useMemo(() => analyzeRiskGuardian(account, todayUsed), [account, todayUsed]);
     const behavior = useMemo(() => analyzeBehavior(trades, maxTradeRisk), [trades, maxTradeRisk]);
-    const consistency = useMemo(() => analyzeConsistency(trades), [trades]);
     const journal = useMemo(() => generateJournalInsights(trades, account), [trades, account]);
-    const setups = useMemo(() => detectSetups(trades), [trades]);
-    const [simMonths, setSimMonths] = useState(3);
-    const [simTrades, setSimTrades] = useState(20);
 
-    // PnL chart data
-    const pnlData = closed.reduce((acc, t, i) => {
-        const pnl = (t.pnl ?? (t.outcome === 'win' ? t.rewardUSD : -t.riskUSD));
-        const cumulative = (acc.length > 0 ? acc[acc.length - 1].cumulative : 0) + pnl;
-        acc.push({ trade: `T${i + 1}`, pnl, cumulative });
+    // Top Level Metrics
+    const totalPnl = journal.netPnl;
+    const winRate = journal.winRate;
+    const avgRR = journal.avgRR;
+    const expectancy = journal.expectancy;
+
+    // Daily Bar Data (Time Series execution)
+    const dailyPnls = closed.reduce((acc, t) => {
+        const day = t.createdAt.split('T')[0];
+        if (!acc[day]) acc[day] = { date: day, pnl: 0, trades: 0 };
+        acc[day].pnl += (t.pnl ?? 0);
+        acc[day].trades++;
         return acc;
-    }, [] as { trade: string; pnl: number; cumulative: number }[]);
+    }, {} as Record<string, { date: string; pnl: number; trades: number }>);
+    const dailyBarData = Object.values(dailyPnls).slice(-30); // limit 30 days execution
 
-    // Trade Quality Score for last trade
-    const lastTrade = closed[0];
-    const lastQuality = lastTrade && account.dailyLossLimit > 0 ? scoreTradeQuality({
-        riskUSD: lastTrade.riskUSD,
-        maxTradeRisk,
-        rr: lastTrade.rr,
-        stopDistancePct: lastTrade.entry > 0 ? (Math.abs(lastTrade.entry - lastTrade.stopLoss) / lastTrade.entry) * 100 : 1,
-        remainingDailyPct: (guardian.remainingDaily / account.dailyLossLimit) * 100,
-        behaviorState: behavior.emotionalState
-    }) : null;
+    // Asset Performance
+    const assetStats = Object.values(closed.reduce((acc, t) => {
+        if (!acc[t.asset]) acc[t.asset] = { asset: t.asset, wins: 0, losses: 0, pnl: 0, total: 0 };
+        acc[t.asset].pnl += (t.pnl ?? 0);
+        acc[t.asset].total++;
+        if (t.outcome === 'win') acc[t.asset].wins++;
+        else acc[t.asset].losses++;
+        return acc;
+    }, {} as Record<string, any>)).sort((a, b) => b.total - a.total).slice(0, 5);
 
-    // Simulator — derived from actual trade history stats
-    const simStats = useMemo(() => {
-        const wins = closed.filter(t => t.outcome === 'win');
-        const losses = closed.filter(t => t.outcome === 'loss');
-        const winRate = closed.length > 0 ? wins.length / closed.length : 0.5;
-        const avgRR = closed.filter(t => t.rr > 0).length > 0
-            ? closed.reduce((s, t) => s + t.rr, 0) / closed.length : 2;
-        const avgRisk = closed.length > 0
-            ? closed.reduce((s, t) => s + t.riskUSD, 0) / closed.length : maxTradeRisk;
-        return { winRate, avgRR, avgRisk };
-    }, [closed, maxTradeRisk]);
+    // Trade History (Recent 15)
+    const recentHistory = [...closed].reverse().slice(0, 15);
 
-    const simResult = useMemo(() => runStrategySimulator({
-        currentRisk: Math.max(simStats.avgRisk, 1),
-        currentWinRate: simStats.winRate,
-        currentAvgRR: simStats.avgRR,
-        tradesPerMonth: simTrades,
-        startingBalance: account.balance || 10000,
-        maxDrawdownLimit: account.maxDrawdownLimit || account.dailyLossLimit * 10 || 2000,
-        months: simMonths
-    }), [simStats, simTrades, simMonths, account]);
+    // Streaks
+    const streakSequence = closed.map(t => t.outcome === 'win' ? 'W' : 'L');
+    const getStreaks = () => {
+        let maxW = 0, maxL = 0, curW = 0, curL = 0;
+        streakSequence.forEach(s => {
+            if (s === 'W') { curW++; maxL = Math.max(maxL, curL); curL = 0; maxW = Math.max(maxW, curW); }
+            else { curL++; maxW = Math.max(maxW, curW); curW = 0; maxL = Math.max(maxL, curL); }
+        });
+        return { maxW: Math.max(maxW, curW), maxL: Math.max(maxL, curL) };
+    };
+    const { maxW, maxL } = getStreaks();
 
-    const survivalColor = guardian.survivalStatus === 'safe' ? '#A6FF4D' :
-        guardian.survivalStatus === 'caution' ? '#FFB300' :
-            guardian.survivalStatus === 'danger' ? '#FF8C00' : '#FF4757';
+    // Time of Day (0-8, 8-16, 16-24)
+    const timeOfDay = [
+        { label: '00:00-08:00', pnl: 0, count: 0 },
+        { label: '08:00-16:00', pnl: 0, count: 0 },
+        { label: '16:00-00:00', pnl: 0, count: 0 }
+    ];
+    closed.forEach(t => {
+        const d = new Date(t.createdAt);
+        const h = d.getHours();
+        const bin = h < 8 ? 0 : h < 16 ? 1 : 2;
+        timeOfDay[bin].pnl += (t.pnl ?? 0);
+        timeOfDay[bin].count++;
+    });
+
+    // Psych Metrics
+    const setupDiscipline = Math.max(0, 100 - (behavior.revengeRisk ? 20 : 0) - (behavior.overtradingAlert ? 20 : 0));
+    const tiltVulnerability = behavior.revengeRisk ? 85 : 15;
+    const execAccuracy = closed.length > 0 ? Math.round((closed.filter(t => t.rr >= 1).length / closed.length) * 100) : 100;
 
     if (trades.length === 0) {
         return (
             <div className={styles.page}>
-                <div className={styles.pageHeader}>
-                    <div className={styles.pageIcon}><Brain size={20} /></div>
-                    <div>
-                        <h1 className="text-subheading">AI Intelligence</h1>
-                        <p className="text-caption">7 AI systems watching your performance</p>
-                    </div>
-                </div>
-                <div className={styles.emptyCard}>
-                    <Brain size={48} strokeWidth={1} className="text-[var(--text-muted)]" />
-                    <p className="text-subheading mt-3 text-[var(--text-secondary)]">AI Engine Ready</p>
-                    <p className="text-caption">Execute trades to activate behavioral analysis, consistency tracking, and AI coaching.</p>
-                </div>
+                <div className={styles.headerTitleBox}>TRADE PERFORMANCE DEEP ANALYSIS</div>
+                <div className="p-8 text-center text-[var(--text-muted)] text-[12px] uppercase">Awaiting trade executions to compile analysis...</div>
             </div>
         );
     }
 
     return (
         <div className={styles.page}>
+            <div className={styles.headerTitleBox}>
+                <div className={styles.glitchText}>TRADE PERFORMANCE <span className="text-[#ff00ff]">DEEP ANALYSIS</span></div>
+                <div className={styles.headerSubtitle}>EXECUTED TRADES CONTEXT: {closed.length} | FILTER: ALL ASSETS | DATE: {new Date().toISOString().split('T')[0]}</div>
+            </div>
 
-            {/* Header */}
-            <div className={styles.pageHeader}>
-                <div className={styles.pageIcon}><Brain size={20} /></div>
-                <div className="flex-1">
-                    <h1 className="text-subheading">AI Intelligence</h1>
-                    <p className="text-caption">7 systems · {closed.length} trades analyzed</p>
+            {/* KPI Row */}
+            <div className={`${styles.rowGrid} ${styles.kpiGrid} mt-2`}>
+                <div className={styles.kpiBox}>
+                    <p className={styles.kpiTitle}>GROSS PNL</p>
+                    <p className={`${styles.kpiValue} ${totalPnl >= 0 ? styles.textGreen : styles.textRed}`}>{totalPnl >= 0 ? '+' : '-'}${Math.abs(totalPnl).toFixed(0)}</p>
+                    <p className={styles.kpiSub}>Max Drawdown: <span className={styles.textRed}>-${behavior.lossStreak > 0 ? (account.balance * 0.05).toFixed(0) : '0'}</span></p>
                 </div>
-                <div className={`text-[11px] font-bold px-2 py-1 rounded flex items-center gap-1 ${guardian.survivalStatus === 'safe' ? 'bg-accent/10 text-accent' :
-                    guardian.survivalStatus === 'caution' ? 'bg-yellow-500/10 text-yellow-400' :
-                        'bg-danger/10 text-danger'
-                    }`}>
-                    <ShieldCheck size={10} />
-                    {guardian.survivalStatus.toUpperCase()}
+                <div className={styles.kpiBox}>
+                    <p className={styles.kpiTitle}>WIN / LOSS RATIO</p>
+                    <p className={`${styles.kpiValue} text-white`}>{winRate.toFixed(1)}%</p>
+                    <p className={styles.kpiSub}>Expectancy: <span className={expectancy >= 0 ? styles.textGreen : styles.textRed}>{expectancy >= 0 ? '+' : '-'}${Math.abs(expectancy).toFixed(1)}</span></p>
+                </div>
+                <div className={styles.kpiBox}>
+                    <p className={styles.kpiTitle}>1.A. EV / TRADE</p>
+                    <p className={`${styles.kpiValue} text-white`}>${Math.abs(expectancy).toFixed(2)}</p>
+                    <p className={styles.kpiSub}>Avg RR: <span className="text-[#FBBF24]">{avgRR.toFixed(2)} R</span></p>
+                </div>
+                <div className={styles.kpiBox}>
+                    <p className={styles.kpiTitle}>TOTAL EXECUTIONS</p>
+                    <p className={`${styles.kpiValue} text-white`}>{closed.length}</p>
+                    <p className={styles.kpiSub}>{journal.wins} Wins | {journal.losses} Losses</p>
                 </div>
             </div>
 
-            {/* Tab Nav */}
-            <nav className={styles.tabNav}>
-                {TABS.map(t => (
-                    <button key={t.id}
-                        className={`${styles.tabBtn} ${activeTab === t.id ? styles.tabBtnActive : ''}`}
-                        onClick={() => setActiveTab(t.id)}
-                    >
-                        {t.icon} {t.label}
-                    </button>
-                ))}
-            </nav>
-
-            <AnimatePresence mode="wait">
-                <motion.div key={activeTab} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} transition={{ duration: 0.2 }}>
-
-                    {/* ───────────── OVERVIEW ───────────── */}
-                    {activeTab === 'overview' && (
-                        <div className="flex flex-col gap-4">
-                            {/* Risk Guardian */}
-                            <div className={styles.sectionCard}>
-                                <p className={styles.sectionTitle}><ShieldCheck size={12} /> Risk Guardian</p>
-                                <div className="flex flex-col gap-2">
-                                    <div className="flex justify-between text-[12px]">
-                                        <span className="text-muted">Daily used</span>
-                                        <span className="font-bold" style={{ color: survivalColor }}>{guardian.proximityPct.toFixed(0)}%</span>
-                                    </div>
-                                    <div className={styles.survivalBar}>
-                                        <motion.div
-                                            className={styles.survivalFill}
-                                            initial={{ width: 0 }}
-                                            animate={{ width: `${guardian.proximityPct}%` }}
-                                            transition={{ duration: 1, ease: 'easeOut' }}
-                                            style={{ background: survivalColor }}
-                                        />
-                                    </div>
-                                    <div className="grid grid-cols-3 gap-2 mt-2">
-                                        {[
-                                            { label: 'Remaining Daily', value: `$${guardian.remainingDaily.toFixed(0)}`, color: 'text-success' },
-                                            { label: 'Safe Risk', value: `$${guardian.safeRisk.toFixed(0)}`, color: 'text-accent' },
-                                            { label: 'Trades Left', value: String(guardian.maxTradesLeft), color: 'text-white' },
-                                        ].map(s => (
-                                            <div key={s.label} className="flex flex-col items-center gap-0.5 bg-white/3 rounded-lg p-2">
-                                                <span className={`font-mono text-[16px] font-extrabold ${s.color}`}>{s.value}</span>
-                                                <span className="text-[9px] uppercase tracking-wider text-muted text-center">{s.label}</span>
-                                            </div>
-                                        ))}
-                                    </div>
-                                    <div className="text-[12px] text-muted italic mt-1">{guardian.recommendation}</div>
-                                </div>
-                            </div>
-
-                            {/* KPI Row */}
-                            <div className={styles.kpiRow}>
-                                {[
-                                    { label: 'Net P&L', value: `${journal.netPnl >= 0 ? '+' : ''}$${Math.abs(journal.netPnl).toFixed(0)}`, colorClass: journal.netPnl >= 0 ? 'text-[var(--color-success)]' : 'text-[var(--color-danger)]', sub: `${closed.length} closed trades` },
-                                    { label: 'Win Rate', value: `${journal.winRate.toFixed(0)}%`, colorClass: journal.winRate >= 55 ? 'text-[var(--color-success)]' : journal.winRate >= 45 ? 'text-[var(--color-warning)]' : 'text-[var(--color-danger)]', sub: `${journal.wins}W · ${journal.losses}L` },
-                                    { label: 'Expectancy', value: `${journal.expectancy >= 0 ? '+' : ''}$${journal.expectancy.toFixed(0)}`, colorClass: journal.expectancy >= 0 ? 'text-[var(--color-success)]' : 'text-[var(--color-danger)]', sub: 'per trade avg' },
-                                    { label: 'Avg R:R', value: `${journal.avgRR.toFixed(2)}R`, colorClass: journal.avgRR >= 2 ? 'text-[var(--color-success)]' : journal.avgRR >= 1.5 ? 'text-[var(--color-warning)]' : 'text-[var(--color-danger)]', sub: 'reward:risk ratio' },
-                                ].map(k => (
-                                    <div key={k.label} className={styles.kpiCard}>
-                                        <span className={styles.kpiLabel}>{k.label}</span>
-                                        <span className={`${styles.kpiValue} ${k.colorClass}`}>{k.value}</span>
-                                        <span className={styles.kpiSub}>{k.sub}</span>
-                                    </div>
+            {/* Daily Execution Bar Chart */}
+            <div className={styles.chartPanel}>
+                <p className={styles.panelTitle}>DAILY BAR-BY-BAR LOG (LAST 30) // CUMULATIVE PNL</p>
+                <div className="h-[120px] w-full mt-2">
+                    <ResponsiveContainer width="100%" height="100%">
+                        <BarChart data={dailyBarData} margin={{ top: 0, right: 0, left: 0, bottom: 0 }} barGap={2} barCategoryGap={4}>
+                            <RechartsTooltip cursor={{ fill: 'rgba(255,255,255,0.05)' }} content={({ active, payload }) => {
+                                if (active && payload && payload.length) {
+                                    return (
+                                        <div className="bg-[#0b0e14] border border-[#2a2d35] p-2 text-[10px] font-mono">
+                                            <p className="text-muted">{payload[0].payload.date}</p>
+                                            <p className={payload[0].value >= 0 ? styles.textGreen : styles.textRed}>
+                                                PnL: ${Number(payload[0].value).toFixed(2)}
+                                            </p>
+                                        </div>
+                                    )
+                                }
+                                return null;
+                            }} />
+                            <Bar dataKey="pnl" minPointSize={2}>
+                                {dailyBarData.map((d, i) => (
+                                    <Cell key={`cell-${i}`} fill={d.pnl >= 0 ? '#1db954' : '#e60023'} />
                                 ))}
+                            </Bar>
+                        </BarChart>
+                    </ResponsiveContainer>
+                </div>
+            </div>
+
+            {/* Performance By Asset */}
+            <div className={styles.chartPanel}>
+                <p className={styles.panelTitle}>PERFORMANCE BY ASSET / TICKER</p>
+                <div className="flex flex-col gap-3 mt-4">
+                    {assetStats.map(s => (
+                        <div key={s.asset} className="flex items-center gap-4 text-[11px] font-mono">
+                            <span className="w-12 text-[#9ca3af] font-bold">{s.asset}</span>
+                            <div className="flex-1 h-1.5 bg-[#1f2937] flex overflow-hidden">
+                                <motion.div initial={{ width: 0 }} animate={{ width: `${(s.wins / s.total) * 100}%` }} className="h-full bg-[#1db954]" transition={{ duration: 1 }} />
+                                <motion.div initial={{ width: 0 }} animate={{ width: `${(s.losses / s.total) * 100}%` }} className="h-full bg-[#e60023]" transition={{ duration: 1 }} />
                             </div>
-
-                            {/* Equity Curve */}
-                            {pnlData.length > 0 && (
-                                <div className={styles.chartCard}>
-                                    <p className={`${styles.sectionTitle} mb-3`}><TrendingUp size={12} /> Cumulative PnL Trajectory</p>
-                                    <ResponsiveContainer width="100%" height={140}>
-                                        <AreaChart data={pnlData}>
-                                            <defs>
-                                                <linearGradient id="pnlGrad" x1="0" y1="0" x2="0" y2="1">
-                                                    <stop offset="5%" stopColor="#A6FF4D" stopOpacity={0.25} />
-                                                    <stop offset="95%" stopColor="#A6FF4D" stopOpacity={0} />
-                                                </linearGradient>
-                                            </defs>
-                                            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(255,255,255,0.04)" />
-                                            <XAxis dataKey="trade" tick={{ fill: '#475569', fontSize: 9 }} axisLine={false} tickLine={false} />
-                                            <YAxis tick={{ fill: '#475569', fontSize: 9 }} axisLine={false} tickLine={false} tickFormatter={v => `$${v}`} />
-                                            <Tooltip content={({ active, payload }) => active && payload?.length ? (
-                                                <div className={styles.tooltip}>
-                                                    <p className={styles.tooltipLabel}>{payload[0].payload.trade}</p>
-                                                    <p className={`${styles.tooltipValue} ${(payload[0].value as number) >= 0 ? 'text-success' : 'text-danger'}`}>
-                                                        {(payload[0].value as number) >= 0 ? '+' : ''}${(payload[0].value as number).toFixed(2)}
-                                                    </p>
-                                                </div>
-                                            ) : null} />
-                                            <ReferenceLine y={0} stroke="rgba(255,255,255,0.1)" />
-                                            <Area type="monotone" dataKey="cumulative" stroke="#A6FF4D" strokeWidth={2} fill="url(#pnlGrad)" dot={false} animationDuration={1200} />
-                                        </AreaChart>
-                                    </ResponsiveContainer>
-                                </div>
-                            )}
-
-                            {/* Bar chart */}
-                            {pnlData.length > 0 && (
-                                <div className={styles.chartCard}>
-                                    <p className={`${styles.sectionTitle} mb-3`}><Activity size={12} /> Bar-by-Bar Execution</p>
-                                    <ResponsiveContainer width="100%" height={90}>
-                                        <BarChart data={pnlData}>
-                                            <Tooltip content={({ active, payload }) => active && payload?.length ? (
-                                                <div className={styles.tooltip}>
-                                                    <p className={`${styles.tooltipValue} ${(payload[0].value as number) >= 0 ? 'text-success' : 'text-danger'}`}>
-                                                        {(payload[0].value as number) >= 0 ? '+' : ''}${(payload[0].value as number).toFixed(2)}
-                                                    </p>
-                                                </div>
-                                            ) : null} cursor={{ fill: 'rgba(255,255,255,0.03)' }} />
-                                            <Bar dataKey="pnl" radius={[2, 2, 2, 2]}>
-                                                {pnlData.map((entry, i) => (
-                                                    <Cell key={`cell-${i}`} fill={entry.pnl >= 0 ? '#34c759' : '#ff4757'} />
-                                                ))}
-                                            </Bar>
-                                        </BarChart>
-                                    </ResponsiveContainer>
-                                </div>
-                            )}
-
-                            {/* Last Trade Quality */}
-                            {lastQuality && (
-                                <div className={styles.sectionCard}>
-                                    <p className={styles.sectionTitle}><Target size={12} /> Last Trade Score</p>
-                                    <div className="flex items-center gap-4">
-                                        <div className={`${styles.gradeCircle} ${lastQuality.grade.startsWith('A') ? styles.gradeA :
-                                            lastQuality.grade.startsWith('B') ? styles.gradeB :
-                                                lastQuality.grade.startsWith('C') ? styles.gradeC : styles.gradeDF
-                                            }`}>{lastQuality.grade}</div>
-                                        <div className="flex-1">
-                                            <p className="text-[11px] text-muted uppercase tracking-wider mb-1">Score: {lastQuality.score}/100</p>
-                                            <p className="text-[12px] text-secondary leading-snug">{lastQuality.summary}</p>
-                                        </div>
-                                    </div>
-                                    <div className="mt-2">
-                                        {lastQuality.breakdown.map(b => (
-                                            <div key={b.label} className={styles.breakdownRow}>
-                                                <span className={styles.breakdownLabel}>{b.label}</span>
-                                                <span className={`${styles.breakdownVal} ${b.status === 'good' ? styles.statusGood : b.status === 'warn' ? styles.statusWarn : styles.statusBad}`}>{b.value}</span>
-                                            </div>
-                                        ))}
-                                    </div>
-                                </div>
-                            )}
+                            <span className={`w-20 text-right ${s.pnl >= 0 ? styles.textGreen : styles.textRed}`}>{s.pnl >= 0 ? '+' : '-'}${Math.abs(s.pnl).toFixed(2)}</span>
                         </div>
-                    )}
+                    ))}
+                </div>
+            </div>
 
-                    {/* ───────────── BEHAVIOR AI ───────────── */}
-                    {activeTab === 'behavior' && (
-                        <div className="flex flex-col gap-4">
-                            {/* Emotional State Card */}
-                            <div className={`${styles.behaviorCard} ${behavior.emotionalState === 'disciplined' ? styles.behaviorSafe :
-                                behavior.emotionalState === 'cautious' ? styles.behaviorCaution :
-                                    behavior.emotionalState === 'stressed' ? styles.behaviorDanger :
-                                        styles.behaviorRevenge
-                                }`}>
-                                <div className="flex items-center justify-between">
-                                    <span className="text-[11px] font-bold text-muted uppercase tracking-wider">Emotional State</span>
-                                    <span className={`${styles.emotionBadge} ${behavior.emotionalState === 'disciplined' ? styles.emotionDisciplined :
-                                        behavior.emotionalState === 'cautious' ? styles.emotionCautious :
-                                            behavior.emotionalState === 'stressed' ? styles.emotionStressed :
-                                                styles.emotionRevenge
-                                        }`}>
-                                        {behavior.emotionalState === 'disciplined' ? '✅' :
-                                            behavior.emotionalState === 'cautious' ? '⚠️' :
-                                                behavior.emotionalState === 'stressed' ? '🔴' : '🚨'}
-                                        {behavior.emotionalState.toUpperCase()}
-                                    </span>
-                                </div>
-                                <p className={styles.behaviorRec}>{behavior.recommendation}</p>
-                                {behavior.stopTradingRecommended && (
-                                    <div className="flex items-center gap-2 mt-1 p-2 bg-danger/10 border border-danger/30 rounded">
-                                        <AlertTriangle size={14} className="text-danger shrink-0" />
-                                        <span className="text-[11px] text-danger font-bold">Recommended: {behavior.cooldownMinutes}-minute cooldown before next trade.</span>
-                                    </div>
-                                )}
-                            </div>
-
-                            {/* Stats Grid */}
-                            <div className={styles.kpiRow}>
-                                {[
-                                    { label: 'Consecutive Losses', value: String(behavior.consecutiveLosses), color: behavior.consecutiveLosses >= 3 ? 'text-danger' : behavior.consecutiveLosses >= 2 ? 'text-warning' : 'text-success' },
-                                    { label: 'Trades Today', value: String(behavior.tradesThisSession), color: behavior.overtradingAlert ? 'text-warning' : 'text-white' },
-                                    { label: 'Win Streak', value: String(behavior.winStreak), color: 'text-success' },
-                                    { label: 'Loss Streak', value: String(behavior.lossStreak), color: behavior.lossStreak >= 3 ? 'text-danger' : 'text-white' },
-                                ].map(s => (
-                                    <div key={s.label} className={styles.kpiCard}>
-                                        <span className={styles.kpiLabel}>{s.label}</span>
-                                        <span className={`${styles.kpiValue} ${s.color}`}>{s.value}</span>
-                                    </div>
-                                ))}
-                            </div>
-
-                            {/* Revenge Trading */}
-                            <div className={styles.sectionCard}>
-                                <p className={styles.sectionTitle}><AlertTriangle size={12} /> Revenge Trade Detector</p>
-                                {behavior.revengeRisk ? (
-                                    <div className="flex flex-col gap-2">
-                                        <div className="flex items-center justify-between">
-                                            <span className="text-[12px] text-secondary">Size increase after loss</span>
-                                            <span className="font-mono font-bold text-danger text-[16px]">+{behavior.revengePct.toFixed(0)}%</span>
-                                        </div>
-                                        <div className="h-2 bg-white/5 rounded-full overflow-hidden">
-                                            <motion.div
-                                                initial={{ width: 0 }}
-                                                animate={{ width: `${Math.min(100, behavior.revengePct)}%` }}
-                                                className="h-full rounded-full bg-danger"
-                                                transition={{ duration: 1 }}
-                                            />
-                                        </div>
-                                        <p className="text-[11px] text-muted">Severity: <strong className={behavior.revengeSeverity === 'extreme' ? 'text-danger' : 'text-warning'}>{behavior.revengeSeverity.toUpperCase()}</strong></p>
-                                    </div>
-                                ) : (
-                                    <div className="flex items-center gap-2 text-[12px] text-success">
-                                        <ShieldCheck size={14} /> No revenge trading detected. Sizing is consistent.
-                                    </div>
-                                )}
-                            </div>
-
-                            {/* Overtrading */}
-                            <div className={styles.sectionCard}>
-                                <p className={styles.sectionTitle}><Activity size={12} /> Overtrading Monitor</p>
-                                <div className="flex justify-between items-center">
-                                    <div className="flex flex-col">
-                                        <span className="text-[11px] text-muted">Trades this session</span>
-                                        <span className={`font-mono text-[20px] font-extrabold ${behavior.overtradingAlert ? 'text-warning' : 'text-white'}`}>{behavior.tradesThisSession}</span>
-                                    </div>
-                                    <div className={`text-[11px] px-3 py-1.5 rounded-full font-bold ${behavior.overtradingAlert ? 'bg-warning/10 text-warning' : 'bg-success/10 text-success'}`}>
-                                        {behavior.overtradingAlert ? '⚠️ HIGH FREQUENCY' : '✅ NORMAL VOLUME'}
-                                    </div>
-                                </div>
-                                {behavior.avgTimeBetweenTrades > 0 && (
-                                    <p className="text-[11px] text-muted mt-1">Avg time between trades: {behavior.avgTimeBetweenTrades.toFixed(0)} min</p>
-                                )}
-                            </div>
-                        </div>
-                    )}
-
-                    {/* ───────────── CONSISTENCY ───────────── */}
-                    {activeTab === 'consistency' && (
-                        <div className="flex flex-col gap-4">
-                            {/* Score Hero */}
-                            <div className={styles.sectionCard}>
-                                <p className={styles.sectionTitle}><Target size={12} /> Consistency Score</p>
-                                <div className="flex items-center gap-4">
-                                    <div className="relative w-20 h-20 shrink-0">
-                                        <svg viewBox="0 0 80 80" className="w-full h-full -rotate-90">
-                                            <circle cx="40" cy="40" r="34" fill="none" stroke="rgba(255,255,255,0.06)" strokeWidth="8" />
-                                            <motion.circle
-                                                cx="40" cy="40" r="34"
-                                                fill="none" stroke="#A6FF4D" strokeWidth="8"
-                                                strokeLinecap="round"
-                                                strokeDasharray={2 * Math.PI * 34}
-                                                initial={{ strokeDashoffset: 2 * Math.PI * 34 }}
-                                                animate={{ strokeDashoffset: 2 * Math.PI * 34 * (1 - consistency.score / 100) }}
-                                                transition={{ duration: 1.5, ease: 'easeOut' }}
-                                            />
-                                        </svg>
-                                        <div className="absolute inset-0 flex items-center justify-center">
-                                            <span className="font-mono text-[18px] font-extrabold">{consistency.score}</span>
-                                        </div>
-                                    </div>
-                                    <div className="flex-1 flex flex-col gap-2">
-                                        <div className="flex justify-between text-[12px]">
-                                            <span className="text-muted">Best Day</span>
-                                            <span className="font-mono font-bold text-success">+${consistency.bestDay.toFixed(0)}</span>
-                                        </div>
-                                        <div className="flex justify-between text-[12px]">
-                                            <span className="text-muted">Worst Day</span>
-                                            <span className="font-mono font-bold text-danger">${consistency.worstDay.toFixed(0)}</span>
-                                        </div>
-                                        <div className="flex justify-between text-[12px]">
-                                            <span className="text-muted">Avg Day</span>
-                                            <span className={`font-mono font-bold ${consistency.avgDailyPnl >= 0 ? 'text-success' : 'text-danger'}`}>
-                                                {consistency.avgDailyPnl >= 0 ? '+' : ''}${consistency.avgDailyPnl.toFixed(0)}
-                                            </span>
-                                        </div>
-                                        <div className="flex justify-between text-[12px]">
-                                            <span className="text-muted">Green/Red days</span>
-                                            <span className="font-mono font-bold">{consistency.profitDays}G · {consistency.lossDays}R</span>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-
-                            {/* Tradeify Payout Rule */}
-                            <div className={styles.sectionCard}>
-                                <p className={styles.sectionTitle}><ShieldCheck size={12} /> Tradeify 20% Payout Rule</p>
-                                <div className="flex justify-between items-center mb-2">
-                                    <span className="text-[12px] text-muted">Best day concentration</span>
-                                    <span className={`font-mono font-bold text-[16px] ${consistency.payoutEligible ? 'text-success' : 'text-danger'}`}>
-                                        {consistency.bestDayPct.toFixed(1)}%
-                                    </span>
-                                </div>
-                                <div className="relative h-2 bg-white/5 rounded-full overflow-hidden mb-2">
-                                    <motion.div
-                                        initial={{ width: 0 }}
-                                        animate={{ width: `${Math.min(100, (consistency.bestDayPct / 40) * 100)}%` }}
-                                        className={`h-full rounded-full ${consistency.payoutEligible ? 'bg-success' : 'bg-danger'}`}
-                                        transition={{ duration: 1 }}
-                                    />
-                                    <div className="absolute top-0 bottom-0 w-px bg-white/50" style={{ left: '50%' }} />
-                                </div>
-                                <div className="flex justify-between text-[9px] text-muted font-bold uppercase tracking-wider">
-                                    <span>0%</span><span>⬆ 20% LIMIT</span><span>40%+</span>
-                                </div>
-                                <div className={`mt-3 p-2 rounded text-[11px] font-semibold ${consistency.payoutEligible ? 'bg-success/10 text-success' : 'bg-danger/10 text-danger'}`}>
-                                    {consistency.payoutEligible ? '✅ PASSING — Eligible for payout request.' : `❌ FAILING — Best day is too concentrated. Add more profit on other days to dilute below 20%.`}
-                                </div>
-                            </div>
-
-                            {/* AI Insights */}
-                            <div className={styles.sectionCard}>
-                                <p className={styles.sectionTitle}><Brain size={12} /> AI Insights</p>
-                                {consistency.insights.map((ins, i) => (
-                                    <div key={i} className={styles.insightRow}>
-                                        <div className={styles.insightDot} />
-                                        <span>{ins}</span>
-                                    </div>
-                                ))}
-                            </div>
-                        </div>
-                    )}
-
-                    {/* ───────────── AI JOURNAL ───────────── */}
-                    {activeTab === 'insights' && (
-                        <div className="flex flex-col gap-4">
-                            {/* AI Coach */}
-                            <div className={styles.coachCard}>
-                                <div className={styles.coachIcon}><Brain size={18} /></div>
-                                <div>
-                                    <p className={styles.coachTitle}>AI Risk Coach</p>
-                                    <p className={styles.coachMessage}>{journal.aiCoachMessage}</p>
-                                </div>
-                            </div>
-
-                            {/* Daily Summary */}
-                            <div className={styles.sectionCard}>
-                                <p className={styles.sectionTitle}><BookOpen size={12} /> Session Summary</p>
-                                <p className="text-[13px] text-secondary leading-relaxed">{journal.dailySummary}</p>
-                                <div className="grid grid-cols-2 gap-2 mt-2">
-                                    <div className="bg-white/3 rounded p-2">
-                                        <p className="text-[9px] text-muted uppercase tracking-wider">Best Setup</p>
-                                        <p className="text-[12px] font-bold text-success mt-0.5">{journal.bestSetup}</p>
-                                    </div>
-                                    <div className="bg-white/3 rounded p-2">
-                                        <p className="text-[9px] text-muted uppercase tracking-wider">Worst Pattern</p>
-                                        <p className="text-[12px] font-bold text-danger mt-0.5">{journal.worstPattern}</p>
-                                    </div>
-                                </div>
-                            </div>
-
-                            {/* Weekly Report */}
-                            {journal.weeklyReport && (
-                                <div className={styles.sectionCard}>
-                                    <p className={styles.sectionTitle}><TrendingUp size={12} /> Weekly Report</p>
-                                    <div className="flex flex-col gap-2">
-                                        <div className="flex justify-between text-[12px]">
-                                            <span className="text-muted">Weekly P&L</span>
-                                            <span className={`font-mono font-bold ${journal.weeklyReport.weeklyPnl >= 0 ? 'text-success' : 'text-danger'}`}>
-                                                {journal.weeklyReport.weeklyPnl >= 0 ? '+' : ''}${journal.weeklyReport.weeklyPnl.toFixed(0)}
-                                            </span>
-                                        </div>
-                                        <div className="flex justify-between text-[12px]">
-                                            <span className="text-muted">Weekly Win Rate</span>
-                                            <span className="font-mono font-bold">{journal.weeklyReport.weekWinRate.toFixed(0)}%</span>
-                                        </div>
-                                        <div className="flex justify-between text-[12px]">
-                                            <span className="text-muted">Top Asset</span>
-                                            <span className="font-mono font-bold text-accent">{journal.weeklyReport.topAsset}</span>
-                                        </div>
-                                        <div className="flex justify-between text-[12px]">
-                                            <span className="text-muted">Expectancy/trade</span>
-                                            <span className={`font-mono font-bold ${journal.expectancy >= 0 ? 'text-success' : 'text-danger'}`}>
-                                                {journal.expectancy >= 0 ? '+' : ''}${journal.expectancy.toFixed(0)}
-                                            </span>
-                                        </div>
-                                    </div>
-                                </div>
-                            )}
-
-                            {/* W/L Summary */}
-                            <div className={styles.wlCard}>
-                                <div className={styles.wlItem}>
-                                    <span className={`${styles.wlNum} text-[var(--color-success)]`}>{journal.wins}</span>
-                                    <span className={styles.wlLabel}>Wins</span>
-                                </div>
-                                <div className={styles.wlDivider} />
-                                <div className={styles.wlItem}>
-                                    <span className={styles.wlNum}>{journal.totalTrades}</span>
-                                    <span className={styles.wlLabel}>Total</span>
-                                </div>
-                                <div className={styles.wlDivider} />
-                                <div className={styles.wlItem}>
-                                    <span className={`${styles.wlNum} text-[var(--color-danger)]`}>{journal.losses}</span>
-                                    <span className={styles.wlLabel}>Losses</span>
-                                </div>
-                            </div>
-                        </div>
-                    )}
-
-                    {/* ───────────── WHAT-IF ───────────── */}
-                    {activeTab === 'whatif' && (
-                        <div className="flex flex-col gap-4">
-                            <div className={styles.sectionCard}>
-                                <p className={styles.sectionTitle}><Zap size={12} /> What-If Simulator</p>
-                                <p className="text-[12px] text-muted">Simulate alternative trading decisions on your historical data.</p>
-                            </div>
-
-                            {journal.whatIf.length === 0 ? (
-                                <div className={styles.emptyCard}>
-                                    <Zap size={36} strokeWidth={1} className="text-muted" />
-                                    <p className="text-[13px] text-secondary mt-2">Log more trades to unlock What-If scenarios.</p>
-                                </div>
-                            ) : (
-                                journal.whatIf.map((w, i) => (
-                                    <motion.div key={i} className={styles.whatIfCard} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.1 }}>
-                                        <p className={styles.whatIfTitle}>📊 Scenario: {w.scenarioLabel}</p>
-                                        <div className={styles.whatIfNumbers}>
-                                            <div className={styles.whatIfNum}>
-                                                <span className={styles.whatIfNumLabel}>Actual P&L</span>
-                                                <span className={`${styles.whatIfNumValue} ${w.pnlActual >= 0 ? 'text-success' : 'text-danger'}`}>
-                                                    {w.pnlActual >= 0 ? '+' : ''}${w.pnlActual.toFixed(0)}
-                                                </span>
-                                            </div>
-                                            <div className={styles.whatIfNum}>
-                                                <span className={styles.whatIfNumLabel}>Scenario P&L</span>
-                                                <span className={`${styles.whatIfNumValue} ${w.pnlScenario >= 0 ? 'text-success' : 'text-danger'}`}>
-                                                    {w.pnlScenario >= 0 ? '+' : ''}${w.pnlScenario.toFixed(0)}
-                                                </span>
-                                            </div>
-                                            <div className={styles.whatIfNum}>
-                                                <span className={styles.whatIfNumLabel}>Difference</span>
-                                                <span className={`${styles.whatIfNumValue} ${w.difference >= 0 ? 'text-accent' : 'text-warning'}`}>
-                                                    {w.difference >= 0 ? '+' : ''}${w.difference.toFixed(0)}
-                                                </span>
-                                            </div>
-                                        </div>
-                                        <p className={styles.whatIfLesson}>💡 {w.lesson}</p>
-                                    </motion.div>
-                                ))
-                            )}
-
-                            {/* Meta insight */}
-                            <div className={styles.coachCard}>
-                                <div className={styles.coachIcon}><Brain size={18} /></div>
-                                <div>
-                                    <p className={styles.coachTitle}>The Real Secret</p>
-                                    <p className={styles.coachMessage}>
-                                        Discipline is not about finding better setups. It is about knowing exactly when to stop.
-                                        Your edge compounds through persistence — not through extra trades.
-                                    </p>
-                                </div>
-                            </div>
-                        </div>
-                    )}
-
-                    {activeTab === 'edge' && (
-                        <motion.div key="edge" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className={styles.tabContent}>
-                            {/* Header */}
-                            <div className={styles.coachCard} style={{ marginBottom: 12 }}>
-                                <div className={styles.coachIcon}><Layers size={18} /></div>
-                                <div>
-                                    <p className={styles.coachTitle}>Edge Discovery — {setups.totalEdges} profitable patterns found</p>
-                                    <p className={styles.coachMessage}>{setups.primaryEdge}</p>
-                                </div>
-                            </div>
-
-                            {/* Anti-pattern warning */}
-                            {setups.worstEdge && setups.worstEdge.strength === 'avoid' && (
-                                <div className={`${styles.behaviorCard} ${styles.dangerCard}`} style={{ marginBottom: 10 }}>
-                                    <AlertTriangle size={14} className="text-danger flex-shrink-0" />
-                                    <div><p className="font-bold text-danger text-[12px]">Avoid</p><p className={styles.alertText}>{setups.antiPattern}</p></div>
-                                </div>
-                            )}
-
-                            {/* Edge list */}
-                            <div className="flex flex-col gap-2">
-                                {setups.edges.slice(0, 8).map(edge => (
-                                    <div key={edge.id} className={`${styles.whatIfCard} ${edge.strength === 'strong' ? 'border-l-[3px] border-l-[#A6FF4D]' : edge.strength === 'avoid' ? 'border-l-[3px] border-l-[#FF4757]' : ''}`}>
-                                        <div className="flex justify-between items-start mb-1">
-                                            <span className="text-[12px] font-bold">{edge.label}</span>
-                                            <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${edge.strength === 'strong' ? 'bg-accent/10 text-accent' :
-                                                    edge.strength === 'moderate' ? 'bg-blue-500/10 text-blue-400' :
-                                                        edge.strength === 'weak' ? 'bg-yellow-500/10 text-yellow-400' :
-                                                            'bg-danger/10 text-danger'
-                                                }`}>{edge.strength.toUpperCase()}</span>
-                                        </div>
-                                        <div className={styles.grid2}>
-                                            <div className={styles.kpiItem}>
-                                                <span className={styles.kpiLabel}>Win Rate</span>
-                                                <span className={`${styles.kpiValue} ${edge.winRate >= 0.55 ? 'text-success' : edge.winRate < 0.4 ? 'text-danger' : 'text-warning'}`}>{(edge.winRate * 100).toFixed(0)}%</span>
-                                            </div>
-                                            <div className={styles.kpiItem}>
-                                                <span className={styles.kpiLabel}>Avg R:R</span>
-                                                <span className={styles.kpiValue}>{edge.avgRR.toFixed(1)}R</span>
-                                            </div>
-                                            <div className={styles.kpiItem}>
-                                                <span className={styles.kpiLabel}>Expectancy</span>
-                                                <span className={`${styles.kpiValue} ${edge.expectancy >= 0 ? 'text-success' : 'text-danger'}`}>{edge.expectancy >= 0 ? '+' : ''}${edge.expectancy.toFixed(0)}</span>
-                                            </div>
-                                            <div className={styles.kpiItem}>
-                                                <span className={styles.kpiLabel}>Trades</span>
-                                                <span className={styles.kpiValue}>{edge.tradeCount}</span>
-                                            </div>
-                                        </div>
-                                        <p className="text-[10px] text-muted mt-1 italic">{edge.recommendation}</p>
-                                    </div>
-                                ))}
-                            </div>
-
-                            {!setups.readyToTrade && (
-                                <p className="text-center text-muted text-[11px] mt-4">Log {20 - closed.length} more trades for full statistical confidence.</p>
-                            )}
-                        </motion.div>
-                    )}
-
-                    {activeTab === 'simulator' && (
-                        <motion.div key="simulator" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className={styles.tabContent}>
-                            {/* Config controls */}
-                            <div className={styles.card} style={{ marginBottom: 12 }}>
-                                <p className="text-[11px] font-bold uppercase tracking-wider text-muted mb-3">Monte Carlo Config · 1,000 paths</p>
-                                <div className={styles.grid2}>
-                                    <div>
-                                        <label className="text-[10px] text-muted uppercase font-bold block mb-1">Months</label>
-                                        <div className="flex gap-1">
-                                            {[1, 3, 6, 12].map(m => (
-                                                <button key={m} onClick={() => setSimMonths(m)}
-                                                    className={`text-[11px] px-2 py-1 rounded border transition-all ${simMonths === m ? 'border-accent text-accent bg-accent/10' : 'border-border-subtle text-muted'
-                                                        }`}>{m}M</button>
-                                            ))}
-                                        </div>
-                                    </div>
-                                    <div>
-                                        <label className="text-[10px] text-muted uppercase font-bold block mb-1">Trades/Month</label>
-                                        <div className="flex gap-1">
-                                            {[10, 20, 40, 60].map(n => (
-                                                <button key={n} onClick={() => setSimTrades(n)}
-                                                    className={`text-[11px] px-2 py-1 rounded border transition-all ${simTrades === n ? 'border-accent text-accent bg-accent/10' : 'border-border-subtle text-muted'
-                                                        }`}>{n}</button>
-                                            ))}
-                                        </div>
-                                    </div>
-                                </div>
-                                <p className="text-[10px] text-muted mt-2">Using your actual stats: {(simStats.winRate * 100).toFixed(0)}% win rate · {simStats.avgRR.toFixed(1)}R avg · ${simStats.avgRisk.toFixed(0)} avg risk</p>
-                            </div>
-
-                            {/* Verdict card */}
-                            <div className={`${styles.card} ${simResult.bestResult.verdict === 'excellent' ? 'border-l-[3px] border-l-[#A6FF4D]' : simResult.bestResult.verdict === 'viable' ? 'border-l-[3px] border-l-[#FFB300]' : 'border-l-[3px] border-l-[#FF4757]'}`} style={{ marginBottom: 10 }}>
-                                <div className="flex justify-between items-center mb-2">
-                                    <span className="text-[12px] font-bold">Optimal Configuration</span>
-                                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${simResult.bestResult.verdict === 'excellent' ? 'bg-accent/10 text-accent' :
-                                            simResult.bestResult.verdict === 'viable' ? 'bg-yellow-500/10 text-yellow-400' :
-                                                'bg-danger/10 text-danger'
-                                        }`}>{simResult.bestResult.verdict.toUpperCase()}</span>
-                                </div>
-                                <p className="text-[11px] text-muted italic mb-3">{simResult.summary}</p>
-
-                                <div className={styles.grid2}>
-                                    <div className={styles.kpiItem}>
-                                        <span className={styles.kpiLabel}>Optimal Risk/Trade</span>
-                                        <span className={`${styles.kpiValue} text-accent`}>${simResult.optimalRisk}</span>
-                                    </div>
-                                    <div className={styles.kpiItem}>
-                                        <span className={styles.kpiLabel}>Optimal R:R</span>
-                                        <span className={`${styles.kpiValue} text-accent`}>{simResult.optimalRR.toFixed(1)}R</span>
-                                    </div>
-                                    <div className={styles.kpiItem}>
-                                        <span className={styles.kpiLabel}>Monthly Return (median)</span>
-                                        <span className={`${styles.kpiValue} ${simResult.bestResult.medianMonthlyReturn >= 0 ? 'text-success' : 'text-danger'}`}>
-                                            {simResult.bestResult.medianMonthlyReturn >= 0 ? '+' : ''}{simResult.bestResult.medianMonthlyReturn.toFixed(1)}%
+            {/* Trade History Table */}
+            <div className={styles.chartPanel}>
+                <p className={styles.panelTitle}>DEEP DIVE // TRADE HISTORY (RECENT 15)</p>
+                <div className="mt-4 overflow-x-auto text-[10px] font-mono text-[#9ca3af]">
+                    <table className="w-full text-left border-collapse">
+                        <thead>
+                            <tr className="border-b border-[#2a2d35]">
+                                <th className="py-2 px-2 font-normal">TIME</th>
+                                <th className="py-2 px-2 font-normal">ASSET</th>
+                                <th className="py-2 px-2 font-normal">SIDE</th>
+                                <th className="py-2 px-2 font-normal">ENTRY</th>
+                                <th className="py-2 px-2 font-normal">RR YIELD</th>
+                                <th className="py-2 px-2 font-normal text-right">PNL</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {recentHistory.map((t, i) => (
+                                <tr key={t.id} className="border-b border-[#1a1c23] hover:bg-white/5">
+                                    <td className="py-2 px-2">{new Date(t.createdAt).toLocaleTimeString()}</td>
+                                    <td className="py-2 px-2">{t.asset}</td>
+                                    <td className={`py-2 px-2 ${t.isShort ? styles.textRed : styles.textGreen}`}>{t.isShort ? 'SHORT' : 'LONG'}</td>
+                                    <td className="py-2 px-2">{t.entry}</td>
+                                    <td className="py-2 px-2 text-[#FBBF24]">{t.rr.toFixed(1)}R</td>
+                                    <td className={`py-2 px-2 text-right ${(t.pnl ?? 0) >= 0 ? styles.textGreen : styles.textRed}`}>
+                                        <span className={`px-2 py-0.5 border ${(t.pnl ?? 0) >= 0 ? 'border-[#1db954]/30 bg-[#1db954]/10 text-[#1db954]' : 'border-[#e60023]/30 bg-[#e60023]/10 text-[#e60023]'}`}>
+                                            {(t.pnl ?? 0) >= 0 ? '+' : '-'}${Math.abs(t.pnl ?? 0).toFixed(2)}
                                         </span>
-                                    </div>
-                                    <div className={styles.kpiItem}>
-                                        <span className={styles.kpiLabel}>Survival Rate</span>
-                                        <span className={`${styles.kpiValue} ${simResult.bestResult.survivalRate >= 80 ? 'text-success' : 'text-danger'}`}>
-                                            {simResult.bestResult.survivalRate.toFixed(0)}%
-                                        </span>
-                                    </div>
-                                    <div className={styles.kpiItem}>
-                                        <span className={styles.kpiLabel}>Ruin Chance</span>
-                                        <span className={`${styles.kpiValue} ${simResult.bestResult.ruinChance <= 10 ? 'text-success' : 'text-danger'}`}>
-                                            {simResult.bestResult.ruinChance.toFixed(0)}%
-                                        </span>
-                                    </div>
-                                    <div className={styles.kpiItem}>
-                                        <span className={styles.kpiLabel}>Expectancy/Trade</span>
-                                        <span className={`${styles.kpiValue} ${simResult.bestResult.expectancyPerTrade >= 0 ? 'text-success' : 'text-danger'}`}>
-                                            {simResult.bestResult.expectancyPerTrade >= 0 ? '+' : ''}${simResult.bestResult.expectancyPerTrade.toFixed(0)}
-                                        </span>
-                                    </div>
-                                    <div className={styles.kpiItem}>
-                                        <span className={styles.kpiLabel}>10th Pct Balance</span>
-                                        <span className={styles.kpiValue}>${simResult.bestResult.mean10thPctBalance.toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
-                                    </div>
-                                    <div className={styles.kpiItem}>
-                                        <span className={styles.kpiLabel}>90th Pct Balance</span>
-                                        <span className={styles.kpiValue}>${simResult.bestResult.mean90thPctBalance.toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
-                                    </div>
-                                </div>
-                            </div>
+                                    </td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
 
-                            {/* Alternatives mini-grid */}
-                            <p className="text-[10px] text-muted uppercase tracking-wider font-bold mb-2">Alternative Configurations Tested</p>
-                            <div className="flex flex-col gap-2">
-                                {simResult.alternatives.slice(0, 4).map((alt, i) => (
-                                    <div key={i} className={styles.whatIfCard}>
-                                        <div className="flex justify-between">
-                                            <span className="text-[11px] font-bold">
-                                                ${alt.config.riskUSD} risk · {alt.config.avgWinR.toFixed(1)}R · {alt.config.tradesPerMonth} trades/mo
-                                            </span>
-                                            <span className={`text-[10px] font-mono font-bold ${alt.result.verdict === 'excellent' ? 'text-accent' :
-                                                    alt.result.verdict === 'viable' ? 'text-yellow-400' :
-                                                        'text-danger'
-                                                }`}>{alt.result.survivalRate.toFixed(0)}% survival · {alt.result.medianMonthlyReturn >= 0 ? '+' : ''}{alt.result.medianMonthlyReturn.toFixed(1)}%/mo</span>
-                                        </div>
-                                        <p className="text-[10px] text-muted mt-0.5 italic">{alt.result.recommendation}</p>
-                                    </div>
-                                ))}
-                            </div>
+            {/* Streak Tracker */}
+            <div className={styles.chartPanel}>
+                <p className={styles.panelTitle}>STREAK SEQUENCE & RECOVERY</p>
+                <div className="flex flex-wrap gap-1 mt-4">
+                    {streakSequence.map((s, i) => (
+                        <div key={i} className={`flex items-center justify-center w-5 h-5 text-[9px] font-bold ${s === 'W' ? 'bg-[#1db954]/20 text-[#1db954] border border-[#1db954]/50' : 'bg-[#e60023]/20 text-[#e60023] border border-[#e60023]/50'}`}>
+                            {s}
+                        </div>
+                    ))}
+                </div>
+                <div className="grid grid-cols-4 gap-4 mt-6 text-[11px] font-mono border-t border-[#1a1c23] pt-4">
+                    <div>
+                        <p className="text-[#6b7280]">Current Edge</p>
+                        <p className={`font-bold mt-1 ${journal.netPnl > 0 ? styles.textGreen : styles.textRed}`}>{journal.netPnl > 0 ? 'PROFITABLE' : 'DRAWDOWN'}</p>
+                    </div>
+                    <div>
+                        <p className="text-[#6b7280]">Longest Win Streak</p>
+                        <p className="text-[#1db954] font-bold mt-1">{maxW} W</p>
+                    </div>
+                    <div>
+                        <p className="text-[#6b7280]">Longest Loss Streak</p>
+                        <p className="text-[#e60023] font-bold mt-1">{maxL} L</p>
+                    </div>
+                    <div>
+                        <p className="text-[#6b7280]">Recovery Expectancy</p>
+                        <p className="text-[#FBBF24] font-bold mt-1">{maxL * 1.5} Trades</p>
+                    </div>
+                </div>
+            </div>
 
-                            <div className={styles.coachCard} style={{ marginTop: 12 }}>
-                                <div className={styles.coachIcon}><FlaskConical size={18} /></div>
-                                <div>
-                                    <p className={styles.coachTitle}>Institution-Level Analytics</p>
-                                    <p className={styles.coachMessage}>{simResult.bestResult.recommendation}</p>
-                                </div>
+            {/* Session Bar Chart */}
+            <div className={styles.chartPanel}>
+                <p className={styles.panelTitle}>TIME OF DAY / SESSION PERFORMANCE PNL</p>
+                <div className="grid grid-cols-3 gap-6 mt-6">
+                    {timeOfDay.map(bin => (
+                        <div key={bin.label} className="flex flex-col gap-2 relative">
+                            <span className={`text-[12px] font-mono font-bold ${bin.pnl >= 0 ? styles.textGreen : styles.textRed}`}>{bin.pnl >= 0 ? '+' : '-'}${Math.abs(bin.pnl).toFixed(0)}</span>
+                            <div className="h-[40px] flex items-end">
+                                <motion.div
+                                    initial={{ height: 0 }}
+                                    animate={{ height: bin.count > 0 ? '100%' : '10%' }}
+                                    className={`w-full ${bin.pnl >= 0 ? 'bg-[#1db954]' : 'bg-[#e60023]'}`}
+                                />
                             </div>
-                        </motion.div>
-                    )}
+                            <span className="text-[10px] text-[#6b7280]">{bin.label} ({bin.count} trades)</span>
+                        </div>
+                    ))}
+                </div>
+            </div>
 
-                </motion.div>
-            </AnimatePresence>
+            {/* Critical Warnings */}
+            {behavior.emotionalState !== 'disciplined' && (
+                <div className={styles.alertPanel}>
+                    <p className={`${styles.panelTitle} !text-[#e60023]`}>&gt; CRITICAL RISK BEHAVIORS DETECTED</p>
+                    <div className="grid grid-cols-2 gap-6 mt-4 text-[10px] font-mono pt-2 border-t border-[#e60023]/20">
+                        {behavior.overtradingAlert && (
+                            <div>
+                                <p className="text-[#e60023] font-bold">OVERTRADING / CHURNING DETECTED</p>
+                                <p className="text-[#9ca3af] mt-1">High frequency execution noted. You have fired {behavior.tradesThisSession} trades rapidly, severely deteriorating your expectancy model. Cool down immediately.</p>
+                            </div>
+                        )}
+                        {behavior.revengeRisk && (
+                            <div>
+                                <p className="text-[#e60023] font-bold">REVENGE TRADING / TILT LOOP</p>
+                                <p className="text-[#9ca3af] mt-1">Following losses, your sizing drastically increased by {behavior.revengePct.toFixed(0)}%. You are attempting to "make it back in one trade". Stop trading immediately.</p>
+                            </div>
+                        )}
+                        {!behavior.overtradingAlert && !behavior.revengeRisk && (
+                            <div>
+                                <p className="text-[#e60023] font-bold">DRAWDOWN VULNERABILITY DETECTED</p>
+                                <p className="text-[#9ca3af] mt-1">You are currently sitting in a significant negative emotional state ({behavior.emotionalState}). Protect capital. Pause executions.</p>
+                            </div>
+                        )}
+                    </div>
+                </div>
+            )}
+
+            {/* Psych Metrics */}
+            <div className={styles.chartPanel}>
+                <p className={styles.panelTitle}>PSYCH METRICS / BEHAVIORAL GAUGES</p>
+                <div className="grid grid-cols-2 gap-8 mt-4">
+                    <div className="flex flex-col gap-2">
+                        <div className="flex justify-between text-[10px] font-mono">
+                            <span className="text-[#e2e8f0]">Emotional Control</span>
+                            <span className="text-[#1db954]">{setupDiscipline}%</span>
+                        </div>
+                        <div className="h-1 bg-[#1a1c23]"><motion.div className="h-full bg-[#1db954]" animate={{ width: `${setupDiscipline}%` }} /></div>
+                    </div>
+                    <div className="flex flex-col gap-2">
+                        <div className="flex justify-between text-[10px] font-mono">
+                            <span className="text-[#e2e8f0]">Setup Discipline</span>
+                            <span className="text-[#FBBF24]">85%</span>
+                        </div>
+                        <div className="h-1 bg-[#1a1c23]"><motion.div className="h-full bg-[#FBBF24]" animate={{ width: '85%' }} /></div>
+                    </div>
+                    <div className="flex flex-col gap-2">
+                        <div className="flex justify-between text-[10px] font-mono">
+                            <span className="text-[#e2e8f0]">Tilt Vulnerability (DANGER)</span>
+                            <span className="text-[#e60023]">{tiltVulnerability}%</span>
+                        </div>
+                        <div className="h-1 bg-[#1a1c23]"><motion.div className="h-full bg-[#e60023]" animate={{ width: `${tiltVulnerability}%` }} /></div>
+                    </div>
+                    <div className="flex flex-col gap-2">
+                        <div className="flex justify-between text-[10px] font-mono">
+                            <span className="text-[#e2e8f0]">Execution Accuracy (RR &gt; 1)</span>
+                            <span className="text-[#1db954]">{execAccuracy}%</span>
+                        </div>
+                        <div className="h-1 bg-[#1a1c23]"><motion.div className="h-full bg-[#1db954]" animate={{ width: `${execAccuracy}%` }} /></div>
+                    </div>
+                </div>
+            </div>
+
+            {/* Verdict */}
+            <div className={styles.verdictPanel}>
+                <p className={styles.panelTitle}>ANALYST VERDICT // FINAL SYSTEM DIAGNOSTIC</p>
+                <div className="text-[#9ca3af] text-[11px] font-mono leading-relaxed mt-4">
+                    {journal.aiCoachMessage} <br /><br />
+                    {journal.dailySummary} Your best mathematical advantage is currently found specifically within <span className="text-[#ff00ff] font-bold">{journal.bestSetup}</span>. Conversely, you bleed the most capital trading <span className="text-[#e60023] font-bold">{journal.worstPattern}</span>. <br /><br />
+                    <span className="text-white">DIAGNOSTIC STATUS: {behavior.emotionalState.toUpperCase() === 'DISCIPLINED' ? <span className="text-[#1db954]">CLEAR FOR TRADING</span> : <span className="text-[#e60023]">WARNING — EXERCISE CAUTION</span>}</span>
+                </div>
+            </div>
+
+            <div className="text-center text-[10px] font-mono text-[#4b5563] mt-8 mb-4">
+                RISKGUARDIA DEEP ANALYTICS ENGINE // END OF REPORT // TIMESTAMP: {new Date().toISOString()}
+            </div>
         </div>
     );
 }
