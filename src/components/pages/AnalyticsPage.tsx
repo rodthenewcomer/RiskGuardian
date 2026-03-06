@@ -3,6 +3,7 @@
 import styles from './AnalyticsPage.module.css';
 import { useState, useMemo } from 'react';
 import { useAppStore } from '@/store/appStore';
+import { generateForensics } from '@/ai/EdgeForensics';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
     PieChart, Pie, Cell, ResponsiveContainer, BarChart, Bar, XAxis, Tooltip, YAxis, ReferenceLine
@@ -12,11 +13,14 @@ import { Target, AlertTriangle } from 'lucide-react';
 const TABS = ['OVERVIEW', 'DAILY P&L', 'INSTRUMENTS', 'SESSIONS', 'TIME OF DAY', 'STREAKS', 'PATTERNS', 'SCORECARD', 'QUANT (Pro)', 'VERDICT', 'COMPARE (Pro)'];
 
 export default function AnalyticsPage() {
-    const { trades } = useAppStore();
+    const { trades, account } = useAppStore();
     const [activeTab, setActiveTab] = useState('OVERVIEW');
 
     // Sort chronological
     const closed = trades.filter(t => t.outcome === 'win' || t.outcome === 'loss').sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+
+    // Process Algorithmic Forensics
+    const forensics = useMemo(() => generateForensics(trades, account), [trades, account]);
 
     // Core Metrics
     const grossProfit = closed.filter(t => (t.pnl ?? 0) > 0).reduce((s, t) => s + (t.pnl ?? 0), 0);
@@ -423,9 +427,8 @@ export default function AnalyticsPage() {
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    {[1, 2, 3, 4, 5].map(losses => {
-                                        const recFactor = Math.max(0, 60 - (losses * 12));
-                                        const churn = 1 + (losses * 1.5);
+                                    {forensics.streakStats.map(stat => {
+                                        const { losses, recFactor, churn } = stat;
                                         return (
                                             <tr key={losses}>
                                                 <td style={{ color: '#ff4757', fontWeight: 700 }}>{losses} Loss{losses > 1 ? 'es' : ''}</td>
@@ -434,7 +437,7 @@ export default function AnalyticsPage() {
                                                         <div className="w-24 h-1.5 bg-[#1a1c24] rounded-full overflow-hidden">
                                                             <div className="h-full bg-[#1db954]" style={{ width: `${recFactor}%` }} />
                                                         </div>
-                                                        <span style={{ color: recFactor < 30 ? '#ff4757' : '#c9d1d9' }}>{recFactor}%</span>
+                                                        <span style={{ color: recFactor < 30 ? '#ff4757' : '#c9d1d9' }}>{recFactor.toFixed(0)}%</span>
                                                     </div>
                                                 </td>
                                                 <td style={{ color: churn > 5 ? '#EAB308' : '#c9d1d9' }}>{churn.toFixed(1)} trades</td>
@@ -456,12 +459,7 @@ export default function AnalyticsPage() {
                     <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="flex flex-col gap-6">
                         <span className={styles.sectionTitle}>I DETERMINISTIC BEHAVIORAL PATTERN ENGINE</span>
                         <div className="flex flex-col gap-4">
-                            {[
-                                { name: 'Revenge Trading', severity: 'CRITICAL', freq: 4, impact: -1250, desc: '3+ trades placed within 15 mins after a loss, size increased.' },
-                                { name: 'Held Losers', severity: 'WARNING', freq: 7, impact: -850, desc: 'Losing trades held 50%+ longer than average win.' },
-                                { name: 'Early Exit', severity: 'WARNING', freq: 12, impact: -420, desc: 'Average win held <40% duration of average loss.' },
-                                { name: 'Micro Overtrading', severity: 'INFO', freq: 19, impact: -158, desc: 'High frequency in micro contracts with negative net edge.' }
-                            ].map((p, i) => (
+                            {forensics.patterns.map((p, i) => (
                                 <div key={i} className={styles.findingsBox + ' border-l-4'} style={{ borderLeftColor: p.severity === 'CRITICAL' ? '#e60023' : p.severity === 'WARNING' ? '#EAB308' : '#38bdf8' }}>
                                     <div className="flex justify-between items-start">
                                         <div className="flex flex-col gap-1">
@@ -483,14 +481,7 @@ export default function AnalyticsPage() {
                     <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="flex flex-col gap-6">
                         <span className={styles.sectionTitle}>I DISCIPLINE & EXECUTION FORENSIC GRADES</span>
                         <div className="grid grid-cols-2 gap-4">
-                            {[
-                                { metric: 'Stop Loss Discipline', grade: 'A', desc: 'Max loss per trade contained to < 2% of equity.' },
-                                { metric: 'Tilt Management', grade: 'D', desc: 'Frequent sizing increases immediately following localized drawdowns.' },
-                                { metric: 'Patience (Entry Quality)', grade: 'B', desc: 'Avoids first 30min volatility mostly. Waits for setups.' },
-                                { metric: 'Hold Time Asymmetry', grade: 'F', desc: 'Severely cuts winners short while holding onto losing trades.' },
-                                { metric: 'Session Caps', grade: 'C', desc: 'Sometimes trades into the afternoon despite morning target hit.' },
-                                { metric: 'Instrument Focus', grade: 'A', desc: 'Maintains strict ticker isolation, avoids hopping.' }
-                            ].map((s, i) => (
+                            {forensics.scorecard.map((s, i) => (
                                 <div key={i} className={styles.kpiBox} style={{ flexDirection: 'row', alignItems: 'center', gap: '24px' }}>
                                     <div className={`text-[32px] font-bold ${s.grade === 'A' || s.grade === 'B' ? styles.textGreen : s.grade === 'C' ? styles.textYellow : styles.textRed}`}>
                                         {s.grade}
@@ -508,16 +499,16 @@ export default function AnalyticsPage() {
                 {activeTab === 'VERDICT' && (
                     <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="flex flex-col gap-6">
                         <span className={styles.sectionTitle}>I EDGE REPORT TERMINAL VERDICT</span>
-                        <div className={styles.findingsBox} style={{ border: '1px solid #ff4757', background: 'rgba(230,0,35,0.02)' }}>
-                            <span className="text-[14px] font-bold text-[#ff4757] uppercase">Critical Intervention Required</span>
+                        <div className={styles.findingsBox} style={{ border: `1px solid ${forensics.verdict.isCritical ? '#ff4757' : '#A6FF4D'}`, background: forensics.verdict.isCritical ? 'rgba(230,0,35,0.02)' : 'rgba(166,255,77,0.02)' }}>
+                            <span className="text-[14px] font-bold uppercase" style={{ color: forensics.verdict.isCritical ? '#ff4757' : '#A6FF4D' }}>
+                                {forensics.verdict.isCritical ? 'Critical Intervention Required' : 'System Operating Optimally'}
+                            </span>
                             <p className="text-[13px] text-[#c9d1d9] leading-relaxed mt-2" style={{ fontFamily: 'var(--font-mono)' }}>
-                                Your core engine strategy is highly profitable. You possess a distinct edge in morning trend continuations on the NQ. 
-                                However, your psychological infrastructure collapses after experiencing 3 consecutive losses, leading directly into sizing escalation and revenge trading loops. 
-                                This behavioral leakage eroded over 60% of your gross profit this month.
+                                {forensics.verdict.message}
                             </p>
-                            <div className="mt-4 pt-4 border-t border-[#ff4757]/20 flex flex-col gap-2">
+                            <div className="mt-4 pt-4 border-t flex flex-col gap-2" style={{ borderColor: forensics.verdict.isCritical ? 'rgba(255,71,87,0.2)' : 'rgba(166,255,77,0.2)' }}>
                                 <span className="text-[10px] uppercase tracking-widest text-[#8b949e]">Primary Actionable Step:</span>
-                                <span className="text-[12px] text-[#A6FF4D] font-bold">Implement a strict 3-loss hard stop logic. Once triggered, you are mathematically banned from executing for 24 hours.</span>
+                                <span className="text-[12px] text-[#A6FF4D] font-bold">{forensics.verdict.action}</span>
                             </div>
                         </div>
                     </motion.div>
@@ -538,6 +529,6 @@ export default function AnalyticsPage() {
                     </motion.div>
                 )}
             </div>
-        </div>
+        </div >
     );
 }
