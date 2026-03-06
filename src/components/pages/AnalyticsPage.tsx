@@ -312,7 +312,7 @@ export default function AnalyticsPage() {
                                     </BarChart>
                                 </ResponsiveContainer>
                             </div>
-                            <div className="grid grid-cols-2 gap-4">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                 <div className="bg-[#0f1a14] border border-[#A6FF4D]/20 p-4 rounded flex justify-between items-center">
                                     <div className="flex flex-col">
                                         <span className="text-[9px] uppercase text-[#A6FF4D] font-bold">Strength Zone</span>
@@ -342,7 +342,7 @@ export default function AnalyticsPage() {
                                         </div>
                                     ))}
                                 </div>
-                                <div className="grid grid-cols-4 gap-8">
+                                <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 sm:gap-8">
                                     <div className="flex flex-col border-r border-[#1a1c24]">
                                         <span className="text-[10px] text-[#6b7280] uppercase tracking-widest">Max Wins</span>
                                         <span className="text-[32px] font-bold text-[#A6FF4D]">{forensics.maxWinStreak}</span>
@@ -446,7 +446,7 @@ export default function AnalyticsPage() {
                                     </div>
                                     <span className="text-[9px] font-mono text-[#4b5563]">VERDICT_ID: {Math.random().toString(36).substr(2, 9).toUpperCase()}</span>
                                 </div>
-                                <div className="p-10 flex flex-col gap-10">
+                                <div className="p-4 sm:p-10 flex flex-col gap-6 sm:gap-10">
                                     <p className="text-[20px] text-[#c9d1d9] leading-relaxed font-sans italic opacity-90 max-w-4xl">
                                         "{forensics.verdict.message}"
                                     </p>
@@ -461,7 +461,7 @@ export default function AnalyticsPage() {
                     )}
 
                     {activeTab === 'COMPARE' && (
-                        <motion.div key="compare" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="flex flex-col items-center justify-center p-32 gap-6 opacity-40">
+                        <motion.div key="compare" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="flex flex-col items-center justify-center p-8 sm:p-32 gap-6 opacity-40">
                             <div className="w-16 h-16 rounded-full border border-dashed border-[#38bdf8] flex items-center justify-center">
                                 <Info size={24} className="text-[#38bdf8]" />
                             </div>

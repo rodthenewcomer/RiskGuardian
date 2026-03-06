@@ -100,7 +100,12 @@ export default function JournalPage() {
             pnl: t.pnl,
             isShort: t.isShort
         }));
-        setTrades(mappedTrades);
+        // Merge: only add seed trades that aren't already in the store (match by id)
+        const existingIds = new Set(trades.map(t => t.id));
+        const toAdd = mappedTrades.filter(t => !existingIds.has(t.id));
+        if (toAdd.length > 0) {
+            setTrades([...toAdd, ...trades]);
+        }
     };
 
     // Use only closed trades to assess absolute win rate/pnl

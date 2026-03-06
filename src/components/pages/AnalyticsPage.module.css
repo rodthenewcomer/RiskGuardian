@@ -298,3 +298,71 @@
     width: 250px;
     text-align: right;
 }
+
+/* ── Mobile responsiveness ── */
+@media (max-width: 767px) {
+    .topTabsWrapper {
+        padding: 0 12px;
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+        scrollbar-width: none;
+    }
+    .topTabsWrapper::-webkit-scrollbar {
+        display: none;
+    }
+
+    .topTabs {
+        gap: 20px;
+        min-width: max-content;
+    }
+
+    .tab {
+        padding: 14px 0;
+        white-space: nowrap;
+        font-size: 10px;
+    }
+
+    .content {
+        padding: 16px;
+    }
+
+    /* 4-col KPI → 2-col on mobile */
+    .kpiGrid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+
+    .kpiValue {
+        font-size: 20px;
+    }
+
+    .kpiBox {
+        padding: 16px;
+    }
+
+    /* 3-col chart row → single col on mobile */
+    .chartRow {
+        grid-template-columns: 1fr;
+    }
+
+    /* Instrument progress rows: hide wide stats column */
+    .progressStats {
+        display: none;
+    }
+
+    .progressRow {
+        gap: 8px;
+    }
+
+    .progressAmt {
+        width: 60px;
+        font-size: 11px;
+    }
+
+    .fullWidthCard {
+        padding: 16px;
+    }
+
+    .findingsBox {
+        padding: 16px;
+    }
+}
