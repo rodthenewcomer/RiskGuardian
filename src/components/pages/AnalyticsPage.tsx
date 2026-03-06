@@ -423,7 +423,7 @@ export default function AnalyticsPage() {
                                     <div key={i} className={`flex items-center justify-center w-[22px] h-[22px] rounded-full text-[9px] font-bold border transition-all ${res === 'W' ? 'border-[#1db954] text-[#1db954]' : res === 'L' ? 'border-[#e60023] text-[#e60023]' : 'border-[#6b7280] text-[#6b7280]'}`}>{res}</div>
                                 ))}
                             </div>
-                            
+
                             <div className="grid grid-cols-4 border-t border-[#1a1c24] pt-8">
                                 <div className="border-r border-[#1a1c24] pr-6 flex flex-col gap-1">
                                     <span className="text-[10px] text-[#8b949e] uppercase tracking-widest font-bold">MAX WIN STREAK</span>
@@ -449,7 +449,7 @@ export default function AnalyticsPage() {
                         </div>
 
                         <div className="bg-[#1a1c24]/50 border-l-[4px] border-[#e60023] p-4 text-[#c9d1d9] font-mono text-[12px]">
-                            On isolated drawdowns you absorbed {forensics.maxLossStreak} straight losses. You are mathematically susceptible to deep red loops without recovery interventions. Action: Hard pause after 3 consecutive losses.
+                            {forensics.isolatedDrawdownAlert}
                         </div>
 
                         <span className={styles.sectionTitle}>I RECOVERY PROBABILITY AFTER CONSECUTIVE LOSSES</span>

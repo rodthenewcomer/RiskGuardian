@@ -1,4 +1,6 @@
+import re
 
+code = """
 export interface Trade {
     id: string;
     asset: string;
@@ -280,3 +282,8 @@ export function generateForensics(trades: Trade[], accountData: any) {
         }
     };
 }
+"""
+
+with open('src/ai/EdgeForensics.ts', 'w') as f:
+    f.write(code)
+
