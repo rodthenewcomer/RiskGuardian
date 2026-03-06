@@ -56,12 +56,12 @@ export default function DashboardPage() {
 
     // P&L from closed trades
     const totalPnl = closedTrades.reduce((sum, t) => {
-        return sum + (t.outcome === 'win' ? t.rewardUSD : -t.riskUSD);
+        return sum + (t.pnl || ((t.pnl ?? (t.outcome === 'win' ? t.rewardUSD : -t.riskUSD))));
     }, 0);
 
     // Prepare P&L Chart Data
     const pnlChartData = closedTrades.reduce((acc, t, i) => {
-        const pnl = t.outcome === 'win' ? t.rewardUSD : -t.riskUSD;
+        const pnl = t.pnl || ((t.pnl ?? (t.outcome === 'win' ? t.rewardUSD : -t.riskUSD)));
         const cumulative = (acc.length > 0 ? acc[acc.length - 1].cumulative : 0) + pnl;
         acc.push({
             id: t.id,
@@ -79,7 +79,7 @@ export default function DashboardPage() {
         const dailyPnls: Record<string, number> = {};
         closedTrades.forEach(t => {
             const day = t.createdAt.split('T')[0];
-            const p = t.outcome === 'win' ? t.rewardUSD : -t.riskUSD;
+            const p = t.pnl || ((t.pnl ?? (t.outcome === 'win' ? t.rewardUSD : -t.riskUSD)));
             dailyPnls[day] = (dailyPnls[day] || 0) + p;
         });
         const dailyValues = Object.values(dailyPnls);
@@ -297,7 +297,7 @@ export default function DashboardPage() {
                                 <div className={styles.tradeRight}>
                                     <span className={`${styles.tradePnl} ${trade.outcome === 'win' ? 'text-success' : trade.outcome === 'loss' ? 'text-danger' : 'text-secondary'}`}>
                                         {trade.outcome === 'win' ? '+' : trade.outcome === 'loss' ? '−' : ''}
-                                        ${trade.outcome === 'win' ? trade.rewardUSD.toFixed(0) : trade.riskUSD.toFixed(0)}
+                                        ${Math.abs(trade.pnl ?? (trade.outcome === 'win' ? trade.rewardUSD : trade.riskUSD)).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                                     </span>
                                     <span className={styles.tradeLots}>1:{trade.rr.toFixed(1)}R</span>
                                 </div>

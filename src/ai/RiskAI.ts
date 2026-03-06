@@ -270,7 +270,7 @@ export function analyzeConsistency(trades: TradeSession[]): ConsistencyAnalysis 
     const assetMap: Record<string, { wins: number; losses: number; pnl: number }> = {};
 
     closed.forEach(t => {
-        const pnl = t.outcome === 'win' ? t.rewardUSD : -t.riskUSD;
+        const pnl = (t.pnl ?? (t.outcome === 'win' ? t.rewardUSD : -t.riskUSD));
         // Try to extract date from createdAt (handles both ISO and locale strings)
         const rawDate = t.createdAt;
         let day = '';
@@ -559,7 +559,7 @@ export function generateJournalInsights(
     const wins = closed.filter(t => t.outcome === 'win');
     const losses = closed.filter(t => t.outcome === 'loss');
 
-    const netPnl = wins.reduce((s, t) => s + t.rewardUSD, 0) - losses.reduce((s, t) => s + t.riskUSD, 0);
+    const netPnl = closed.reduce((s, t) => s + (t.pnl ?? (t.outcome === 'win' ? t.rewardUSD : -t.riskUSD)), 0);
     const winRate = closed.length > 0 ? (wins.length / closed.length) * 100 : 0;
     const avgRR = closed.filter(t => t.rr > 0).length > 0
         ? closed.reduce((s, t) => s + t.rr, 0) / closed.length
@@ -569,7 +569,7 @@ export function generateJournalInsights(
     // Best setup by asset
     const assetPnl: Record<string, number> = {};
     closed.forEach(t => {
-        const pnl = t.outcome === 'win' ? t.rewardUSD : -t.riskUSD;
+        const pnl = (t.pnl ?? (t.outcome === 'win' ? t.rewardUSD : -t.riskUSD));
         assetPnl[t.asset] = (assetPnl[t.asset] || 0) + pnl;
     });
     const sorted = Object.entries(assetPnl).sort((a, b) => b[1] - a[1]);
@@ -591,7 +591,7 @@ export function generateJournalInsights(
         try { return new Date(t.createdAt) >= weekStart; } catch { return false; }
     });
     const weeklyWins = weeklyTrades.filter(t => t.outcome === 'win');
-    const weeklyPnl = weeklyWins.reduce((s, t) => s + t.rewardUSD, 0) - weeklyTrades.filter(t => t.outcome === 'loss').reduce((s, t) => s + t.riskUSD, 0);
+    const weeklyPnl = weeklyTrades.reduce((s, t) => s + (t.pnl ?? (t.outcome === 'win' ? t.rewardUSD : -t.riskUSD)), 0);
     const weekWinRate = weeklyTrades.length > 0 ? (weeklyWins.length / weeklyTrades.length) * 100 : 0;
     const topAssetEntry = Object.entries(assetPnl).sort((a, b) => b[1] - a[1])[0];
 
@@ -605,7 +605,7 @@ export function generateJournalInsights(
     let stopped1 = false;
     for (const t of closed) {
         if (stopped1) { skipped1++; continue; }
-        const pnl = t.outcome === 'win' ? t.rewardUSD : -t.riskUSD;
+        const pnl = (t.pnl ?? (t.outcome === 'win' ? t.rewardUSD : -t.riskUSD));
         whatIfPnl1 += pnl;
         if (t.outcome === 'loss') lossRun++;
         else lossRun = 0;
@@ -625,7 +625,7 @@ export function generateJournalInsights(
     // Scenario 2: Skip sub-1R trades
     const filteredPnl = closed
         .filter(t => t.rr >= 1.5)
-        .reduce((s, t) => s + (t.outcome === 'win' ? t.rewardUSD : -t.riskUSD), 0);
+        .reduce((s, t) => s + ((t.pnl ?? (t.outcome === 'win' ? t.rewardUSD : -t.riskUSD))), 0);
     const skipped2 = closed.filter(t => t.rr < 1.5).length;
     if (skipped2 > 0) {
         whatIf.push({
@@ -719,7 +719,7 @@ export function analyzeStrategy(trades: TradeSession[]): StrategyAnalysis {
         if (bucket.length < 2) return;
         const wins = bucket.filter(t => t.outcome === 'win');
         const winRate = (wins.length / bucket.length) * 100;
-        const avgPnl = bucket.reduce((s, t) => s + (t.outcome === 'win' ? t.rewardUSD : -t.riskUSD), 0) / bucket.length;
+        const avgPnl = bucket.reduce((s, t) => s + ((t.pnl ?? (t.outcome === 'win' ? t.rewardUSD : -t.riskUSD))), 0) / bucket.length;
         rules.push({ condition: label, winRate, avgPnl, tradeCount: bucket.length, verdict: winRate >= 55 && avgPnl > 0 ? 'keep' : avgPnl < 0 ? 'avoid' : 'neutral' });
     });
 
@@ -734,7 +734,7 @@ export function analyzeStrategy(trades: TradeSession[]): StrategyAnalysis {
         if (bucket.length < 2) return;
         const wins = bucket.filter(t => t.outcome === 'win');
         const winRate = (wins.length / bucket.length) * 100;
-        const avgPnl = bucket.reduce((s, t) => s + (t.outcome === 'win' ? t.rewardUSD : -t.riskUSD), 0) / bucket.length;
+        const avgPnl = bucket.reduce((s, t) => s + ((t.pnl ?? (t.outcome === 'win' ? t.rewardUSD : -t.riskUSD))), 0) / bucket.length;
         rules.push({ condition: label, winRate, avgPnl, tradeCount: bucket.length, verdict: winRate >= 55 && avgPnl > 0 ? 'keep' : avgPnl < 0 ? 'avoid' : 'neutral' });
     });
 
@@ -745,7 +745,7 @@ export function analyzeStrategy(trades: TradeSession[]): StrategyAnalysis {
         if (bucket.length < 2) return;
         const wins = bucket.filter(t => t.outcome === 'win');
         const winRate = (wins.length / bucket.length) * 100;
-        const avgPnl = bucket.reduce((s, t) => s + (t.outcome === 'win' ? t.rewardUSD : -t.riskUSD), 0) / bucket.length;
+        const avgPnl = bucket.reduce((s, t) => s + ((t.pnl ?? (t.outcome === 'win' ? t.rewardUSD : -t.riskUSD))), 0) / bucket.length;
         rules.push({ condition: `Asset: ${asset}`, winRate, avgPnl, tradeCount: bucket.length, verdict: winRate >= 55 && avgPnl > 0 ? 'keep' : avgPnl < 0 ? 'avoid' : 'neutral' });
     });
 
@@ -769,7 +769,7 @@ export function analyzeStrategy(trades: TradeSession[]): StrategyAnalysis {
     // Top/Worst assets
     const assetPnl = Object.entries(assetGroups).map(([asset, ts]) => ({
         asset,
-        pnl: ts.reduce((s, t) => s + (t.outcome === 'win' ? t.rewardUSD : -t.riskUSD), 0)
+        pnl: ts.reduce((s, t) => s + ((t.pnl ?? (t.outcome === 'win' ? t.rewardUSD : -t.riskUSD))), 0)
     })).sort((a, b) => b.pnl - a.pnl);
     const topAsset = assetPnl[0]?.asset || 'N/A';
     const worstAsset = assetPnl[assetPnl.length - 1]?.asset || 'N/A';
@@ -915,7 +915,7 @@ export function generateDailyReport(
     const wins = closed.filter(t => t.outcome === 'win');
     const losses = closed.filter(t => t.outcome === 'loss');
 
-    const netProfit = wins.reduce((s, t) => s + t.rewardUSD, 0) - losses.reduce((s, t) => s + t.riskUSD, 0);
+    const netProfit = closed.reduce((s, t) => s + (t.pnl ?? (t.outcome === 'win' ? t.rewardUSD : -t.riskUSD)), 0);
     const winRate = closed.length > 0 ? (wins.length / closed.length) * 100 : 0;
     const bestTradeRR = closed.length > 0 ? Math.max(...closed.map(t => t.rr)) : 0;
     const worstTradeRisk = closed.length > 0 ? Math.max(...closed.map(t => t.riskUSD)) : 0;
@@ -1072,7 +1072,7 @@ export function detectSetups(trades: TradeSession[]): SetupAnalysis {
         if (bucket.length < 2) return null;
         const wins = bucket.filter(t => t.outcome === 'win');
         const winRate = wins.length / bucket.length;
-        const totalPnl = bucket.reduce((s, t) => s + (t.outcome === 'win' ? t.rewardUSD : -t.riskUSD), 0);
+        const totalPnl = bucket.reduce((s, t) => s + ((t.pnl ?? (t.outcome === 'win' ? t.rewardUSD : -t.riskUSD))), 0);
         const expectancy = totalPnl / bucket.length;
         const avgRR = bucket.filter(t => t.rr > 0).length > 0
             ? bucket.reduce((s, t) => s + t.rr, 0) / bucket.length : 0;

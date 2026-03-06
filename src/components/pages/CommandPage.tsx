@@ -114,7 +114,7 @@ export default function CommandPage() {
         if (metaCmd === 'stats') {
             const closed = trades.filter((t: any) => t.outcome !== 'open');
             const wins = closed.filter((t: any) => t.outcome === 'win').length;
-            const pnl = closed.reduce((s: number, t: any) => s + (t.outcome === 'win' ? t.rewardUSD : -t.riskUSD), 0);
+            const pnl = closed.reduce((s: number, t: any) => s + ((t.pnl ?? (t.outcome === 'win' ? t.rewardUSD : -t.riskUSD))), 0);
             const statsLog: LogEntry = {
                 id: Math.random().toString(36),
                 cmd: 'stats',

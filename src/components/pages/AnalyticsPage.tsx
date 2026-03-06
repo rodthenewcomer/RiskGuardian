@@ -48,7 +48,7 @@ export default function AnalyticsPage() {
 
     // PnL chart data
     const pnlData = closed.reduce((acc, t, i) => {
-        const pnl = t.outcome === 'win' ? t.rewardUSD : -t.riskUSD;
+        const pnl = (t.pnl ?? (t.outcome === 'win' ? t.rewardUSD : -t.riskUSD));
         const cumulative = (acc.length > 0 ? acc[acc.length - 1].cumulative : 0) + pnl;
         acc.push({ trade: `T${i + 1}`, pnl, cumulative });
         return acc;
