@@ -36,7 +36,7 @@ export default function JournalPage() {
     // Total P&L
     const wins = closedTrades.filter(t => t.outcome === 'win');
     const losses = closedTrades.filter(t => t.outcome === 'loss');
-    const totalPnl = wins.reduce((s, t) => s + t.rewardUSD, 0) - losses.reduce((s, t) => s + t.riskUSD, 0);
+    const totalPnl = closedTrades.reduce((sum, t) => sum + (t.pnl || 0), 0);
 
     // Win Rate
     const winRate = closedTrades.length > 0
@@ -130,7 +130,7 @@ export default function JournalPage() {
                                         trade.outcome === 'loss' ? 'text-danger' : 'text-secondary'
                                         }`}>
                                         {trade.outcome === 'win' ? '+' : trade.outcome === 'loss' ? '-' : '~'}
-                                        ${(trade.outcome === 'win' ? trade.rewardUSD : trade.riskUSD).toFixed(0)}
+                                        ${Math.abs(trade.pnl ?? (trade.outcome === 'win' ? trade.rewardUSD : trade.riskUSD)).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                                     </span>
                                     <span className="text-caption uppercase tracking-[0.1em]">
                                         {trade.outcome === 'win' ? 'WIN' : trade.outcome === 'loss' ? 'LOSS' : 'OPEN'}
