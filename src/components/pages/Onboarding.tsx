@@ -96,7 +96,7 @@ export default function Onboarding() {
             <div className={styles.header}>
                 <div className={styles.logo}>
                     <Shield size={16} strokeWidth={2.5} />
-                    <span>RiskGuardia</span>
+                    <span>PropGuard</span>
                 </div>
                 <div className={styles.stepCount}>{stepIndex + 1} / {STEPS.length}</div>
             </div>
@@ -166,7 +166,7 @@ export default function Onboarding() {
                                 </div>
                                 <h1 className={styles.stepTitle}>Set your daily loss limit</h1>
                                 <p className={styles.stepSub}>
-                                    The max you agree to lose in a single trading day. RiskGuardia enforces this automatically.
+                                    The max you agree to lose in a single trading day. PropGuard enforces this automatically.
                                 </p>
 
                                 <div className={styles.modeToggle}>
