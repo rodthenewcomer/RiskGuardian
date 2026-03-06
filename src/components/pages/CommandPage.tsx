@@ -43,12 +43,31 @@ export default function CommandPage() {
     const [logs, setLogs] = useState<LogEntry[]>([]);
     const [history, setHistory] = useState<string[]>([]);
     const [historyIdx, setHistoryIdx] = useState(-1);
-    const [overrideConfirm, setOverrideConfirm] = useState<string | null>(null); // logId awaiting override confirm
+    const [overrideConfirm, setOverrideConfirm] = useState<string | null>(null);
     const endRef = useRef<HTMLDivElement>(null);
     const inputRef = useRef<HTMLInputElement>(null);
 
+    // Form calculator state
+    const [formAsset, setFormAsset] = useState('');
+    const [formDir, setFormDir] = useState<'buy' | 'sell'>('buy');
+    const [formEntry, setFormEntry] = useState('');
+    const [formStop, setFormStop] = useState('');
+    const [formRisk, setFormRisk] = useState('');
+
     const remainingToday = useMemo(() => getDailyRiskRemaining(), [getDailyRiskRemaining]);
     const maxTradeRisk = useMemo(() => (account.balance * account.maxRiskPercent) / 100, [account.balance, account.maxRiskPercent]);
+
+    const handleFormCalc = () => {
+        const asset = formAsset.trim().toUpperCase() || 'BTC';
+        const entry = parseFloat(formEntry);
+        const stop = parseFloat(formStop);
+        const risk = parseFloat(formRisk) || maxTradeRisk;
+        if (!entry || !stop) return;
+        const cmd = `${formDir} ${asset} ${entry} stop${stop} risk${risk.toFixed(0)}`;
+        processCommand(cmd);
+        setFormEntry('');
+        setFormStop('');
+    };
 
 
 
@@ -521,18 +540,79 @@ export default function CommandPage() {
             <div className={styles.header}>
                 <div className={styles.headerLeft}>
                     <Terminal size={18} className="text-accent" />
-                    <span className={styles.headerTitle}>HUD Terminal</span>
+                    <span className={styles.headerTitle}>Risk Engine</span>
                 </div>
                 <div className={styles.headerLimit}>
                     DAILY GUARD: <strong className={remainingToday < (account.dailyLossLimit * 0.2) ? styles.danger : ''}>${remainingToday.toFixed(0)}</strong> REMAINING
                 </div>
             </div>
 
+            {/* ── Visual Calculator Form ── */}
+            <div className={styles.formPanel}>
+                <div className={styles.formRow}>
+                    <div className={styles.formField}>
+                        <label className={styles.formLabel}>Asset</label>
+                        <input
+                            className={styles.formInput}
+                            placeholder="BTC, SOL, MNQ…"
+                            value={formAsset}
+                            onChange={e => setFormAsset(e.target.value)}
+                        />
+                    </div>
+                    <div className={styles.formField}>
+                        <label className={styles.formLabel}>Direction</label>
+                        <div className={styles.dirToggle}>
+                            <button className={`${styles.dirBtn} ${formDir === 'buy' ? styles.dirBtnBuy : ''}`} onClick={() => setFormDir('buy')}>BUY</button>
+                            <button className={`${styles.dirBtn} ${formDir === 'sell' ? styles.dirBtnSell : ''}`} onClick={() => setFormDir('sell')}>SELL</button>
+                        </div>
+                    </div>
+                    <div className={styles.formField}>
+                        <label className={styles.formLabel}>Entry Price</label>
+                        <input
+                            className={styles.formInput}
+                            type="number"
+                            placeholder="95000"
+                            value={formEntry}
+                            onChange={e => setFormEntry(e.target.value)}
+                        />
+                    </div>
+                    <div className={styles.formField}>
+                        <label className={styles.formLabel}>Stop Loss</label>
+                        <input
+                            className={styles.formInput}
+                            type="number"
+                            placeholder="93500"
+                            value={formStop}
+                            onChange={e => setFormStop(e.target.value)}
+                        />
+                    </div>
+                    <div className={styles.formField}>
+                        <label className={styles.formLabel}>Risk ($)</label>
+                        <input
+                            className={styles.formInput}
+                            type="number"
+                            placeholder={maxTradeRisk.toFixed(0)}
+                            value={formRisk}
+                            onChange={e => setFormRisk(e.target.value)}
+                        />
+                    </div>
+                </div>
+                <button
+                    className={styles.calcBtn}
+                    onClick={handleFormCalc}
+                    disabled={!formEntry || !formStop}
+                >
+                    <ShieldCheck size={14} />
+                    Calculate Position
+                </button>
+            </div>
+
             <div className={styles.logArea}>
                 {logs.length === 0 ? (
                     <div className={styles.emptyState}>
-                        <Terminal size={32} strokeWidth={1} />
-                        <p>Type a command to calculate risk<br />Ex: <strong>sol 91.65 800 risk800</strong></p>
+                        <ShieldCheck size={28} strokeWidth={1.5} />
+                        <p>Fill in the form above and hit<br /><strong>Calculate Position</strong> to get your lot size</p>
+                        <span className={styles.emptyHint}>Or type <code>help</code> for advanced commands</span>
                     </div>
                 ) : (
                     <AnimatePresence>

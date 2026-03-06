@@ -296,8 +296,138 @@
     color: rgba(255, 255, 255, 0.2);
 }
 
+/* ── Visual Calculator Form Panel ── */
+.formPanel {
+    padding: var(--space-4);
+    background: var(--bg-card);
+    border-bottom: 1px solid var(--border-subtle);
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+}
+
+.formRow {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr 1fr 1fr;
+    gap: var(--space-2);
+}
+
+.formField {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+}
+
+.formLabel {
+    font-size: 9px;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--text-muted);
+}
+
+.formInput {
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-sm);
+    padding: 8px 10px;
+    font-family: var(--font-mono);
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-primary);
+    outline: none;
+    transition: border-color 0.2s;
+    width: 100%;
+}
+
+.formInput:focus {
+    border-color: var(--accent);
+    background: rgba(166, 255, 77, 0.04);
+}
+
+.formInput::placeholder {
+    color: var(--text-muted);
+    font-weight: 400;
+}
+
+.dirToggle {
+    display: flex;
+    gap: 4px;
+}
+
+.dirBtn {
+    flex: 1;
+    padding: 7px 4px;
+    font-size: 10px;
+    font-weight: 800;
+    letter-spacing: 0.06em;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--border-subtle);
+    background: rgba(255, 255, 255, 0.03);
+    color: var(--text-muted);
+    cursor: pointer;
+    transition: all 0.15s;
+}
+
+.dirBtnBuy {
+    background: rgba(166, 255, 77, 0.12);
+    border-color: rgba(166, 255, 77, 0.4);
+    color: var(--accent);
+}
+
+.dirBtnSell {
+    background: rgba(255, 71, 87, 0.12);
+    border-color: rgba(255, 71, 87, 0.4);
+    color: var(--color-danger);
+}
+
+.calcBtn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    width: 100%;
+    padding: 11px;
+    background: var(--accent);
+    color: #000;
+    border: none;
+    border-radius: var(--radius-md);
+    font-size: 13px;
+    font-weight: 800;
+    letter-spacing: 0.04em;
+    cursor: pointer;
+    transition: opacity 0.15s;
+}
+
+.calcBtn:disabled {
+    opacity: 0.35;
+    cursor: not-allowed;
+}
+
+.calcBtn:not(:disabled):hover {
+    opacity: 0.88;
+}
+
+.emptyHint {
+    font-size: 10px;
+    color: var(--text-muted);
+    font-family: var(--font-mono);
+    margin-top: 4px;
+}
+
+.emptyHint code {
+    color: var(--accent);
+    background: rgba(166, 255, 77, 0.08);
+    padding: 1px 5px;
+    border-radius: 3px;
+}
+
 @media (max-width: 768px) {
     .page {
         margin-bottom: 80px;
+    }
+
+    .formRow {
+        grid-template-columns: 1fr 1fr;
     }
 }

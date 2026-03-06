@@ -454,33 +454,134 @@ export default function AnalyticsPage() {
                         </motion.div>
                     )}
 
-                    {activeTab === 'VERDICT' && (
-                        <motion.div key="verdict" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="flex flex-col gap-6">
-                            <span className={styles.sectionTitle}>I FINAL FORENSIC VERDICT</span>
-                            <div className="bg-[#0b0e14] border border-[#1a1c24] rounded overflow-hidden relative">
-                                {forensics.verdict.isCritical && <div className="absolute top-0 left-0 w-full h-1 bg-[#ff4757]" />}
-                                <div className="bg-[#13151a] px-8 py-5 border-b border-[#1a1c24] flex justify-between items-center">
-                                    <div className="flex items-center gap-3">
-                                        <div className={`p-2 rounded-full ${forensics.verdict.isCritical ? 'bg-[#ff4757]/10 text-[#ff4757]' : 'bg-[#A6FF4D]/10 text-[#A6FF4D]'}`}>
-                                            <AlertTriangle size={18} />
+                    {activeTab === 'VERDICT' && (() => {
+                        // ── Grade computation ──
+                        let gradeScore = 100;
+                        forensics.patterns.forEach((p: any) => {
+                            if (p.severity === 'CRITICAL') gradeScore -= 20;
+                            else gradeScore -= 10;
+                        });
+                        if (winRate < 50) gradeScore -= 10;
+                        if (profitFactor < 1) gradeScore -= 20;
+                        gradeScore = Math.max(0, gradeScore);
+                        const grade = gradeScore >= 90 ? 'A' : gradeScore >= 75 ? 'B' : gradeScore >= 55 ? 'C' : 'D';
+                        const gradeColor = grade === 'A' ? '#A6FF4D' : grade === 'B' ? '#00D4FF' : grade === 'C' ? '#EAB308' : '#ff4757';
+                        const gradeDesc = grade === 'A' ? 'Solid execution' : grade === 'B' ? 'Minor leakage' : grade === 'C' ? 'Needs work' : 'Significant issues';
+
+                        // ── Prescriptions from patterns ──
+                        const prescriptions = forensics.patterns.map((p: any, idx: number) => ({
+                            num: String(idx + 1).padStart(2, '0'),
+                            title: p.name === 'Revenge Trading' ? 'Enforce a Hard Tilt Stop' :
+                                p.name === 'Held Losers' ? 'Cap Maximum Hold Time on Losers' :
+                                p.name === 'Spike Vulnerability' ? 'Add Hard Stop on Every Entry' :
+                                p.name === 'Early Exit' ? 'Let Winners Run to Target' :
+                                p.name === 'Micro Overtrading' ? 'Reduce Micro Contract Frequency' :
+                                p.name,
+                            desc: p.desc,
+                            badge: p.severity === 'CRITICAL' ? 'CRITICAL' : Math.abs(p.impact) > 200 ? 'HIGH' : 'RECOMMENDED',
+                            impact: Math.abs(p.impact),
+                        }));
+
+                        // ── Projected impact ──
+                        const totalRecovery = forensics.patterns.reduce((s: number, p: any) => s + Math.abs(p.impact), 0);
+                        const projectedPnl = netPnl + totalRecovery;
+                        const tradeCount = closed.length;
+                        const sessionCount = forensics.sessions?.length || 1;
+
+                        return (
+                            <motion.div key="verdict" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="flex flex-col gap-8">
+
+                                {/* ANALYST VERDICT */}
+                                <div>
+                                    <span className={styles.sectionTitle} style={{ marginBottom: 16, display: 'flex' }}>ANALYST VERDICT</span>
+                                    <div className="bg-[#0d1117] border border-[#1a1c24]" style={{ borderRadius: 4 }}>
+                                        <div className="flex gap-0">
+                                            {/* Grade Box */}
+                                            <div className="flex flex-col items-center justify-center gap-1 p-6 border-r border-[#1a1c24]" style={{ minWidth: 140 }}>
+                                                <span className="text-[9px] uppercase tracking-[0.15em] font-bold" style={{ color: '#6b7280' }}>Overall Grade</span>
+                                                <span className="text-[64px] font-black leading-none" style={{ color: gradeColor }}>{grade}</span>
+                                                <span className="text-[11px] font-medium text-center" style={{ color: '#8b949e' }}>{gradeDesc}</span>
+                                            </div>
+                                            {/* Narrative */}
+                                            <div className="flex-1 p-6 flex items-center">
+                                                <p className="text-[14px] text-[#c9d1d9] leading-[1.7] font-sans">
+                                                    {forensics.verdict.message}
+                                                    {forensics.patterns.length > 0 && ` The top behavioral leak is ${forensics.patterns[0].name.toLowerCase()}, costing $${Math.abs(forensics.patterns[0].impact).toLocaleString()} across ${forensics.patterns[0].freq} occurrences. `}
+                                                    {forensics.verdict.isCritical ? ' Correcting these specific patterns is the highest-leverage action available to you.' : ' Your fundamentals are sound — the edge exists.'}
+                                                </p>
+                                            </div>
                                         </div>
-                                        <span className="text-[13px] font-bold text-white uppercase tracking-widest">{forensics.verdict.isCritical ? 'CRITICAL INTERVENTION' : 'SYSTEM OPTIMAL'}</span>
-                                    </div>
-                                    <span className="text-[9px] font-mono text-[#4b5563]">VERDICT_ID: {Math.random().toString(36).substr(2, 9).toUpperCase()}</span>
-                                </div>
-                                <div className="p-4 sm:p-10 flex flex-col gap-6 sm:gap-10">
-                                    <p className="text-[20px] text-[#c9d1d9] leading-relaxed font-sans italic opacity-90 max-w-4xl">
-                                        "{forensics.verdict.message}"
-                                    </p>
-                                    <div className="bg-[#1a1c24] p-8 border-l-4 border-[#A6FF4D] rounded-sm">
-                                        <span className="text-[10px] uppercase text-[#A6FF4D] font-black tracking-[0.2em] block mb-3">Institutional Prescription</span>
-                                        <span className="text-[24px] text-white font-bold leading-tight tracking-tight">{forensics.verdict.action}</span>
-                                        <p className="text-[11px] text-[#6b7280] mt-4 font-mono">Targeting this specific behavioral lapse will mathematically recover ~42% of current profit erosion.</p>
                                     </div>
                                 </div>
-                            </div>
-                        </motion.div>
-                    )}
+
+                                {/* ACTIONABLE PRESCRIPTIONS */}
+                                {prescriptions.length > 0 && (
+                                    <div>
+                                        <span className={styles.sectionTitle} style={{ marginBottom: 16, display: 'flex' }}>ACTIONABLE PRESCRIPTION</span>
+                                        <div className="flex flex-col gap-3">
+                                            {prescriptions.map((rx: any) => (
+                                                <div key={rx.num} className="bg-[#0d1117] border border-[#1a1c24] p-5 flex flex-col gap-3" style={{ borderRadius: 4 }}>
+                                                    <div className="flex items-start gap-4">
+                                                        <span className="text-[28px] font-black" style={{ color: '#1e2430', lineHeight: 1, minWidth: 40 }}>{rx.num}</span>
+                                                        <div className="flex flex-col gap-1 flex-1">
+                                                            <span className="text-[15px] font-bold text-white">{rx.title}</span>
+                                                            <p className="text-[12px] text-[#8b949e] leading-relaxed">{rx.desc}</p>
+                                                        </div>
+                                                    </div>
+                                                    <div className="flex items-center gap-4 border-t border-[#1a1c24] pt-3">
+                                                        <span className={`text-[9px] font-black px-2 py-1 tracking-widest border rounded-sm ${rx.badge === 'CRITICAL' ? 'text-[#ff4757] border-[#ff4757]/40 bg-[#ff4757]/10' : rx.badge === 'HIGH' ? 'text-[#EAB308] border-[#EAB308]/40 bg-[#EAB308]/10' : 'text-[#A6FF4D] border-[#A6FF4D]/30 bg-[#A6FF4D]/05'}`}>
+                                                            {rx.badge}
+                                                        </span>
+                                                        <span className="text-[11px] text-[#6b7280]">
+                                                            Impact: <span className="font-bold" style={{ color: '#A6FF4D' }}>+${rx.impact.toLocaleString()}/session</span>
+                                                        </span>
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
+
+                                {/* PROJECTED IMPACT */}
+                                {prescriptions.length > 0 && (
+                                    <div>
+                                        <span className={styles.sectionTitle} style={{ marginBottom: 8, display: 'flex' }}>PROJECTED IMPACT IF IMPLEMENTED</span>
+                                        <p className="text-[11px] text-[#4b5563] mb-4 leading-relaxed">
+                                            Projection assumes full elimination of all flagged behavioral patterns. Actual improvement will vary — patterns are modeled independently and may overlap on shared trades.
+                                        </p>
+                                        <div className="flex gap-3 items-center">
+                                            <div className="flex-1 bg-[#0d1117] border border-[#1a1c24] p-5 flex flex-col gap-2" style={{ borderRadius: 4 }}>
+                                                <span className="text-[9px] uppercase tracking-[0.15em] font-bold" style={{ color: '#6b7280' }}>Current (with behavioral errors)</span>
+                                                <span className="text-[36px] font-black font-mono" style={{ color: netPnl >= 0 ? '#A6FF4D' : '#ff4757' }}>
+                                                    {netPnl >= 0 ? '+' : '-'}${Math.abs(netPnl).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                                </span>
+                                                <span className="text-[11px]" style={{ color: '#4b5563' }}>{tradeCount} trades · {sessionCount} sessions</span>
+                                            </div>
+                                            <div className="flex items-center justify-center text-[#4b5563]" style={{ fontSize: 20 }}>→</div>
+                                            <div className="flex-1 bg-[#0d1117] border border-[#1a1c24] p-5 flex flex-col gap-2" style={{ borderRadius: 4 }}>
+                                                <span className="text-[9px] uppercase tracking-[0.15em] font-bold" style={{ color: '#6b7280' }}>Projected (with corrections)</span>
+                                                <span className="text-[36px] font-black font-mono" style={{ color: projectedPnl >= 0 ? '#A6FF4D' : '#ff4757' }}>
+                                                    {projectedPnl >= 0 ? '+' : '-'}${Math.abs(projectedPnl).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                                </span>
+                                                <span className="text-[11px]" style={{ color: '#4b5563' }}>~{tradeCount} trades · Behavioral fixes applied</span>
+                                            </div>
+                                        </div>
+                                        <div className="mt-4 pt-4 border-t border-[#1a1c24] text-center text-[12px] font-mono" style={{ color: '#6b7280' }}>
+                                            POTENTIAL IMPROVEMENT: <span className="font-black" style={{ color: '#A6FF4D' }}>+${totalRecovery.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                                        </div>
+                                    </div>
+                                )}
+
+                                {prescriptions.length === 0 && (
+                                    <div className="bg-[#0d1117] border border-[#1a1c24] p-10 text-center flex flex-col items-center gap-3" style={{ borderRadius: 4 }}>
+                                        <span className="text-[42px] font-black" style={{ color: '#A6FF4D' }}>A</span>
+                                        <span className="text-[14px] font-bold text-white">No Critical Patterns Detected</span>
+                                        <p className="text-[12px] text-[#6b7280] max-w-xs leading-relaxed">Add more trades to unlock deeper forensic analysis. Minimum 10 closed trades recommended.</p>
+                                    </div>
+                                )}
+                            </motion.div>
+                        );
+                    })()}
 
                     {activeTab === 'COMPARE' && (
                         <motion.div key="compare" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="flex flex-col items-center justify-center p-8 sm:p-32 gap-6 opacity-40">
