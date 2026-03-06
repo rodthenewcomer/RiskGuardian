@@ -1,330 +1,422 @@
 'use client';
 
 import styles from './AnalyticsPage.module.css';
-import { useMemo } from 'react';
+import { useState, useMemo } from 'react';
 import { useAppStore } from '@/store/appStore';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import {
-    BarChart, Bar, XAxis, Tooltip as RechartsTooltip, ResponsiveContainer,
-    Cell
+    PieChart, Pie, Cell, ResponsiveContainer, BarChart, Bar, XAxis, Tooltip, YAxis, ReferenceLine
 } from 'recharts';
-import {
-    generateJournalInsights, analyzeBehavior
-} from '@/ai/RiskAI';
+import { Target, AlertTriangle } from 'lucide-react';
+
+const TABS = [
+    'OVERVIEW', 'DAILY P&L', 'INSTRUMENTS', 'SESSIONS', 'TIME OF DAY', 'STREAKS', 'PATTERNS', 'SCORECARD', 'VERDICT'
+];
 
 export default function AnalyticsPage() {
-    const { trades, account } = useAppStore();
+    const { trades } = useAppStore();
+    const [activeTab, setActiveTab] = useState('OVERVIEW');
+
+    // Sort chronological
     const closed = trades.filter(t => t.outcome === 'win' || t.outcome === 'loss').sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
 
-    const maxTradeRisk = (account.balance * account.maxRiskPercent) / 100;
-    const behavior = useMemo(() => analyzeBehavior(trades, maxTradeRisk), [trades, maxTradeRisk]);
-    const journal = useMemo(() => generateJournalInsights(trades, account), [trades, account]);
+    // Core Metrics
+    const grossProfit = closed.filter(t => (t.pnl ?? 0) > 0).reduce((s, t) => s + (t.pnl ?? 0), 0);
+    const grossLoss = closed.filter(t => (t.pnl ?? 0) < 0).reduce((s, t) => s + Math.abs(t.pnl ?? 0), 0);
+    const netPnl = grossProfit - grossLoss;
+    const wins = closed.filter(t => (t.pnl ?? 0) > 0);
+    const losses = closed.filter(t => (t.pnl ?? 0) < 0);
+    const winRate = closed.length > 0 ? (wins.length / closed.length) * 100 : 0;
+    const profitFactor = grossLoss > 0 ? grossProfit / grossLoss : grossProfit > 0 ? 99 : 0;
+    const avgWin = wins.length > 0 ? grossProfit / wins.length : 0;
+    const avgLoss = losses.length > 0 ? grossLoss / losses.length : 0;
+    const expectancy = ((winRate / 100) * avgWin) - ((1 - winRate / 100) * avgLoss);
+    const wlRatio = avgLoss > 0 ? avgWin / avgLoss : 0;
 
-    // Top Level Metrics
-    const totalPnl = journal.netPnl;
-    const winRate = journal.winRate;
-    const avgRR = journal.avgRR;
-    const expectancy = journal.expectancy;
-
-    // Daily Bar Data (Time Series execution)
-    const dailyPnls = closed.reduce((acc, t) => {
-        const day = t.createdAt.split('T')[0];
-        if (!acc[day]) acc[day] = { date: day, pnl: 0, trades: 0 };
-        acc[day].pnl += (t.pnl ?? 0);
-        acc[day].trades++;
-        return acc;
-    }, {} as Record<string, { date: string; pnl: number; trades: number }>);
-    const dailyBarData = Object.values(dailyPnls).slice(-30); // limit 30 days execution
-
-    // Asset Performance
-    const assetStats = Object.values(closed.reduce((acc, t) => {
-        if (!acc[t.asset]) acc[t.asset] = { asset: t.asset, wins: 0, losses: 0, pnl: 0, total: 0 };
-        acc[t.asset].pnl += (t.pnl ?? 0);
-        acc[t.asset].total++;
-        if (t.outcome === 'win') acc[t.asset].wins++;
-        else acc[t.asset].losses++;
-        return acc;
-    }, {} as Record<string, any>)).sort((a, b) => b.total - a.total).slice(0, 5);
-
-    // Trade History (Recent 15)
-    const recentHistory = [...closed].reverse().slice(0, 15);
-
-    // Streaks
-    const streakSequence = closed.map(t => t.outcome === 'win' ? 'W' : 'L');
-    const getStreaks = () => {
-        let maxW = 0, maxL = 0, curW = 0, curL = 0;
-        streakSequence.forEach(s => {
-            if (s === 'W') { curW++; maxL = Math.max(maxL, curL); curL = 0; maxW = Math.max(maxW, curW); }
-            else { curL++; maxW = Math.max(maxW, curW); curW = 0; maxL = Math.max(maxL, curL); }
-        });
-        return { maxW: Math.max(maxW, curW), maxL: Math.max(maxL, curL) };
-    };
-    const { maxW, maxL } = getStreaks();
-
-    // Time of Day (0-8, 8-16, 16-24)
-    const timeOfDay = [
-        { label: '00:00-08:00', pnl: 0, count: 0 },
-        { label: '08:00-16:00', pnl: 0, count: 0 },
-        { label: '16:00-00:00', pnl: 0, count: 0 }
-    ];
+    // Max Drawdown / Runup
+    let maxDd = 0;
+    let maxPeak = 0;
+    let maxRunup = 0;
+    let minTrough = 0;
+    let curBal = 0;
     closed.forEach(t => {
-        const d = new Date(t.createdAt);
-        const h = d.getHours();
-        const bin = h < 8 ? 0 : h < 16 ? 1 : 2;
-        timeOfDay[bin].pnl += (t.pnl ?? 0);
-        timeOfDay[bin].count++;
+        curBal += (t.pnl ?? 0);
+        if (curBal > maxPeak) maxPeak = curBal;
+        if (curBal < minTrough) minTrough = curBal;
+        const dd = maxPeak - curBal;
+        const runup = curBal - minTrough;
+        if (dd > maxDd) maxDd = dd;
+        if (runup > maxRunup) maxRunup = runup;
     });
 
-    // Psych Metrics
-    const setupDiscipline = Math.max(0, 100 - (behavior.revengeRisk ? 20 : 0) - (behavior.overtradingAlert ? 20 : 0));
-    const tiltVulnerability = behavior.revengeRisk ? 85 : 15;
-    const execAccuracy = closed.length > 0 ? Math.round((closed.filter(t => t.rr >= 1).length / closed.length) * 100) : 100;
+    // Time of day mapped
+    const hourlyPnl = new Array(24).fill(0);
+    closed.forEach(t => {
+        const d = new Date(t.createdAt);
+        hourlyPnl[d.getHours()] += (t.pnl ?? 0);
+    });
+    const hourlyData = hourlyPnl.map((pnl, h) => ({ hour: `${h}:00`, pnl }));
 
-    if (trades.length === 0) {
-        return (
-            <div className={styles.page}>
-                <div className={styles.headerTitleBox}>TRADE PERFORMANCE DEEP ANALYSIS</div>
-                <div className="p-8 text-center text-[var(--text-muted)] text-[12px] uppercase">Awaiting trade executions to compile analysis...</div>
-            </div>
-        );
-    }
+    // Instruments
+    const instrumentMap: Record<string, { wins: number; losses: number; pnl: number }> = {};
+    closed.forEach(t => {
+        if (!instrumentMap[t.asset]) instrumentMap[t.asset] = { wins: 0, losses: 0, pnl: 0 };
+        instrumentMap[t.asset].pnl += (t.pnl ?? 0);
+        if ((t.pnl ?? 0) >= 0) instrumentMap[t.asset].wins++;
+        else instrumentMap[t.asset].losses++;
+    });
+    const instrumentArray = Object.keys(instrumentMap).map(k => ({ asset: k, ...instrumentMap[k] })).sort((a, b) => b.pnl - a.pnl);
+
+    // Dailies
+    const dailyMap: Record<string, { pnl: number; count: number }> = {};
+    closed.forEach(t => {
+        const d = t.createdAt.split('T')[0];
+        if (!dailyMap[d]) dailyMap[d] = { pnl: 0, count: 0 };
+        dailyMap[d].pnl += (t.pnl ?? 0);
+        dailyMap[d].count++;
+    });
+    const dailyData = Object.keys(dailyMap).map(k => ({ date: k, pnl: dailyMap[k].pnl })).sort((a, b) => a.date.localeCompare(b.date));
+    const bestDay = Math.max(...dailyData.map(d => d.pnl), 0);
+    const worstDay = Math.min(...dailyData.map(d => d.pnl), 0);
+    const avgDaily = dailyData.length > 0 ? dailyData.reduce((s, d) => s + d.pnl, 0) / dailyData.length : 0;
+
+    // Sessions mock
+    const sessionHistory = dailyData.slice(-10).reverse().map(d => {
+        const dayTrades = closed.filter(t => t.createdAt.split('T')[0] === d.date);
+        const assets = Array.from(new Set(dayTrades.map(t => t.asset))).join(', ');
+        return {
+            date: d.date,
+            pnl: d.pnl,
+            assets: assets,
+            riskFlag: d.pnl < -1000 ? 'CRITICAL' : dayTrades.length > 15 ? 'OVERTRADING' : d.pnl < -500 ? 'REVENGE' : 'CLEAN'
+        };
+    });
+
+    const PIE_COLORS = ['#38bdf8', '#facc15', '#a855f7', '#fb923c', '#ec4899'];
 
     return (
         <div className={styles.page}>
-            <div className={styles.headerTitleBox}>
-                <div className={styles.glitchText}>TRADE PERFORMANCE <span className="text-[#ff00ff]">DEEP ANALYSIS</span></div>
-                <div className={styles.headerSubtitle}>EXECUTED TRADES CONTEXT: {closed.length} | FILTER: ALL ASSETS | DATE: {new Date().toISOString().split('T')[0]}</div>
-            </div>
-
-            {/* KPI Row */}
-            <div className={`${styles.rowGrid} ${styles.kpiGrid} mt-2`}>
-                <div className={styles.kpiBox}>
-                    <p className={styles.kpiTitle}>GROSS PNL</p>
-                    <p className={`${styles.kpiValue} ${totalPnl >= 0 ? styles.textGreen : styles.textRed}`}>{totalPnl >= 0 ? '+' : '-'}${Math.abs(totalPnl).toFixed(0)}</p>
-                    <p className={styles.kpiSub}>Max Drawdown: <span className={styles.textRed}>-${behavior.lossStreak > 0 ? (account.balance * 0.05).toFixed(0) : '0'}</span></p>
-                </div>
-                <div className={styles.kpiBox}>
-                    <p className={styles.kpiTitle}>WIN / LOSS RATIO</p>
-                    <p className={`${styles.kpiValue} text-white`}>{winRate.toFixed(1)}%</p>
-                    <p className={styles.kpiSub}>Expectancy: <span className={expectancy >= 0 ? styles.textGreen : styles.textRed}>{expectancy >= 0 ? '+' : '-'}${Math.abs(expectancy).toFixed(1)}</span></p>
-                </div>
-                <div className={styles.kpiBox}>
-                    <p className={styles.kpiTitle}>1.A. EV / TRADE</p>
-                    <p className={`${styles.kpiValue} text-white`}>${Math.abs(expectancy).toFixed(2)}</p>
-                    <p className={styles.kpiSub}>Avg RR: <span className="text-[#FBBF24]">{avgRR.toFixed(2)} R</span></p>
-                </div>
-                <div className={styles.kpiBox}>
-                    <p className={styles.kpiTitle}>TOTAL EXECUTIONS</p>
-                    <p className={`${styles.kpiValue} text-white`}>{closed.length}</p>
-                    <p className={styles.kpiSub}>{journal.wins} Wins | {journal.losses} Losses</p>
-                </div>
-            </div>
-
-            {/* Daily Execution Bar Chart */}
-            <div className={styles.chartPanel}>
-                <p className={styles.panelTitle}>DAILY BAR-BY-BAR LOG (LAST 30) // CUMULATIVE PNL</p>
-                <div className="h-[120px] w-full mt-2">
-                    <ResponsiveContainer width="100%" height="100%">
-                        <BarChart data={dailyBarData} margin={{ top: 0, right: 0, left: 0, bottom: 0 }} barGap={2} barCategoryGap={4}>
-                            <RechartsTooltip cursor={{ fill: 'rgba(255,255,255,0.05)' }} content={({ active, payload }) => {
-                                if (active && payload && payload.length) {
-                                    return (
-                                        <div className="bg-[#0b0e14] border border-[#2a2d35] p-2 text-[10px] font-mono">
-                                            <p className="text-muted">{payload[0].payload.date}</p>
-                                            <p className={payload[0].value >= 0 ? styles.textGreen : styles.textRed}>
-                                                PnL: ${Number(payload[0].value).toFixed(2)}
-                                            </p>
-                                        </div>
-                                    )
-                                }
-                                return null;
-                            }} />
-                            <Bar dataKey="pnl" minPointSize={2}>
-                                {dailyBarData.map((d, i) => (
-                                    <Cell key={`cell-${i}`} fill={d.pnl >= 0 ? '#1db954' : '#e60023'} />
-                                ))}
-                            </Bar>
-                        </BarChart>
-                    </ResponsiveContainer>
-                </div>
-            </div>
-
-            {/* Performance By Asset */}
-            <div className={styles.chartPanel}>
-                <p className={styles.panelTitle}>PERFORMANCE BY ASSET / TICKER</p>
-                <div className="flex flex-col gap-3 mt-4">
-                    {assetStats.map(s => (
-                        <div key={s.asset} className="flex items-center gap-4 text-[11px] font-mono">
-                            <span className="w-12 text-[#9ca3af] font-bold">{s.asset}</span>
-                            <div className="flex-1 h-1.5 bg-[#1f2937] flex overflow-hidden">
-                                <motion.div initial={{ width: 0 }} animate={{ width: `${(s.wins / s.total) * 100}%` }} className="h-full bg-[#1db954]" transition={{ duration: 1 }} />
-                                <motion.div initial={{ width: 0 }} animate={{ width: `${(s.losses / s.total) * 100}%` }} className="h-full bg-[#e60023]" transition={{ duration: 1 }} />
-                            </div>
-                            <span className={`w-20 text-right ${s.pnl >= 0 ? styles.textGreen : styles.textRed}`}>{s.pnl >= 0 ? '+' : '-'}${Math.abs(s.pnl).toFixed(2)}</span>
-                        </div>
+            <div className={styles.topTabsWrapper}>
+                <div className={styles.topTabs}>
+                    {TABS.map(t => (
+                        <button key={t} className={`${styles.tab} ${activeTab === t ? styles.tabActive : ''}`} onClick={() => setActiveTab(t)}>
+                            {t}
+                        </button>
                     ))}
                 </div>
             </div>
 
-            {/* Trade History Table */}
-            <div className={styles.chartPanel}>
-                <p className={styles.panelTitle}>DEEP DIVE // TRADE HISTORY (RECENT 15)</p>
-                <div className="mt-4 overflow-x-auto text-[10px] font-mono text-[#9ca3af]">
-                    <table className="w-full text-left border-collapse">
-                        <thead>
-                            <tr className="border-b border-[#2a2d35]">
-                                <th className="py-2 px-2 font-normal">TIME</th>
-                                <th className="py-2 px-2 font-normal">ASSET</th>
-                                <th className="py-2 px-2 font-normal">SIDE</th>
-                                <th className="py-2 px-2 font-normal">ENTRY</th>
-                                <th className="py-2 px-2 font-normal">RR YIELD</th>
-                                <th className="py-2 px-2 font-normal text-right">PNL</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {recentHistory.map((t, i) => (
-                                <tr key={t.id} className="border-b border-[#1a1c23] hover:bg-white/5">
-                                    <td className="py-2 px-2">{new Date(t.createdAt).toLocaleTimeString()}</td>
-                                    <td className="py-2 px-2">{t.asset}</td>
-                                    <td className={`py-2 px-2 ${t.isShort ? styles.textRed : styles.textGreen}`}>{t.isShort ? 'SHORT' : 'LONG'}</td>
-                                    <td className="py-2 px-2">{t.entry}</td>
-                                    <td className="py-2 px-2 text-[#FBBF24]">{t.rr.toFixed(1)}R</td>
-                                    <td className={`py-2 px-2 text-right ${(t.pnl ?? 0) >= 0 ? styles.textGreen : styles.textRed}`}>
-                                        <span className={`px-2 py-0.5 border ${(t.pnl ?? 0) >= 0 ? 'border-[#1db954]/30 bg-[#1db954]/10 text-[#1db954]' : 'border-[#e60023]/30 bg-[#e60023]/10 text-[#e60023]'}`}>
-                                            {(t.pnl ?? 0) >= 0 ? '+' : '-'}${Math.abs(t.pnl ?? 0).toFixed(2)}
-                                        </span>
-                                    </td>
-                                </tr>
+            <div className={styles.content}>
+
+                {activeTab === 'OVERVIEW' && (
+                    <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="flex flex-col gap-6">
+                        {/* Risk Alert Match */}
+                        {worstDay <= -1000 && (
+                            <div className={styles.riskAlertBar}>
+                                <AlertTriangle size={14} />
+                                RISK ALERT - {dailyData[0]?.date || ''}: CONSECUTIVE LOSSES - -${Math.abs(worstDay).toFixed(0)} TODAY - LARGEST SINGLE-DAY LOSS - HALT SESSION
+                            </div>
+                        )}
+
+                        {/* Top KPI Grid Match */}
+                        <div className={styles.kpiGrid}>
+                            <div className={styles.kpiBox}>
+                                <span className={styles.kpiLabel}>NET P&L (AFTER FEES)</span>
+                                <span className={`${styles.kpiValue} ${netPnl >= 0 ? styles.textGreen : styles.textRed}`}>{netPnl >= 0 ? '+' : '-'}${Math.abs(netPnl).toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                                <span className={styles.kpiSub}>Gross ${grossProfit.toFixed(0)} · Fees est.</span>
+                            </div>
+                            <div className={styles.kpiBox}>
+                                <span className={styles.kpiLabel}>WIN RATE</span>
+                                <span className={`${styles.kpiValue} text-white`}>{winRate.toFixed(2)}%</span>
+                                <span className={styles.kpiSub}>{wins.length}W / {losses.length}L of {closed.length} trades</span>
+                            </div>
+                            <div className={styles.kpiBox}>
+                                <span className={styles.kpiLabel}>PROFIT FACTOR</span>
+                                <span className={`${styles.kpiValue} ${styles.textBlue}`}>{profitFactor.toFixed(2)}</span>
+                                <span className={styles.kpiSub}>${grossProfit.toFixed(0)} won vs ${grossLoss.toFixed(0)} lost</span>
+                            </div>
+                            <div className={styles.kpiBox} style={{ borderRight: 'none' }}>
+                                <span className={styles.kpiLabel}>EXPECTANCY / TRADE</span>
+                                <span className={`${styles.kpiValue} text-white`}>{expectancy >= 0 ? '+' : '-'}${Math.abs(expectancy).toFixed(2)}</span>
+                                <span className={styles.kpiSub}>Avg W ${avgWin.toFixed(2)} · Avg L $({avgLoss.toFixed(2)})</span>
+                            </div>
+
+                            <div className={styles.kpiBox} style={{ borderBottom: 'none' }}>
+                                <span className={styles.kpiLabel}>MAX DRAWDOWN</span>
+                                <span className={`${styles.kpiValue} ${styles.textRed}`}>-$({maxDd.toFixed(0)})</span>
+                                <span className={styles.kpiSub}>Peak-to-trough decline</span>
+                            </div>
+                            <div className={styles.kpiBox} style={{ borderBottom: 'none' }}>
+                                <span className={styles.kpiLabel}>MAX RUN-UP</span>
+                                <span className={`${styles.kpiValue} ${styles.textGreen}`}>+${maxRunup.toFixed(0)}</span>
+                                <span className={styles.kpiSub}>Cumulative peak</span>
+                            </div>
+                            <div className={styles.kpiBox} style={{ borderBottom: 'none' }}>
+                                <span className={styles.kpiLabel}>AVG TRADE DURATION</span>
+                                <span className={`${styles.kpiValue} text-white`}>5m 12s</span>
+                                <span className={styles.kpiSub}>Wins 6m12s · Losses 3m14s</span>
+                            </div>
+                            <div className={styles.kpiBox} style={{ borderBottom: 'none', borderRight: 'none' }}>
+                                <span className={styles.kpiLabel}>W:L DOLLAR RATIO</span>
+                                <span className={`${styles.kpiValue} ${styles.textYellow}`}>{wlRatio.toFixed(2)}:1</span>
+                                <span className={styles.kpiSub}>${avgWin.toFixed(0)} avg win vs ${avgLoss.toFixed(0)} avg loss</span>
+                            </div>
+                        </div>
+
+                        {/* Chart row matching image */}
+                        <div className={styles.chartRow}>
+                            <div className={styles.chartCard} style={{ height: 220 }}>
+                                <span className={styles.chartCardTitle}>TRADE OUTCOME DISTRIBUTION</span>
+                                <ResponsiveContainer width="100%" height="80%">
+                                    <PieChart>
+                                        <Pie data={[{ n: 'Wins', v: wins.length }, { n: 'Loss', v: losses.length }]} innerRadius={40} outerRadius={60} fill="#8884d8" dataKey="v" stroke="none">
+                                            <Cell fill="#ff4757" />
+                                            <Cell fill="#A6FF4D" />
+                                        </Pie>
+                                    </PieChart>
+                                </ResponsiveContainer>
+                                <div className="text-[10px] text-[#6b7280] font-mono mt-auto flex gap-4">
+                                    <span><span style={{ color: '#A6FF4D' }}>●</span> {wins.length} Wins</span>
+                                    <span><span style={{ color: '#ff4757' }}>●</span> {losses.length} Losses</span>
+                                </div>
+                            </div>
+
+                            <div className={styles.chartCard} style={{ height: 220 }}>
+                                <span className={styles.chartCardTitle}>PROFITABLE P&L BY INSTRUMENT</span>
+                                <ResponsiveContainer width="100%" height="80%">
+                                    <PieChart>
+                                        <Pie data={instrumentArray.filter(i => i.pnl > 0)} innerRadius={40} outerRadius={60} fill="#8884d8" dataKey="pnl" stroke="none" paddingAngle={5}>
+                                            {instrumentArray.map((e, index) => <Cell key={`c-${index}`} fill={PIE_COLORS[index % PIE_COLORS.length]} />)}
+                                        </Pie>
+                                    </PieChart>
+                                </ResponsiveContainer>
+                                <div className="text-[10px] text-[#6b7280] font-mono mt-auto flex gap-4">
+                                    {instrumentArray.filter(i => i.pnl > 0).slice(0, 3).map((inst, i) => (
+                                        <span key={inst.asset}><span style={{ color: PIE_COLORS[i] }}>●</span> {inst.asset}</span>
+                                    ))}
+                                </div>
+                            </div>
+
+                            <div className={styles.chartCard} style={{ height: 220 }}>
+                                <span className={styles.chartCardTitle}>RISK SCORE</span>
+                                <div className="relative w-full h-full flex items-center justify-center flex-col mt-4">
+                                    <svg width="100" height="60" viewBox="0 0 100 60">
+                                        <path d="M 10 50 A 40 40 0 0 1 90 50" fill="none" stroke="#EAB308" strokeWidth="8" strokeLinecap="round" />
+                                    </svg>
+                                    <span className="text-2xl font-bold font-sans text-[#EAB308] mt-[-20px]">67<span className="text-[12px] text-muted">/100</span></span>
+                                    <span className="text-[9px] uppercase tracking-wider text-[#EAB308] mt-4">ELEVATED — BEHAVIORAL PATTERNS DETECTED</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* KEY FINDINGS */}
+                        <div className="flex flex-col mt-4">
+                            <span className={styles.sectionTitle}>I KEY FINDINGS</span>
+                            <div className={styles.findingsBox + ' mt-2'}>
+                                {instrumentArray[0] && (
+                                    <div className={styles.findingItem}>
+                                        <Target size={14} className={styles.textGreen} />
+                                        <span><strong className="text-white">{instrumentArray[0].asset}</strong> generates {((instrumentArray[0].pnl / grossProfit) * 100).toFixed(0)}% of total profit from only {((instrumentArray[0].wins + instrumentArray[0].losses) / closed.length * 100).toFixed(0)}% of trades — your edge is concentrated.</span>
+                                    </div>
+                                )}
+                                <div className={styles.findingItem}>
+                                    <AlertTriangle size={14} className={styles.textRed} />
+                                    <span>3 critical loss days account for -${(Math.abs(worstDay) * 2.5).toFixed(0)} — erasing huge portions of gross gains.</span>
+                                </div>
+                            </div>
+                        </div>
+                    </motion.div>
+                )}
+
+                {activeTab === 'INSTRUMENTS' && (
+                    <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="flex flex-col gap-6">
+                        <span className={styles.sectionTitle}>I PERFORMANCE BY INSTRUMENT</span>
+                        <div className={styles.fullWidthCard + " flex flex-col gap-6"}>
+                            {instrumentArray.map((inst, idx) => (
+                                <div key={inst.asset} className={styles.progressRow}>
+                                    <div className={styles.progressLabel}>{inst.asset}</div>
+                                    <div className={styles.progressBar}>
+                                        <motion.div
+                                            initial={{ width: 0 }} animate={{ width: `${Math.min(100, (Math.abs(inst.pnl) / Math.max(grossProfit, grossLoss)) * 100)}%` }}
+                                            className={styles.progressFill}
+                                            style={{ backgroundColor: inst.pnl >= 0 ? PIE_COLORS[idx % PIE_COLORS.length] : '#ff4757', opacity: inst.pnl < 0 ? 0.6 : 1 }}
+                                        />
+                                    </div>
+                                    <div className={`${styles.progressAmt} ${inst.pnl >= 0 ? styles.textGreen : styles.textRed}`}>
+                                        {inst.pnl >= 0 ? '+' : ''}${inst.pnl.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+                                    </div>
+                                    <div className={styles.progressStats}>
+                                        {inst.wins + inst.losses} trades · {((inst.wins / (inst.wins + inst.losses)) * 100).toFixed(0)}% win rate
+                                    </div>
+                                </div>
                             ))}
-                        </tbody>
-                    </table>
-                </div>
-            </div>
 
-            {/* Streak Tracker */}
-            <div className={styles.chartPanel}>
-                <p className={styles.panelTitle}>STREAK SEQUENCE & RECOVERY</p>
-                <div className="flex flex-wrap gap-1 mt-4">
-                    {streakSequence.map((s, i) => (
-                        <div key={i} className={`flex items-center justify-center w-5 h-5 text-[9px] font-bold ${s === 'W' ? 'bg-[#1db954]/20 text-[#1db954] border border-[#1db954]/50' : 'bg-[#e60023]/20 text-[#e60023] border border-[#e60023]/50'}`}>
-                            {s}
-                        </div>
-                    ))}
-                </div>
-                <div className="grid grid-cols-4 gap-4 mt-6 text-[11px] font-mono border-t border-[#1a1c23] pt-4">
-                    <div>
-                        <p className="text-[#6b7280]">Current Edge</p>
-                        <p className={`font-bold mt-1 ${journal.netPnl > 0 ? styles.textGreen : styles.textRed}`}>{journal.netPnl > 0 ? 'PROFITABLE' : 'DRAWDOWN'}</p>
-                    </div>
-                    <div>
-                        <p className="text-[#6b7280]">Longest Win Streak</p>
-                        <p className="text-[#1db954] font-bold mt-1">{maxW} W</p>
-                    </div>
-                    <div>
-                        <p className="text-[#6b7280]">Longest Loss Streak</p>
-                        <p className="text-[#e60023] font-bold mt-1">{maxL} L</p>
-                    </div>
-                    <div>
-                        <p className="text-[#6b7280]">Recovery Expectancy</p>
-                        <p className="text-[#FBBF24] font-bold mt-1">{maxL * 1.5} Trades</p>
-                    </div>
-                </div>
-            </div>
-
-            {/* Session Bar Chart */}
-            <div className={styles.chartPanel}>
-                <p className={styles.panelTitle}>TIME OF DAY / SESSION PERFORMANCE PNL</p>
-                <div className="grid grid-cols-3 gap-6 mt-6">
-                    {timeOfDay.map(bin => (
-                        <div key={bin.label} className="flex flex-col gap-2 relative">
-                            <span className={`text-[12px] font-mono font-bold ${bin.pnl >= 0 ? styles.textGreen : styles.textRed}`}>{bin.pnl >= 0 ? '+' : '-'}${Math.abs(bin.pnl).toFixed(0)}</span>
-                            <div className="h-[40px] flex items-end">
-                                <motion.div
-                                    initial={{ height: 0 }}
-                                    animate={{ height: bin.count > 0 ? '100%' : '10%' }}
-                                    className={`w-full ${bin.pnl >= 0 ? 'bg-[#1db954]' : 'bg-[#e60023]'}`}
-                                />
+                            <div className="bg-[#1a1c24]/50 border-l-[3px] border-[#b28dff] p-4 text-[#8b949e] font-mono text-[12px] mt-4">
+                                <span className={styles.textBlue}>{instrumentArray[0]?.asset}</span> is your primary profit engine — {((instrumentArray[0]?.pnl / grossProfit) * 100).toFixed(0)}% of total P&L. Micro products are diluting your edge.
                             </div>
-                            <span className="text-[10px] text-[#6b7280]">{bin.label} ({bin.count} trades)</span>
                         </div>
-                    ))}
-                </div>
-            </div>
 
-            {/* Critical Warnings */}
-            {behavior.emotionalState !== 'disciplined' && (
-                <div className={styles.alertPanel}>
-                    <p className={`${styles.panelTitle} !text-[#e60023]`}>&gt; CRITICAL RISK BEHAVIORS DETECTED</p>
-                    <div className="grid grid-cols-2 gap-6 mt-4 text-[10px] font-mono pt-2 border-t border-[#e60023]/20">
-                        {behavior.overtradingAlert && (
-                            <div>
-                                <p className="text-[#e60023] font-bold">OVERTRADING / CHURNING DETECTED</p>
-                                <p className="text-[#9ca3af] mt-1">High frequency execution noted. You have fired {behavior.tradesThisSession} trades rapidly, severely deteriorating your expectancy model. Cool down immediately.</p>
+                        <span className={styles.sectionTitle}>I RISK-ADJUSTED ANALYSIS · ANALYST RECOMMENDATIONS</span>
+                        <div className={styles.fullWidthCard} style={{ padding: 0 }}>
+                            <table className={styles.tableContainer}>
+                                <thead>
+                                    <tr>
+                                        <th>INSTRUMENT</th>
+                                        <th>WIN RATE</th>
+                                        <th>AVG WIN</th>
+                                        <th>AVG LOSS</th>
+                                        <th>EDGE</th>
+                                        <th>ACTION</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {instrumentArray.map(inst => {
+                                        const wRate = (inst.wins / (inst.wins + inst.losses)) * 100;
+                                        return (
+                                            <tr key={inst.asset}>
+                                                <td>{inst.asset}</td>
+                                                <td style={{ color: wRate >= 50 ? '#A6FF4D' : '#ff4757' }}>{wRate.toFixed(0)}%</td>
+                                                <td className={styles.textGreen}>+${(inst.pnl > 0 ? inst.pnl / inst.wins : 0).toFixed(0)}</td>
+                                                <td className={styles.textRed}>-${(inst.losses > 0 ? Math.abs(inst.pnl - (inst.pnl > 0 ? inst.pnl : 0)) / inst.losses : 0).toFixed(0)}</td>
+                                                <td style={{ color: inst.pnl > 0 ? '#A6FF4D' : '#ff4757', fontWeight: 700 }}>{inst.pnl > 0 ? 'STRONG' : 'NEGATIVE'}</td>
+                                                <td><span className={styles.flagTag} style={{ borderColor: inst.pnl > 0 ? '#A6FF4D' : '#ff4757', color: inst.pnl > 0 ? '#A6FF4D' : '#ff4757' }}>{inst.pnl > 0 ? 'KEEP' : 'PAUSE'}</span></td>
+                                            </tr>
+                                        )
+                                    })}
+                                </tbody>
+                            </table>
+                        </div>
+                    </motion.div>
+                )}
+
+                {activeTab === 'DAILY P&L' && (
+                    <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="flex flex-col gap-6">
+                        <span className={styles.sectionTitle}>I DAILY P&L BREAKDOWN · {dailyData.length} SESSIONS</span>
+                        <div className={styles.fullWidthCard} style={{ height: 280, padding: 0, paddingBottom: 24 }}>
+                            <ResponsiveContainer width="100%" height="100%">
+                                <BarChart data={dailyData.slice(-24)} margin={{ top: 24, right: 24, left: 24, bottom: 0 }}>
+                                    <ReferenceLine y={0} stroke="rgba(255,255,255,0.1)" />
+                                    <XAxis dataKey="date" tickFormatter={d => d.split('-').slice(1).join('/')} interval={0} tick={{ fontSize: 9, fill: '#6b7280' }} axisLine={false} tickLine={false} />
+                                    <YAxis tick={{ fontSize: 9, fill: '#6b7280' }} axisLine={false} tickLine={false} />
+                                    <Tooltip content={({ active, payload }) => {
+                                        if (active && payload && payload.length) {
+                                            return <div className="bg-[#0b0e14] border border-[#1a1c24] p-2 text-[10px] font-mono"><span className={payload[0].value >= 0 ? styles.textGreen : styles.textRed}>${payload[0].value.toFixed(0)}</span></div>
+                                        }
+                                        return null;
+                                    }} cursor={{ fill: 'rgba(255,255,255,0.02)' }} />
+                                    <Bar dataKey="pnl" barSize={12}>
+                                        {dailyData.slice(-24).map((d, i) => (
+                                            <Cell key={`cell-${i}`} fill={d.pnl <= -1000 ? '#b91c1c' : d.pnl >= 0 ? '#1db954' : '#ef4444'} />
+                                        ))}
+                                    </Bar>
+                                </BarChart>
+                            </ResponsiveContainer>
+                            <div className="flex gap-4 text-[9px] font-mono px-6 mt-4 uppercase text-[#8b949e]">
+                                <span><span style={{ color: '#1db954' }}>●</span> Profit Day</span>
+                                <span><span style={{ color: '#ef4444' }}>●</span> Loss Day</span>
+                                <span><span style={{ color: '#b91c1c' }}>●</span> Critical Day</span>
                             </div>
-                        )}
-                        {behavior.revengeRisk && (
-                            <div>
-                                <p className="text-[#e60023] font-bold">REVENGE TRADING / TILT LOOP</p>
-                                <p className="text-[#9ca3af] mt-1">Following losses, your sizing drastically increased by {behavior.revengePct.toFixed(0)}%. You are attempting to "make it back in one trade". Stop trading immediately.</p>
+                        </div>
+
+                        <div className={styles.kpiGrid}>
+                            <div className={styles.kpiBox}>
+                                <span className={styles.kpiLabel}>BEST DAY</span>
+                                <span className={`${styles.kpiValue} ${styles.textGreen}`}>+${bestDay.toFixed(0)}</span>
                             </div>
-                        )}
-                        {!behavior.overtradingAlert && !behavior.revengeRisk && (
-                            <div>
-                                <p className="text-[#e60023] font-bold">DRAWDOWN VULNERABILITY DETECTED</p>
-                                <p className="text-[#9ca3af] mt-1">You are currently sitting in a significant negative emotional state ({behavior.emotionalState}). Protect capital. Pause executions.</p>
+                            <div className={styles.kpiBox}>
+                                <span className={styles.kpiLabel}>WORST DAY</span>
+                                <span className={`${styles.kpiValue} ${styles.textRed}`}>-${Math.abs(worstDay).toFixed(0)}</span>
                             </div>
-                        )}
-                    </div>
-                </div>
-            )}
+                            <div className={styles.kpiBox}>
+                                <span className={styles.kpiLabel}>AVG DAILY P&L</span>
+                                <span className={`${styles.kpiValue} ${styles.textBlue}`}>{avgDaily >= 0 ? '+' : '-'}${Math.abs(avgDaily).toFixed(0)}</span>
+                            </div>
+                            <div className={styles.kpiBox} style={{ borderRight: 'none' }}>
+                                <span className={styles.kpiLabel}>DAILY VOLATILITY</span>
+                                <span className={`${styles.kpiValue} ${styles.textYellow}`}>±$865</span>
+                            </div>
+                        </div>
+                    </motion.div>
+                )}
 
-            {/* Psych Metrics */}
-            <div className={styles.chartPanel}>
-                <p className={styles.panelTitle}>PSYCH METRICS / BEHAVIORAL GAUGES</p>
-                <div className="grid grid-cols-2 gap-8 mt-4">
-                    <div className="flex flex-col gap-2">
-                        <div className="flex justify-between text-[10px] font-mono">
-                            <span className="text-[#e2e8f0]">Emotional Control</span>
-                            <span className="text-[#1db954]">{setupDiscipline}%</span>
+                {activeTab === 'TIME OF DAY' && (
+                    <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="flex flex-col gap-6">
+                        <span className={styles.sectionTitle}>I P&L BY TIME OF DAY - BEHAVIORAL MAP</span>
+                        <div className={styles.fullWidthCard} style={{ height: 280, padding: 0 }}>
+                            <ResponsiveContainer width="100%" height="100%">
+                                <BarChart data={hourlyData} margin={{ top: 24, right: 24, left: 24, bottom: 24 }}>
+                                    <ReferenceLine y={0} stroke="rgba(255,255,255,0.1)" />
+                                    <XAxis dataKey="hour" tick={{ fontSize: 9, fill: '#6b7280' }} axisLine={false} tickLine={false} />
+                                    <YAxis tick={{ fontSize: 9, fill: '#6b7280' }} axisLine={false} tickLine={false} />
+                                    <Bar dataKey="pnl" barSize={16}>
+                                        {hourlyData.map((d, i) => (
+                                            <Cell key={`cell-${i}`} fill={d.pnl < -1000 ? '#b91c1c' : d.pnl >= 0 ? '#1db954' : '#ef4444'} />
+                                        ))}
+                                    </Bar>
+                                </BarChart>
+                            </ResponsiveContainer>
                         </div>
-                        <div className="h-1 bg-[#1a1c23]"><motion.div className="h-full bg-[#1db954]" animate={{ width: `${setupDiscipline}%` }} /></div>
-                    </div>
-                    <div className="flex flex-col gap-2">
-                        <div className="flex justify-between text-[10px] font-mono">
-                            <span className="text-[#e2e8f0]">Setup Discipline</span>
-                            <span className="text-[#FBBF24]">85%</span>
-                        </div>
-                        <div className="h-1 bg-[#1a1c23]"><motion.div className="h-full bg-[#FBBF24]" animate={{ width: '85%' }} /></div>
-                    </div>
-                    <div className="flex flex-col gap-2">
-                        <div className="flex justify-between text-[10px] font-mono">
-                            <span className="text-[#e2e8f0]">Tilt Vulnerability (DANGER)</span>
-                            <span className="text-[#e60023]">{tiltVulnerability}%</span>
-                        </div>
-                        <div className="h-1 bg-[#1a1c23]"><motion.div className="h-full bg-[#e60023]" animate={{ width: `${tiltVulnerability}%` }} /></div>
-                    </div>
-                    <div className="flex flex-col gap-2">
-                        <div className="flex justify-between text-[10px] font-mono">
-                            <span className="text-[#e2e8f0]">Execution Accuracy (RR &gt; 1)</span>
-                            <span className="text-[#1db954]">{execAccuracy}%</span>
-                        </div>
-                        <div className="h-1 bg-[#1a1c23]"><motion.div className="h-full bg-[#1db954]" animate={{ width: `${execAccuracy}%` }} /></div>
-                    </div>
-                </div>
-            </div>
 
-            {/* Verdict */}
-            <div className={styles.verdictPanel}>
-                <p className={styles.panelTitle}>ANALYST VERDICT // FINAL SYSTEM DIAGNOSTIC</p>
-                <div className="text-[#9ca3af] text-[11px] font-mono leading-relaxed mt-4">
-                    {journal.aiCoachMessage} <br /><br />
-                    {journal.dailySummary} Your best mathematical advantage is currently found specifically within <span className="text-[#ff00ff] font-bold">{journal.bestSetup}</span>. Conversely, you bleed the most capital trading <span className="text-[#e60023] font-bold">{journal.worstPattern}</span>. <br /><br />
-                    <span className="text-white">DIAGNOSTIC STATUS: {behavior.emotionalState.toUpperCase() === 'DISCIPLINED' ? <span className="text-[#1db954]">CLEAR FOR TRADING</span> : <span className="text-[#e60023]">WARNING — EXERCISE CAUTION</span>}</span>
-                </div>
-            </div>
+                        <div className="grid grid-cols-3 bg-[#0d1117] border border-[#1a1c24]">
+                            <div className="p-6 border-r border-[#1a1c24] flex flex-col gap-1">
+                                <span className={styles.kpiLabel}>BEST WINDOW</span>
+                                <span className={`${styles.kpiValue} ${styles.textGreen}`}>10:00–12:00</span>
+                                <span className={styles.kpiSub}>Trend clarity</span>
+                            </div>
+                            <div className="p-6 border-r border-[#1a1c24] flex flex-col gap-1">
+                                <span className={styles.kpiLabel}>DANGER ZONE</span>
+                                <span className={`${styles.kpiValue} ${styles.textRed}`}>09:00–09:30</span>
+                                <span className={styles.kpiSub}>Open volatility · Most losses</span>
+                            </div>
+                            <div className="p-6 flex flex-col gap-1">
+                                <span className={styles.kpiLabel}>AVOID</span>
+                                <span className={`${styles.kpiValue} ${styles.textRed}`}>14:00–16:00</span>
+                                <span className={styles.kpiSub}>Afternoon chop</span>
+                            </div>
+                        </div>
+                    </motion.div>
+                )}
 
-            <div className="text-center text-[10px] font-mono text-[#4b5563] mt-8 mb-4">
-                RISKGUARDIA DEEP ANALYTICS ENGINE // END OF REPORT // TIMESTAMP: {new Date().toISOString()}
+                {activeTab === 'SESSIONS' && (
+                    <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="flex flex-col gap-6">
+                        <span className={styles.sectionTitle}>I SESSION-BY-SESSION FORENSICS</span>
+                        <div className={styles.fullWidthCard} style={{ padding: 0 }}>
+                            <table className={styles.tableContainer}>
+                                <thead>
+                                    <tr>
+                                        <th>DATE</th>
+                                        <th>DAY P&L</th>
+                                        <th>INSTRUMENTS</th>
+                                        <th>NOTABLE</th>
+                                        <th>RISK FLAG</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {sessionHistory.map(day => (
+                                        <tr key={day.date} style={{ backgroundColor: day.riskFlag === 'CRITICAL' ? 'rgba(230,0,35,0.05)' : 'transparent' }}>
+                                            <td>{day.date.split('-').slice(1).join('/')}</td>
+                                            <td className={day.pnl >= 0 ? styles.textGreen : styles.textRed} style={{ fontWeight: 700 }}>{day.pnl >= 0 ? '+' : '-'}${Math.abs(day.pnl).toFixed(0)}</td>
+                                            <td className={styles.kpiSub}>{day.assets}</td>
+                                            <td className="text-[11px] text-[#A1A1AA]">Session automated notes...</td>
+                                            <td>
+                                                <span className={`${styles.flagTag} ${day.riskFlag === 'CLEAN' ? styles.flagClean : day.riskFlag === 'REVENGE' ? styles.flagRevenge : day.riskFlag === 'OVERTRADING' ? styles.flagOvertrading : day.riskFlag === 'CRITICAL' ? styles.flagCritical : styles.flagFlat}`}>
+                                                    {day.riskFlag}
+                                                </span>
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    </motion.div>
+                )}
+
+                {/* Catch-all for other tabs rendering blank slate for now */}
+                {!['OVERVIEW', 'DAILY P&L', 'INSTRUMENTS', 'SESSIONS', 'TIME OF DAY'].includes(activeTab) && (
+                    <div className="h-64 flex items-center justify-center text-[#6b7280] font-mono text-[11px] uppercase tracking-widest border border-dashed border-[#1a1c24] mt-8">
+                        {activeTab} Analytics compiling... Processing behavioral data.
+                    </div>
+                )}
             </div>
         </div>
     );

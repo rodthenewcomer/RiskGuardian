@@ -1,117 +1,300 @@
 .page {
     display: flex;
     flex-direction: column;
-    padding: 24px 32px;
-    background: #050508;
+    padding: 0;
+    background: #0B0E14;
+    /* Deep dark blueish black */
     min-height: 100vh;
     font-family: var(--font-mono);
     color: #e2e8f0;
-    overflow-y: auto;
 }
 
-.headerTitleBox {
-    border: 1px solid #ff00ff;
-    background: rgba(255, 0, 255, 0.03);
-    padding: 12px 16px;
-    margin-bottom: 24px;
-    box-shadow: 0 0 10px rgba(255, 0, 255, 0.1);
+.topTabsWrapper {
+    background: #0B0E14;
+    border-bottom: 1px solid #1a1c24;
+    padding: 0 32px;
 }
 
-.glitchText {
-    font-size: 16px;
-    font-weight: 800;
-    letter-spacing: 0.15em;
+.topTabs {
+    display: flex;
+    gap: 32px;
+}
+
+.tab {
+    padding: 20px 0;
+    font-size: 11px;
+    letter-spacing: 0.1em;
+    color: #6b7280;
+    cursor: pointer;
+    text-transform: uppercase;
+    font-weight: 600;
+    transition: color 0.2s;
+    border-bottom: 2px solid transparent;
+    background: transparent;
+    border-top: none;
+    border-left: none;
+    border-right: none;
+}
+
+.tab:hover {
+    color: #a1a1aa;
+}
+
+.tabActive {
     color: #ffffff;
+    border-bottom: 2px solid #b28dff;
+    /* Purple underline matching screenshot */
+}
+
+.content {
+    padding: 24px 32px;
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+}
+
+/* Alert Bar */
+.riskAlertBar {
+    background: rgba(230, 0, 35, 0.05);
+    border: 1px solid rgba(230, 0, 35, 0.2);
+    border-left: 2px solid #e60023;
+    color: #e60023;
+    padding: 12px 16px;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.1em;
+    display: flex;
+    align-items: center;
+    gap: 12px;
     text-transform: uppercase;
 }
 
-.headerSubtitle {
-    color: #ff00ff;
-    font-size: 10px;
-    margin-top: 4px;
-    letter-spacing: 0.05em;
-    opacity: 0.8;
-}
-
-.rowGrid {
-    display: grid;
-    gap: 12px;
-}
-
+/* KPI Grid */
 .kpiGrid {
+    display: grid;
     grid-template-columns: repeat(4, 1fr);
+    border-top: 1px solid #1a1c24;
+    border-left: 1px solid #1a1c24;
 }
 
 .kpiBox {
-    background: #0a0a0f;
-    border: 1px solid #1a1c23;
-    padding: 16px;
+    padding: 24px;
+    border-bottom: 1px solid #1a1c24;
+    border-right: 1px solid #1a1c24;
     display: flex;
     flex-direction: column;
     gap: 8px;
-    border-radius: 4px;
+    background: #0d1117;
 }
 
-.kpiTitle {
+.kpiLabel {
     font-size: 10px;
     color: #6b7280;
-    letter-spacing: 0.05em;
-    font-weight: 600;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
 }
 
 .kpiValue {
-    font-size: 24px;
+    font-size: 28px;
     font-weight: 700;
     font-family: var(--font-sans);
 }
 
+.kpiSub {
+    font-size: 10px;
+    color: #8b949e;
+}
+
+/* Text Colors */
 .textGreen {
-    color: #1db954;
-    text-shadow: 0 0 8px rgba(29, 185, 84, 0.3);
+    color: #A6FF4D;
+    text-shadow: 0 0 10px rgba(166, 255, 77, 0.2);
 }
 
 .textRed {
-    color: #e60023;
-    text-shadow: 0 0 8px rgba(230, 0, 35, 0.3);
+    color: #ff4757;
+    text-shadow: 0 0 10px rgba(255, 71, 87, 0.2);
 }
 
-.kpiSub {
-    font-size: 10px;
-    color: #9ca3af;
+.textBlue {
+    color: #00a8ff;
 }
 
-.chartPanel {
-    background: #0a0a0f;
-    border: 1px solid #1a1c23;
-    padding: 20px;
-    margin-top: 16px;
-    border-radius: 4px;
+.textYellow {
+    color: #EAB308;
 }
 
-.panelTitle {
+/* Dashboard Sections */
+.chartRow {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 24px;
+}
+
+.chartCard {
+    background: #0d1117;
+    border: 1px solid #1a1c24;
+    padding: 24px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+.chartCardTitle {
     font-size: 11px;
-    color: #61729c;
+    color: #6b7280;
     letter-spacing: 0.1em;
+    text-transform: uppercase;
+    width: 100%;
+    text-align: center;
+    margin-bottom: 24px;
+}
+
+/* Findings Box */
+.sectionTitle {
+    font-size: 11px;
+    color: #8b949e;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.sectionTitle::before {
+    content: '';
+    display: inline-block;
+    width: 2px;
+    height: 12px;
+    background: #b28dff;
+}
+
+.findingsBox {
+    background: #0d1117;
+    border: 1px solid #1a1c24;
+    padding: 24px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.findingItem {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    font-size: 12px;
+    color: #c9d1d9;
+}
+
+/* Daily Breakdown */
+.fullWidthCard {
+    background: #0d1117;
+    border: 1px solid #1a1c24;
+    padding: 24px;
+}
+
+.tableContainer {
+    width: 100%;
+    margin-top: 16px;
+    border-collapse: collapse;
+}
+
+.tableContainer th,
+.tableContainer td {
+    padding: 12px;
+    text-align: left;
+    font-size: 11px;
+    border-bottom: 1px solid #1a1c24;
+}
+
+.tableContainer th {
+    color: #6b7280;
+    font-weight: 600;
+    letter-spacing: 0.1em;
+}
+
+.tableContainer td {
+    color: #c9d1d9;
+}
+
+/* Tags */
+.flagTag {
+    display: inline-block;
+    padding: 4px 8px;
+    border-radius: 2px;
+    font-size: 9px;
     font-weight: 700;
-    margin-bottom: 12px;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    border: 1px solid;
+    background: transparent;
 }
 
-/* Alert panels */
-.alertPanel {
-    background: rgba(230, 0, 35, 0.03);
-    border: 1px solid #e60023;
-    box-shadow: 0 0 10px rgba(230, 0, 35, 0.1);
-    padding: 24px;
-    margin-top: 16px;
-    border-radius: 4px;
+.flagClean {
+    color: #A6FF4D;
+    border-color: rgba(166, 255, 77, 0.4);
 }
 
-/* Verdict */
-.verdictPanel {
-    background: #0a0a0f;
-    border: 1px solid #1a1c23;
-    border-bottom: 2px solid #ff00ff;
-    padding: 24px;
-    margin-top: 16px;
-    border-radius: 4px;
+.flagRevenge {
+    color: #EAB308;
+    border-color: rgba(234, 179, 8, 0.4);
+}
+
+.flagOvertrading {
+    color: #F97316;
+    border-color: rgba(249, 115, 22, 0.4);
+}
+
+.flagCritical {
+    color: #ff4757;
+    border-color: rgba(255, 71, 87, 0.4);
+    background: rgba(255, 71, 87, 0.1);
+}
+
+.flagFlat {
+    color: #38bdf8;
+    border-color: rgba(56, 189, 248, 0.4);
+}
+
+/* Custom Progress Bars */
+.progressRow {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    margin-bottom: 16px;
+}
+
+.progressLabel {
+    width: 60px;
+    font-size: 11px;
+    color: #c9d1d9;
+    font-weight: 600;
+}
+
+.progressBar {
+    flex-grow: 1;
+    height: 6px;
+    background: #1a1c24;
+    border-radius: 3px;
+    overflow: hidden;
+    position: relative;
+}
+
+.progressFill {
+    height: 100%;
+    border-radius: 3px;
+}
+
+.progressAmt {
+    width: 80px;
+    text-align: right;
+    font-size: 13px;
+    font-weight: 700;
+}
+
+.progressStats {
+    font-size: 10px;
+    color: #6b7280;
+    width: 250px;
+    text-align: right;
 }
