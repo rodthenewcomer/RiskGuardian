@@ -197,6 +197,7 @@
     border: 1px dashed var(--border);
     border-radius: var(--radius-lg);
 }
+
 /* ── View Toggle ── */
 .viewToggle {
     display: flex;
@@ -227,96 +228,156 @@
 
 /* ── Calendar ── */
 .calendarContainer {
-    background: var(--bg-elevated);
-    border: 1px solid var(--border);
+    background: #0b0e14;
+    border: 1px solid #1a1e24;
     border-radius: var(--radius-lg);
     padding: var(--space-4);
+    font-family: var(--font-sans);
 }
 
 .calendarHeader {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    margin-bottom: 16px;
-}
-
-.calendarTitle {
-    font-size: 14px;
-    font-weight: 700;
-    color: var(--text-primary);
+    margin-bottom: 24px;
 }
 
 .calendarNav {
     display: flex;
-    gap: 8px;
+    align-items: center;
+    gap: 16px;
+}
+
+.calendarTitle {
+    font-size: 15px;
+    font-weight: 500;
+    color: #e2e8f0;
+}
+
+.btnToday {
+    background: #1e2329;
+    border: none;
+    color: #e2e8f0;
+    padding: 6px 12px;
+    border-radius: 4px;
+    font-size: 13px;
+    cursor: pointer;
+}
+
+.btnToday:hover {
+    background: #2a3038;
 }
 
 .calendarGrid {
+    display: flex;
+    flex-direction: column;
+    border-top: 1px solid #1a1e24;
+    border-left: 1px solid #1a1e24;
+}
+
+.calendarRow,
+.calendarHeaderRow {
     display: grid;
-    grid-template-columns: repeat(7, 1fr);
-    gap: 8px;
+    grid-template-columns: repeat(8, 1fr);
 }
 
 .calendarDayName {
     text-align: center;
-    font-size: 10px;
-    text-transform: uppercase;
-    color: var(--text-muted);
-    font-weight: 700;
-    margin-bottom: 8px;
+    font-size: 11px;
+    font-weight: 500;
+    color: #8b949e;
+    padding: 12px 0;
+    border-right: 1px solid #1a1e24;
+    border-bottom: 1px solid #1a1e24;
 }
 
 .calendarCell {
-    aspect-ratio: 1;
-    background: rgba(255, 255, 255, 0.02);
-    border: 1px solid var(--border-subtle);
-    border-radius: var(--radius-md);
-    padding: 6px;
+    aspect-ratio: auto;
+    min-height: 100px;
+    border-right: 1px solid #1a1e24;
+    border-bottom: 1px solid #1a1e24;
+    padding: 8px;
     display: flex;
     flex-direction: column;
-    justify-content: space-between;
-    transition: border 0.2s;
+    background: transparent;
+    transition: background 0.2s;
+    position: relative;
+    cursor: pointer;
 }
 
 .calendarCell:hover {
-    border-color: var(--border);
+    background: rgba(255, 255, 255, 0.02);
 }
 
-.calendarCellEmpty {
-    opacity: 0.3;
+.calendarCellOut {
+    color: #484f58;
 }
 
 .calendarCellDate {
-    font-size: 10px;
-    color: var(--text-muted);
+    font-size: 12px;
+    color: #8b949e;
+    text-align: center;
+    margin-bottom: auto;
 }
 
 .calendarCellActive .calendarCellDate {
-    color: var(--text-primary);
-    font-weight: 700;
+    color: #c9d1d9;
+}
+
+.calendarCellContent {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    flex-grow: 1;
+}
+
+.pnlPositiveFill {
+    background: rgba(38, 166, 91, 0.15);
+}
+
+.pnlNegativeFill {
+    background: rgba(255, 71, 87, 0.12);
 }
 
 .calendarCellPnl {
     font-family: var(--font-mono);
-    font-size: 11px;
-    font-weight: 800;
-    text-align: right;
+    font-size: 15px;
+    font-weight: 700;
+    text-align: center;
 }
 
-.pnlPositive {
-    color: var(--color-success);
-    background: rgba(52, 199, 89, 0.1);
-    border: 1px solid rgba(52, 199, 89, 0.3);
+.pnlPositiveText {
+    color: #34c759;
 }
 
-.pnlNegative {
-    color: var(--color-danger);
-    background: rgba(255, 71, 87, 0.1);
-    border: 1px solid rgba(255, 71, 87, 0.3);
+.pnlNegativeText {
+    color: #ff3b30;
 }
 
 .calendarTrades {
-    font-size: 9px;
-    color: var(--text-muted);
-    text-align: right;
+    font-size: 11px;
+    color: #8b949e;
+    text-align: center;
+}
+
+.calendarCellToday {
+    border: 1px solid #00a8ff;
+    z-index: 1;
+}
+
+/* Weekly Column Cell */
+.calendarWeeklyCell {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+}
+
+.weeklyLabel {
+    font-size: 11px;
+    color: #e2e8f0;
+    font-weight: 600;
+    margin-bottom: 2px;
 }

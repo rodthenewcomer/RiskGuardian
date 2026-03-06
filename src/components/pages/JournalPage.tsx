@@ -18,20 +18,55 @@ export default function JournalPage() {
         const firstDay = new Date(year, month, 1).getDay();
         const daysInMonth = new Date(year, month + 1, 0).getDate();
 
-        const days = [];
-        for (let i = 0; i < firstDay; i++) days.push(null);
+        let currentWeek: any[] = [];
+        const weeks: any[] = [];
+        let weekNumber = 1;
+
+        for (let i = 0; i < firstDay; i++) {
+            const prevDate = new Date(year, month, 0).getDate() - (firstDay - 1 - i);
+            currentWeek.push({ day: prevDate, isCurrentMonth: false, pnl: 0, tradesCount: 0 });
+        }
+
+        const todayStr = new Date().toISOString().split('T')[0];
 
         for (let i = 1; i <= daysInMonth; i++) {
             const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(i).padStart(2, '0')}`;
             const dayTrades = trades.filter(t => t.createdAt.split('T')[0] === dateStr);
             const pnl = dayTrades.reduce((s, t) => s + (t.pnl ?? 0), 0);
-            days.push({ day: i, pnl, tradesCount: dayTrades.length, date: dateStr });
+
+            currentWeek.push({
+                day: i,
+                isCurrentMonth: true,
+                pnl,
+                tradesCount: dayTrades.length,
+                date: dateStr,
+                isToday: dateStr === todayStr
+            });
+
+            if (currentWeek.length === 7) {
+                const weekPnl = currentWeek.reduce((s, d) => s + d.pnl, 0);
+                const weekTrades = currentWeek.reduce((s, d) => s + d.tradesCount, 0);
+                weeks.push({ days: currentWeek, weekPnl, weekTrades, weekNumber });
+                currentWeek = [];
+                weekNumber++;
+            }
         }
+
+        if (currentWeek.length > 0) {
+            let nextDay = 1;
+            while (currentWeek.length < 7) {
+                currentWeek.push({ day: nextDay++, isCurrentMonth: false, pnl: 0, tradesCount: 0 });
+            }
+            const weekPnl = currentWeek.reduce((s, d) => s + d.pnl, 0);
+            const weekTrades = currentWeek.reduce((s, d) => s + d.tradesCount, 0);
+            weeks.push({ days: currentWeek, weekPnl, weekTrades, weekNumber });
+        }
+
         return {
             year,
             month,
-            days,
-            monthName: calendarDate.toLocaleString('default', { month: 'long' })
+            weeks,
+            monthName: calendarDate.toLocaleString('default', { month: 'short' })
         };
     }, [calendarDate, trades]);
 
@@ -212,35 +247,48 @@ export default function JournalPage() {
                     className={styles.calendarContainer}
                 >
                     <div className={styles.calendarHeader}>
-                        <h3 className={styles.calendarTitle}>{calendarData.monthName} {calendarData.year}</h3>
                         <div className={styles.calendarNav}>
                             <button onClick={prevMonth} className="btn btn--ghost btn--sm p-1" title="Previous Month" aria-label="Previous Month"><ChevronLeft size={16} /></button>
+                            <h3 className={styles.calendarTitle}>{calendarData.monthName} {calendarData.year}</h3>
                             <button onClick={nextMonth} className="btn btn--ghost btn--sm p-1" title="Next Month" aria-label="Next Month"><ChevronRight size={16} /></button>
                         </div>
+                        <button onClick={() => setCalendarDate(new Date())} className={styles.btnToday}>Today</button>
                     </div>
 
                     <div className={styles.calendarGrid}>
-                        {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((d) => (
-                            <div key={d} className={styles.calendarDayName}>{d}</div>
-                        ))}
-                        {calendarData.days.map((dayData, i) => (
-                            <div
-                                key={i}
-                                className={`${styles.calendarCell} ${!dayData ? styles.calendarCellEmpty : ''} ${dayData && dayData.tradesCount > 0 ? styles.calendarCellActive : ''}`}
-                            >
-                                {dayData && (
-                                    <>
+                        <div className={styles.calendarHeaderRow}>
+                            {['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa', 'Sa'].map((d, i) => (
+                                <div key={i} className={styles.calendarDayName}>{d === 'Sa' && i === 7 ? '' : d}</div>
+                            ))}
+                        </div>
+
+                        {calendarData.weeks.map((week, wi) => (
+                            <div key={wi} className={styles.calendarRow}>
+                                {week.days.map((dayData: any, i: number) => (
+                                    <div
+                                        key={i}
+                                        className={`${styles.calendarCell} ${!dayData.isCurrentMonth ? styles.calendarCellOut : ''} ${dayData.isToday ? styles.calendarCellToday : ''} ${dayData.pnl > 0 ? styles.pnlPositiveFill : dayData.pnl < 0 ? styles.pnlNegativeFill : ''}`}
+                                    >
                                         <span className={styles.calendarCellDate}>{dayData.day}</span>
-                                        {dayData.tradesCount > 0 && (
-                                            <div className="flex flex-col gap-1 items-end mt-auto">
-                                                <span className={`${styles.calendarCellPnl} ${dayData.pnl >= 0 ? styles.pnlPositive : styles.pnlNegative}`}>
-                                                    {dayData.pnl >= 0 ? '+' : '-'}${Math.abs(dayData.pnl).toFixed(0)}
-                                                </span>
-                                                <span className={styles.calendarTrades}>{dayData.tradesCount} executions</span>
-                                            </div>
-                                        )}
-                                    </>
-                                )}
+                                        <div className={styles.calendarCellContent}>
+                                            {dayData.tradesCount > 0 && (
+                                                <>
+                                                    <span className={`${styles.calendarCellPnl} ${dayData.pnl >= 0 ? styles.pnlPositiveText : styles.pnlNegativeText}`}>
+                                                        {dayData.pnl >= 0 ? '+' : '-'}${Math.abs(dayData.pnl).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                                    </span>
+                                                    <span className={styles.calendarTrades}>{dayData.tradesCount} {dayData.tradesCount === 1 ? 'trade' : 'trades'}</span>
+                                                </>
+                                            )}
+                                        </div>
+                                    </div>
+                                ))}
+                                <div className={`${styles.calendarCell} ${styles.calendarWeeklyCell}`}>
+                                    <span className={styles.weeklyLabel}>Week {week.weekNumber}</span>
+                                    <span className={`${styles.calendarCellPnl} ${week.weekPnl >= 0 ? styles.pnlPositiveText : styles.pnlNegativeText}`}>
+                                        {week.weekPnl >= 0 ? '+' : '-'}${Math.abs(week.weekPnl).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                    </span>
+                                    <span className={styles.calendarTrades}>{week.weekTrades} {week.weekTrades === 1 ? 'trade' : 'trades'}</span>
+                                </div>
                             </div>
                         ))}
                     </div>
