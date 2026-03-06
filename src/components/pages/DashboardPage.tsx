@@ -291,7 +291,9 @@ export default function DashboardPage() {
                                     </div>
                                     <div>
                                         <span className={styles.tradeAsset}>{trade.asset}</span>
-                                        <span className={styles.tradeDate}>{new Date(trade.createdAt).toLocaleDateString()}</span>
+                                        <span className={styles.tradeDate}>
+                                            {new Date(trade.createdAt).toLocaleString()} → {trade.closedAt ? new Date(trade.closedAt).toLocaleTimeString() : 'OPEN'}
+                                        </span>
                                     </div>
                                 </div>
                                 <div className={styles.tradeRight}>
