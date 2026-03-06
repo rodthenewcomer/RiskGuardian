@@ -3,6 +3,25 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 
+export interface PropFirmPreset {
+    name: string;
+    short: string;
+    dailyPct: number;   // daily loss limit as % of balance
+    maxDrawPct: number; // overall max drawdown %
+    color: string;
+    propFirmType?: '2-Step Evaluation' | '1-Step Evaluation' | 'Instant Funding';
+    drawdownType?: 'EOD' | 'Trailing' | 'Static';
+}
+
+export const PROP_FIRMS: PropFirmPreset[] = [
+    { name: 'Tradeify Crypto Eval', short: 'TrdfyE', dailyPct: 3, maxDrawPct: 6, color: '#A6FF4D', propFirmType: '2-Step Evaluation', drawdownType: 'EOD' },
+    { name: 'Tradeify Crypto Instant', short: 'TrdfyI', dailyPct: 3, maxDrawPct: 6, color: '#A6FF4D', propFirmType: 'Instant Funding', drawdownType: 'Static' },
+    { name: 'Funding Pips', short: 'FPips', dailyPct: 5, maxDrawPct: 10, color: '#A6FF4D', propFirmType: '2-Step Evaluation', drawdownType: 'Static' },
+    { name: 'FTMO', short: 'FTMO', dailyPct: 5, maxDrawPct: 10, color: '#A6FF4D', propFirmType: '2-Step Evaluation', drawdownType: 'Static' },
+    { name: 'The5%ers', short: '5%ers', dailyPct: 4, maxDrawPct: 6, color: '#A6FF4D', propFirmType: '2-Step Evaluation', drawdownType: 'Static' },
+    { name: 'Custom (Build your own)', short: 'Custom', dailyPct: 0, maxDrawPct: 0, color: '#888', drawdownType: 'EOD' },
+];
+
 export interface TradeSession {
     id: string;
     asset: string;

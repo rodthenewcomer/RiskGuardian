@@ -2,11 +2,11 @@
 
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { useAppStore } from '@/store/appStore';
-import { Shield, DollarSign, TrendingUp, ChevronRight, ChevronLeft, Check } from 'lucide-react';
+import { useAppStore, PROP_FIRMS, type PropFirmPreset } from '@/store/appStore';
+import { Shield, DollarSign, TrendingUp, ChevronRight, ChevronLeft, Check, Building2, AlertTriangle } from 'lucide-react';
 import styles from './Onboarding.module.css';
 
-const STEPS = ['balance', 'risk', 'asset'] as const;
+const STEPS = ['firm', 'balance', 'rules', 'asset'] as const;
 type Step = typeof STEPS[number];
 
 const ASSET_OPTIONS = [
@@ -25,52 +25,76 @@ const slideVariants = {
 export default function Onboarding() {
     const { updateAccount, completeOnboarding } = useAppStore();
 
-    const [step, setStep] = useState<Step>('balance');
+    const [step, setStep] = useState<Step>('firm');
     const [dir, setDir] = useState(1);
+
+    // State
+    const [selectedFirm, setSelectedFirm] = useState<PropFirmPreset | null>(null);
     const [balance, setBalance] = useState('');
-    const [riskMode, setRiskMode] = useState<'percent' | 'fixed'>('percent');
-    const [riskPct, setRiskPct] = useState(2);
-    const [dailyFixed, setDailyFixed] = useState('');
+    const [customDaily, setCustomDaily] = useState('');
+    const [customDrawdown, setCustomDrawdown] = useState('');
     const [asset, setAsset] = useState<'crypto' | 'futures' | 'forex' | 'stocks'>('crypto');
     const [done, setDone] = useState(false);
 
     const balNum = parseFloat(balance.replace(/,/g, '')) || 0;
-    const derivedLimit = riskMode === 'percent'
-        ? Math.round((balNum * riskPct) / 100)
-        : parseFloat(dailyFixed.replace(/,/g, '')) || 0;
-    const limitDisplay = derivedLimit > 0 ? `$${derivedLimit.toLocaleString()}` : '—';
+
+    // Derived Risk
+    const isCustom = selectedFirm?.name.includes('Custom');
+
+    const derivedDailyLimit = isCustom
+        ? (parseFloat(customDaily) || 0)
+        : Math.round(balNum * ((selectedFirm?.dailyPct || 0) / 100));
+
+    const derivedMaxDrawdown = isCustom
+        ? (parseFloat(customDrawdown) || 0)
+        : Math.round(balNum * ((selectedFirm?.maxDrawPct || 0) / 100));
+
+    const maxRiskPercent = isCustom
+        ? ((derivedDailyLimit / balNum) * 100) / 5 || 1
+        : (selectedFirm?.dailyPct || 5) / 5;
 
     const stepIndex = STEPS.indexOf(step);
     const progress = ((stepIndex + 1) / STEPS.length) * 100;
 
     function goNext() {
         setDir(1);
-        if (step === 'balance') setStep('risk');
-        else if (step === 'risk') setStep('asset');
+        if (step === 'firm') setStep('balance');
+        else if (step === 'balance') setStep('rules');
+        else if (step === 'rules') setStep('asset');
         else finish();
     }
 
     function goBack() {
         setDir(-1);
-        if (step === 'risk') setStep('balance');
-        else if (step === 'asset') setStep('risk');
+        if (step === 'balance') setStep('firm');
+        else if (step === 'rules') setStep('balance');
+        else if (step === 'asset') setStep('rules');
     }
 
     function finish() {
         setDone(true);
         updateAccount({
             balance: balNum,
-            dailyLossLimit: derivedLimit,
-            maxRiskPercent: riskPct,
+            startingBalance: balNum,
+            dailyLossLimit: derivedDailyLimit,
+            maxDrawdownLimit: derivedMaxDrawdown,
+            maxRiskPercent: maxRiskPercent,
             assetType: asset,
+            propFirm: selectedFirm?.name.includes('Custom') ? '' : selectedFirm?.name,
+            propFirmType: selectedFirm?.propFirmType || 'Instant Funding',
+            drawdownType: selectedFirm?.drawdownType || 'EOD',
+            isConsistencyActive: selectedFirm?.propFirmType === 'Instant Funding' || selectedFirm?.name.includes('Instant'),
+            minHoldTimeSec: selectedFirm?.name?.includes('Tradeify') ? 20 : 0,
+            leverage: selectedFirm?.name?.includes('Tradeify Crypto') && selectedFirm?.propFirmType?.includes('Evaluation') ? 5 : 2,
         });
         setTimeout(() => completeOnboarding(), 1200);
     }
 
     const canNext =
-        step === 'balance' ? balNum >= 100 :
-            step === 'risk' ? derivedLimit > 0 :
-                true;
+        step === 'firm' ? selectedFirm !== null :
+            step === 'balance' ? balNum >= 100 :
+                step === 'rules' ? derivedDailyLimit > 0 :
+                    true;
 
     if (done) {
         return (
@@ -92,7 +116,6 @@ export default function Onboarding() {
 
     return (
         <div className={styles.root}>
-            {/* Header */}
             <div className={styles.header}>
                 <div className={styles.logo}>
                     <Shield size={16} strokeWidth={2.5} />
@@ -101,7 +124,6 @@ export default function Onboarding() {
                 <div className={styles.stepCount}>{stepIndex + 1} / {STEPS.length}</div>
             </div>
 
-            {/* Progress bar */}
             <div className={styles.progressTrack}>
                 <motion.div
                     className={styles.progressFill}
@@ -110,7 +132,6 @@ export default function Onboarding() {
                 />
             </div>
 
-            {/* Step content */}
             <div className={styles.body}>
                 <AnimatePresence mode="wait" custom={dir}>
                     <motion.div
@@ -124,15 +145,54 @@ export default function Onboarding() {
                         className={styles.stepWrap}
                     >
 
-                        {/* STEP 1 — Balance */}
+                        {/* STEP 1 — Firm */}
+                        {step === 'firm' && (
+                            <div className={styles.step}>
+                                <div className={styles.stepIconBalance}>
+                                    <Building2 size={24} />
+                                </div>
+                                <h1 className={styles.stepTitle}>Who are you trading with?</h1>
+                                <p className={styles.stepSub}>
+                                    Select your prop firm to automatically sync their daily loss limits, drawdown rules, and leverage.
+                                </p>
+
+                                <div className={styles.assetGrid} style={{ gridTemplateColumns: 'minmax(0, 1fr)' }}>
+                                    {PROP_FIRMS.map(firm => (
+                                        <button
+                                            key={firm.name}
+                                            className={`${styles.assetCard} ${selectedFirm?.name === firm.name ? styles.assetCardActive : ''}`}
+                                            onClick={() => setSelectedFirm(firm)}
+                                            style={{ flexDirection: 'row', alignItems: 'center', textAlign: 'left', padding: '16px 20px', gap: '16px' }}
+                                        >
+                                            <span style={{ fontSize: 24 }}>{firm.dailyPct > 0 ? '🛡️' : '⚙️'}</span>
+                                            <div style={{ flex: 1 }}>
+                                                <div className={styles.assetLabel} style={{ marginBottom: 4 }}>{firm.name}</div>
+                                                <div className={styles.assetSub}>
+                                                    {firm.dailyPct > 0
+                                                        ? `${firm.dailyPct}% Daily Loss · ${firm.maxDrawPct}% Max Drawdown`
+                                                        : 'Set my own manual limits'}
+                                                </div>
+                                            </div>
+                                            {selectedFirm?.name === firm.name && (
+                                                <div className={styles.assetCheck} style={{ position: 'relative', top: 0, right: 0 }}>
+                                                    <Check size={10} strokeWidth={3} />
+                                                </div>
+                                            )}
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+
+                        {/* STEP 2 — Balance */}
                         {step === 'balance' && (
                             <div className={styles.step}>
                                 <div className={styles.stepIconBalance}>
                                     <DollarSign size={24} />
                                 </div>
-                                <h1 className={styles.stepTitle}>What&#39;s your account balance?</h1>
+                                <h1 className={styles.stepTitle}>What&#39;s your account size?</h1>
                                 <p className={styles.stepSub}>
-                                    Enter the exact amount in your trading account right now.
+                                    Enter the exact starting capital or current balance. We will use this to calculate your hard risk limits.
                                 </p>
                                 <div className={styles.bigInputWrap}>
                                     <span className={styles.bigInputPrefix}>$</span>
@@ -140,11 +200,10 @@ export default function Onboarding() {
                                         className={styles.bigInput}
                                         type="number"
                                         inputMode="decimal"
-                                        placeholder="10,000"
+                                        placeholder="50000"
                                         value={balance}
                                         onChange={e => setBalance(e.target.value)}
                                         autoFocus
-                                        id="onboard-balance"
                                     />
                                 </div>
                                 {balNum > 0 && balNum < 100 && (
@@ -152,82 +211,62 @@ export default function Onboarding() {
                                 )}
                                 {balNum >= 100 && (
                                     <p className={styles.inputHintSuccess}>
-                                        ${balNum.toLocaleString()} — ready to set your risk rules
+                                        ${balNum.toLocaleString()} — limits will be generated off this balance.
                                     </p>
                                 )}
                             </div>
                         )}
 
-                        {/* STEP 2 — Daily Loss Limit */}
-                        {step === 'risk' && (
+                        {/* STEP 3 — Rules Preview / Custom */}
+                        {step === 'rules' && (
                             <div className={styles.step}>
                                 <div className={styles.stepIconRisk}>
-                                    <TrendingUp size={24} />
+                                    <Shield size={24} />
                                 </div>
-                                <h1 className={styles.stepTitle}>Set your daily loss limit</h1>
+                                <h1 className={styles.stepTitle}>Review your risk limits</h1>
                                 <p className={styles.stepSub}>
-                                    The max you agree to lose in a single trading day. PropGuard enforces this automatically.
+                                    These are the maximum boundaries for your account. PropGuard will warn you before you hit them.
                                 </p>
 
-                                <div className={styles.modeToggle}>
-                                    <button
-                                        className={`${styles.modeBtn} ${riskMode === 'percent' ? styles.modeBtnActive : ''}`}
-                                        onClick={() => setRiskMode('percent')}
-                                    >
-                                        % of Balance
-                                    </button>
-                                    <button
-                                        className={`${styles.modeBtn} ${riskMode === 'fixed' ? styles.modeBtnActive : ''}`}
-                                        onClick={() => setRiskMode('fixed')}
-                                    >
-                                        Fixed $
-                                    </button>
-                                </div>
-
-                                {riskMode === 'percent' ? (
-                                    <div className={styles.sliderSection}>
-                                        <div className={styles.sliderValue}>
-                                            <span className={styles.sliderBig}>{riskPct}%</span>
-                                            <span className={styles.sliderSub}>{limitDisplay} / day</span>
+                                {isCustom ? (
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: 20, width: '100%', maxWidth: 400, margin: '0 auto' }}>
+                                        <div style={{ textAlign: 'left' }}>
+                                            <label style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-secondary)', marginBottom: 8, display: 'block' }}>Daily Loss Limit (USD)</label>
+                                            <div className={styles.bigInputWrap} style={{ margin: 0 }}>
+                                                <span className={styles.bigInputPrefix}>$</span>
+                                                <input className={styles.bigInput} type="number" value={customDaily} onChange={e => setCustomDaily(e.target.value)} placeholder="500" />
+                                            </div>
                                         </div>
-                                        <input
-                                            type="range"
-                                            min="0.5"
-                                            max="10"
-                                            step="0.5"
-                                            value={riskPct}
-                                            onChange={e => setRiskPct(parseFloat(e.target.value))}
-                                            className={styles.slider}
-                                            aria-label="Daily loss limit percentage"
-                                        />
-                                        <div className={styles.sliderLabels}>
-                                            <span>0.5% — conservative</span>
-                                            <span>10% — aggressive</span>
-                                        </div>
-                                        <div className={styles.riskTip}>
-                                            {riskPct <= 2 && <span className={styles.riskTipGood}>✓ Professional standard (1–2%)</span>}
-                                            {riskPct > 2 && riskPct <= 5 && <span className={styles.riskTipWarn}>⚠ Moderate risk (2–5%)</span>}
-                                            {riskPct > 5 && <span className={styles.riskTipBad}>🔴 High risk — prop firms cap at 4–5%</span>}
+                                        <div style={{ textAlign: 'left' }}>
+                                            <label style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-secondary)', marginBottom: 8, display: 'block' }}>Max Drawdown Limit (USD)</label>
+                                            <div className={styles.bigInputWrap} style={{ margin: 0 }}>
+                                                <span className={styles.bigInputPrefix}>$</span>
+                                                <input className={styles.bigInput} type="number" value={customDrawdown} onChange={e => setCustomDrawdown(e.target.value)} placeholder="1000" />
+                                            </div>
                                         </div>
                                     </div>
                                 ) : (
-                                    <div className={styles.bigInputWrap}>
-                                        <span className={styles.bigInputPrefix}>$</span>
-                                        <input
-                                            className={styles.bigInput}
-                                            type="number"
-                                            inputMode="decimal"
-                                            placeholder="500"
-                                            value={dailyFixed}
-                                            onChange={e => setDailyFixed(e.target.value)}
-                                            id="onboard-daily"
-                                        />
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: 16, width: '100%', maxWidth: 400, margin: '0 auto' }}>
+                                        <div style={{ padding: 20, background: 'rgba(255,255,255,0.03)', borderRadius: 12, border: '1px solid var(--border-medium)' }}>
+                                            <div style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 4 }}>Daily Loss Limit ({selectedFirm?.dailyPct}%)</div>
+                                            <div style={{ fontSize: 32, fontWeight: 800, color: 'var(--color-danger)' }}>${derivedDailyLimit.toLocaleString()}</div>
+                                        </div>
+                                        <div style={{ padding: 20, background: 'rgba(255,255,255,0.03)', borderRadius: 12, border: '1px solid var(--border-medium)' }}>
+                                            <div style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 4 }}>Max Trailing Drawdown ({selectedFirm?.maxDrawPct}%)</div>
+                                            <div style={{ fontSize: 32, fontWeight: 800, color: 'var(--color-danger)' }}>${derivedMaxDrawdown.toLocaleString()}</div>
+                                        </div>
+                                        <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12, padding: 16, background: 'rgba(166,255,77,0.05)', border: '1px solid var(--border-accent)', borderRadius: 8 }}>
+                                            <AlertTriangle size={16} className="text-accent" style={{ marginTop: 2, flexShrink: 0 }} />
+                                            <p style={{ fontSize: 12, color: 'var(--text-primary)', textAlign: 'left', margin: 0, lineHeight: 1.5 }}>
+                                                <strong>Max Risk Per Trade:</strong> Automatically set to {maxRiskPercent.toFixed(1)}%. You can adjust this later in Settings.
+                                            </p>
+                                        </div>
                                     </div>
                                 )}
                             </div>
                         )}
 
-                        {/* STEP 3 — Asset Type */}
+                        {/* STEP 4 — Asset Type */}
                         {step === 'asset' && (
                             <div className={styles.step}>
                                 <div className={styles.stepIconAsset}>
@@ -262,7 +301,6 @@ export default function Onboarding() {
                 </AnimatePresence>
             </div>
 
-            {/* Nav buttons */}
             <div className={styles.navRow}>
                 {stepIndex > 0 ? (
                     <button className={styles.backBtn} onClick={goBack}>

@@ -137,7 +137,9 @@ export default function DashboardPage() {
             <motion.div variants={item} className={`glass-card ${styles.guardCard} ${isDanger ? 'glass-card--danger' : ''}`}>
                 <div className={styles.guardLeft}>
                     <div className={styles.guardTopRow}>
-                        <span className={styles.guardTitle}>Daily Loss Guard</span>
+                        <span className={styles.guardTitle} data-tooltip="This tracks your risk for the day across all closed and open trades. If you hit this limit, stop trading." data-tooltip-pos="right">
+                            Daily Loss Guard <Info size={12} className="inline ml-1 text-muted opacity-50 hover:opacity-100" />
+                        </span>
                         <span className={`badge ${isDanger ? 'badge--danger' : isWarning ? 'badge--warning' : 'badge--success'}`}>
                             {isDanger ? 'DANGER' : isWarning ? 'WARNING' : 'SAFE'}
                         </span>
@@ -180,12 +182,12 @@ export default function DashboardPage() {
 
             {/* ── Stats Row ── */}
             <motion.div variants={item} className={styles.statsRow}>
-                <div className={`glass-card ${styles.statCard}`}>
+                <div className={`glass-card ${styles.statCard}`} data-tooltip="Percentage of your closed trades that are profitable.">
                     <CheckCircle size={16} className={styles.statIcon} />
                     <span className={styles.statValue}>{winRate}%</span>
                     <span className={styles.statLabel}>Win Rate</span>
                 </div>
-                <div className={`glass-card ${styles.statCard}`}>
+                <div className={`glass-card ${styles.statCard}`} data-tooltip="Measures risk discipline. High score = consistent position sizing. Low score = erratic size changes.">
                     <Activity size={16} className={styles.statIcon} />
                     <span className={styles.statValue}>{riskConsistency}</span>
                     <span className={styles.statLabel}>Consistency</span>
@@ -202,7 +204,9 @@ export default function DashboardPage() {
                 <motion.div variants={item} className={`glass-card ${styles.propStatus}`}>
                     <div className={styles.propStatusHeader}>
                         <Shield size={14} />
-                        <span className={styles.propStatusTitle}>Rule Compliance</span>
+                        <span className={styles.propStatusTitle} data-tooltip="These rules are driven by your selected prop firm configuration in Settings. Ensure you check these before entering high-risk environments.">
+                            Rule Compliance <Info size={12} className="inline ml-1 text-muted opacity-50 hover:opacity-100" />
+                        </span>
                         <span className={`badge ${isDanger ? 'badge--danger' : isWarning ? 'badge--warning' : 'badge--success'}`}>
                             {isDanger ? 'AT RISK' : 'COMPLIANT'}
                         </span>
@@ -304,11 +308,28 @@ export default function DashboardPage() {
             )}
 
             {recentTrades.length === 0 && (
-                <motion.div variants={item} className={`glass-card ${styles.emptyState}`}>
-                    <div className={styles.emptyIcon}><Info size={28} /></div>
-                    <p className={styles.emptyTitle}>No trades yet</p>
-                    <p className={styles.emptyDesc}>Use the Risk Engine to plan your first trade — it takes 30 seconds.</p>
-                    <button className="btn btn--primary btn--sm" onClick={() => setActiveTab('calculator')}>Open Risk Engine</button>
+                <motion.div variants={item} className={`glass-card ${styles.emptyState}`} style={{ textAlign: 'left', alignItems: 'flex-start', padding: 24 }}>
+                    <h3 className="mb-2" style={{ fontSize: 18, fontWeight: 700 }}>Welcome to RiskGuardia</h3>
+                    <p className="text-secondary mb-4" style={{ fontSize: 13 }}>
+                        Your risk parameters are set. Here is how to use your terminal to trade safely:
+                    </p>
+                    <div className="flex flex-col gap-sm w-full mb-6">
+                        <div className="flex items-center gap-sm" style={{ padding: 12, background: 'rgba(255,255,255,0.03)', borderRadius: 8 }}>
+                            <div className="flex items-center justify-center bg-[var(--accent)] text-black rounded-full" style={{ width: 24, height: 24, fontSize: 12, fontWeight: 'bold' }}>1</div>
+                            <span style={{ fontSize: 13 }}>Go to the <strong className="text-primary">Risk Engine</strong> before you enter a trade.</span>
+                        </div>
+                        <div className="flex items-center gap-sm" style={{ padding: 12, background: 'rgba(255,255,255,0.03)', borderRadius: 8 }}>
+                            <div className="flex items-center justify-center bg-[var(--accent)] text-black rounded-full" style={{ width: 24, height: 24, fontSize: 12, fontWeight: 'bold' }}>2</div>
+                            <span style={{ fontSize: 13 }}>Input your Entry and Stop Loss. The app calculates your exact lot size.</span>
+                        </div>
+                        <div className="flex items-center gap-sm" style={{ padding: 12, background: 'rgba(255,255,255,0.03)', borderRadius: 8 }}>
+                            <div className="flex items-center justify-center bg-[var(--accent)] text-black rounded-full" style={{ width: 24, height: 24, fontSize: 12, fontWeight: 'bold' }}>3</div>
+                            <span style={{ fontSize: 13 }}>Hit <strong>Log Plan</strong>. The trade appears here, tracking your daily risk limit.</span>
+                        </div>
+                    </div>
+                    <button className="btn btn--primary btn--full" onClick={() => setActiveTab('calculator')}>
+                        Open Risk Engine →
+                    </button>
                 </motion.div>
             )}
         </motion.div>
