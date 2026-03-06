@@ -2,20 +2,31 @@ import type { Metadata, Viewport } from 'next';
 import './globals.css';
 
 export const metadata: Metadata = {
-  title: 'RiskGuardia — Trade With Rules, Not Emotions',
-  description: 'The professional trading risk management OS. Calculate position sizes, enforce daily loss limits, and plan every trade before you place it. Used by 4,200+ prop firm traders.',
-  keywords: ['trading risk calculator', 'position size calculator', 'stop loss calculator', 'forex risk management', 'trading discipline', 'prop firm tools'],
-  authors: [{ name: 'RiskGuardia' }],
+  title: 'PropGuard — AI Prop Firm Risk Guardian',
+  description: 'Real-time AI that prevents prop firm account violations before they happen. Risk calculator, behavioral AI, Monte Carlo simulator and live bridge for DXTrade, MT5, and MatchTrader.',
+  keywords: ['prop firm risk management', 'trading risk calculator', 'position size calculator', 'stop loss calculator', 'forex risk management', 'trading discipline', 'FTMO', 'Tradeify', 'FundedNext'],
+  authors: [{ name: 'PropGuard' }],
+  icons: {
+    icon: [
+      { url: '/favicon.svg', type: 'image/svg+xml' },
+      { url: '/favicon.ico', sizes: '32x32', type: 'image/x-icon' },
+    ],
+    apple: [
+      { url: '/apple-touch-icon.png', sizes: '180x180', type: 'image/png' },
+    ],
+    shortcut: '/favicon.svg',
+  },
   openGraph: {
-    title: 'RiskGuardia — Trade With Rules, Not Emotions',
-    description: 'Stop blowing accounts. Calculate, plan, and enforce your trading risk in real time.',
+    title: 'PropGuard — AI Prop Firm Risk Guardian',
+    description: 'Stop blowing accounts. Real-time AI risk protection for prop firm traders.',
     type: 'website',
+    images: [{ url: '/apple-touch-icon.png', width: 640, height: 640, alt: 'PropGuard' }],
   },
   manifest: '/manifest.json',
   appleWebApp: {
     capable: true,
     statusBarStyle: 'black-translucent',
-    title: 'RiskGuardia',
+    title: 'PropGuard',
   },
 };
 
@@ -23,7 +34,7 @@ export const viewport: Viewport = {
   width: 'device-width',
   initialScale: 1,
   maximumScale: 1,
-  themeColor: '#080C18',
+  themeColor: '#0B0B0F',
 };
 
 export default function RootLayout({
