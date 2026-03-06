@@ -43,6 +43,8 @@
   --nav-height: 60px;
   --bottom-nav-height: 72px;
   --max-width: 480px;
+  --sidebar-width-sm: 64px;
+  --sidebar-width-lg: 200px;
 
   /* ── Radius ── */
   --radius-xs: 4px;

@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useAppStore } from '@/store/appStore';
 import Header from '@/components/layout/Header';
+import Sidebar from '@/components/layout/Sidebar';
 import BottomNav from '@/components/layout/BottomNav';
 import DashboardPage from '@/components/pages/DashboardPage';
 import CommandPage from '@/components/pages/CommandPage';
@@ -52,6 +53,7 @@ export default function Home() {
   return (
     <div className="app-shell">
       <Header />
+      <Sidebar />
       <main className="page-content" id="main-content">
         <AnimatePresence mode="wait" initial={false}>
           <motion.div
