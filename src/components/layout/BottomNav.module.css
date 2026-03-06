@@ -1,0 +1,78 @@
+/* BottomNav — pure black + lime */
+.nav {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: var(--bottom-nav-height);
+    z-index: 100;
+    background: var(--bg-base);
+    border-top: 1px solid var(--border-subtle);
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+@media (min-width: 768px) {
+    .nav {
+        display: none;
+    }
+}
+
+.inner {
+    display: flex;
+    align-items: stretch;
+    justify-content: space-around;
+    height: 100%;
+    padding: 0 4px;
+}
+
+.tab {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 3px;
+    flex: 1;
+    border: none;
+    background: transparent;
+    cursor: pointer;
+    color: var(--text-muted);
+    transition: color var(--t-fast);
+    -webkit-tap-highlight-color: transparent;
+    padding-top: 4px;
+}
+
+.tab.active {
+    color: var(--accent);
+}
+
+.tab:hover:not(.active) {
+    color: var(--text-secondary);
+}
+
+/* Top-line indicator */
+.indicator {
+    position: absolute;
+    top: 0;
+    left: 14px;
+    right: 14px;
+    height: 2px;
+    background: var(--accent);
+    border-radius: 0 0 3px 3px;
+    box-shadow: 0 0 10px var(--accent-glow);
+}
+
+.icon {
+    transition: transform var(--t-fast);
+}
+
+.tab.active .icon {
+    transform: scale(1.1);
+}
+
+.label {
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    line-height: 1;
+}

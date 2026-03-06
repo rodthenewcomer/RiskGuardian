@@ -1,0 +1,141 @@
+/* Header — pure black, no blur, lime accent */
+.header {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    z-index: 100;
+    background: var(--bg-base);
+    border-bottom: 1px solid var(--border-subtle);
+}
+
+/* Hide on desktop — sidebar takes navigation role */
+@media (min-width: 768px) {
+    .header {
+        display: none;
+    }
+}
+
+.inner {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 var(--space-4);
+    height: var(--nav-height);
+    gap: var(--space-2);
+}
+
+/* Logo */
+.logo {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    flex-shrink: 0;
+}
+
+.logoIcon {
+    width: 30px;
+    height: 30px;
+    border-radius: 7px;
+    background: var(--accent-dim);
+    border: 1px solid var(--accent-border);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--accent);
+    transition: all var(--t-normal);
+}
+
+.logoIcon.warning {
+    background: var(--color-warning-dim);
+    border-color: rgba(255, 149, 0, 0.3);
+    color: var(--color-warning);
+    animation: pulse-ring 2s infinite;
+}
+
+.logoIcon.danger {
+    background: var(--color-danger-dim);
+    border-color: rgba(255, 71, 87, 0.3);
+    color: var(--color-danger);
+    animation: pulse-danger 1.5s infinite;
+}
+
+.logoText {
+    font-size: 15px;
+    font-weight: 800;
+    color: var(--text-primary);
+    letter-spacing: -0.03em;
+}
+
+.logoAccent {
+    color: var(--accent);
+}
+
+/* Balance pill */
+.balancePill {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    background: var(--bg-card);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-full);
+    padding: 3px 14px;
+    gap: 0;
+    flex: 1;
+    max-width: 150px;
+}
+
+.balanceLabel {
+    font-size: 8px;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+}
+
+.balanceValue {
+    font-family: var(--font-mono);
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--text-primary);
+    display: block;
+}
+
+/* Notif dot */
+.notifDot {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--color-danger);
+    border: 1.5px solid var(--bg-base);
+    animation: pulse-danger 1.5s infinite;
+}
+
+/* Guard bar — bottom edge of header */
+.guardBar {
+    height: 2px;
+    background: var(--border-faint);
+    position: relative;
+    overflow: hidden;
+}
+
+.guardFill {
+    height: 100%;
+    border-radius: 0 2px 2px 0;
+    transition: background-color var(--t-normal);
+}
+
+.guardSafe {
+    background: var(--accent);
+}
+
+.guardWarning {
+    background: var(--color-warning);
+}
+
+.guardDanger {
+    background: var(--color-danger);
+}

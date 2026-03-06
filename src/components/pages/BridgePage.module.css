@@ -1,0 +1,756 @@
+/* BridgePage — PropGuard Live Bridge Dashboard */
+
+.page {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    animation: fadeIn 0.3s ease-out;
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(8px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* ── Status Bar ─────────────────────────────────────────────────── */
+.statusBar {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 14px;
+    border-radius: var(--radius-lg);
+    border: 1px solid;
+    transition: all 0.3s ease;
+    flex-shrink: 0;
+}
+
+.statusConnected {
+    background: rgba(52, 199, 89, 0.08);
+    border-color: rgba(52, 199, 89, 0.3);
+}
+
+.statusPolling {
+    background: rgba(0, 212, 255, 0.06);
+    border-color: rgba(0, 212, 255, 0.2);
+}
+
+.statusOff {
+    background: var(--bg-elevated);
+    border-color: var(--border-subtle);
+}
+
+.statusDot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+    animation: blink 1.5s infinite;
+}
+
+.statusConnected .statusDot {
+    background: #34c759;
+}
+
+.statusPolling .statusDot {
+    background: #00D4FF;
+}
+
+.statusOff .statusDot {
+    background: var(--text-muted);
+    animation: none;
+}
+
+@keyframes blink {
+
+    0%,
+    100% {
+        opacity: 1;
+    }
+
+    50% {
+        opacity: 0.3;
+    }
+}
+
+.statusLabel {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    display: block;
+}
+
+.statusConnected .statusLabel {
+    color: #34c759;
+}
+
+.statusPolling .statusLabel {
+    color: #00D4FF;
+}
+
+.statusOff .statusLabel {
+    color: var(--text-muted);
+}
+
+.statusSub {
+    font-size: 10px;
+    color: var(--text-muted);
+    display: block;
+}
+
+.statusIcon {
+    flex-shrink: 0;
+    opacity: 0.7;
+}
+
+.statusConnected .statusIcon {
+    color: #34c759;
+}
+
+.statusPolling .statusIcon {
+    color: #00D4FF;
+}
+
+.pulse {
+    animation: pulsate 1.2s ease-in-out infinite;
+}
+
+@keyframes pulsate {
+
+    0%,
+    100% {
+        opacity: 0.4;
+    }
+
+    50% {
+        opacity: 1;
+    }
+}
+
+/* ── Setup Wizard ───────────────────────────────────────────────── */
+.wizard {
+    background: var(--bg-elevated);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    overflow: hidden;
+}
+
+.stepTabs {
+    display: flex;
+    border-bottom: 1px solid var(--border-subtle);
+}
+
+.stepTab {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+    padding: 10px 4px;
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    border-bottom: 2px solid transparent;
+}
+
+.stepTab:hover {
+    background: rgba(255, 255, 255, 0.03);
+}
+
+.stepTabActive {
+    border-bottom-color: var(--accent);
+}
+
+.stepNum {
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background: var(--border-subtle);
+    font-size: 9px;
+    font-weight: 800;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--text-muted);
+}
+
+.stepTabActive .stepNum {
+    background: var(--accent);
+    color: #000;
+}
+
+.stepLabel {
+    font-size: 9px;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--text-muted);
+    font-weight: 700;
+}
+
+.stepTabActive .stepLabel {
+    color: var(--accent);
+}
+
+.stepContent {
+    padding: var(--space-4);
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.stepTitle {
+    font-size: 16px;
+    font-weight: 800;
+    color: var(--text-primary);
+}
+
+.stepSub {
+    font-size: 12px;
+    color: var(--text-muted);
+    line-height: 1.6;
+}
+
+/* ── Method Cards ───────────────────────────────────────────────── */
+.methodCards {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.methodCard {
+    display: flex;
+    gap: 12px;
+    align-items: flex-start;
+    padding: 12px;
+    background: rgba(255, 255, 255, 0.02);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-md);
+    cursor: pointer;
+    text-align: left;
+    transition: all 0.15s ease;
+}
+
+.methodCard:hover {
+    background: rgba(255, 255, 255, 0.04);
+    border-color: var(--border);
+}
+
+.methodCardActive {
+    background: rgba(166, 255, 77, 0.06);
+    border-color: rgba(166, 255, 77, 0.3);
+}
+
+.methodIcon {
+    width: 36px;
+    height: 36px;
+    border-radius: var(--radius-sm);
+    background: var(--bg-surface);
+    border: 1px solid var(--border-subtle);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--text-muted);
+    flex-shrink: 0;
+}
+
+.methodCardActive .methodIcon {
+    background: rgba(166, 255, 77, 0.1);
+    border-color: var(--accent);
+    color: var(--accent);
+}
+
+.methodBody {
+    flex: 1;
+    min-width: 0;
+}
+
+.methodLabel {
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--text-primary);
+    margin-bottom: 3px;
+}
+
+.methodSub {
+    font-size: 11px;
+    color: var(--text-muted);
+    line-height: 1.5;
+    margin-bottom: 6px;
+}
+
+.methodMeta {
+    display: flex;
+    gap: 6px;
+}
+
+.methodDiff,
+.methodCompat {
+    font-size: 9px;
+    font-weight: 700;
+    padding: 2px 7px;
+    border-radius: var(--radius-full);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.methodDiff {
+    background: rgba(0, 212, 255, 0.1);
+    color: #00D4FF;
+}
+
+.methodCompat {
+    background: var(--bg-surface);
+    color: var(--text-muted);
+    border: 1px solid var(--border-subtle);
+}
+
+/* ── Code Block ─────────────────────────────────────────────────── */
+.codeBlock {
+    background: #0a0a0d;
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-md);
+    overflow: hidden;
+}
+
+.codeHeader {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 12px;
+    background: rgba(255, 255, 255, 0.03);
+    border-bottom: 1px solid var(--border-subtle);
+    font-size: 10px;
+    color: var(--text-muted);
+    font-family: var(--font-mono);
+}
+
+.code {
+    padding: 12px;
+    font-family: var(--font-mono);
+    font-size: 10px;
+    color: #A6FF4D;
+    line-height: 1.7;
+    overflow-x: auto;
+    margin: 0;
+    white-space: pre;
+}
+
+/* ── Key Card ───────────────────────────────────────────────────── */
+.keyCard {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 14px;
+    background: rgba(166, 255, 77, 0.05);
+    border: 1px solid rgba(166, 255, 77, 0.2);
+    border-radius: var(--radius-md);
+}
+
+.keyLabel {
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.07em;
+    font-weight: 700;
+    color: var(--text-muted);
+    white-space: nowrap;
+}
+
+.keyValue {
+    flex: 1;
+    font-family: var(--font-mono);
+    font-size: 12px;
+    color: var(--accent);
+    font-weight: 700;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.copyBtn {
+    padding: 4px 10px;
+    background: var(--accent);
+    border: none;
+    border-radius: var(--radius-sm);
+    font-size: 10px;
+    font-weight: 700;
+    color: #000;
+    cursor: pointer;
+    white-space: nowrap;
+}
+
+/* ── Architecture Diagram ───────────────────────────────────────── */
+.archDiagram {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0;
+    padding: 16px;
+    background: rgba(255, 255, 255, 0.02);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-md);
+}
+
+.archRow {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+.archNode {
+    padding: 6px 20px;
+    background: var(--bg-surface);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-sm);
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--text-secondary);
+    white-space: nowrap;
+}
+
+.archNodeFinal {
+    background: rgba(166, 255, 77, 0.08);
+    border-color: rgba(166, 255, 77, 0.3);
+    color: var(--accent);
+}
+
+.archArrow {
+    font-size: 14px;
+    color: var(--text-muted);
+    padding: 3px 0;
+}
+
+/* ── Sonar animation ────────────────────────────────────────────── */
+.listeningAnimation {
+    position: relative;
+    width: 80px;
+    height: 80px;
+    margin: 20px auto;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.sonarRing {
+    position: absolute;
+    width: 80px;
+    height: 80px;
+    border-radius: 50%;
+    border: 1.5px solid rgba(166, 255, 77, 0.4);
+    animation: sonar 2s ease-out infinite;
+}
+
+@keyframes sonar {
+    0% {
+        transform: scale(0.3);
+        opacity: 1;
+    }
+
+    100% {
+        transform: scale(1.8);
+        opacity: 0;
+    }
+}
+
+.sonarIcon {
+    color: var(--accent);
+    position: relative;
+    z-index: 1;
+}
+
+/* ── Next / Demo buttons ────────────────────────────────────────── */
+.nextBtn {
+    background: var(--accent);
+    border: none;
+    border-radius: var(--radius-md);
+    padding: 10px 16px;
+    font-size: 12px;
+    font-weight: 800;
+    color: #000;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    align-self: flex-start;
+}
+
+.nextBtn:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 16px rgba(166, 255, 77, 0.3);
+}
+
+.demoNote {
+    font-size: 11px;
+    color: var(--text-muted);
+    text-align: center;
+}
+
+.demoBtn {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 9px 16px;
+    background: rgba(166, 255, 77, 0.08);
+    border: 1px solid rgba(166, 255, 77, 0.25);
+    border-radius: var(--radius-md);
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--accent);
+    cursor: pointer;
+    transition: all 0.15s ease;
+    align-self: center;
+}
+
+.demoBtn:hover:not(:disabled) {
+    background: rgba(166, 255, 77, 0.15);
+}
+
+.demoBtn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+/* ── Live Feed ──────────────────────────────────────────────────── */
+.liveFeed {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.feedHeader {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.feedTitle {
+    font-size: 13px;
+    font-weight: 800;
+    color: var(--text-primary);
+}
+
+.newBadge {
+    display: inline-flex;
+    align-items: center;
+    padding: 2px 8px;
+    background: rgba(166, 255, 77, 0.15);
+    border: 1px solid rgba(166, 255, 77, 0.3);
+    border-radius: var(--radius-full);
+    font-size: 9px;
+    font-weight: 800;
+    color: var(--accent);
+}
+
+.feedActions {
+    display: flex;
+    gap: 4px;
+}
+
+.iconBtn {
+    width: 30px;
+    height: 30px;
+    border-radius: var(--radius-sm);
+    background: var(--bg-elevated);
+    border: 1px solid var(--border-subtle);
+    color: var(--text-muted);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.15s ease;
+}
+
+.iconBtn:hover:not(:disabled) {
+    border-color: var(--border);
+    color: var(--text-primary);
+}
+
+.dangerBtn:hover {
+    border-color: rgba(255, 71, 87, 0.4);
+    color: #FF4757;
+}
+
+/* ── Trade Cards ────────────────────────────────────────────────── */
+.tradeList {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.tradeCard {
+    border: 1px solid;
+    border-radius: var(--radius-md);
+    overflow: hidden;
+    background: var(--bg-elevated);
+}
+
+.tradeSafe {
+    border-color: rgba(52, 199, 89, 0.25);
+    border-left: 3px solid #34c759;
+}
+
+.tradeCaution {
+    border-color: rgba(255, 179, 0, 0.3);
+    border-left: 3px solid #FFB300;
+}
+
+.tradeDanger {
+    border-color: rgba(255, 71, 87, 0.35);
+    border-left: 3px solid #FF4757;
+}
+
+.tradeCritical {
+    border-color: rgba(255, 71, 87, 0.5);
+    border-left: 4px solid #FF4757;
+    background: rgba(255, 71, 87, 0.04);
+}
+
+.tradeHeader {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 12px;
+    border-bottom: 1px solid var(--border-subtle);
+}
+
+.tradeSymbol {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.dirBadge {
+    font-size: 9px;
+    font-weight: 900;
+    padding: 2px 6px;
+    border-radius: 3px;
+    letter-spacing: 0.05em;
+}
+
+.dirBuy {
+    background: rgba(52, 199, 89, 0.15);
+    color: #34c759;
+}
+
+.dirSell {
+    background: rgba(255, 71, 87, 0.15);
+    color: #FF4757;
+}
+
+.symbolText {
+    font-family: var(--font-mono);
+    font-size: 13px;
+    font-weight: 800;
+    color: var(--text-primary);
+}
+
+.platformBadge {
+    font-size: 9px;
+    color: var(--text-muted);
+    background: var(--bg-surface);
+    padding: 2px 6px;
+    border-radius: var(--radius-full);
+    border: 1px solid var(--border-subtle);
+}
+
+.tradeMeta {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.tradeTime {
+    font-size: 9px;
+    color: var(--text-muted);
+    font-family: var(--font-mono);
+}
+
+.tradeGrid {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr 1fr;
+    padding: 8px 12px;
+    gap: 8px;
+}
+
+.tv {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.tk {
+    font-size: 9px;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--text-muted);
+    font-weight: 700;
+}
+
+.tvv {
+    font-family: var(--font-mono);
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--text-primary);
+}
+
+/* ── AI Overlay ─────────────────────────────────────────────────── */
+.aiOverlay {
+    background: rgba(0, 0, 0, 0.2);
+    border-top: 1px solid var(--border-subtle);
+    padding: 8px 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.aiRow {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 8px;
+}
+
+.aiStat {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+}
+
+.aiStatLabel {
+    font-size: 9px;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--text-muted);
+    font-weight: 700;
+}
+
+.aiStatValue {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--text-primary);
+}
+
+.aiRec {
+    font-size: 11px;
+    color: var(--text-secondary);
+    line-height: 1.5;
+    font-style: italic;
+}
+
+.aiWarnings {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+}
+
+.aiWarning {
+    display: flex;
+    align-items: flex-start;
+    gap: 5px;
+    font-size: 10px;
+    color: #FF4757;
+}

@@ -1,0 +1,384 @@
+/* DashboardPage — pure black + lime */
+.page {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+}
+
+/* ── Hero ── */
+.hero {
+    padding: var(--space-4);
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-4);
+}
+
+.heroMain {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    width: 100%;
+}
+
+.pnlContainer {
+    width: 100%;
+    height: 120px;
+    margin-top: 5px;
+    border-top: 1px solid rgba(255, 255, 255, 0.03);
+    padding-top: 15px;
+}
+
+.heroLeft {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.heroLabel {
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--text-muted);
+}
+
+.heroBalance {
+    font-family: var(--font-mono);
+    font-size: 30px;
+    font-weight: 800;
+    letter-spacing: -0.03em;
+    color: var(--text-primary);
+    margin: 0;
+}
+
+.heroSub {
+    font-size: 12px;
+    font-weight: 600;
+}
+
+.heroRight {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 4px;
+}
+
+.heroAssetBadge {
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    background: var(--accent-dim);
+    border: 1px solid var(--accent-border);
+    color: var(--accent);
+    padding: 2px 8px;
+    border-radius: var(--radius-full);
+}
+
+.heroRisk {
+    font-size: 11px;
+    color: var(--text-muted);
+    font-family: var(--font-mono);
+}
+
+/* ── Alert Banner ── */
+.alertBanner {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--space-3);
+    padding: var(--space-3) var(--space-4);
+}
+
+.alertTitle {
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--color-danger);
+}
+
+.alertDesc {
+    font-size: 11px;
+    color: var(--text-secondary);
+    margin-top: 2px;
+}
+
+/* ── Guard Card ── */
+.guardCard {
+    padding: var(--space-4) var(--space-5);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-4);
+}
+
+.guardLeft {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    flex: 1;
+}
+
+.guardTopRow {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+}
+
+.guardTitle {
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--text-primary);
+}
+
+.guardLimit {
+    font-size: 11px;
+    color: var(--text-muted);
+    font-family: var(--font-mono);
+}
+
+.guardStats {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+}
+
+.guardStat {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+}
+
+.guardStatValue {
+    font-family: var(--font-mono);
+    font-size: 18px;
+    font-weight: 800;
+    letter-spacing: -0.02em;
+}
+
+.guardStatLabel {
+    font-size: 9px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--text-muted);
+    font-weight: 600;
+}
+
+.guardStatDivider {
+    width: 1px;
+    height: 30px;
+    background: var(--border-subtle);
+    margin: 0 4px;
+}
+
+.guardAlert {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--color-danger);
+    background: rgba(255, 71, 87, 0.08);
+    border: 1px solid rgba(255, 71, 87, 0.2);
+    border-radius: var(--radius-sm);
+    padding: 5px 10px;
+    align-self: flex-start;
+}
+
+/* ── Stats Row ── */
+.statsRow {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: var(--space-2);
+}
+
+.statCard {
+    padding: var(--space-3) var(--space-3);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 3px;
+    text-align: center;
+}
+
+.statIcon {
+    color: var(--accent);
+    margin-bottom: 2px;
+}
+
+.statValue {
+    font-family: var(--font-mono);
+    font-size: 20px;
+    font-weight: 800;
+    color: var(--text-primary);
+    letter-spacing: -0.02em;
+}
+
+.statLabel {
+    font-size: 9px;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--text-muted);
+    font-weight: 600;
+}
+
+.consistencyContainer {
+    margin-top: var(--space-1);
+}
+
+/* ── Prop Firm Status ── */
+.propStatus {
+    padding: var(--space-4);
+}
+
+.propStatusHeader {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    margin-bottom: var(--space-3);
+    color: var(--accent);
+}
+
+.propStatusTitle {
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    flex: 1;
+}
+
+.propRules {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.propRule {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12px;
+    color: var(--text-secondary);
+}
+
+.propRuleDivider {
+    height: 1px;
+    background-color: var(--border-subtle, var(--border));
+    margin: 8px 0;
+}
+
+/* ── Actions ── */
+.actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: var(--space-2);
+}
+
+.actionBtn {
+    width: 100%;
+    justify-content: center;
+}
+
+/* ── Trade List ── */
+.tradeList {
+    padding: 0 var(--space-4);
+}
+
+.tradeRow {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: var(--space-3) 0;
+}
+
+.tradeRowBorder {
+    border-bottom: 1px solid var(--border-subtle);
+}
+
+.tradeLeft {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+}
+
+.tradeIcon {
+    width: 28px;
+    height: 28px;
+    border-radius: var(--radius-sm);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.tradeOpen {
+    background: var(--bg-elevated);
+    color: var(--text-muted);
+}
+
+.tradeWin {
+    background: rgba(52, 199, 89, 0.12);
+    color: var(--color-success);
+}
+
+.tradeLoss {
+    background: rgba(255, 71, 87, 0.12);
+    color: var(--color-danger);
+}
+
+.tradeAsset {
+    display: block;
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--text-primary);
+}
+
+.tradeDate {
+    display: block;
+    font-size: 10px;
+    color: var(--text-muted);
+}
+
+.tradeRight {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 2px;
+}
+
+.tradePnl {
+    font-family: var(--font-mono);
+    font-size: 14px;
+    font-weight: 700;
+}
+
+.tradeLots {
+    font-size: 10px;
+    color: var(--text-muted);
+    font-family: var(--font-mono);
+}
+
+/* ── Empty State ── */
+.emptyState {
+    padding: var(--space-8) var(--space-5);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    gap: var(--space-2);
+}
+
+.emptyIcon {
+    color: var(--text-disabled);
+    margin-bottom: var(--space-1);
+}
+
+.emptyTitle {
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--text-primary);
+}
+
+.emptyDesc {
+    font-size: 13px;
+    color: var(--text-muted);
+    margin-bottom: var(--space-2);
+}

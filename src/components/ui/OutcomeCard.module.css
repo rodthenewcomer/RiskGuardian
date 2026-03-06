@@ -1,0 +1,92 @@
+/* OutcomeCard — lime + danger, pure black */
+.card {
+    padding: var(--space-4);
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    flex: 1;
+}
+
+.profit {
+    background: rgba(166, 255, 77, 0.04);
+    border-color: rgba(166, 255, 77, 0.18);
+}
+
+.loss {
+    background: rgba(255, 71, 87, 0.05);
+    border-color: rgba(255, 71, 87, 0.18);
+}
+
+.header {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.iconWrap {
+    width: 26px;
+    height: 26px;
+    border-radius: var(--radius-sm);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+.iconProfit {
+    background: var(--accent-dim);
+    color: var(--accent);
+}
+
+.iconLoss {
+    background: var(--color-danger-dim);
+    color: var(--color-danger);
+}
+
+.label {
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.10em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    flex: 1;
+}
+
+.rrBadge {
+    display: flex;
+    align-items: center;
+    gap: 3px;
+    font-size: 10px;
+    font-weight: 700;
+    color: var(--accent);
+    background: var(--accent-dim);
+    border: 1px solid var(--accent-border);
+    padding: 2px 7px;
+    border-radius: var(--radius-full);
+}
+
+.price {
+    margin-top: 2px;
+}
+
+.priceValue {
+    font-family: var(--font-mono);
+    font-size: 19px;
+    font-weight: 700;
+    color: var(--text-primary);
+    letter-spacing: -0.01em;
+}
+
+.pnl {
+    font-family: var(--font-mono);
+    font-size: 12px;
+    font-weight: 600;
+}
+
+.pnlProfit {
+    color: var(--accent);
+}
+
+.pnlLoss {
+    color: var(--color-danger);
+}
