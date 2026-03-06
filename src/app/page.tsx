@@ -21,9 +21,20 @@ const pageVariants = {
   exit: { opacity: 0, y: -6 },
 };
 
+const VALID_TABS = new Set(['dashboard', 'terminal', 'bridge', 'plan', 'analytics', 'settings', 'journal', 'calculator']);
+
 export default function Home() {
   const [mounted, setMounted] = useState(false);
-  useEffect(() => { setMounted(true); }, []);
+  const setActiveTab = useAppStore(s => s.setActiveTab);
+
+  useEffect(() => {
+    // Handle PWA shortcut ?tab=terminal style navigation
+    const param = new URLSearchParams(window.location.search).get('tab');
+    if (param && VALID_TABS.has(param)) {
+      setActiveTab(param as Parameters<typeof setActiveTab>[0]);
+    }
+    setMounted(true);
+  }, [setActiveTab]);
 
   const activeTab = useAppStore(s => s.activeTab);
   const hasOnboarded = useAppStore(s => s.hasOnboarded);

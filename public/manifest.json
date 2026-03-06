@@ -5,9 +5,11 @@
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
-  "background_color": "#0B0B0F",
-  "theme_color": "#0B0B0F",
-  "orientation": "portrait",
+  "background_color": "#090909",
+  "theme_color": "#090909",
+  "orientation": "portrait-primary",
+  "prefer_related_applications": false,
+  "categories": ["finance", "productivity"],
   "icons": [
     {
       "src": "/apple-touch-icon.png",
@@ -16,16 +18,33 @@
       "purpose": "any"
     },
     {
-      "src": "/apple-touch-icon.png",
-      "sizes": "512x512",
-      "type": "image/png",
-      "purpose": "maskable"
-    },
-    {
       "src": "/favicon.svg",
       "sizes": "any",
       "type": "image/svg+xml",
-      "purpose": "any"
+      "purpose": "any maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Risk Engine",
+      "short_name": "Engine",
+      "description": "Calculate position size and log a trade",
+      "url": "/?tab=terminal",
+      "icons": [{ "src": "/favicon.svg", "sizes": "any" }]
+    },
+    {
+      "name": "Analytics",
+      "short_name": "Stats",
+      "description": "View your trading forensics and verdict",
+      "url": "/?tab=analytics",
+      "icons": [{ "src": "/favicon.svg", "sizes": "any" }]
+    },
+    {
+      "name": "Journal",
+      "short_name": "Log",
+      "description": "Review your trade history",
+      "url": "/?tab=journal",
+      "icons": [{ "src": "/favicon.svg", "sizes": "any" }]
     }
   ]
 }

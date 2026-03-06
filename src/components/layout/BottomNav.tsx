@@ -7,7 +7,7 @@ import { motion } from 'framer-motion';
 
 const TABS = [
     { id: 'dashboard' as const, label: 'Home', icon: LayoutDashboard },
-    { id: 'terminal' as const, label: 'HUD', icon: Terminal },
+    { id: 'terminal' as const, label: 'Engine', icon: Terminal },
     { id: 'journal' as const, label: 'Log', icon: BookOpen },
     { id: 'plan' as const, label: 'AI', icon: Brain },
     { id: 'analytics' as const, label: 'Stats', icon: BarChart2 },
