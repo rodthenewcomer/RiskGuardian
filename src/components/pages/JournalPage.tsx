@@ -3,10 +3,32 @@
 import styles from './JournalPage.module.css';
 import { useAppStore } from '@/store/appStore';
 import { motion } from 'framer-motion';
-import { BookOpen, TrendingUp, TrendingDown, Activity } from 'lucide-react';
+import { BookOpen, TrendingUp, TrendingDown, Activity, DownloadCloud } from 'lucide-react';
+import { SEED_TRADES } from '@/data/seedTrades';
 
 export default function JournalPage() {
-    const { trades } = useAppStore();
+    const { trades, setTrades } = useAppStore();
+
+    const handleImportTrades = () => {
+        const mappedTrades = SEED_TRADES.map(t => ({
+            id: t.id,
+            asset: t.asset,
+            assetType: t.assetType as 'crypto' | 'forex' | 'futures' | 'stocks',
+            entry: t.entry,
+            stopLoss: t.sl,
+            takeProfit: t.tp,
+            lotSize: t.size,
+            riskUSD: t.risk,
+            rewardUSD: t.reward,
+            rr: t.rr,
+            outcome: t.outcome as 'win' | 'loss' | 'open',
+            createdAt: t.created,
+            closedAt: t.created,
+            pnl: t.pnl,
+            isShort: t.isShort
+        }));
+        setTrades(mappedTrades);
+    };
 
     // Use only closed trades to assess absolute win rate/pnl
     const closedTrades = trades.filter(t => t.outcome === 'win' || t.outcome === 'loss');
@@ -69,7 +91,15 @@ export default function JournalPage() {
                 <div className={styles.emptyCard}>
                     <BookOpen size={48} strokeWidth={1} className="text-[var(--text-muted)]" />
                     <p className="text-subheading mt-3 text-[var(--text-secondary)]">Log Empty</p>
-                    <p className="text-caption">Commit trades via the Risk Engine to populate HUD Flight Log.</p>
+                    <p className="text-caption mb-6">Commit trades via the Risk Engine to populate HUD Flight Log.</p>
+
+                    <button
+                        onClick={handleImportTrades}
+                        className="btn btn--primary"
+                        style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}
+                    >
+                        <DownloadCloud size={16} /> Import Tradeify History
+                    </button>
                 </div>
             ) : (
                 <div className={styles.tradeList}>

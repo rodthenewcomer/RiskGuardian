@@ -5,6 +5,13 @@ import { useState } from 'react';
 import { useAppStore, PROP_FIRMS, type PropFirmPreset } from '@/store/appStore';
 import { Settings2, DollarSign, ShieldAlert, Check, RefreshCw, Building2, Bitcoin, LineChart, CandlestickChart, CircleDollarSign } from 'lucide-react';
 
+const getFirmLogo = (name: string) => {
+    if (name.includes('Tradeify')) return 'https://www.google.com/s2/favicons?domain=tradeify.co&sz=128';
+    if (name.includes('Funding Pips')) return 'https://www.google.com/s2/favicons?domain=fundingpips.com&sz=128';
+    if (name.includes('FTMO')) return 'https://www.google.com/s2/favicons?domain=ftmo.com&sz=128';
+    if (name.includes('5%ers')) return 'https://www.google.com/s2/favicons?domain=the5ers.com&sz=128';
+    return null;
+};
 
 export default function SettingsPage() {
     const { account, updateAccount, resetTodaySession, resetOnboarding } = useAppStore();
@@ -93,8 +100,15 @@ export default function SettingsPage() {
                             className={`${styles.firmCard} ${selectedFirm === firm.name ? styles.firmCardActive : ''} ${firm.dailyPct === 0 ? styles.firmCardCustom : ''}`}
                             onClick={() => applyFirm(firm)}
                             title={firm.name}
+                            style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px' }}
                         >
-                            <span className={styles.firmShort}>{firm.short}</span>
+                            <div style={{ width: 24, height: 24, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                {getFirmLogo(firm.name) ? (
+                                    <img src={getFirmLogo(firm.name) as string} alt={firm.name} style={{ width: '100%', height: '100%', borderRadius: 4, objectFit: 'contain' }} />
+                                ) : (
+                                    <Settings2 size={20} className="text-muted" />
+                                )}
+                            </div>
                             {firm.dailyPct > 0 ? (
                                 <span className={styles.firmPct}>{firm.dailyPct}%/day</span>
                             ) : (

@@ -15,7 +15,7 @@ export interface PropFirmPreset {
 
 export const PROP_FIRMS: PropFirmPreset[] = [
     { name: 'Tradeify Crypto Eval', short: 'TrdfyE', dailyPct: 3, maxDrawPct: 6, color: '#A6FF4D', propFirmType: '2-Step Evaluation', drawdownType: 'EOD' },
-    { name: 'Tradeify Crypto Instant', short: 'TrdfyI', dailyPct: 3, maxDrawPct: 6, color: '#A6FF4D', propFirmType: 'Instant Funding', drawdownType: 'Static' },
+    { name: 'Tradeify Crypto Instant', short: 'TrdfyI', dailyPct: 3, maxDrawPct: 6, color: '#A6FF4D', propFirmType: 'Instant Funding', drawdownType: 'Trailing' },
     { name: 'Funding Pips', short: 'FPips', dailyPct: 5, maxDrawPct: 10, color: '#A6FF4D', propFirmType: '2-Step Evaluation', drawdownType: 'Static' },
     { name: 'FTMO', short: 'FTMO', dailyPct: 5, maxDrawPct: 10, color: '#A6FF4D', propFirmType: '2-Step Evaluation', drawdownType: 'Static' },
     { name: 'The5%ers', short: '5%ers', dailyPct: 4, maxDrawPct: 6, color: '#A6FF4D', propFirmType: '2-Step Evaluation', drawdownType: 'Static' },
@@ -35,6 +35,9 @@ export interface TradeSession {
     rr: number;
     outcome?: 'win' | 'loss' | 'open';
     createdAt: string;
+    closedAt?: string;
+    pnl?: number;   // Realized PnL
+    isShort?: boolean;
 }
 
 export interface AccountSettings {
@@ -73,7 +76,8 @@ interface AppState {
     resetOnboarding: () => void;
     updateAccount: (settings: Partial<AccountSettings>) => void;
     addTrade: (trade: TradeSession) => void;
-    updateTradeOutcome: (id: string, outcome: 'win' | 'loss') => void;
+    setTrades: (trades: TradeSession[]) => void;
+    updateTradeOutcome: (id: string, outcome: 'win' | 'loss' | 'open') => void;
     setActiveTab: (tab: AppState['activeTab']) => void;
     getTodayRiskUsed: () => number;
     getDailyRiskRemaining: () => number;
@@ -139,6 +143,9 @@ export const useAppStore = create<AppState>()(
 
             addTrade: (trade) =>
                 set((s) => ({ trades: [trade, ...s.trades] })),
+
+            setTrades: (newTrades: TradeSession[]) =>
+                set(() => ({ trades: newTrades })),
 
             updateTradeOutcome: (id, outcome) =>
                 set((s) => ({
