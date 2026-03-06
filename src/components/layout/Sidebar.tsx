@@ -5,12 +5,13 @@ import styles from './Sidebar.module.css';
 import { useAppStore } from '@/store/appStore';
 import {
     LayoutDashboard, Terminal, Calculator,
-    BookOpen, BarChart2, Settings, Brain
+    BookOpen, BarChart2, Settings, Brain, ShieldCheck
 } from 'lucide-react';
 
 const TABS = [
     { id: 'dashboard', label: 'Dashboard', Icon: LayoutDashboard },
     { id: 'terminal', label: 'Command HUD', Icon: Terminal },
+    { id: 'bridge', label: 'Live Bridge', Icon: ShieldCheck },
     { id: 'calculator', label: 'Risk Engine', Icon: Calculator },
     { id: 'plan', label: 'AI Copilot', Icon: Brain },
     { id: 'journal', label: 'Flight Log', Icon: BookOpen },
