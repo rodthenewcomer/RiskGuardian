@@ -409,3 +409,107 @@
     font-weight: 600;
     margin-bottom: 2px;
 }
+
+/* ── Mobile ── */
+@media (max-width: 640px) {
+    /* Header: wrap buttons to second row */
+    .pageHeader {
+        flex-wrap: wrap;
+        gap: var(--space-2);
+    }
+
+    .pageHeader > div:last-child {
+        width: 100%;
+        justify-content: flex-end;
+    }
+
+    /* 2×2 summary grid */
+    .summaryGrid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+
+    .summaryValue {
+        font-size: 16px;
+    }
+
+    /* Trade card */
+    .tradeAsset {
+        font-size: 14px;
+    }
+
+    .tradePnl {
+        font-size: 15px;
+    }
+
+    .tradeDate {
+        font-size: 10px;
+        max-width: 160px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    /* Meta items: 2×2 grid instead of single row */
+    .tradeMeta {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 10px 0;
+    }
+
+    .metaItem {
+        font-size: 10px;
+    }
+
+    .metaItem strong {
+        font-size: 12px;
+    }
+
+    /* Calendar: compact cells */
+    .calendarContainer {
+        padding: var(--space-2);
+    }
+
+    .calendarHeader {
+        margin-bottom: 12px;
+    }
+
+    .calendarTitle {
+        font-size: 13px;
+    }
+
+    .calendarDayName {
+        font-size: 9px;
+        padding: 6px 0;
+    }
+
+    .calendarCell {
+        min-height: 52px;
+        padding: 3px 2px;
+    }
+
+    .calendarCellDate {
+        font-size: 10px;
+    }
+
+    .calendarCellPnl {
+        font-size: 9px;
+        font-weight: 700;
+    }
+
+    .calendarTrades {
+        font-size: 8px;
+    }
+
+    .weeklyLabel {
+        font-size: 8px;
+    }
+
+    .calendarWeeklyCell .calendarCellPnl {
+        font-size: 9px;
+    }
+
+    .btnToday {
+        font-size: 11px;
+        padding: 4px 8px;
+    }
+}

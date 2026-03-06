@@ -36,6 +36,21 @@ interface ChatCard {
 }
 
 // ─────────────────────────────────────────────────────────────────
+// Asset type detector — routes to correct lot/size calculation
+// ─────────────────────────────────────────────────────────────────
+const FUTURES_SYMBOLS = new Set(['ES', 'MES', 'NQ', 'MNQ', 'RTY', 'M2K', 'YM', 'MYM', 'CL', 'QM', 'GC', 'MGC', 'SI', 'ZB']);
+const CRYPTO_SYMBOLS = new Set(['BTC', 'ETH', 'SOL', 'PEPE', 'WIF', 'BONK', 'PNUT', 'DOGE', 'SUI', 'AVAX', 'APT', 'LINK', 'UNI', 'ADA', 'XRP', 'DOT', 'NEAR', 'FET', 'LTC', 'BCH', 'RENDER', 'TAO', 'TIA', 'SEI', 'INJ', 'JUP', 'PYTH', 'OP', 'ARB', 'STRK']);
+const FOREX_PREFIXES = ['EUR', 'GBP', 'JPY', 'CHF', 'CAD', 'AUD', 'NZD', 'USD'];
+
+function detectAssetType(symbol: string): 'crypto' | 'forex' | 'futures' | 'stocks' {
+    const s = symbol.toUpperCase();
+    if (FUTURES_SYMBOLS.has(s)) return 'futures';
+    if (CRYPTO_SYMBOLS.has(s)) return 'crypto';
+    if (s.length === 6 && FOREX_PREFIXES.some(p => s.startsWith(p) || s.endsWith(p))) return 'forex';
+    return 'crypto';
+}
+
+// ─────────────────────────────────────────────────────────────────
 // Natural Language AI Processor
 // Parses trader questions and routes to the right AI function
 // ─────────────────────────────────────────────────────────────────
@@ -139,7 +154,7 @@ function processNaturalLanguage(
     // ── POSITION SIZE: entry + stop + risk ──
     if (hasEntry && hasStop && hasRisk && entry > 0 && second > 0) {
         const riskAmt = third || maxRisk;
-        const result = calcSmartPositionSize({ entry, stopLoss: second, riskUSD: riskAmt, assetType: 'crypto', symbol: asset });
+        const result = calcSmartPositionSize({ entry, stopLoss: second, riskUSD: riskAmt, assetType: detectAssetType(asset), symbol: asset });
         const guardian = analyzeRiskGuardian(account, todayUsed, riskAmt);
         return {
             content: `Position sizing for ${asset} — Entry: ${entry}, SL: ${second}, Risk: $${riskAmt}:`,
@@ -197,7 +212,7 @@ function processNaturalLanguage(
         const riskAmt = second || maxRisk;
         const stopPct = 0.01; // assume 1% stop
         const sl = entry * (1 - stopPct);
-        const result = calcSmartPositionSize({ entry, stopLoss: sl, riskUSD: riskAmt, assetType: 'crypto', symbol: asset });
+        const result = calcSmartPositionSize({ entry, stopLoss: sl, riskUSD: riskAmt, assetType: detectAssetType(asset), symbol: asset });
         return {
             content: `Estimated position for ${asset} @ ${entry} with $${riskAmt} risk (1% stop assumed):`,
             cards: [

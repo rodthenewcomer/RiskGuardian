@@ -1,7 +1,7 @@
 'use client';
 
 /**
- * BridgePage — PropGuard Live Bridge Dashboard
+ * BridgePage — RiskGuardian Live Bridge Dashboard
  * ─────────────────────────────────────────────────────────────────
  * Real-time trade monitoring when connected to local bridge software.
  * Three observation methods: Log File · Memory Read · Screen Parse.
@@ -212,15 +212,15 @@ export default function BridgePage() {
                                     <div className={styles.codeHeader}><Terminal size={12} /> bridge_installer.sh</div>
                                     <pre className={styles.code}>{
                                         `# Download RiskGuardian Bridge (macOS/Windows/Linux)
-curl -fsSL https://bridge.riskguardia.com/install | bash
+curl -fsSL https://bridge.riskguardian.com/install | bash
 
 # Or run directly from source:
-git clone https://github.com/riskguardia/bridge
+git clone https://github.com/riskguardian/bridge
 cd bridge && npm install && npm start
 
 # Configure your API key:
 RISKGUARDIAN_API_KEY=${API_KEY}
-RISKGUARDIAN_SERVER=https://riskguardia.com/api/bridge`
+RISKGUARDIAN_SERVER=https://riskguardian.com/api/bridge`
                                     }</pre>
                                 </div>
                                 {selectedMethod === 'log' && (

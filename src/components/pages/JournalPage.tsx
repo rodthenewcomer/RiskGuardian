@@ -6,6 +6,17 @@ import { useAppStore } from '@/store/appStore';
 import { motion, AnimatePresence } from 'framer-motion';
 import { BookOpen, TrendingUp, TrendingDown, Activity, DownloadCloud, Upload, LayoutList, CalendarDays, ChevronLeft, ChevronRight, FileDown } from 'lucide-react';
 import { SEED_TRADES } from '@/data/seedTrades';
+import { TRADEIFY_CRYPTO_LIST, FUTURES_SPECS } from '@/store/appStore';
+
+function guessAssetType(symbol: string): 'crypto' | 'forex' | 'futures' | 'stocks' {
+    const s = symbol.toUpperCase().replace(/[^A-Z0-9]/g, '');
+    if (s in FUTURES_SPECS) return 'futures';
+    const base = s.replace(/USD$|USDT$/, '');
+    if (TRADEIFY_CRYPTO_LIST.includes(base) || TRADEIFY_CRYPTO_LIST.includes(s)) return 'crypto';
+    const FOREX_CCY = ['EUR', 'GBP', 'JPY', 'CHF', 'CAD', 'AUD', 'NZD', 'USD'];
+    if (s.length === 6 && FOREX_CCY.some(c => s.startsWith(c) || s.endsWith(c))) return 'forex';
+    return 'forex';
+}
 
 export default function JournalPage() {
     const { trades, setTrades, updateTradeNote } = useAppStore();
@@ -170,7 +181,7 @@ export default function JournalPage() {
                         imported.push({
                             id: `csv-${i}-${Date.now()}`,
                             asset: cols[4]?.toUpperCase() || 'UNKNOWN',
-                            assetType: 'forex',
+                            assetType: guessAssetType(cols[4] || ''),
                             entry, stopLoss: sl, takeProfit: tp, lotSize: size,
                             riskUSD: risk, rewardUSD: reward,
                             rr: risk > 0 ? reward / risk : 0,
@@ -193,7 +204,7 @@ export default function JournalPage() {
                         imported.push({
                             id: `csv-${i}-${Date.now()}`,
                             asset: cols[1]?.toUpperCase() || 'UNKNOWN',
-                            assetType: 'forex',
+                            assetType: guessAssetType(cols[1] || ''),
                             entry, stopLoss: sl || entry * 0.99, takeProfit: tp || entry * 1.01, lotSize: size,
                             riskUSD: risk, rewardUSD: reward,
                             rr: risk > 0 ? reward / risk : 0,
@@ -344,7 +355,7 @@ export default function JournalPage() {
                                     <div>
                                         <span className={styles.tradeAsset}>{trade.asset}</span>
                                         <span className={styles.tradeDate}>
-                                            {new Date(trade.createdAt).toLocaleString()} → {trade.closedAt ? new Date(trade.closedAt).toLocaleTimeString() : 'OPEN'}
+                                            {new Date(trade.createdAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })} · {new Date(trade.createdAt).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })} {trade.closedAt ? `→ ${new Date(trade.closedAt).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })}` : '· OPEN'}
                                         </span>
                                     </div>
                                 </div>
@@ -394,8 +405,8 @@ export default function JournalPage() {
 
                     <div className={styles.calendarGrid}>
                         <div className={styles.calendarHeaderRow}>
-                            {['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa', 'Sa'].map((d, i) => (
-                                <div key={i} className={styles.calendarDayName}>{d === 'Sa' && i === 7 ? '' : d}</div>
+                            {['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa', 'Wk'].map((d, i) => (
+                                <div key={i} className={styles.calendarDayName}>{d}</div>
                             ))}
                         </div>
 
