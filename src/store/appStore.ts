@@ -38,6 +38,7 @@ export interface TradeSession {
     closedAt?: string;
     pnl?: number;   // Realized PnL
     isShort?: boolean;
+    note?: string;  // Trade journal note
 }
 
 export interface AccountSettings {
@@ -70,6 +71,7 @@ interface AppState {
     trades: TradeSession[];
     dailySessions: DailySession[];
     activeTab: 'dashboard' | 'terminal' | 'bridge' | 'calculator' | 'plan' | 'journal' | 'analytics' | 'settings';
+    cooldownUntil?: string; // ISO timestamp when cooldown expires
 
     // Actions
     completeOnboarding: () => void;
@@ -78,11 +80,16 @@ interface AppState {
     addTrade: (trade: TradeSession) => void;
     setTrades: (trades: TradeSession[]) => void;
     updateTradeOutcome: (id: string, outcome: 'win' | 'loss' | 'open') => void;
+    updateTradeNote: (id: string, note: string) => void;
     setActiveTab: (tab: AppState['activeTab']) => void;
     getTodayRiskUsed: () => number;
     getDailyRiskRemaining: () => number;
     addDailyRisk: (amount: number) => void;
     resetTodaySession: () => void;
+    setCooldown: (durationMinutes: number) => void;
+    clearCooldown: () => void;
+    isCooldownActive: () => boolean;
+    getCooldownMinutesLeft: () => number;
 }
 
 /**
@@ -127,6 +134,7 @@ export const useAppStore = create<AppState>()(
             trades: [],
             dailySessions: [],
             activeTab: 'dashboard',
+            cooldownUntil: undefined,
 
             completeOnboarding: () => set({ hasOnboarded: true }),
 
@@ -136,10 +144,18 @@ export const useAppStore = create<AppState>()(
                 trades: [],
                 dailySessions: [],
                 activeTab: 'dashboard',
+                cooldownUntil: undefined,
             }),
 
             updateAccount: (settings) =>
-                set((s) => ({ account: { ...s.account, ...settings } })),
+                set((s) => {
+                    const updated = { ...s.account, ...settings };
+                    // Track highest balance for trailing drawdown
+                    if (updated.balance > (s.account.highestBalance || 0)) {
+                        updated.highestBalance = updated.balance;
+                    }
+                    return { account: updated };
+                }),
 
             addTrade: (trade) =>
                 set((s) => ({ trades: [trade, ...s.trades] })),
@@ -150,6 +166,11 @@ export const useAppStore = create<AppState>()(
             updateTradeOutcome: (id, outcome) =>
                 set((s) => ({
                     trades: s.trades.map((t) => (t.id === id ? { ...t, outcome } : t)),
+                })),
+
+            updateTradeNote: (id, note) =>
+                set((s) => ({
+                    trades: s.trades.map((t) => (t.id === id ? { ...t, note } : t)),
                 })),
 
             setActiveTab: (tab) => set({ activeTab: tab }),
@@ -196,6 +217,26 @@ export const useAppStore = create<AppState>()(
                 set((s) => ({
                     dailySessions: s.dailySessions.filter((d) => d.date !== todayStr),
                 }));
+            },
+
+            setCooldown: (durationMinutes) => {
+                const until = new Date(Date.now() + durationMinutes * 60 * 1000).toISOString();
+                set({ cooldownUntil: until });
+            },
+
+            clearCooldown: () => set({ cooldownUntil: undefined }),
+
+            isCooldownActive: () => {
+                const state = get();
+                if (!state.cooldownUntil) return false;
+                return new Date(state.cooldownUntil) > new Date();
+            },
+
+            getCooldownMinutesLeft: () => {
+                const state = get();
+                if (!state.cooldownUntil) return 0;
+                const ms = new Date(state.cooldownUntil).getTime() - Date.now();
+                return Math.max(0, Math.ceil(ms / 60000));
             },
         }),
         {
@@ -275,7 +316,11 @@ export function calcPositionSize(params: {
             pointVal = spec.pointValue;
         }
     } else if (assetType === 'forex') {
-        rawSize = riskAmt / (100000 * priceDiff);
+        // JPY pairs quote in ~100 units vs USD pairs in ~1 unit — adjust denominator
+        const isJPY = symbol.toUpperCase().includes('JPY');
+        rawSize = isJPY
+            ? riskAmt / (1000 * priceDiff)   // JPY: 1 standard lot ≈ $6–9/pip, normalized
+            : riskAmt / (100000 * priceDiff); // Standard: 1 pip = $10/lot
         unit = 'lots';
         pointVal = 10;
     } else if (assetType === 'stocks') {

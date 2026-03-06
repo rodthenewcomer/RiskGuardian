@@ -6,6 +6,123 @@
     animation: fadeIn 0.4s ease-out;
 }
 
+/* ── Page Actions ── */
+.pageActions {
+    display: flex;
+    gap: 8px;
+    margin-left: auto;
+    flex-wrap: wrap;
+}
+
+/* ── Controls row ── */
+.controls {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.filterRow {
+    display: flex;
+    gap: 6px;
+}
+
+.filterBtn {
+    background: transparent;
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-full);
+    padding: 4px 12px;
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--text-muted);
+    cursor: pointer;
+    transition: all var(--t-fast);
+}
+
+.filterBtnActive {
+    border-color: var(--accent-border);
+    background: var(--accent-dim);
+    color: var(--accent);
+}
+
+/* ── Note Section ── */
+.noteSection {
+    border-top: 1px solid var(--border-faint);
+    padding-top: 10px;
+}
+
+.noteDisplay {
+    width: 100%;
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    padding: 0;
+    text-align: left;
+}
+
+.noteIcon {
+    color: var(--text-muted);
+    flex-shrink: 0;
+    margin-top: 2px;
+    transition: color var(--t-fast);
+}
+
+.noteDisplay:hover .noteIcon {
+    color: var(--accent);
+}
+
+.noteText {
+    font-size: 12px;
+    color: var(--text-secondary);
+    line-height: 1.5;
+    white-space: pre-wrap;
+}
+
+.notePlaceholder {
+    font-size: 12px;
+    color: var(--text-disabled);
+    font-style: italic;
+}
+
+.noteEdit {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.noteInput {
+    width: 100%;
+    background: var(--bg-input);
+    border: 1px solid var(--border-medium);
+    border-radius: var(--radius-sm);
+    color: var(--text-primary);
+    font-size: 13px;
+    font-family: var(--font-base);
+    padding: 10px 12px;
+    resize: vertical;
+    outline: none;
+    line-height: 1.5;
+    transition: border-color var(--t-fast);
+}
+
+.noteInput:focus {
+    border-color: var(--accent);
+}
+
+.noteInput::placeholder {
+    color: var(--text-disabled);
+    font-style: italic;
+}
+
+.noteEditBtns {
+    display: flex;
+    gap: 8px;
+}
+
 @keyframes fadeIn {
     from {
         opacity: 0;
@@ -22,10 +139,17 @@
     display: flex;
     align-items: center;
     gap: var(--space-3);
-    padding: var(--space-4);
+    padding: var(--space-3) var(--space-4);
     background: var(--bg-elevated);
     border: 1px solid var(--border);
     border-radius: var(--radius-lg);
+    flex-wrap: wrap;
+}
+
+@media (max-width: 480px) {
+    .pageActions {
+        width: 100%;
+    }
 }
 
 .pageIcon {

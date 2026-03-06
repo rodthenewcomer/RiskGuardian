@@ -40,6 +40,8 @@
     transition: color var(--t-fast);
     -webkit-tap-highlight-color: transparent;
     padding-top: 4px;
+    min-width: 44px;
+    min-height: 44px;
 }
 
 .tab.active {
@@ -75,4 +77,120 @@
     font-weight: 600;
     letter-spacing: 0.02em;
     line-height: 1;
+}
+
+/* ── More Drawer Backdrop ── */
+.backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.7);
+    z-index: 98;
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
+}
+
+/* ── More Drawer Panel ── */
+.drawer {
+    position: fixed;
+    bottom: var(--bottom-nav-height);
+    left: 0;
+    right: 0;
+    z-index: 99;
+    background: var(--bg-elevated);
+    border-top: 1px solid var(--border-medium);
+    border-radius: var(--radius-xl) var(--radius-xl) 0 0;
+    padding: 0 var(--space-4) calc(var(--space-4) + env(safe-area-inset-bottom, 0px));
+    box-shadow: 0 -8px 40px rgba(0, 0, 0, 0.7);
+}
+
+@media (min-width: 768px) {
+    .drawer,
+    .backdrop {
+        display: none;
+    }
+}
+
+.drawerHeader {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: var(--space-4) 0 var(--space-3);
+}
+
+.drawerTitle {
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--text-secondary);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
+
+.drawerClose {
+    width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--bg-input);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-full);
+    color: var(--text-secondary);
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+}
+
+.drawerGrid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: var(--space-3);
+    padding-bottom: var(--space-2);
+}
+
+.drawerItem {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 4px;
+    padding: var(--space-4);
+    background: var(--bg-card);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-lg);
+    cursor: pointer;
+    text-align: left;
+    transition: all var(--t-fast);
+    -webkit-tap-highlight-color: transparent;
+    min-height: 80px;
+}
+
+.drawerItem:hover,
+.drawerItemActive {
+    border-color: var(--accent-border);
+    background: var(--accent-dim);
+}
+
+.drawerIcon {
+    color: var(--text-muted);
+    margin-bottom: 4px;
+    transition: color var(--t-fast);
+}
+
+.drawerIconActive {
+    color: var(--accent);
+}
+
+.drawerItem:hover .drawerIcon {
+    color: var(--accent);
+}
+
+.drawerLabel {
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--text-primary);
+    letter-spacing: -0.01em;
+}
+
+.drawerDesc {
+    font-size: 11px;
+    color: var(--text-muted);
+    line-height: 1.3;
 }

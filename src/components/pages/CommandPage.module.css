@@ -258,12 +258,16 @@
 
 /* ── Input Bar ── */
 .inputArea {
-    padding: var(--space-3);
     background: var(--bg-elevated);
     border-top: 1px solid var(--border);
+    transition: padding-bottom 0.1s ease;
+}
+
+.inputRow {
     display: flex;
     align-items: center;
     gap: 12px;
+    padding: var(--space-3);
 }
 
 .input {
@@ -275,7 +279,7 @@
     font-size: 16px;
     color: var(--accent);
     font-weight: 600;
-    text-shadow: 0 0 10px rgba(0, 212, 255, 0.5);
+    -webkit-appearance: none;
 }
 
 .promptSymbol {
@@ -284,20 +288,144 @@
     font-size: 16px;
     font-weight: 800;
     animation: blink 1s step-end infinite;
+    flex-shrink: 0;
 }
 
 @keyframes blink {
-    50% {
-        opacity: 0;
-    }
+    50% { opacity: 0; }
 }
 
 .input::placeholder {
     color: rgba(255, 255, 255, 0.2);
+    font-size: 13px;
+}
+
+/* ── Header right area ── */
+.headerRight {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.headerLimit {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--text-secondary);
+}
+
+.headerLimit strong {
+    color: var(--color-success);
+}
+
+.headerLimit strong.danger {
+    color: var(--color-danger);
+}
+
+/* ── Cool-down indicator ── */
+.cooldownBadge {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    padding: 3px 8px;
+    background: rgba(255, 149, 0, 0.12);
+    border: 1px solid rgba(255, 149, 0, 0.3);
+    border-radius: var(--radius-full);
+    font-size: 10px;
+    font-weight: 700;
+    color: var(--color-warning);
+    font-family: var(--font-mono);
+}
+
+.cooldownClear {
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    color: var(--color-warning);
+    opacity: 0.6;
+    padding: 0;
+    display: flex;
+    align-items: center;
+}
+
+.cooldownClear:hover { opacity: 1; }
+
+.cooldownBar {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: var(--space-2) var(--space-3);
+    background: rgba(255, 149, 0, 0.08);
+    border-bottom: 1px solid rgba(255, 149, 0, 0.2);
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--color-warning);
+    font-family: var(--font-mono);
+}
+
+.cooldownClearInline {
+    margin-left: auto;
+    background: transparent;
+    border: 1px solid rgba(255, 149, 0, 0.3);
+    border-radius: var(--radius-full);
+    color: var(--color-warning);
+    font-size: 10px;
+    font-weight: 700;
+    padding: 2px 8px;
+    cursor: pointer;
+}
+
+/* ── Pre-trade State Gate ── */
+.gateOverlay {
+    position: absolute;
+    inset: 0;
+    z-index: 200;
+    background: rgba(0, 0, 0, 0.85);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: var(--space-4);
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+}
+
+.gateDialog {
+    background: var(--bg-elevated);
+    border: 1px solid rgba(255, 71, 87, 0.3);
+    border-radius: var(--radius-xl);
+    padding: var(--space-6);
+    max-width: 360px;
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    box-shadow: 0 0 40px rgba(255, 71, 87, 0.15);
+}
+
+.gateTitle {
+    font-size: 16px;
+    font-weight: 800;
+    color: var(--text-primary);
+    margin-bottom: 12px;
+}
+
+.gateSub {
+    font-size: 13px;
+    color: var(--text-secondary);
+    line-height: 1.6;
+    margin-bottom: 20px;
+}
+
+.gateOptions {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    width: 100%;
 }
 
 @media (max-width: 768px) {
     .page {
-        margin-bottom: 80px;
+        margin-bottom: 0;
     }
 }
