@@ -4,7 +4,7 @@ import styles from './JournalPage.module.css';
 import { useState, useMemo, useRef } from 'react';
 import { useAppStore } from '@/store/appStore';
 import { motion, AnimatePresence } from 'framer-motion';
-import { BookOpen, TrendingUp, TrendingDown, Activity, DownloadCloud, Upload, LayoutList, CalendarDays, ChevronLeft, ChevronRight, FileDown } from 'lucide-react';
+import { BookOpen, TrendingUp, TrendingDown, Activity, DownloadCloud, Upload, LayoutList, CalendarDays, ChevronLeft, ChevronRight, FileDown, FileText, Loader2 } from 'lucide-react';
 import { SEED_TRADES } from '@/data/seedTrades';
 import { TRADEIFY_CRYPTO_LIST, FUTURES_SPECS } from '@/store/appStore';
 
@@ -21,8 +21,10 @@ function guessAssetType(symbol: string): 'crypto' | 'forex' | 'futures' | 'stock
 export default function JournalPage() {
     const { trades, setTrades, updateTradeNote } = useAppStore();
     const csvRef = useRef<HTMLInputElement>(null);
+    const pdfRef = useRef<HTMLInputElement>(null);
     const [viewMode, setViewMode] = useState<'list' | 'calendar'>('list');
     const [calendarDate, setCalendarDate] = useState(new Date());
+    const [pdfStatus, setPdfStatus] = useState<{ loading: boolean; msg: string }>({ loading: false, msg: '' });
 
     const calendarData = useMemo(() => {
         const year = calendarDate.getFullYear();
@@ -117,6 +119,33 @@ export default function JournalPage() {
         const toAdd = mappedTrades.filter(t => !existingIds.has(t.id));
         if (toAdd.length > 0) {
             setTrades([...toAdd, ...trades]);
+        }
+    };
+
+    // Tradeify PDF Import
+    const handlePDFImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+        e.target.value = '';
+        setPdfStatus({ loading: true, msg: 'Parsing statement…' });
+        try {
+            const { parseTradeifyPDF } = await import('@/lib/parseTradeifyPDF');
+            const result = await parseTradeifyPDF(file);
+            if (result.error) {
+                setPdfStatus({ loading: false, msg: result.error });
+                return;
+            }
+            if (result.count === 0) {
+                setPdfStatus({ loading: false, msg: 'No closed trades found in this statement.' });
+                return;
+            }
+            // Merge: skip trades already in the store (same id)
+            const existingIds = new Set(trades.map(t => t.id));
+            const fresh = result.trades.filter(t => !existingIds.has(t.id));
+            if (fresh.length > 0) setTrades([...fresh, ...trades]);
+            setPdfStatus({ loading: false, msg: `Imported ${fresh.length} trade${fresh.length !== 1 ? 's' : ''} from statement.` });
+        } catch (err) {
+            setPdfStatus({ loading: false, msg: `Import failed: ${err instanceof Error ? err.message : String(err)}` });
         }
     };
 
@@ -244,6 +273,7 @@ export default function JournalPage() {
     return (
         <div className={styles.page}>
             <input ref={csvRef} type="file" accept=".csv,.txt" style={{ display: 'none' }} onChange={handleCSVImport} />
+            <input ref={pdfRef} type="file" accept=".pdf" style={{ display: 'none' }} onChange={handlePDFImport} />
             <div className={styles.pageHeader}>
                 <div className={styles.pageIcon}>
                     <BookOpen size={24} />
@@ -252,14 +282,26 @@ export default function JournalPage() {
                     <h1 className="text-subheading">HUD Flight Log</h1>
                     <p className="text-caption">Execution history & audit trail</p>
                 </div>
-                <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
+                <div style={{ display: 'flex', gap: 8, flexShrink: 0, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+                    <button
+                        onClick={() => pdfRef.current?.click()}
+                        className="btn btn--primary btn--sm"
+                        title="Import Tradeify PDF statement"
+                        disabled={pdfStatus.loading}
+                        style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11 }}
+                    >
+                        {pdfStatus.loading
+                            ? <Loader2 size={13} style={{ animation: 'spin 1s linear infinite' }} />
+                            : <FileText size={13} />}
+                        Tradeify PDF
+                    </button>
                     <button
                         onClick={() => csvRef.current?.click()}
                         className="btn btn--ghost btn--sm"
                         title="Import CSV (MT4/MT5/DXTrade)"
                         style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11 }}
                     >
-                        <Upload size={13} /> Import CSV
+                        <Upload size={13} /> CSV
                     </button>
                     {trades.length > 0 && (
                         <button
@@ -273,6 +315,30 @@ export default function JournalPage() {
                     )}
                 </div>
             </div>
+
+            {/* PDF import status */}
+            {pdfStatus.msg && (
+                <div style={{
+                    padding: '10px 14px',
+                    borderRadius: 8,
+                    fontSize: 12,
+                    fontWeight: 600,
+                    background: pdfStatus.msg.startsWith('Import') || pdfStatus.msg.startsWith('Imported')
+                        ? 'rgba(166,255,77,0.08)' : 'rgba(255,71,87,0.08)',
+                    border: `1px solid ${pdfStatus.msg.startsWith('Import') || pdfStatus.msg.startsWith('Imported')
+                        ? 'rgba(166,255,77,0.3)' : 'rgba(255,71,87,0.3)'}`,
+                    color: pdfStatus.msg.startsWith('Import') || pdfStatus.msg.startsWith('Imported')
+                        ? 'var(--accent)' : 'var(--color-danger)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    gap: 8,
+                }}>
+                    <span>{pdfStatus.msg}</span>
+                    <button onClick={() => setPdfStatus({ loading: false, msg: '' })}
+                        style={{ background: 'none', border: 'none', color: 'inherit', cursor: 'pointer', fontSize: 14, lineHeight: 1 }}>×</button>
+                </div>
+            )}
 
             {/* Summary Grid */}
             <div className={styles.summaryGrid}>
@@ -326,11 +392,22 @@ export default function JournalPage() {
                     <p className="text-caption mb-6">Commit trades via the Risk Engine to populate HUD Flight Log.</p>
 
                     <button
-                        onClick={handleImportTrades}
+                        onClick={() => pdfRef.current?.click()}
                         className="btn btn--primary"
+                        disabled={pdfStatus.loading}
                         style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}
                     >
-                        <DownloadCloud size={16} /> Import Tradeify History
+                        {pdfStatus.loading
+                            ? <Loader2 size={16} style={{ animation: 'spin 1s linear infinite' }} />
+                            : <FileText size={16} />}
+                        Import Tradeify Statement (PDF)
+                    </button>
+                    <button
+                        onClick={handleImportTrades}
+                        className="btn btn--ghost"
+                        style={{ display: 'inline-flex', alignItems: 'center', gap: 8, marginTop: 8, fontSize: 12 }}
+                    >
+                        <DownloadCloud size={14} /> Load demo data
                     </button>
                 </div>
             ) : viewMode === 'list' ? (
