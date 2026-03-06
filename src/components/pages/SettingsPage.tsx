@@ -30,6 +30,7 @@ export default function SettingsPage() {
     const [propFirmType, setPropFirmType] = useState(account.propFirmType || 'Instant Funding');
     const [drawdownType, setDrawdownType] = useState(account.drawdownType || 'EOD');
     const [maxDrawdownPct, setMaxDrawdownPct] = useState(String(initialDrawPct.toFixed(1)));
+    const [maxTradesPerDay, setMaxTradesPerDay] = useState(String(account.maxTradesPerDay ?? ''));
 
     const handleSave = () => {
         // Calculate max drawdown limit USD based on %
@@ -57,6 +58,7 @@ export default function SettingsPage() {
             highestBalance: Math.max(startBal, bal, account.highestBalance || 0),
             isConsistencyActive: propFirmType === 'Instant Funding' || propFirm?.includes('Instant'),
             minHoldTimeSec: propFirm?.includes('Tradeify') ? 20 : 0,
+            maxTradesPerDay: maxTradesPerDay ? parseInt(maxTradesPerDay) : undefined,
         });
         setSaved(true);
         setTimeout(() => setSaved(false), 2000);
@@ -205,23 +207,16 @@ export default function SettingsPage() {
                     </span>
                 </div>
 
-                <div className={styles.ruleRow}>
-                    <div className={styles.ruleItem}>
-                        <span className={styles.ruleLabel}>Max trades/day (at max risk)</span>
-                        <span className={styles.ruleValue}>
-                            {balNum > 0 && dailyLimit && maxRisk
-                                ? Math.floor(parseFloat(dailyLimit) / ((balNum * parseFloat(maxRisk)) / 100))
-                                : '—'}
-                        </span>
-                    </div>
-                    <div className={styles.ruleItem}>
-                        <span className={styles.ruleLabel}>Safe size remaining today</span>
-                        <span className={`${styles.ruleValue} text-accent`}>
-                            {balNum > 0 && maxRisk
-                                ? `$${((balNum * parseFloat(maxRisk)) / 100).toFixed(0)}`
-                                : '—'}
-                        </span>
-                    </div>
+                <div className="field-group">
+                    <label className="field-label">Max Trades Per Day</label>
+                    <input className="field-input" type="number" inputMode="numeric"
+                        value={maxTradesPerDay} onChange={e => setMaxTradesPerDay(e.target.value)}
+                        placeholder="e.g. 3" id="settings-max-trades" />
+                    <span className="field-hint">
+                        {maxTradesPerDay
+                            ? `Hard cap: stop after ${maxTradesPerDay} trades regardless of P&L`
+                            : `Calculated minimum: ${balNum > 0 && dailyLimit && maxRisk ? Math.floor(parseFloat(dailyLimit) / ((balNum * parseFloat(maxRisk)) / 100)) : '—'} at max risk — set your own hard cap here`}
+                    </span>
                 </div>
 
                 <button className={`btn btn--ghost btn--sm ${styles.resetDayBtn}`} onClick={resetTodaySession} id="reset-day-btn">

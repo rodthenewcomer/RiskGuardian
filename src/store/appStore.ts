@@ -56,6 +56,7 @@ export interface AccountSettings {
     highestBalance: number;
     isConsistencyActive?: boolean;
     minHoldTimeSec?: number;
+    maxTradesPerDay?: number;
 }
 
 export interface DailySession {

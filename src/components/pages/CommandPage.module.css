@@ -161,6 +161,26 @@
     border-left-color: var(--color-danger);
 }
 
+.resWarn {
+    border-left-color: var(--color-warning);
+}
+
+.headerStats {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.headerChip {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    font-weight: 700;
+    padding: 2px 8px;
+    border-radius: var(--radius-full);
+    background: rgba(255,255,255,0.04);
+    border: 1px solid var(--border-subtle);
+}
+
 .resTitle {
     font-family: var(--font-mono);
     font-size: 11px;

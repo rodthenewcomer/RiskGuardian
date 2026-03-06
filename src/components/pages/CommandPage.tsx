@@ -56,6 +56,10 @@ export default function CommandPage() {
 
     const remainingToday = useMemo(() => getDailyRiskRemaining(), [getDailyRiskRemaining]);
     const maxTradeRisk = useMemo(() => (account.balance * account.maxRiskPercent) / 100, [account.balance, account.maxRiskPercent]);
+    const todayTradeCount = useMemo(() => {
+        const today = new Date().toLocaleDateString('en-CA', { timeZone: 'America/New_York' });
+        return trades.filter(t => t.createdAt.includes(today) || new Date(t.createdAt).toLocaleDateString('en-CA', { timeZone: 'America/New_York' }) === today).length;
+    }, [trades]);
 
     const handleFormCalc = () => {
         const asset = formAsset.trim().toUpperCase() || 'BTC';
@@ -403,8 +407,11 @@ export default function CommandPage() {
         if (r_comm > 0) notices.push(`Trade Fee: $${r_comm.toFixed(2)} (0.04% commission)`);
 
         // Constraints Check
-        if (prisk > remainingToday) warnings.push(`Risk ($${prisk.toFixed(0)}) exceeds daily limit remaining ($${remainingToday.toFixed(0)})`);
-        if (prisk > maxTradeRisk) warnings.push(`Risk ($${prisk.toFixed(0)}) exceeds maximum allowed per-trade risk ($${maxTradeRisk.toFixed(0)})`);
+        if (prisk > remainingToday) warnings.push(`Risk $${prisk.toFixed(0)} exceeds daily limit remaining ($${remainingToday.toFixed(0)})`);
+        if (prisk > maxTradeRisk) warnings.push(`Risk $${prisk.toFixed(0)} exceeds your max per-trade risk ($${maxTradeRisk.toFixed(0)})`);
+        if (account.maxTradesPerDay && account.maxTradesPerDay > 0 && todayTradeCount >= account.maxTradesPerDay) {
+            warnings.push(`Daily trade cap reached: ${todayTradeCount}/${account.maxTradesPerDay} trades today`);
+        }
 
         // Leverage Check (Tradeify Specific)
         let maxLev = account.leverage || 100;
@@ -542,8 +549,15 @@ export default function CommandPage() {
                     <Terminal size={18} className="text-accent" />
                     <span className={styles.headerTitle}>Risk Engine</span>
                 </div>
-                <div className={styles.headerLimit}>
-                    DAILY GUARD: <strong className={remainingToday < (account.dailyLossLimit * 0.2) ? styles.danger : ''}>${remainingToday.toFixed(0)}</strong> REMAINING
+                <div className={styles.headerStats}>
+                    {account.maxTradesPerDay && (
+                        <span className={styles.headerChip} style={{ color: todayTradeCount >= account.maxTradesPerDay ? 'var(--color-danger)' : 'var(--text-muted)' }}>
+                            {todayTradeCount}/{account.maxTradesPerDay} trades
+                        </span>
+                    )}
+                    <span className={styles.headerLimit}>
+                        GUARD: <strong className={remainingToday < (account.dailyLossLimit * 0.2) ? styles.danger : ''}>${remainingToday.toFixed(0)}</strong>
+                    </span>
                 </div>
             </div>
 
@@ -587,7 +601,7 @@ export default function CommandPage() {
                         />
                     </div>
                     <div className={styles.formField}>
-                        <label className={styles.formLabel}>Risk ($)</label>
+                        <label className={styles.formLabel}>Risk $ <span style={{ fontWeight: 400, opacity: 0.5 }}>(default ${maxTradeRisk.toFixed(0)})</span></label>
                         <input
                             className={styles.formInput}
                             type="number"
@@ -749,12 +763,12 @@ export default function CommandPage() {
                                         <div className="text-[12px] mt-1">System requires an entry price to calculate coordinates. Ensure command syntax is correct.</div>
                                     </div>
                                 ) : (
-                                    <div className={`${styles.responseBox} ${!log.approved ? styles.resError : ''}`}>
+                                    <div className={`${styles.responseBox} ${log.warnings.length > 0 ? styles.resWarn : ''}`}>
                                         <div className="flex justify-between items-start">
-                                            <span className={`${styles.resTitle} ${log.approved ? styles.safe : styles.fail}`}>
-                                                {log.approved ? 'AUTHORIZED: SAFE TO EXECUTE' : 'REJECTED: RULE VIOLATION'}
+                                            <span className={`${styles.resTitle} ${log.warnings.length > 0 ? styles.warn : styles.safe}`}>
+                                                {log.warnings.length > 0 ? 'REVIEW BEFORE EXECUTING' : 'READY TO LOG'}
                                             </span>
-                                            {log.approved && (() => {
+                                            {(() => {
                                                 const isDanger = log.aiEmotionalState === 'revenge' || log.aiEmotionalState === 'stressed';
                                                 const needsOverride = isDanger && overrideConfirm !== log.id;
                                                 return needsOverride ? (
@@ -762,31 +776,43 @@ export default function CommandPage() {
                                                         onClick={() => setOverrideConfirm(log.id)}
                                                         className="bg-[rgba(255,149,0,0.1)] border border-[rgba(255,149,0,0.4)] px-2 py-0.5 rounded text-[10px] font-bold text-[var(--color-warning)] hover:bg-[rgba(255,149,0,0.2)] transition-colors"
                                                     >
-                                                        ⚠ OVERRIDE REQUIRED
+                                                        Confirm behavioral override
                                                     </button>
                                                 ) : isDanger && overrideConfirm === log.id ? (
                                                     <div className="flex gap-1 items-center">
-                                                        <span className="text-[10px] text-[var(--color-warning)] font-bold">Confirm revenge trade?</span>
-                                                        <button onClick={() => { handleExecute(log); setOverrideConfirm(null); }} className="bg-danger/10 border border-danger/30 px-2 py-0.5 rounded text-[10px] font-bold text-danger hover:bg-danger hover:text-white transition-colors">YES, EXECUTE</button>
+                                                        <span className="text-[10px] text-[var(--color-warning)] font-bold">Override and log trade?</span>
+                                                        <button onClick={() => { handleExecute(log); setOverrideConfirm(null); }} className="bg-[rgba(255,149,0,0.1)] border border-[rgba(255,149,0,0.3)] px-2 py-0.5 rounded text-[10px] font-bold text-[var(--color-warning)] hover:bg-[rgba(255,149,0,0.2)] transition-colors">LOG IT</button>
                                                         <button onClick={() => setOverrideConfirm(null)} className="bg-white/5 border border-white/10 px-2 py-0.5 rounded text-[10px] font-bold text-muted hover:bg-white/10 transition-colors">CANCEL</button>
                                                     </div>
                                                 ) : (
                                                     <button
                                                         onClick={() => handleExecute(log)}
-                                                        className="bg-accent/10 border border-accent/20 px-2 py-0.5 rounded text-[10px] font-bold text-accent hover:bg-accent hover:text-black transition-colors"
+                                                        className={`px-3 py-1 rounded text-[10px] font-bold transition-colors ${log.warnings.length > 0 ? 'bg-[rgba(255,149,0,0.1)] border border-[rgba(255,149,0,0.3)] text-[var(--color-warning)] hover:bg-[rgba(255,149,0,0.2)]' : 'bg-accent/10 border border-accent/20 text-accent hover:bg-accent hover:text-black'}`}
                                                     >
-                                                        EXECUTE
+                                                        {log.warnings.length > 0 ? 'LOG ANYWAY' : 'LOG TRADE'}
                                                     </button>
                                                 );
                                             })()}
                                         </div>
+
+                                        {/* Warnings — shown but never block */}
+                                        {log.warnings.length > 0 && (
+                                            <div className="flex flex-col gap-1 mt-1 mb-1">
+                                                {log.warnings.map((w, i) => (
+                                                    <div key={`w-${i}`} className="text-[11px] text-[var(--color-warning)] font-semibold flex items-center gap-1">
+                                                        <span style={{ opacity: 0.6 }}>!</span> {w}
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        )}
+
                                         <div className={styles.grid2}>
                                             <div className={styles.kv}><span className={styles.kvKey}>Entry</span><span className={styles.kvVal}>${log.entry.toLocaleString()}</span></div>
                                             <div className={styles.kv}><span className={styles.kvKey}>Position Size</span><span className={styles.kvVal}>{log.size.toLocaleString(undefined, { maximumFractionDigits: 5 })} units</span></div>
                                             <div className={styles.kv}><span className={styles.kvKey}>Stop Loss</span><span className={`${styles.kvVal} text-danger`}>{log.sl.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 5 })}</span></div>
                                             <div className={styles.kv}><span className={styles.kvKey}>Take Profit</span><span className={`${styles.kvVal} text-success`}>{log.tp.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 5 })}</span></div>
-                                            <div className={styles.kv}><span className={styles.kvKey}>Notional</span><span className={styles.kvVal}>${log.notional?.toLocaleString(undefined, { maximumFractionDigits: 0 })}</span></div>
-                                            <div className={styles.kv}><span className={styles.kvKey}>Yield</span><span className={styles.kvVal}>{log.rr.toFixed(1)}R</span></div>
+                                            <div className={styles.kv}><span className={styles.kvKey}>Risk</span><span className={`${styles.kvVal} text-danger`}>${log.risk.toFixed(0)}</span></div>
+                                            <div className={styles.kv}><span className={styles.kvKey}>R:R</span><span className={styles.kvVal}>{log.rr.toFixed(1)}R</span></div>
                                         </div>
                                         {/* AI Quality Badge */}
                                         {log.aiGrade && (
@@ -802,18 +828,10 @@ export default function CommandPage() {
                                                 </div>
                                             </div>
                                         )}
-
-                                        {!log.approved && (
-                                            <div className="mt-3 flex flex-col gap-1">
-                                                {log.warnings.map((w, i) => (
-                                                    <div key={`w-${i}`} className="text-[11px] text-[var(--color-danger)] font-semibold">• {w}</div>
-                                                ))}
-                                            </div>
-                                        )}
                                         {log.notices.length > 0 && (
-                                            <div className={`flex flex-col gap-1 ${log.approved ? 'mt-3' : 'mt-1'}`}>
+                                            <div className="flex flex-col gap-1 mt-1">
                                                 {log.notices.map((n, i) => (
-                                                    <div key={`n-${i}`} className="text-[11px] text-[var(--color-warning)] font-semibold">ℹ {n}</div>
+                                                    <div key={`n-${i}`} className="text-[11px] text-[#888] font-mono">ℹ {n}</div>
                                                 ))}
                                             </div>
                                         )}
