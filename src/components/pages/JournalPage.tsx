@@ -1,13 +1,51 @@
 'use client';
 
 import styles from './JournalPage.module.css';
+import { useState, useMemo } from 'react';
 import { useAppStore } from '@/store/appStore';
-import { motion } from 'framer-motion';
-import { BookOpen, TrendingUp, TrendingDown, Activity, DownloadCloud } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { BookOpen, TrendingUp, TrendingDown, Activity, DownloadCloud, LayoutList, CalendarDays, ChevronLeft, ChevronRight } from 'lucide-react';
 import { SEED_TRADES } from '@/data/seedTrades';
 
 export default function JournalPage() {
     const { trades, setTrades } = useAppStore();
+    const [viewMode, setViewMode] = useState<'list' | 'calendar'>('list');
+    const [calendarDate, setCalendarDate] = useState(new Date());
+
+    const calendarData = useMemo(() => {
+        const year = calendarDate.getFullYear();
+        const month = calendarDate.getMonth();
+        const firstDay = new Date(year, month, 1).getDay();
+        const daysInMonth = new Date(year, month + 1, 0).getDate();
+
+        const days = [];
+        for (let i = 0; i < firstDay; i++) days.push(null);
+
+        for (let i = 1; i <= daysInMonth; i++) {
+            const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(i).padStart(2, '0')}`;
+            const dayTrades = trades.filter(t => t.createdAt.split('T')[0] === dateStr);
+            const pnl = dayTrades.reduce((s, t) => s + (t.pnl ?? 0), 0);
+            days.push({ day: i, pnl, tradesCount: dayTrades.length, date: dateStr });
+        }
+        return {
+            year,
+            month,
+            days,
+            monthName: calendarDate.toLocaleString('default', { month: 'long' })
+        };
+    }, [calendarDate, trades]);
+
+    const prevMonth = () => {
+        const newDate = new Date(calendarDate);
+        newDate.setMonth(newDate.getMonth() - 1);
+        setCalendarDate(newDate);
+    };
+
+    const nextMonth = () => {
+        const newDate = new Date(calendarDate);
+        newDate.setMonth(newDate.getMonth() + 1);
+        setCalendarDate(newDate);
+    };
 
     const handleImportTrades = () => {
         const mappedTrades = SEED_TRADES.map(t => ({
@@ -86,6 +124,24 @@ export default function JournalPage() {
                 </div>
             </div>
 
+            {/* View Toggle */}
+            {trades.length > 0 && (
+                <div className={styles.viewToggle}>
+                    <button
+                        onClick={() => setViewMode('list')}
+                        className={`${styles.toggleBtn} ${viewMode === 'list' ? styles.toggleBtnActive : ''}`}
+                    >
+                        <LayoutList size={14} /> List
+                    </button>
+                    <button
+                        onClick={() => setViewMode('calendar')}
+                        className={`${styles.toggleBtn} ${viewMode === 'calendar' ? styles.toggleBtnActive : ''}`}
+                    >
+                        <CalendarDays size={14} /> Calendar
+                    </button>
+                </div>
+            )}
+
             {/* Trade History */}
             {trades.length === 0 ? (
                 <div className={styles.emptyCard}>
@@ -101,7 +157,7 @@ export default function JournalPage() {
                         <DownloadCloud size={16} /> Import Tradeify History
                     </button>
                 </div>
-            ) : (
+            ) : viewMode === 'list' ? (
                 <div className={styles.tradeList}>
                     {trades.map((trade, i) => (
                         <motion.div
@@ -149,6 +205,46 @@ export default function JournalPage() {
                         </motion.div>
                     ))}
                 </div>
+            ) : (
+                <motion.div
+                    initial={{ opacity: 0, scale: 0.98 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    className={styles.calendarContainer}
+                >
+                    <div className={styles.calendarHeader}>
+                        <h3 className={styles.calendarTitle}>{calendarData.monthName} {calendarData.year}</h3>
+                        <div className={styles.calendarNav}>
+                            <button onClick={prevMonth} className="btn btn--ghost btn--sm p-1" title="Previous Month" aria-label="Previous Month"><ChevronLeft size={16} /></button>
+                            <button onClick={nextMonth} className="btn btn--ghost btn--sm p-1" title="Next Month" aria-label="Next Month"><ChevronRight size={16} /></button>
+                        </div>
+                    </div>
+
+                    <div className={styles.calendarGrid}>
+                        {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((d) => (
+                            <div key={d} className={styles.calendarDayName}>{d}</div>
+                        ))}
+                        {calendarData.days.map((dayData, i) => (
+                            <div
+                                key={i}
+                                className={`${styles.calendarCell} ${!dayData ? styles.calendarCellEmpty : ''} ${dayData && dayData.tradesCount > 0 ? styles.calendarCellActive : ''}`}
+                            >
+                                {dayData && (
+                                    <>
+                                        <span className={styles.calendarCellDate}>{dayData.day}</span>
+                                        {dayData.tradesCount > 0 && (
+                                            <div className="flex flex-col gap-1 items-end mt-auto">
+                                                <span className={`${styles.calendarCellPnl} ${dayData.pnl >= 0 ? styles.pnlPositive : styles.pnlNegative}`}>
+                                                    {dayData.pnl >= 0 ? '+' : '-'}${Math.abs(dayData.pnl).toFixed(0)}
+                                                </span>
+                                                <span className={styles.calendarTrades}>{dayData.tradesCount} executions</span>
+                                            </div>
+                                        )}
+                                    </>
+                                )}
+                            </div>
+                        ))}
+                    </div>
+                </motion.div>
             )}
         </div>
     );

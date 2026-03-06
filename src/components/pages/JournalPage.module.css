@@ -197,3 +197,126 @@
     border: 1px dashed var(--border);
     border-radius: var(--radius-lg);
 }
+/* ── View Toggle ── */
+.viewToggle {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 16px;
+    justify-content: flex-end;
+}
+
+.toggleBtn {
+    background: var(--bg-elevated);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    padding: 6px 12px;
+    font-size: 11px;
+    color: var(--text-muted);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.toggleBtnActive {
+    background: rgba(166, 255, 77, 0.1);
+    border-color: var(--accent);
+    color: var(--accent);
+}
+
+/* ── Calendar ── */
+.calendarContainer {
+    background: var(--bg-elevated);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    padding: var(--space-4);
+}
+
+.calendarHeader {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 16px;
+}
+
+.calendarTitle {
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--text-primary);
+}
+
+.calendarNav {
+    display: flex;
+    gap: 8px;
+}
+
+.calendarGrid {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 8px;
+}
+
+.calendarDayName {
+    text-align: center;
+    font-size: 10px;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    font-weight: 700;
+    margin-bottom: 8px;
+}
+
+.calendarCell {
+    aspect-ratio: 1;
+    background: rgba(255, 255, 255, 0.02);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-md);
+    padding: 6px;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    transition: border 0.2s;
+}
+
+.calendarCell:hover {
+    border-color: var(--border);
+}
+
+.calendarCellEmpty {
+    opacity: 0.3;
+}
+
+.calendarCellDate {
+    font-size: 10px;
+    color: var(--text-muted);
+}
+
+.calendarCellActive .calendarCellDate {
+    color: var(--text-primary);
+    font-weight: 700;
+}
+
+.calendarCellPnl {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    font-weight: 800;
+    text-align: right;
+}
+
+.pnlPositive {
+    color: var(--color-success);
+    background: rgba(52, 199, 89, 0.1);
+    border: 1px solid rgba(52, 199, 89, 0.3);
+}
+
+.pnlNegative {
+    color: var(--color-danger);
+    background: rgba(255, 71, 87, 0.1);
+    border: 1px solid rgba(255, 71, 87, 0.3);
+}
+
+.calendarTrades {
+    font-size: 9px;
+    color: var(--text-muted);
+    text-align: right;
+}
