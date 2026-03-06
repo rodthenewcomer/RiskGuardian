@@ -275,7 +275,7 @@ export default function DashboardPage() {
 
             {/* ── Quick Actions ── */}
             <motion.div variants={item} className={styles.actions}>
-                <button className={`btn btn--primary ${styles.actionBtn}`} onClick={() => setActiveTab('calculator')} id="quick-calc-btn">
+                <button className={`btn btn--primary ${styles.actionBtn}`} onClick={() => setActiveTab('terminal')} id="quick-calc-btn">
                     <Calculator size={15} /> Calculate
                 </button>
                 <button className={`btn btn--ghost ${styles.actionBtn}`} onClick={() => setActiveTab('analytics')} id="quick-analytics-btn">
@@ -336,7 +336,7 @@ export default function DashboardPage() {
                         <div className={styles.emptyStepNum}>3</div>
                         <span className={styles.emptyStepText}>Hit <strong style={{ color: 'var(--text-primary)' }}>Log Plan</strong> — your daily risk limit tracks automatically.</span>
                     </div>
-                    <button className="btn btn--primary btn--full" style={{ marginTop: 8 }} onClick={() => setActiveTab('calculator')}>
+                    <button className="btn btn--primary btn--full" style={{ marginTop: 8 }} onClick={() => setActiveTab('terminal')}>
                         Open Risk Engine
                     </button>
                 </motion.div>

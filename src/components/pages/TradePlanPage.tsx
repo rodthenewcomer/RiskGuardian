@@ -22,7 +22,7 @@ export default function TradePlanPage() {
                     <p className="text-caption mb-6">Calculate and lock a trade in the Risk Engine to arm the HUD.</p>
                     <button
                         className="btn btn--primary px-8 py-4"
-                        onClick={() => setActiveTab('calculator')}
+                        onClick={() => setActiveTab('terminal')}
                         id="create-plan-btn"
                     >
                         ARM NEW TRADE

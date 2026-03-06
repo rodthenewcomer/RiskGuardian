@@ -12,7 +12,6 @@ import AIChatPage from '@/components/pages/AIChatPage';
 import AnalyticsPage from '@/components/pages/AnalyticsPage';
 import SettingsPage from '@/components/pages/SettingsPage';
 import JournalPage from '@/components/pages/JournalPage';
-import CalculatorPage from '@/components/pages/CalculatorPage';
 import Onboarding from '@/components/pages/Onboarding';
 import { AnimatePresence, motion } from 'framer-motion';
 
@@ -37,7 +36,7 @@ export default function Home() {
     analytics: <AnalyticsPage />,
     settings: <SettingsPage />,
     journal: <JournalPage />,
-    calculator: <CalculatorPage />,
+    calculator: <CommandPage />,
   };
 
   // Avoid hydration mismatch — localStorage state only available client-side

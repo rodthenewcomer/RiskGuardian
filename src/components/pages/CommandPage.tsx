@@ -210,7 +210,7 @@ export default function CommandPage() {
         }
 
         if (['journal', 'plan', 'settings', 'dashboard', 'analytics', 'calc'].includes(metaCmd)) {
-            setActiveTab(metaCmd === 'calc' ? 'calculator' : metaCmd as any);
+            setActiveTab(metaCmd === 'calc' ? 'terminal' : metaCmd as any);
             setInput('');
             return;
         }
