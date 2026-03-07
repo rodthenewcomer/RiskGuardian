@@ -20,7 +20,8 @@ import { useAppStore } from '@/store/appStore';
 import { dxGetPositions, dxGetMetrics, type DXMetrics } from '@/lib/dxtradeSync';
 import type { TradeSession } from '@/store/appStore';
 
-const POLL_MS = 3000;
+const POLL_MS = 8000;          // 8s — respectful of DXTrade rate limits
+const RATE_LIMIT_PAUSE = 300_000; // 5 min pause when 429 received
 
 // ── Pre-trade risk calculation ─────────────────────────────────────
 function calcPreTrade(entry: number, stop: number, tp: number, lots: number, balance: number, dailyLimit: number, dailyUsed: number) {
@@ -61,6 +62,8 @@ export default function BridgePage() {
     const [polling, setPolling] = useState(false);
     const [lastPoll, setLastPoll] = useState<Date | null>(null);
     const [pollError, setPollError] = useState('');
+    const [rateLimited, setRateLimited] = useState(false);
+    const [rateLimitUntil, setRateLimitUntil] = useState<Date | null>(null);
     const [activeTab, setActiveTab] = useState<'monitor' | 'pretrade'>('monitor');
     const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -75,6 +78,8 @@ export default function BridgePage() {
     // ── Poll DXTrade ───────────────────────────────────────────────
     const poll = useCallback(async () => {
         if (!dxtradeConfig) return;
+        // Don't poll while rate-limited
+        if (rateLimitUntil && new Date() < rateLimitUntil) return;
         try {
             const config = {
                 server: dxtradeConfig.server,
@@ -87,10 +92,20 @@ export default function BridgePage() {
             setMetrics(m);
             setLastPoll(new Date());
             setPollError('');
+            setRateLimited(false);
         } catch (e) {
-            setPollError(e instanceof Error ? e.message : 'Poll failed');
+            const msg = e instanceof Error ? e.message : 'Poll failed';
+            // 429 — stop polling for 5 minutes to let the ban expire
+            if (msg.includes('RATE LIMITED') || msg.includes('429')) {
+                const until = new Date(Date.now() + RATE_LIMIT_PAUSE);
+                setRateLimited(true);
+                setRateLimitUntil(until);
+                setPollError(`Rate limited. Auto-resume at ${until.toLocaleTimeString()}`);
+            } else {
+                setPollError(msg);
+            }
         }
-    }, [dxtradeConfig]);
+    }, [dxtradeConfig, rateLimitUntil]);
 
     useEffect(() => {
         if (!dxtradeConfig) { setPolling(false); return; }

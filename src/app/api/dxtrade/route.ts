@@ -35,6 +35,11 @@ async function dxFetch(url: string, init: RequestInit = {}) {
     return res;
 }
 
+/** Standard 429 response — shown on ALL actions, not just metrics */
+const rateLimitError = NextResponse.json({
+    error: 'RATE LIMITED by DXTrade. STOP retrying — every attempt resets the ban timer. Wait 30–60 minutes without touching the Connect button, then try once.',
+}, { status: 429 });
+
 export async function POST(req: NextRequest) {
     let body: Record<string, unknown>;
     try {
@@ -61,6 +66,9 @@ export async function POST(req: NextRequest) {
                     method: 'POST',
                     body: JSON.stringify({ username, domain: domain || 'default', password }),
                 });
+                // ⚠ Detect 429 BEFORE trying to parse — a rate-limited login looks like
+                // "Login failed" otherwise and causes the user to retry, resetting the timer.
+                if (res.status === 429) return rateLimitError;
                 const text = await res.text();
                 if (!res.ok) {
                     let desc = `Login failed (HTTP ${res.status})`;
@@ -69,17 +77,18 @@ export async function POST(req: NextRequest) {
                 }
                 const data = JSON.parse(text);
                 // DXTrade may return the session token under different field names
-                const token = data.token ?? data.userSession ?? data.sessionToken ?? data.sessionId ?? data.access_token;
-                if (!token) {
+                const sessionToken = data.token ?? data.userSession ?? data.sessionToken ?? data.sessionId ?? data.access_token;
+                if (!sessionToken) {
                     console.error('[DXTrade login] Unexpected response shape:', JSON.stringify(data));
                     return NextResponse.json({ error: 'No token in login response', _raw: data }, { status: 502 });
                 }
-                return NextResponse.json({ token });
+                return NextResponse.json({ token: sessionToken });
             }
 
             case 'ping': {
                 if (!token) return NextResponse.json({ error: 'Token required' }, { status: 401 });
-                await dxFetch(`${base}/ping`, { method: 'POST', headers: authHeader(token) });
+                const res = await dxFetch(`${base}/ping`, { method: 'POST', headers: authHeader(token) });
+                if (res.status === 429) return rateLimitError;
                 return NextResponse.json({ ok: true });
             }
 
@@ -89,6 +98,7 @@ export async function POST(req: NextRequest) {
                 const res = await dxFetch(`${base}/users/${encodeURIComponent(username)}`, {
                     headers: authHeader(token),
                 });
+                if (res.status === 429) return rateLimitError;
                 if (!res.ok) {
                     const err = await res.json().catch(() => ({})) as { description?: string };
                     return NextResponse.json({ error: err.description || 'Failed to fetch user info' }, { status: res.status });
@@ -103,8 +113,8 @@ export async function POST(req: NextRequest) {
                     `${base}/accounts/${encodeAccount(accountCode)}/metrics`,
                     { headers: authHeader(token) },
                 );
+                if (res.status === 429) return rateLimitError;
                 if (!res.ok) {
-                    if (res.status === 429) return NextResponse.json({ error: 'Rate limited by DXTrade — please wait a few minutes and try again' }, { status: 429 });
                     const err = await res.json().catch(() => ({})) as { description?: string };
                     return NextResponse.json({ error: err.description || 'Failed to fetch metrics' }, { status: res.status });
                 }
@@ -117,6 +127,7 @@ export async function POST(req: NextRequest) {
                     `${base}/accounts/${encodeAccount(accountCode)}/positions`,
                     { headers: authHeader(token) },
                 );
+                if (res.status === 429) return rateLimitError;
                 if (!res.ok) {
                     const err = await res.json().catch(() => ({})) as { description?: string };
                     return NextResponse.json({ error: err.description || 'Failed to fetch positions' }, { status: res.status });
@@ -126,13 +137,14 @@ export async function POST(req: NextRequest) {
 
             case 'history': {
                 if (!token || !accountCode) return NextResponse.json({ error: 'Token and accountCode required' }, { status: 400 });
-                const { fromDate, limit = '500' } = rest;
+                const { fromDate, limit = '200' } = rest; // reduced from 500 — large payloads can trigger rate limits
                 const params = new URLSearchParams({ 'in-status': 'COMPLETED', limit });
                 if (fromDate) params.set('transaction-from', fromDate);
                 const res = await dxFetch(
                     `${base}/accounts/${encodeAccount(accountCode)}/orders/history?${params}`,
                     { headers: authHeader(token) },
                 );
+                if (res.status === 429) return rateLimitError;
                 if (!res.ok) {
                     const err = await res.json().catch(() => ({})) as { description?: string };
                     return NextResponse.json({ error: err.description || 'Failed to fetch order history' }, { status: res.status });
