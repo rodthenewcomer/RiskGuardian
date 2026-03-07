@@ -187,6 +187,125 @@ export default function AnalyticsPage() {
         window.print();
     };
 
+    // ── STREAKS: Recovery probability computed from actual trade sequence ──
+    const recoveryProbTable = (() => {
+        if (closed.length < 3) return [];
+        const seq = closed.map(t => (t.pnl ?? 0) >= 0 ? 'W' : 'L');
+        return [1, 2, 3, 4, 5].map(n => {
+            let instances = 0, winsNext = 0, totalTrades = 0;
+            for (let i = n - 1; i < seq.length - 1; i++) {
+                let allLoss = true;
+                for (let k = i - n + 1; k <= i; k++) { if (seq[k] !== 'L') { allLoss = false; break; } }
+                if (allLoss && (i - n + 1 === 0 || seq[i - n] === 'W')) {
+                    instances++;
+                    if (seq[i + 1] === 'W') { winsNext++; totalTrades += 1; }
+                    else {
+                        let found = false;
+                        for (let j = i + 2; j < seq.length; j++) {
+                            if (seq[j] === 'W') { totalTrades += (j - i); found = true; break; }
+                        }
+                        if (!found) totalTrades += (seq.length - i);
+                    }
+                }
+            }
+            return { n, instances, recoveryProb: instances > 0 ? (winsNext / instances) * 100 : null, avgTrades: instances > 0 ? totalTrades / instances : null };
+        }).filter(r => r.instances > 0);
+    })();
+
+    // ── STREAKS: Worst streak details for NLP narrative ──
+    const worstStreakInfo = (() => {
+        if (closed.length === 0) return null;
+        let best: { start: number; end: number; count: number; pnl: number } | null = null;
+        let cs = -1, cc = 0, cp = 0;
+        closed.forEach((t, i) => {
+            if ((t.pnl ?? 0) < 0) {
+                if (cc === 0) cs = i;
+                cc++; cp += (t.pnl ?? 0);
+                if (!best || cc > best.count || (cc === best.count && cp < best.pnl)) best = { start: cs, end: i, count: cc, pnl: cp };
+            } else { cc = 0; cp = 0; }
+        });
+        if (!best) return null;
+        const st = closed[best.start], et = closed[best.end];
+        const fmtDate = (iso: string) => new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+        const fmtTime = (iso: string) => new Date(iso).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'America/New_York' });
+        const streakTrades = closed.slice(best.start, best.end + 1);
+        const assetCounts: Record<string, number> = {};
+        streakTrades.forEach(t => { assetCounts[t.asset] = (assetCounts[t.asset] || 0) + 1; });
+        const dominantAsset = Object.entries(assetCounts).sort(([, a], [, b]) => b - a)[0]?.[0] ?? '';
+        const shortCount = streakTrades.filter(t => t.isShort).length;
+        return { count: best.count, pnl: best.pnl, date: fmtDate(st.createdAt), startTime: fmtTime(st.createdAt), endTime: fmtTime(et.createdAt), dominantAsset, isShort: shortCount > best.count / 2 };
+    })();
+
+    // ── STREAKS: Psychological State Profile (derived from pattern + time data) ──
+    const psychStates = (() => {
+        const states: Array<{ title: string; severity: 'CRITICAL' | 'HIGH' | 'INFO'; trigger: string; response: string }> = [];
+        const revPattern = forensics.patterns.find((p: any) => p.name === 'Revenge Trading');
+        const heldPattern = forensics.patterns.find((p: any) => p.name === 'Held Losers');
+        const spikePattern = forensics.patterns.find((p: any) => p.name === 'Spike Vulnerability');
+        const maxLoss = forensics.maxLossStreak;
+        const bH = forensics.timeStats.bestHour;
+        const wH = forensics.timeStats.worstHour;
+
+        // 1. Tilt Zone
+        if (maxLoss >= 3 || revPattern) {
+            states.push({
+                title: 'TILT ZONE',
+                severity: maxLoss >= 5 || (revPattern && revPattern.severity === 'CRITICAL') ? 'CRITICAL' : 'HIGH',
+                trigger: worstStreakInfo
+                    ? `${worstStreakInfo.count} consecutive ${worstStreakInfo.dominantAsset}${worstStreakInfo.isShort ? ' short' : ''} losses on ${worstStreakInfo.date} (${worstStreakInfo.startTime}–${worstStreakInfo.endTime}), costing $${Math.abs(worstStreakInfo.pnl).toFixed(0)}. Direction bias held despite repeated market rejection.`
+                    : `${maxLoss} consecutive losses detected. Directional bias maintained past the point of edge.`,
+                response: `Implement a ${maxLoss >= 4 ? '3' : '2'}-loss directional lockout rule per instrument per session. After ${maxLoss >= 4 ? 3 : 2} losses in the same direction, close the instrument for the day.`,
+            });
+        }
+
+        // 2. Revenge Mode
+        if (revPattern) {
+            states.push({
+                title: 'REVENGE MODE',
+                severity: revPattern.severity === 'CRITICAL' ? 'CRITICAL' : 'HIGH',
+                trigger: `Rapid re-entry detected after ${revPattern.freq} loss event${revPattern.freq > 1 ? 's' : ''}, costing an additional $${Math.abs(revPattern.impact).toFixed(0)}. ${revPattern.evidence?.[0] ? `Clearest instance: ${revPattern.evidence[0]}.` : ''}`,
+                response: `After any loss exceeding $${Math.round(Math.abs(revPattern.impact / revPattern.freq / 2))}, mandatory 5-minute cooldown before next entry. The Mar trades that recovered all had conviction, not emotion.`,
+            });
+        } else if (maxLoss >= 2) {
+            states.push({
+                title: 'REVENGE MODE',
+                severity: 'INFO',
+                trigger: `No confirmed revenge pattern detected in your data. Your re-entry timing after losses is within normal bounds.`,
+                response: `Maintain current discipline. Continue waiting for genuine setups rather than reaction entries.`,
+            });
+        }
+
+        // 3. Late-Session Drift / Danger Zone
+        if (wH >= 18 || wH <= 6) {
+            states.push({
+                title: 'LATE-SESSION DRIFT',
+                severity: 'HIGH',
+                trigger: `Your worst-performing hour is ${wH}:00 EST. ${wH >= 20 ? 'Evening entries show decision degradation — these are boredom trades, not setups.' : wH <= 6 ? 'Pre-market entries before structure is established carry elevated risk.' : 'Off-session trading outside core liquidity windows.'}`,
+                response: `Set a hard ${wH >= 18 ? '20:00' : '08:30'} EST cutoff. No new positions after that time. Your edge is session-dependent — protect it by staying inside it.`,
+            });
+        }
+
+        // 4. Optimal Window (always include as reinforcement)
+        states.push({
+            title: 'OPTIMAL WINDOW',
+            severity: 'INFO',
+            trigger: `Peak performance hour: ${bH}:00–${bH + 1}:00 EST. ${heldPattern ? 'When winners are held to target, execution quality is elite.' : 'Clear directional conviction in this window produces consistently positive outcomes.'}`,
+            response: `Protect this state. Do not carry prior-session losses into your best window. Arrive flat, focused, and structured. This is where your edge lives.`,
+        });
+
+        // 5. Spike / Stop-Hunt Vulnerability (if present)
+        if (spikePattern) {
+            states.push({
+                title: 'STOP-HUNT VULNERABILITY',
+                severity: 'CRITICAL',
+                trigger: `${spikePattern.freq} acute spike event${spikePattern.freq > 1 ? 's' : ''} detected — rapid large losses ($${Math.abs(spikePattern.impact / spikePattern.freq).toFixed(0)} avg) in under 3 minutes. ${spikePattern.evidence?.[0] ?? ''}.`,
+                response: `Hard stop losses are non-negotiable on volatile instruments. No position should be held through a news/spike event without a stop. Size down or exit before known catalysts.`,
+            });
+        }
+
+        return states;
+    })();
+
     const PIE_COLORS = ['#A6FF4D', '#00D4FF', '#EAB308', '#ff4757', '#fb923c'];
 
     return (
@@ -627,35 +746,179 @@ export default function AnalyticsPage() {
                     )}
 
                     {activeTab === 'STREAKS' && (
-                        <motion.div key="streaks" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="flex flex-col gap-6">
-                            <span className={styles.sectionTitle}>Streak Analysis</span>
-                            <div className={styles.fullWidthCard} style={{ padding: '32px' }}>
-                                <div className="flex flex-wrap gap-1 mb-10">
-                                    {forensics.streaksSequence.map((res: string, i: number) => (
-                                        <div key={i} className={`w-5 h-5 rounded-full flex items-center justify-center text-[9px] font-bold border ${res === 'W' ? 'border-[#A6FF4D] text-[#A6FF4D]' : 'border-[#ff4757] text-[#ff4757]'}`}>
-                                            {res}
-                                        </div>
-                                    ))}
-                                </div>
-                                <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 sm:gap-8">
-                                    <div className="flex flex-col border-r border-[#1a1c24]">
-                                        <span className="text-[10px] text-[#6b7280] uppercase tracking-widest">Max Wins</span>
-                                        <span className="text-[32px] font-bold text-[#A6FF4D]">{forensics.maxWinStreak}</span>
+                        <motion.div key="streaks" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="flex flex-col gap-8">
+
+                            {/* ── Section 1: KPI Strip ── */}
+                            <div className="flex flex-col gap-4">
+                                <span className={styles.sectionTitle}>Winning &amp; Losing Streak Analysis</span>
+                                <div className={styles.kpiGrid}>
+                                    <div className={styles.kpiBox}>
+                                        <span className={styles.kpiLabel}>Max Win Streak</span>
+                                        <span className={`${styles.kpiValue} ${styles.textGreen}`}>{forensics.maxWinStreak}</span>
+                                        <span className={styles.kpiSub}>Consecutive winning trades</span>
                                     </div>
-                                    <div className="flex flex-col border-r border-[#1a1c24]">
-                                        <span className="text-[10px] text-[#6b7280] uppercase tracking-widest">Max Losses</span>
-                                        <span className="text-[32px] font-bold text-[#ff4757]">{forensics.maxLossStreak}</span>
+                                    <div className={styles.kpiBox}>
+                                        <span className={styles.kpiLabel}>Max Loss Streak</span>
+                                        <span className={`${styles.kpiValue} ${styles.textRed}`}>{forensics.maxLossStreak}</span>
+                                        <span className={styles.kpiSub}>Consecutive losing trades</span>
                                     </div>
-                                    <div className="flex flex-col border-r border-[#1a1c24]">
-                                        <span className="text-[10px] text-[#6b7280] uppercase tracking-widest">Current</span>
-                                        <span className="text-[32px] font-bold text-white">{forensics.currentStreakCount}{forensics.currentStreakType}</span>
+                                    <div className={styles.kpiBox}>
+                                        <span className={styles.kpiLabel}>Expectancy</span>
+                                        <span className={`${styles.kpiValue} ${expectancy >= 0 ? styles.textGreen : styles.textRed}`}>
+                                            {expectancy >= 0 ? '+' : ''}${Math.abs(expectancy).toFixed(2)}
+                                        </span>
+                                        <span className={styles.kpiSub}>Per trade average</span>
                                     </div>
-                                    <div className="flex flex-col">
-                                        <span className="text-[10px] text-[#6b7280] uppercase tracking-widest">Avg Loss Chain</span>
-                                        <span className="text-[32px] font-bold text-[#FFCC00]">{forensics.avgLossStreak.toFixed(1)}</span>
+                                    <div className={styles.kpiBox} style={{ borderRight: 'none' }}>
+                                        <span className={styles.kpiLabel}>Win Rate</span>
+                                        <span className={`${styles.kpiValue} ${winRate >= 55 ? styles.textGreen : winRate >= 45 ? styles.textYellow : styles.textRed}`}>
+                                            {winRate.toFixed(1)}%
+                                        </span>
+                                        <span className={styles.kpiSub}>{wins.length}W / {losses.length}L · see Expectancy</span>
                                     </div>
                                 </div>
                             </div>
+
+                            {/* ── Section 2: Trade Sequence Dots + NLP Narrative ── */}
+                            <div className={styles.fullWidthCard} style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+                                {/* Dot legend + sequence */}
+                                <div className="flex flex-col gap-3">
+                                    <div className="flex items-center gap-4">
+                                        <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: '#4b5563', letterSpacing: '0.08em' }}>TRADE SEQUENCE →</span>
+                                        <div className="flex items-center gap-1.5">
+                                            <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#A6FF4D' }} />
+                                            <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#A6FF4D' }}>Win</span>
+                                        </div>
+                                        <div className="flex items-center gap-1.5">
+                                            <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#ff4757' }} />
+                                            <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#ff4757' }}>Loss</span>
+                                        </div>
+                                    </div>
+                                    <div className="flex flex-wrap gap-1">
+                                        {forensics.streaksSequence.map((res: string, i: number) => (
+                                            <div
+                                                key={i}
+                                                title={res === 'W' ? 'Win' : 'Loss'}
+                                                style={{
+                                                    width: 12, height: 12, borderRadius: '50%', flexShrink: 0,
+                                                    background: res === 'W' ? '#A6FF4D' : '#ff4757',
+                                                    opacity: 0.85,
+                                                    boxShadow: res === 'W' ? '0 0 4px rgba(166,255,77,0.4)' : '0 0 4px rgba(255,71,87,0.4)',
+                                                }}
+                                            />
+                                        ))}
+                                    </div>
+                                </div>
+
+                                {/* NLP Narrative */}
+                                {worstStreakInfo && closed.length >= 5 && (
+                                    <p style={{ fontFamily: 'var(--font-mono)', fontSize: 12, color: '#8b949e', lineHeight: 1.8, borderTop: '1px solid #1a1c24', paddingTop: 16 }}>
+                                        {`Your worst streak: `}
+                                        <span style={{ color: '#e2e8f0', fontWeight: 600 }}>{worstStreakInfo.count} consecutive {worstStreakInfo.dominantAsset}{worstStreakInfo.isShort ? ' short' : ''} losses</span>
+                                        {` on `}
+                                        <span style={{ color: '#e2e8f0', fontWeight: 600 }}>{worstStreakInfo.date}</span>
+                                        {` from ${worstStreakInfo.startTime} to ${worstStreakInfo.endTime}, costing `}
+                                        <span style={{ color: '#ff4757', fontWeight: 700 }}>${Math.abs(worstStreakInfo.pnl).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                                        {`.`}
+                                        {recoveryProbTable.find(r => r.n === 3) && (() => {
+                                            const r3 = recoveryProbTable.find(r => r.n === 3)!;
+                                            return ` After 3+ consecutive losses, your recovery probability drops to ${r3.recoveryProb !== null ? r3.recoveryProb.toFixed(0) : '—'}% — meaning the damage compounds before you stabilize.`;
+                                        })()}
+                                        {forensics.maxLossStreak >= 4 ? ` You never once changed direction despite the market rejecting your thesis ${worstStreakInfo.count} times.` : ''}
+                                    </p>
+                                )}
+                                {closed.length < 5 && (
+                                    <p style={{ fontFamily: 'var(--font-mono)', fontSize: 12, color: '#4b5563', lineHeight: 1.8, borderTop: '1px solid #1a1c24', paddingTop: 16 }}>
+                                        Log at least 5 trades to generate a behavioral narrative.
+                                    </p>
+                                )}
+                            </div>
+
+                            {/* ── Section 3: Recovery Probability Table ── */}
+                            {recoveryProbTable.length > 0 && (
+                                <div className="flex flex-col gap-4">
+                                    <span className={styles.sectionTitle}>Recovery Probability After Consecutive Losses</span>
+                                    <div className={styles.fullWidthCard} style={{ padding: 0, overflow: 'hidden' }}>
+                                        <table style={{ width: '100%', borderCollapse: 'collapse', fontFamily: 'var(--font-mono)' }}>
+                                            <thead>
+                                                <tr style={{ background: '#0d1117', borderBottom: '1px solid #1a1c24' }}>
+                                                    <th style={{ padding: '12px 24px', textAlign: 'left', fontSize: 10, fontWeight: 700, color: '#4b5563', letterSpacing: '0.1em' }}>AFTER</th>
+                                                    <th style={{ padding: '12px 24px', textAlign: 'left', fontSize: 10, fontWeight: 700, color: '#4b5563', letterSpacing: '0.1em' }}>RECOVERY PROBABILITY</th>
+                                                    <th style={{ padding: '12px 24px', textAlign: 'left', fontSize: 10, fontWeight: 700, color: '#4b5563', letterSpacing: '0.1em' }}>AVG TRADES TO RECOVER</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                {recoveryProbTable.map((row, i) => {
+                                                    const pct = row.recoveryProb ?? 0;
+                                                    const color = pct >= 65 ? '#A6FF4D' : pct >= 50 ? '#EAB308' : '#ff4757';
+                                                    return (
+                                                        <tr key={i} style={{ borderBottom: '1px solid #1a1c24' }}
+                                                            onMouseEnter={e => (e.currentTarget as HTMLTableRowElement).style.background = '#0d1117'}
+                                                            onMouseLeave={e => (e.currentTarget as HTMLTableRowElement).style.background = 'transparent'}
+                                                        >
+                                                            <td style={{ padding: '16px 24px', fontSize: 13, color: '#c9d1d9', fontWeight: 600 }}>
+                                                                {row.n} consecutive loss{row.n > 1 ? 'es' : ''}
+                                                            </td>
+                                                            <td style={{ padding: '16px 24px' }}>
+                                                                <span style={{ fontSize: 18, fontWeight: 800, color }}>
+                                                                    {row.recoveryProb !== null ? `${row.recoveryProb.toFixed(1)}%` : '—'}
+                                                                </span>
+                                                            </td>
+                                                            <td style={{ padding: '16px 24px', fontSize: 13, color: '#6b7280' }}>
+                                                                {row.avgTrades !== null ? `${row.avgTrades.toFixed(1)} trades` : '—'}
+                                                            </td>
+                                                        </tr>
+                                                    );
+                                                })}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* ── Section 4: Psychological State Profile ── */}
+                            {psychStates.length > 0 && closed.length >= 5 && (
+                                <div className="flex flex-col gap-4">
+                                    <span className={styles.sectionTitle}>Psychological State Profile</span>
+                                    <div className="flex flex-col gap-3">
+                                        {psychStates.map((ps, i) => {
+                                            const sevColor = ps.severity === 'CRITICAL' ? '#ff4757' : ps.severity === 'HIGH' ? '#EAB308' : '#00D4FF';
+                                            const sevBg = ps.severity === 'CRITICAL' ? 'rgba(255,71,87,0.08)' : ps.severity === 'HIGH' ? 'rgba(234,179,8,0.06)' : 'rgba(0,212,255,0.06)';
+                                            const sevBorder = ps.severity === 'CRITICAL' ? 'rgba(255,71,87,0.25)' : ps.severity === 'HIGH' ? 'rgba(234,179,8,0.2)' : 'rgba(0,212,255,0.2)';
+                                            return (
+                                                <div key={i} style={{
+                                                    background: sevBg, border: `1px solid ${sevBorder}`,
+                                                    padding: '20px 24px', display: 'flex', flexDirection: 'column', gap: 12,
+                                                }}>
+                                                    {/* Card header */}
+                                                    <div className="flex items-center gap-3">
+                                                        <span style={{ fontFamily: 'var(--font-mono)', fontSize: 13, fontWeight: 800, color: '#e2e8f0', letterSpacing: '0.04em' }}>
+                                                            {ps.title}
+                                                        </span>
+                                                        <span style={{
+                                                            fontFamily: 'var(--font-mono)', fontSize: 9, fontWeight: 700, letterSpacing: '0.08em',
+                                                            padding: '3px 8px', border: `1px solid ${sevBorder}`, color: sevColor, background: 'transparent',
+                                                        }}>
+                                                            {ps.severity}
+                                                        </span>
+                                                    </div>
+                                                    {/* Trigger */}
+                                                    <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                                                        <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, fontWeight: 700, color: '#4b5563', letterSpacing: '0.08em', textTransform: 'uppercase' }}>Trigger</span>
+                                                        <p style={{ fontFamily: 'var(--font-mono)', fontSize: 12, color: '#8b949e', lineHeight: 1.7, margin: 0 }}>{ps.trigger}</p>
+                                                    </div>
+                                                    {/* Response */}
+                                                    <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                                                        <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, fontWeight: 700, color: '#4b5563', letterSpacing: '0.08em', textTransform: 'uppercase' }}>Response</span>
+                                                        <p style={{ fontFamily: 'var(--font-mono)', fontSize: 12, color: '#c9d1d9', lineHeight: 1.7, margin: 0, fontWeight: 500 }}>{ps.response}</p>
+                                                    </div>
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                </div>
+                            )}
+
                         </motion.div>
                     )}
 
