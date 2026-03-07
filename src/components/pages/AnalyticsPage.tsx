@@ -186,15 +186,18 @@ export default function AnalyticsPage() {
                                 <div className={styles.chartCard} style={{ height: 220 }}>
                                     <span className={styles.chartCardTitle}>RISK SCORE</span>
                                     <div className="relative w-full h-full flex items-center justify-center flex-col mt-4">
-                                        <svg width="100" height="60" viewBox="0 0 100 60">
-                                            <path d="M 10 50 A 40 40 0 0 1 90 50" fill="none" stroke={forensics.riskScore > 75 ? '#ff4757' : '#EAB308'} strokeWidth="8" strokeLinecap="round" />
-                                        </svg>
-                                        <span className="text-2xl font-bold font-sans mt-[-20px]" style={{ color: forensics.riskScore > 75 ? '#ff4757' : '#EAB308' }}>
-                                            {forensics.riskScore.toFixed(0)}
-                                        </span>
-                                        <span className="text-[9px] uppercase tracking-widest mt-4" style={{ color: forensics.riskScore > 75 ? '#ff4757' : '#EAB308' }}>
-                                            {forensics.riskScore > 75 ? 'CRITICAL RISK' : 'ELEVATED RISK'}
-                                        </span>
+                                        {(() => {
+                                            const rs = forensics.riskScore;
+                                            const riskColor = rs > 75 ? '#ff4757' : rs > 30 ? '#EAB308' : '#A6FF4D';
+                                            const riskLabel = rs > 75 ? 'CRITICAL RISK' : rs > 30 ? 'ELEVATED RISK' : 'HEALTHY RISK';
+                                            return (<>
+                                                <svg width="100" height="60" viewBox="0 0 100 60">
+                                                    <path d="M 10 50 A 40 40 0 0 1 90 50" fill="none" stroke={riskColor} strokeWidth="8" strokeLinecap="round" />
+                                                </svg>
+                                                <span className="text-2xl font-bold font-sans mt-[-20px]" style={{ color: riskColor }}>{rs.toFixed(0)}</span>
+                                                <span className="text-[9px] uppercase tracking-widest mt-4" style={{ color: riskColor }}>{riskLabel}</span>
+                                            </>);
+                                        })()}
                                     </div>
                                 </div>
 
@@ -242,7 +245,9 @@ export default function AnalyticsPage() {
                                 </div>
                                 <div className={styles.kpiBox} style={{ borderRight: 'none' }}>
                                     <span className={styles.kpiLabel}>CONSISTENCY</span>
-                                    <span className={`${styles.kpiValue} ${styles.textYellow}`}>44%</span>
+                                    <span className={`${styles.kpiValue} ${styles.textYellow}`}>
+                                        {dailyData.length > 0 ? Math.round((dailyData.filter(d => d.pnl > 0).length / dailyData.length) * 100) + '%' : '—'}
+                                    </span>
                                 </div>
                             </div>
                         </motion.div>
@@ -434,25 +439,37 @@ export default function AnalyticsPage() {
                         </motion.div>
                     )}
 
-                    {activeTab === 'QUANT' && (
-                        <motion.div key="quant" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="flex flex-col gap-6">
-                            <span className={styles.sectionTitle}>I INSTITUTIONAL QUANT METRICS</span>
-                            <div className="grid grid-cols-2 gap-4">
-                                {[
-                                    { label: 'Sharpe Ratio', val: (profitFactor * 1.25).toFixed(2), sub: 'Risk-adjusted annual return' },
-                                    { label: 'Sortino Ratio', val: (profitFactor * 1.5).toFixed(2), sub: 'Downside deviation penalty' },
-                                    { label: 'Calmar Ratio', val: ((netPnl * 12) / Math.max(1, Math.abs(maxDd))).toFixed(2), sub: 'Return vs Maximum Drawdown' },
-                                    { label: 'Efficiency Index', val: (Math.abs(netPnl) / (grossProfit + grossLoss) * 100).toFixed(1) + '%', sub: 'Capital throughput efficiency' }
-                                ].map((q, i) => (
-                                    <div key={i} className={styles.kpiBox}>
-                                        <span className={styles.kpiLabel}>{q.label.toUpperCase()}</span>
-                                        <span className={`${styles.kpiValue} text-white`}>{q.val}</span>
-                                        <span className={styles.kpiSub}>{q.sub}</span>
-                                    </div>
-                                ))}
-                            </div>
-                        </motion.div>
-                    )}
+                    {activeTab === 'QUANT' && (() => {
+                        const dailyPnls = dailyData.map(d => d.pnl);
+                        const n = dailyPnls.length;
+                        const meanDaily = n > 0 ? dailyPnls.reduce((s, v) => s + v, 0) / n : 0;
+                        const variance = n > 1 ? dailyPnls.reduce((s, v) => s + (v - meanDaily) ** 2, 0) / (n - 1) : 0;
+                        const stdDev = Math.sqrt(variance);
+                        const sharpe = stdDev > 0 ? (meanDaily / stdDev) * Math.sqrt(252) : 0;
+                        const downside = dailyPnls.filter(v => v < 0);
+                        const downsideVariance = downside.length > 0 ? downside.reduce((s, v) => s + v ** 2, 0) / downside.length : 0;
+                        const downsideStd = Math.sqrt(downsideVariance);
+                        const sortino = downsideStd > 0 ? (meanDaily / downsideStd) * Math.sqrt(252) : 0;
+                        return (
+                            <motion.div key="quant" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="flex flex-col gap-6">
+                                <span className={styles.sectionTitle}>I INSTITUTIONAL QUANT METRICS</span>
+                                <div className="grid grid-cols-2 gap-4">
+                                    {[
+                                        { label: 'Sharpe Ratio', val: n >= 2 ? sharpe.toFixed(2) : '—', sub: 'Risk-adjusted return (annualized)' },
+                                        { label: 'Sortino Ratio', val: n >= 2 ? sortino.toFixed(2) : '—', sub: 'Downside deviation penalty (annualized)' },
+                                        { label: 'Calmar Ratio', val: maxDd > 0 ? ((netPnl * 12) / Math.abs(maxDd)).toFixed(2) : '—', sub: 'Return vs Maximum Drawdown' },
+                                        { label: 'Efficiency Index', val: (grossProfit + grossLoss) > 0 ? (Math.abs(netPnl) / (grossProfit + grossLoss) * 100).toFixed(1) + '%' : '—', sub: 'Capital throughput efficiency' }
+                                    ].map((q, i) => (
+                                        <div key={i} className={styles.kpiBox}>
+                                            <span className={styles.kpiLabel}>{q.label.toUpperCase()}</span>
+                                            <span className={`${styles.kpiValue} text-white`}>{q.val}</span>
+                                            <span className={styles.kpiSub}>{q.sub}</span>
+                                        </div>
+                                    ))}
+                                </div>
+                            </motion.div>
+                        );
+                    })()}
 
                     {activeTab === 'VERDICT' && (() => {
                         // ── Grade computation ──
@@ -574,9 +591,16 @@ export default function AnalyticsPage() {
 
                                 {prescriptions.length === 0 && (
                                     <div className="bg-[#0d1117] border border-[#1a1c24] p-10 text-center flex flex-col items-center gap-3" style={{ borderRadius: 4 }}>
-                                        <span className="text-[42px] font-black" style={{ color: '#A6FF4D' }}>A</span>
-                                        <span className="text-[14px] font-bold text-white">No Critical Patterns Detected</span>
-                                        <p className="text-[12px] text-[#6b7280] max-w-xs leading-relaxed">Add more trades to unlock deeper forensic analysis. Minimum 10 closed trades recommended.</p>
+                                        <span className="text-[42px] font-black" style={{ color: gradeColor }}>{grade}</span>
+                                        <span className="text-[14px] font-bold text-white">
+                                            {closed.length >= 10 ? 'No Critical Patterns Detected' : 'Insufficient Data for Pattern Detection'}
+                                        </span>
+                                        <p className="text-[12px] text-[#6b7280] max-w-xs leading-relaxed">
+                                            {closed.length >= 10
+                                                ? forensics.verdict.message
+                                                : `${closed.length} closed trades logged. Add more trades to unlock deeper forensic analysis. Minimum 10 closed trades recommended.`
+                                            }
+                                        </p>
                                     </div>
                                 )}
                             </motion.div>

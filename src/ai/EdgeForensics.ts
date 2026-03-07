@@ -147,14 +147,23 @@ export function generateForensics(trades: Trade[], accountData: any) {
     const riskScore = Math.min(100, revScore + financialScore + wrErosion);
 
     const scorecard = [
-        { metric: 'Stop Loss Discipline', grade: Math.max(...lossTrades.map(l => Math.abs(l.pnl ?? 0))) < balance * 0.02 ? 'A' : 'C', desc: 'Max loss per trade contained to < 2%.' },
+        { metric: 'Stop Loss Discipline', grade: lossTrades.length === 0 ? 'A' : Math.max(...lossTrades.map(l => Math.abs(l.pnl ?? 0))) < balance * 0.02 ? 'A' : 'C', desc: 'Max loss per trade contained to < 2%.' },
         { metric: 'Tilt Management', grade: revFreq === 0 ? 'A' : 'F', desc: 'Sizing increases after losses.' },
         { metric: 'Hold Time Asymmetry', grade: avgWinDur >= avgLossDur ? 'A' : 'F', desc: 'Winners held longer than losers.' },
         { metric: 'Expectancy Ratio', grade: (avgWinAmt / avgLossAmt) > 1.5 ? 'A' : 'D', desc: 'Dollar value yielded per structural risk.' },
         { metric: 'Micro Management', grade: microPnl >= 0 ? 'A' : 'F', desc: 'Discipline in tier-1 product isolation.' },
-        { metric: 'First Hour Logic', grade: 'B', desc: 'Avoidance of open-window volatility traps.' },
+        { metric: 'First Hour Logic', grade: (() => {
+            const fh = closed.filter(t => new Date(t.createdAt).getHours() < 10);
+            if (fh.length === 0) return 'A';
+            const wr = fh.filter(t => (t.pnl ?? 0) > 0).length / fh.length;
+            const pnl = fh.reduce((s, t) => s + (t.pnl ?? 0), 0);
+            return pnl >= 0 && wr >= 0.5 ? 'A' : wr >= 0.4 ? 'B' : wr >= 0.3 ? 'C' : 'F';
+        })(), desc: 'Avoidance of open-window volatility traps.' },
         { metric: 'Session Caps', grade: sessions.some(s => s.trades.length > 20) ? 'D' : 'A', desc: 'Ending sessions strictly when target hits.' },
-        { metric: 'Instrument Focus', grade: 'A', desc: 'Avoids ticker hopping rotation.' }
+        { metric: 'Instrument Focus', grade: (() => {
+            const n = new Set(closed.map(t => t.asset)).size;
+            return n <= 2 ? 'A' : n <= 4 ? 'B' : n <= 6 ? 'C' : 'F';
+        })(), desc: 'Avoids ticker hopping rotation.' }
     ];
 
     let verdictMsg = "Your system is structurally sound.";
@@ -182,14 +191,31 @@ export function generateForensics(trades: Trade[], accountData: any) {
         riskScore,
         verdict: { message: verdictMsg, action, isCritical: patterns.some(p => p.severity === 'CRITICAL') },
         timeStats: { hourlyPnl, bestHour, worstHour },
-        // Existing Streak Data preserved or recalculated
+        // Streak calculations
         streaksSequence: closed.map(t => (t.pnl ?? 0) >= 0 ? 'W' : 'L').slice(-100),
         maxWinStreak: calculateStreak(closed, true),
         maxLossStreak: calculateStreak(closed, false),
-        avgLossStreak: 2.4, // placeholder or calculated
+        avgLossStreak: (() => {
+            let count = 0, total = 0, curr = 0;
+            closed.forEach(t => {
+                if ((t.pnl ?? 0) < 0) { curr++; }
+                else { if (curr > 0) { count++; total += curr; } curr = 0; }
+            });
+            if (curr > 0) { count++; total += curr; }
+            return count > 0 ? total / count : 0;
+        })(),
         streakStats: [2, 3, 4, 5].map(l => ({ losses: l, recFactor: 70 - (l * 10), churn: 1.5 + (l * 0.5) })),
         currentStreakType: (closed[closed.length - 1]?.pnl || 0) >= 0 ? 'W' : 'L',
-        currentStreakCount: 1,
+        currentStreakCount: (() => {
+            if (closed.length === 0) return 0;
+            const lastIsWin = (closed[closed.length - 1].pnl ?? 0) >= 0;
+            let count = 0;
+            for (let i = closed.length - 1; i >= 0; i--) {
+                if (((closed[i].pnl ?? 0) >= 0) === lastIsWin) count++;
+                else break;
+            }
+            return count;
+        })(),
         isolatedDrawdownAlert: `Susceptible to deep red loops. Action: Hard pause.`
     };
 }
