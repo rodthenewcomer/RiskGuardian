@@ -153,7 +153,8 @@ export function generateForensics(trades: Trade[], accountData: any) {
         { metric: 'Expectancy Ratio', grade: wins.length === 0 || lossTrades.length === 0 ? '—' : (avgWinAmt / avgLossAmt) > 1.5 ? 'A' : 'D', desc: 'Dollar value yielded per structural risk.' },
         { metric: 'Micro Management', grade: microPnl >= 0 ? 'A' : 'F', desc: 'Discipline in tier-1 product isolation.' },
         { metric: 'First Hour Logic', grade: (() => {
-            const fh = closed.filter(t => new Date(t.createdAt).getHours() < 10);
+            const estHour = (iso: string) => parseInt(new Intl.DateTimeFormat('en-US', { timeZone: 'America/New_York', hour: '2-digit', hour12: false }).format(new Date(iso)), 10);
+            const fh = closed.filter(t => estHour(t.createdAt) < 10);
             if (fh.length === 0) return 'A';
             const wr = fh.filter(t => (t.pnl ?? 0) > 0).length / fh.length;
             const pnl = fh.reduce((s, t) => s + (t.pnl ?? 0), 0);
@@ -175,11 +176,18 @@ export function generateForensics(trades: Trade[], accountData: any) {
         else if (p.name === 'Held Losers') action = "Time-based kill switch. 10min max hold on non-moves.";
     }
 
-    // 4. Time of Day Analysis
+    // 4. Time of Day Analysis (hours in EST, matching Tradeify's session convention)
     const hourlyPnl = new Array(24).fill(0);
     closed.forEach(t => {
-        const hour = new Date(t.createdAt).getHours();
-        hourlyPnl[hour] += (t.pnl || 0);
+        const hour = parseInt(
+            new Intl.DateTimeFormat('en-US', {
+                timeZone: 'America/New_York',
+                hour: '2-digit',
+                hour12: false,
+            }).format(new Date(t.createdAt)),
+            10
+        );
+        hourlyPnl[hour >= 24 ? 0 : hour] += (t.pnl || 0);
     });
     const bestHour = hourlyPnl.indexOf(Math.max(...hourlyPnl));
     const worstHour = hourlyPnl.indexOf(Math.min(...hourlyPnl));

@@ -2,7 +2,7 @@
 
 import styles from './AnalyticsPage.module.css';
 import { useState, useMemo } from 'react';
-import { useAppStore } from '@/store/appStore';
+import { useAppStore, getTradingDay } from '@/store/appStore';
 import { generateForensics } from '@/ai/EdgeForensics';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -87,10 +87,10 @@ export default function AnalyticsPage() {
     });
     const instrumentArray = Object.keys(instrumentMap).map(k => ({ asset: k, ...instrumentMap[k] })).sort((a, b) => b.pnl - a.pnl);
 
-    // Dailies
+    // Dailies — use closedAt with 5 PM EST rollover (Tradeify trading day convention)
     const dailyMap: Record<string, { pnl: number; count: number }> = {};
     closed.forEach(t => {
-        const d = t.createdAt.split('T')[0];
+        const d = getTradingDay(t.closedAt ?? t.createdAt);
         if (!dailyMap[d]) dailyMap[d] = { pnl: 0, count: 0 };
         dailyMap[d].pnl += (t.pnl ?? 0);
         dailyMap[d].count++;

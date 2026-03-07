@@ -109,6 +109,43 @@ export const getESTFull = () => {
     return new Date().toLocaleString('en-US', { timeZone: 'America/New_York' });
 };
 
+/**
+ * Returns the Tradeify "trading day" (YYYY-MM-DD) for a given ISO timestamp.
+ *
+ * Tradeify settles at 5 PM EST: a trade closed at or after 17:00 EST belongs
+ * to the NEXT calendar day (the day that started at 5 PM).
+ *
+ * Examples:
+ *   Feb 28 08:26 PM EST  →  trading day = Mar 1
+ *   Mar  6 09:00 AM EST  →  trading day = Mar 6
+ *   Mar  6 05:00 PM EST  →  trading day = Mar 7
+ */
+export function getTradingDay(isoDatetime: string): string {
+    const d = new Date(isoDatetime);
+    const parts = new Intl.DateTimeFormat('en-US', {
+        timeZone: 'America/New_York',
+        year:   'numeric',
+        month:  '2-digit',
+        day:    '2-digit',
+        hour:   '2-digit',
+        hour12: false,
+    }).formatToParts(d);
+
+    const get = (type: string) => parts.find(p => p.type === type)?.value ?? '0';
+    const hour = parseInt(get('hour'), 10);
+
+    if (hour >= 17) {
+        // Roll forward one calendar day (use noon UTC on that date to avoid DST edge cases)
+        const year  = parseInt(get('year'),  10);
+        const month = parseInt(get('month'), 10) - 1; // 0-indexed
+        const day   = parseInt(get('day'),   10);
+        const next  = new Date(Date.UTC(year, month, day + 1, 12));
+        return next.toISOString().slice(0, 10);
+    }
+
+    return `${get('year')}-${get('month')}-${get('day')}`;
+}
+
 const today = () => getESTDate();
 
 export const useAppStore = create<AppState>()(

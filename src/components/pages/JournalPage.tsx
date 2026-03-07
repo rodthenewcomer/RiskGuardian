@@ -5,7 +5,7 @@ import { useState, useMemo, useRef } from 'react';
 import { useAppStore } from '@/store/appStore';
 import { motion, AnimatePresence } from 'framer-motion';
 import { BookOpen, TrendingUp, TrendingDown, Activity, Upload, LayoutList, CalendarDays, ChevronLeft, ChevronRight, FileDown, FileText, Loader2, Trash2 } from 'lucide-react';
-import { TRADEIFY_CRYPTO_LIST, FUTURES_SPECS } from '@/store/appStore';
+import { TRADEIFY_CRYPTO_LIST, FUTURES_SPECS, getTradingDay } from '@/store/appStore';
 
 function guessAssetType(symbol: string): 'crypto' | 'forex' | 'futures' | 'stocks' {
     const s = symbol.toUpperCase().replace(/[^A-Z0-9]/g, '');
@@ -44,7 +44,8 @@ export default function JournalPage() {
 
         for (let i = 1; i <= daysInMonth; i++) {
             const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(i).padStart(2, '0')}`;
-            const dayTrades = trades.filter(t => t.createdAt.split('T')[0] === dateStr);
+            // Use closedAt (with 5 PM EST rollover) to assign trades to the correct Tradeify trading day
+            const dayTrades = trades.filter(t => getTradingDay(t.closedAt ?? t.createdAt) === dateStr);
             const pnl = dayTrades.reduce((s, t) => s + (t.pnl ?? 0), 0);
 
             currentWeek.push({
