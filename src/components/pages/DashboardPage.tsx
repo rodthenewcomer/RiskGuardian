@@ -292,12 +292,31 @@ export default function DashboardPage() {
                         ))}
                     </div>
 
-                    {!consistencyPassing && (
-                        <div style={{ marginTop: 12, padding: '8px 12px', background: 'rgba(255,71,87,0.06)', border: '1px solid rgba(255,71,87,0.2)', ...mono, fontSize: 10, color: '#ff4757', lineHeight: 1.6 }}>
-                            FAILING: {bestTradingDay} accounts for {consistencyScore.toFixed(1)}% of total profit.
-                            Distribute P&L across more days to pass the 20% rule.
-                        </div>
-                    )}
+                    {/* Consistency target profit */}
+                    {(() => {
+                        const target = bestDayPnl / 0.20;
+                        const stillNeeded = Math.max(0, target - totalPnl);
+                        const buffer = totalPnl - target;
+                        return (
+                            <div style={{ marginTop: 10, padding: '10px 12px', background: consistencyPassing ? 'rgba(166,255,77,0.04)' : 'rgba(255,71,87,0.04)', border: `1px solid ${consistencyPassing ? 'rgba(166,255,77,0.15)' : 'rgba(255,71,87,0.2)'}` }}>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                    <span style={{ ...mono, fontSize: 10, color: '#6b7280', letterSpacing: '0.06em', textTransform: 'uppercase' }}>
+                                        {consistencyPassing ? 'Consistency Buffer' : 'Target Total Profit'}
+                                    </span>
+                                    <span style={{ ...mono, fontSize: 14, fontWeight: 800, color: consistencyPassing ? '#A6FF4D' : '#EAB308', letterSpacing: '-0.01em' }}>
+                                        {consistencyPassing
+                                            ? `+$${buffer.toLocaleString(undefined, { maximumFractionDigits: 0 })} above limit`
+                                            : `$${target.toLocaleString(undefined, { maximumFractionDigits: 0 })}`}
+                                    </span>
+                                </div>
+                                {!consistencyPassing && (
+                                    <div style={{ ...mono, fontSize: 10, color: '#ff4757', marginTop: 4 }}>
+                                        Need <strong>${stillNeeded.toLocaleString(undefined, { maximumFractionDigits: 0 })}</strong> more profit so best day ({bestTradingDay}) ≤ 20%.
+                                    </div>
+                                )}
+                            </div>
+                        );
+                    })()}
                 </motion.div>
             )}
 

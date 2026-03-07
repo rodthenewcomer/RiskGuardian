@@ -1,9 +1,8 @@
 'use client';
 
-import styles from './CalculatorPage.module.css';
 import { useState, useCallback, useMemo } from 'react';
-import { useAppStore, getFuturesSpec, calcPositionSize, getESTFull } from '@/store/appStore';
-import { AlertTriangle, Save, ShieldCheck, Zap, Search } from 'lucide-react';
+import { useAppStore, getFuturesSpec, getESTFull } from '@/store/appStore';
+import { AlertTriangle, ShieldCheck, Zap, Search } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { TRADEIFY_ASSETS } from '@/data/tradeifyAssets';
 
@@ -156,6 +155,10 @@ export default function CalculatorPage() {
         };
     }, [asset, entry, size, riskAmount, account, remainingToday, maxTradeRisk, isShort]);
 
+    const mono: React.CSSProperties = { fontFamily: 'var(--font-mono)' };
+    const lbl: React.CSSProperties = { ...mono, fontSize: 9, color: '#4b5563', letterSpacing: '0.1em', textTransform: 'uppercase' as const, display: 'block' };
+    const divider = '1px solid #1a1c24';
+
     const savePlan = useCallback(() => {
         if (!approved) return;
         addTrade({
@@ -177,145 +180,169 @@ export default function CalculatorPage() {
     }, [approved, addTrade, asset, assetType, entryNum, sl, tp, sizeNum, riskAmount, profit, addDailyRisk, setActiveTab]);
 
     return (
-        <div className={styles.page}>
-            {/* HUD Top Bar */}
-            <div className={styles.topStats}>
-                <div className={styles.statBox}>
-                    <span className={styles.statLabel}>BALANCE</span>
-                    <span className={styles.statValue}>${account.balance.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}</span>
+        <div style={{ display: 'flex', flexDirection: 'column', background: '#090909', minHeight: '100vh' }}>
+
+            {/* ── STATUS BAR ──────────────────────────────────────── */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', borderBottom: divider }}>
+                <div style={{ padding: '14px 20px', borderRight: divider }}>
+                    <span style={lbl}>Balance</span>
+                    <span style={{ ...mono, fontSize: 24, fontWeight: 800, color: '#fff', display: 'block', marginTop: 3, letterSpacing: '-0.03em' }}>
+                        ${account.balance.toLocaleString('en-US', { minimumFractionDigits: 0 })}
+                    </span>
                 </div>
-                <div className={styles.statBox}>
-                    <span className={styles.statLabel}>DAILY LOSS LEFT</span>
-                    <span className={`${styles.statValue} ${remainingToday < (account.dailyLossLimit * 0.2) ? 'text-danger' : 'text-success'}`}>
-                        ${remainingToday.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+                <div style={{ padding: '14px 20px' }}>
+                    <span style={lbl}>Daily Loss Left</span>
+                    <span style={{ ...mono, fontSize: 24, fontWeight: 800, color: remainingToday < (account.dailyLossLimit * 0.2) ? '#ff4757' : '#A6FF4D', display: 'block', marginTop: 3, letterSpacing: '-0.03em' }}>
+                        ${remainingToday.toLocaleString('en-US', { minimumFractionDigits: 0 })}
                     </span>
                 </div>
             </div>
 
-            {/* Command Line Parser */}
-            <div className={styles.commandRow}>
-                <div className="flex items-center gap-2">
-                    <Zap size={22} className="text-accent" />
-                    <div className="flex rounded-md overflow-hidden border border-white/10 text-[10px] font-bold">
-                        <button
-                            className={`px-3 py-1 transition-colors ${!isShort ? 'bg-accent text-black' : 'bg-white/5 text-white/40'}`}
-                            onClick={() => setIsShort(false)}
-                        >
-                            LONG
-                        </button>
-                        <button
-                            className={`px-3 py-1 transition-colors ${isShort ? 'bg-danger text-white' : 'bg-white/5 text-white/40'}`}
-                            onClick={() => setIsShort(true)}
-                        >
-                            SHORT
-                        </button>
-                    </div>
+            {/* ── DIRECTION + COMMAND INPUT ───────────────────────── */}
+            <div style={{ padding: '14px 20px', borderBottom: divider, display: 'flex', alignItems: 'center', gap: 12 }}>
+                <div style={{ display: 'flex', border: divider, overflow: 'hidden', flexShrink: 0 }}>
+                    <button onClick={() => setIsShort(false)} style={{
+                        ...mono, fontSize: 10, fontWeight: 800, letterSpacing: '0.08em', padding: '7px 16px',
+                        border: 'none', cursor: 'pointer', transition: 'all 0.15s',
+                        background: !isShort ? '#A6FF4D' : 'transparent', color: !isShort ? '#000' : '#4b5563',
+                    }}>LONG</button>
+                    <button onClick={() => setIsShort(true)} style={{
+                        ...mono, fontSize: 10, fontWeight: 800, letterSpacing: '0.08em', padding: '7px 16px',
+                        border: 'none', borderLeft: divider, cursor: 'pointer', transition: 'all 0.15s',
+                        background: isShort ? '#ff4757' : 'transparent', color: isShort ? '#fff' : '#4b5563',
+                    }}>SHORT</button>
                 </div>
                 <input
-                    className={styles.commandInput}
-                    placeholder="Fast HUD: e.g. SOL 91.65 800"
+                    style={{ ...mono, flex: 1, background: 'transparent', border: 'none', outline: 'none', fontSize: 14, fontWeight: 600, color: '#e2e8f0', minWidth: 0 }}
+                    placeholder="Quick entry: SOL 91.65 800"
                     value={command}
                     onChange={e => handleCommandChange(e.target.value)}
                     autoFocus
                     autoComplete="off"
                 />
+                <Zap size={14} color="#A6FF4D" style={{ flexShrink: 0 }} />
             </div>
 
-            {/* Manual Edit Grid */}
-            <div className={styles.inputsGrid}>
-                <div className={styles.inputCell} style={{ position: 'relative' }}>
-                    <label htmlFor="assetInput">Asset</label>
-                    <div className="relative">
-                        <input
-                            id="assetInput"
-                            className={styles.hugeInput}
-                            value={asset}
-                            onFocus={() => setShowAssetBrowser(true)}
-                            onChange={e => { setAsset(e.target.value.toUpperCase()); setCommand(''); }}
-                            placeholder="SOL"
-                        />
-                        <AnimatePresence>
-                            {showAssetBrowser && (
-                                <motion.div
-                                    initial={{ opacity: 0, y: -4, scale: 0.98 }}
-                                    animate={{ opacity: 1, y: 0, scale: 1 }}
-                                    exit={{ opacity: 0, y: -4, scale: 0.98 }}
-                                    transition={{ duration: 0.15, ease: "easeOut" }}
-                                    className="absolute top-[100%] left-0 w-[300px] sm:w-[380px] z-50 mt-2 bg-[#12141A]/90 backdrop-blur-xl border border-white/10 rounded-xl shadow-2xl overflow-hidden flex flex-col max-h-[340px]"
-                                >
-                                    <div className="p-3 border-b border-white/5 flex items-center gap-3 bg-white/[0.02]">
-                                        <Search size={16} className="text-muted" />
-                                        <input
-                                            className="bg-transparent border-none text-[14px] font-medium text-white focus:ring-0 w-full placeholder-white/20 outline-none"
-                                            placeholder="Search 100+ instruments..."
-                                            autoFocus
-                                            value={assetSearch}
-                                            onChange={e => setAssetSearch(e.target.value)}
-                                        />
-                                    </div>
-                                    <div className="overflow-y-auto flex-1 custom-scrollbar py-2">
-                                        {(assetSearch ? TRADEIFY_ASSETS.filter(a => a.symbol.includes(assetSearch.toUpperCase()) || a.name.toLowerCase().includes(assetSearch.toLowerCase())) : TRADEIFY_ASSETS.slice(0, 15)).map(a => (
-                                            <button
-                                                key={a.symbol}
-                                                className="w-full text-left px-4 py-2 hover:bg-white/[0.04] flex justify-between items-center transition-all group"
-                                                onClick={() => {
-                                                    setAsset(a.symbol.split('/')[0]);
-                                                    setShowAssetBrowser(false);
-                                                    setAssetSearch('');
-                                                }}
-                                            >
-                                                <div className="flex flex-col">
-                                                    <span className="text-[14px] font-bold text-white group-hover:text-accent transition-colors">{a.symbol}</span>
-                                                    <span className="text-[11px] text-muted font-medium">{a.name}</span>
-                                                </div>
-                                                <span className="text-[10px] bg-accent/10 border border-accent/20 text-accent px-2 py-0.5 rounded-md font-bold tracking-wide">
-                                                    {a.leverage}x
-                                                </span>
-                                            </button>
-                                        ))}
-                                        {TRADEIFY_ASSETS.filter(a => a.symbol.includes(assetSearch.toUpperCase())).length === 0 && (
-                                            <div className="p-6 text-center text-[13px] text-muted font-medium italic">No matching instruments found</div>
-                                        )}
-                                    </div>
-                                    <div className="p-2 border-t border-white/5 bg-black/20 text-center">
+            {/* ── INPUTS GRID ─────────────────────────────────────── */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', borderBottom: divider }}>
+                {/* Asset */}
+                <div style={{ padding: '14px 16px', borderRight: divider, position: 'relative' }}>
+                    <span style={lbl}>Asset</span>
+                    <input
+                        id="assetInput"
+                        style={{ ...mono, width: '100%', background: 'transparent', border: 'none', outline: 'none', fontSize: 20, fontWeight: 800, color: '#e2e8f0', marginTop: 4, padding: 0 }}
+                        value={asset}
+                        onFocus={() => setShowAssetBrowser(true)}
+                        onChange={e => { setAsset(e.target.value.toUpperCase()); setCommand(''); }}
+                        placeholder="SOL"
+                    />
+                    <AnimatePresence>
+                        {showAssetBrowser && (
+                            <motion.div
+                                initial={{ opacity: 0, y: -4, scale: 0.98 }}
+                                animate={{ opacity: 1, y: 0, scale: 1 }}
+                                exit={{ opacity: 0, y: -4, scale: 0.98 }}
+                                transition={{ duration: 0.15, ease: 'easeOut' }}
+                                className="absolute top-[100%] left-0 w-[300px] sm:w-[380px] z-50 mt-2 bg-[#12141A]/90 backdrop-blur-xl border border-white/10 rounded-xl shadow-2xl overflow-hidden flex flex-col max-h-[340px]"
+                            >
+                                <div className="p-3 border-b border-white/5 flex items-center gap-3 bg-white/[0.02]">
+                                    <Search size={16} className="text-muted" />
+                                    <input
+                                        className="bg-transparent border-none text-[14px] font-medium text-white focus:ring-0 w-full placeholder-white/20 outline-none"
+                                        placeholder="Search 100+ instruments..."
+                                        autoFocus
+                                        value={assetSearch}
+                                        onChange={e => setAssetSearch(e.target.value)}
+                                    />
+                                </div>
+                                <div className="overflow-y-auto flex-1 custom-scrollbar py-2">
+                                    {(assetSearch ? TRADEIFY_ASSETS.filter(a => a.symbol.includes(assetSearch.toUpperCase()) || a.name.toLowerCase().includes(assetSearch.toLowerCase())) : TRADEIFY_ASSETS.slice(0, 15)).map(a => (
                                         <button
-                                            className="text-[11px] font-semibold text-white/50 hover:text-white transition-colors uppercase tracking-wider px-4 py-1.5"
-                                            onClick={() => setShowAssetBrowser(false)}
+                                            key={a.symbol}
+                                            className="w-full text-left px-4 py-2 hover:bg-white/[0.04] flex justify-between items-center transition-all group"
+                                            onClick={() => {
+                                                setAsset(a.symbol.split('/')[0]);
+                                                setShowAssetBrowser(false);
+                                                setAssetSearch('');
+                                            }}
                                         >
-                                            Close Browser
+                                            <div className="flex flex-col">
+                                                <span className="text-[14px] font-bold text-white group-hover:text-accent transition-colors">{a.symbol}</span>
+                                                <span className="text-[11px] text-muted font-medium">{a.name}</span>
+                                            </div>
+                                            <span className="text-[10px] bg-accent/10 border border-accent/20 text-accent px-2 py-0.5 rounded-md font-bold tracking-wide">
+                                                {a.leverage}x
+                                            </span>
                                         </button>
-                                    </div>
-                                </motion.div>
-                            )}
-                        </AnimatePresence>
-                    </div>
+                                    ))}
+                                    {TRADEIFY_ASSETS.filter(a => a.symbol.includes(assetSearch.toUpperCase())).length === 0 && (
+                                        <div className="p-6 text-center text-[13px] text-muted font-medium italic">No matching instruments found</div>
+                                    )}
+                                </div>
+                                <div className="p-2 border-t border-white/5 bg-black/20 text-center">
+                                    <button
+                                        className="text-[11px] font-semibold text-white/50 hover:text-white transition-colors uppercase tracking-wider px-4 py-1.5"
+                                        onClick={() => setShowAssetBrowser(false)}
+                                    >
+                                        Close
+                                    </button>
+                                </div>
+                            </motion.div>
+                        )}
+                    </AnimatePresence>
                 </div>
-                <div className={styles.inputCell}>
-                    <label htmlFor="entryInput">Entry</label>
-                    <input id="entryInput" className={styles.hugeInput} type="number" inputMode="decimal" value={entry} onChange={e => { setEntry(e.target.value); setCommand(''); }} placeholder="0.00" />
+                {/* Entry */}
+                <div style={{ padding: '14px 16px', borderRight: divider }}>
+                    <span style={lbl}>Entry Price</span>
+                    <input
+                        id="entryInput"
+                        type="number" inputMode="decimal"
+                        style={{ ...mono, width: '100%', background: 'transparent', border: 'none', outline: 'none', fontSize: 20, fontWeight: 800, color: '#e2e8f0', marginTop: 4, padding: 0 }}
+                        value={entry}
+                        onChange={e => { setEntry(e.target.value); setCommand(''); }}
+                        placeholder="0.00"
+                    />
                 </div>
-                <div className={styles.inputCell}>
-                    <label htmlFor="sizeInput">Size</label>
-                    <input id="sizeInput" className={styles.hugeInput} type="number" inputMode="decimal" value={size} onChange={e => { setSize(e.target.value); setCommand(''); }} placeholder="0" />
+                {/* Size */}
+                <div style={{ padding: '14px 16px' }}>
+                    <span style={lbl}>Position Size</span>
+                    <input
+                        id="sizeInput"
+                        type="number" inputMode="decimal"
+                        style={{ ...mono, width: '100%', background: 'transparent', border: 'none', outline: 'none', fontSize: 20, fontWeight: 800, color: '#e2e8f0', marginTop: 4, padding: 0 }}
+                        value={size}
+                        onChange={e => { setSize(e.target.value); setCommand(''); }}
+                        placeholder="0"
+                    />
                 </div>
             </div>
 
-            {/* Risk Selection */}
-            <div className={styles.riskSection}>
-                <div className={styles.riskHeader}>
-                    <label htmlFor="riskSlider">Risk Slider: <span className="text-accent">${riskAmount.toFixed(0)}</span></label>
-                    <div className={styles.quickRisk}>
+            {/* ── RISK CONTROLS ───────────────────────────────────── */}
+            <div style={{ padding: '16px 20px', borderBottom: divider }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+                    <span style={{ ...mono, fontSize: 12, fontWeight: 700, color: '#e2e8f0' }}>
+                        Risk: <span style={{ color: '#A6FF4D' }}>${riskAmount.toFixed(0)}</span>
+                    </span>
+                    <div style={{ display: 'flex', gap: 6 }}>
                         {[100, 250, 500].map(amt => (
-                            <button key={amt} className={styles.quickBtn} onClick={() => setRiskAmount(amt)}>+${amt}</button>
+                            <button key={amt} onClick={() => setRiskAmount(amt)} style={{
+                                ...mono, fontSize: 10, fontWeight: 800, padding: '5px 10px',
+                                background: 'rgba(166,255,77,0.08)', border: '1px solid rgba(166,255,77,0.2)',
+                                color: '#A6FF4D', cursor: 'pointer', letterSpacing: '0.04em',
+                            }}>${amt}</button>
                         ))}
-                        <button className={styles.quickBtn} onClick={() => setRiskAmount(safeMaxRisk > 0 ? safeMaxRisk : 100)}>MAX</button>
+                        <button onClick={() => setRiskAmount(safeMaxRisk > 0 ? safeMaxRisk : 100)} style={{
+                            ...mono, fontSize: 10, fontWeight: 800, padding: '5px 10px',
+                            background: 'rgba(166,255,77,0.08)', border: '1px solid rgba(166,255,77,0.2)',
+                            color: '#A6FF4D', cursor: 'pointer', letterSpacing: '0.04em',
+                        }}>MAX</button>
                     </div>
                 </div>
                 <input
                     id="riskSlider"
                     title="Risk Amount"
                     type="range"
-                    className={styles.slider}
+                    style={{ width: '100%', accentColor: '#A6FF4D', cursor: 'pointer' }}
                     min="10"
                     max={Math.max(1000, safeMaxRisk * 1.5, riskAmount)}
                     step="10"
@@ -324,47 +351,71 @@ export default function CalculatorPage() {
                 />
             </div>
 
-            {/* Instant Computations Readout */}
+            {/* ── READOUT + VERDICT ───────────────────────────────── */}
             <AnimatePresence>
                 {entryNum > 0 && sizeNum > 0 && (
-                    <motion.div initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}>
-                        <div className={styles.readoutBoard}>
-                            <div className={styles.readoutCol}>
-                                <span className={styles.readoutTitle}>STOP LOSS</span>
-                                <span className={`${styles.readoutBig} text-danger`}>
-                                    {sl.toLocaleString(undefined, { minimumFractionDigits: sl < 100 ? 2 : 2, maximumFractionDigits: sl < 100 ? 5 : 2 })}
+                    <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}>
+
+                        {/* Readout board */}
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', borderBottom: divider }}>
+                            <div style={{ padding: '16px 20px', borderRight: divider, display: 'flex', flexDirection: 'column', gap: 3 }}>
+                                <span style={lbl}>Stop Loss</span>
+                                <span style={{ ...mono, fontSize: 26, fontWeight: 800, color: '#ff4757', letterSpacing: '-0.03em', lineHeight: 1 }}>
+                                    {sl.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: sl < 100 ? 5 : 2 })}
                                 </span>
-                                <span className={styles.readoutDetail}>Size: {sizeNum.toLocaleString()} {assetType === 'futures' ? 'cnt' : 'units'}</span>
+                                <span style={{ ...mono, fontSize: 10, color: '#4b5563', marginTop: 2 }}>
+                                    {sizeNum.toLocaleString()} {assetType === 'futures' ? 'contracts' : 'units'}
+                                </span>
                             </div>
-                            <div className={styles.readoutCol}>
-                                <span className={styles.readoutTitle}>NOTIONAL (VAL)</span>
-                                <span className={`${styles.readoutBig}`}>
+                            <div style={{ padding: '16px 20px', display: 'flex', flexDirection: 'column', gap: 3 }}>
+                                <span style={lbl}>Notional Value</span>
+                                <span style={{ ...mono, fontSize: 26, fontWeight: 800, color: '#e2e8f0', letterSpacing: '-0.03em', lineHeight: 1 }}>
                                     ${notional?.toLocaleString(undefined, { maximumFractionDigits: 0 })}
                                 </span>
-                                <span className={styles.readoutDetail}>TAKE PROFIT: {tp.toLocaleString(undefined, { maximumFractionDigits: 2 })}</span>
+                                <span style={{ ...mono, fontSize: 10, color: '#4b5563', marginTop: 2 }}>
+                                    TP: {tp.toLocaleString(undefined, { maximumFractionDigits: 2 })}
+                                </span>
                             </div>
                         </div>
 
-                        {/* Trade Guard Verdict */}
-                        <div className={`${styles.verdictBox} ${approved ? styles.verdictSafe : styles.verdictDanger}`}>
-                            {approved ? <ShieldCheck size={28} /> : <AlertTriangle size={28} />}
+                        {/* Verdict */}
+                        <div style={{
+                            display: 'flex', alignItems: 'flex-start', gap: 14, padding: '18px 20px', borderBottom: divider,
+                            background: approved ? 'rgba(166,255,77,0.04)' : 'rgba(255,71,87,0.06)',
+                            borderLeft: `3px solid ${approved ? '#A6FF4D' : '#ff4757'}`,
+                        }}>
+                            {approved
+                                ? <ShieldCheck size={22} color="#A6FF4D" style={{ flexShrink: 0, marginTop: 1 }} />
+                                : <AlertTriangle size={22} color="#ff4757" style={{ flexShrink: 0, marginTop: 1 }} />}
                             <div>
-                                <h4 className={`${styles.verdictText} mb-[2px]`}>{verdictTitle}</h4>
-                                <p className="text-[12px] opacity-90">{verdictDesc}</p>
+                                <span style={{ ...mono, fontSize: 13, fontWeight: 800, color: approved ? '#A6FF4D' : '#ff4757', letterSpacing: '0.06em', textTransform: 'uppercase', display: 'block' }}>
+                                    {verdictTitle}
+                                </span>
+                                <span style={{ ...mono, fontSize: 11, color: '#8b949e', display: 'block', marginTop: 3, lineHeight: 1.5 }}>{verdictDesc}</span>
                                 {optionalNotice && (
-                                    <p className="text-[11px] text-[var(--color-warning)] mt-1 font-semibold">ℹ {optionalNotice}</p>
+                                    <span style={{ ...mono, fontSize: 10, color: '#EAB308', display: 'block', marginTop: 4 }}>{optionalNotice}</span>
                                 )}
                             </div>
                         </div>
 
-                        {/* Save Button */}
-                        <button
-                            className={`btn btn--full ${styles.saveBtn} ${approved ? 'btn--primary' : ''} mt-4`}
-                            disabled={!approved}
-                            onClick={savePlan}
-                        >
-                            {approved ? <><Save size={18} /> SAVE HUD PLAN</> : <><AlertTriangle size={18} /> FIX ERRORS TO SAVE</>}
-                        </button>
+                        {/* Log Trade button */}
+                        <div style={{ padding: '16px 20px' }}>
+                            <button
+                                disabled={!approved}
+                                onClick={savePlan}
+                                style={{
+                                    ...mono, width: '100%', padding: '16px', border: 'none', cursor: approved ? 'pointer' : 'not-allowed',
+                                    background: approved ? '#A6FF4D' : '#1a1c24', color: approved ? '#000' : '#4b5563',
+                                    fontSize: 13, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase',
+                                    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+                                    transition: 'all 0.15s',
+                                }}
+                            >
+                                {approved
+                                    ? <><ShieldCheck size={16} /> Log Trade Plan</>
+                                    : <><AlertTriangle size={16} /> Fix Errors to Log</>}
+                            </button>
+                        </div>
                     </motion.div>
                 )}
             </AnimatePresence>

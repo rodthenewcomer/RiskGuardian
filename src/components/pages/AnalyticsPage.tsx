@@ -226,7 +226,7 @@ export default function AnalyticsPage() {
 
                     {activeTab === 'DAILY' && (
                         <motion.div key="daily" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="flex flex-col gap-6">
-                            <span className={styles.sectionTitle}>I DAILY PERFORMANCE ANALYSIS</span>
+                            <span className={styles.sectionTitle}>Daily Performance</span>
                             <div className={styles.fullWidthCard} style={{ height: 300, paddingBottom: 20 }}>
                                 <ResponsiveContainer width="100%" height="100%">
                                     <BarChart data={dailyData.slice(-30)}>
@@ -264,7 +264,7 @@ export default function AnalyticsPage() {
 
                     {activeTab === 'INSTRUMENTS' && (
                         <motion.div key="instruments" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="flex flex-col gap-6">
-                            <span className={styles.sectionTitle}>I PERFORMANCE BY INSTRUMENT</span>
+                            <span className={styles.sectionTitle}>Performance by Instrument</span>
                             <div className={styles.fullWidthCard + " flex flex-col gap-6"}>
                                 {instrumentArray.map((inst, idx) => (
                                     <div key={inst.asset} className={styles.progressRow}>
@@ -290,7 +290,7 @@ export default function AnalyticsPage() {
 
                     {activeTab === 'SESSIONS' && (
                         <motion.div key="sessions" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="flex flex-col gap-6">
-                            <span className={styles.sectionTitle}>I SESSION-BY-SESSION FORENSICS</span>
+                            <span className={styles.sectionTitle}>Session Forensics</span>
                             <div className="flex flex-col gap-4">
                                 {forensics.sessions.map((s: any) => (
                                     <div key={s.id} className={styles.fullWidthCard + ' flex flex-col gap-4'}>
@@ -335,7 +335,7 @@ export default function AnalyticsPage() {
 
                     {activeTab === 'TIME' && (
                         <motion.div key="time" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="flex flex-col gap-6">
-                            <span className={styles.sectionTitle}>I 24-HOUR EDGE MAP</span>
+                            <span className={styles.sectionTitle}>24-Hour Edge Map</span>
                             <div className={styles.fullWidthCard} style={{ height: 320 }}>
                                 <ResponsiveContainer width="100%" height="100%">
                                     <BarChart data={hourlyData}>
@@ -369,7 +369,7 @@ export default function AnalyticsPage() {
 
                     {activeTab === 'STREAKS' && (
                         <motion.div key="streaks" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="flex flex-col gap-6">
-                            <span className={styles.sectionTitle}>I SEQUENTIAL OUTCOME ANALYSIS</span>
+                            <span className={styles.sectionTitle}>Streak Analysis</span>
                             <div className={styles.fullWidthCard} style={{ padding: '32px' }}>
                                 <div className="flex flex-wrap gap-1 mb-10">
                                     {forensics.streaksSequence.map((res: string, i: number) => (
@@ -402,7 +402,7 @@ export default function AnalyticsPage() {
 
                     {activeTab === 'PATTERNS' && (
                         <motion.div key="patterns" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="flex flex-col gap-6">
-                            <span className={styles.sectionTitle}>I DETECTED BEHAVIORAL PATTERNS</span>
+                            <span className={styles.sectionTitle}>Behavioral Patterns</span>
                             <div className="flex flex-col gap-4">
                                 {forensics.patterns.map((p: any, i: number) => (
                                     <div key={i} className={styles.findingsBox + ' border-l-4'} style={{ borderLeftColor: p.severity === 'CRITICAL' ? '#e60023' : '#EAB308' }}>
@@ -431,7 +431,7 @@ export default function AnalyticsPage() {
 
                     {activeTab === 'SCORECARD' && (
                         <motion.div key="scorecard" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="flex flex-col gap-6">
-                            <span className={styles.sectionTitle}>I FORENSIC EXECUTION GRADES</span>
+                            <span className={styles.sectionTitle}>Execution Scorecard</span>
                             <div className="grid grid-cols-2 gap-4">
                                 {forensics.scorecard.map((s: any, i: number) => (
                                     <div key={i} className={styles.kpiBox + ' flex-row items-center gap-6'}>
@@ -461,7 +461,7 @@ export default function AnalyticsPage() {
                         const sortino = downsideStd > 0 ? (meanDaily / downsideStd) * Math.sqrt(252) : 0;
                         return (
                             <motion.div key="quant" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="flex flex-col gap-6">
-                                <span className={styles.sectionTitle}>I INSTITUTIONAL QUANT METRICS</span>
+                                <span className={styles.sectionTitle}>Quant Metrics</span>
                                 <div className="grid grid-cols-2 gap-4">
                                     {[
                                         { label: 'Sharpe Ratio', val: n >= 2 ? sharpe.toFixed(2) : '—', sub: 'Risk-adjusted return (annualized)' },

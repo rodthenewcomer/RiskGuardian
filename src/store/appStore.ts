@@ -16,6 +16,7 @@ export interface PropFirmPreset {
 export const PROP_FIRMS: PropFirmPreset[] = [
     { name: 'Tradeify Crypto Eval', short: 'TrdfyE', dailyPct: 3, maxDrawPct: 6, color: '#A6FF4D', propFirmType: '2-Step Evaluation', drawdownType: 'EOD' },
     { name: 'Tradeify Crypto Instant', short: 'TrdfyI', dailyPct: 3, maxDrawPct: 6, color: '#A6FF4D', propFirmType: 'Instant Funding', drawdownType: 'Trailing' },
+    { name: 'Tradeify Instant Funded 50K', short: 'Trdfy50K', dailyPct: 3, maxDrawPct: 6, color: '#A6FF4D', propFirmType: 'Instant Funding', drawdownType: 'EOD' },
     { name: 'Funding Pips', short: 'FPips', dailyPct: 5, maxDrawPct: 10, color: '#A6FF4D', propFirmType: '2-Step Evaluation', drawdownType: 'Static' },
     { name: 'FTMO', short: 'FTMO', dailyPct: 5, maxDrawPct: 10, color: '#A6FF4D', propFirmType: '2-Step Evaluation', drawdownType: 'Static' },
     { name: 'The5%ers', short: '5%ers', dailyPct: 4, maxDrawPct: 6, color: '#A6FF4D', propFirmType: '2-Step Evaluation', drawdownType: 'Static' },

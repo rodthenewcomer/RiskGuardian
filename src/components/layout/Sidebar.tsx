@@ -11,11 +11,11 @@ import {
 const TABS = [
     { id: 'dashboard', label: 'Dashboard', Icon: LayoutDashboard },
     { id: 'terminal', label: 'Risk Engine', Icon: Terminal },
-    { id: 'bridge', label: 'Live Bridge', Icon: ShieldCheck },
-    { id: 'plan', label: 'AI Copilot', Icon: Brain },
-    { id: 'journal', label: 'Flight Log', Icon: BookOpen },
+    { id: 'bridge', label: 'Bridge', Icon: ShieldCheck },
+    { id: 'plan', label: 'AI Coach', Icon: Brain },
+    { id: 'journal', label: 'Journal', Icon: BookOpen },
     { id: 'analytics', label: 'Analytics', Icon: BarChart2 },
-    { id: 'settings', label: 'Config', Icon: Settings },
+    { id: 'settings', label: 'Settings', Icon: Settings },
 ] as const;
 
 export default function Sidebar() {
