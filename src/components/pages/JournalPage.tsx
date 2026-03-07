@@ -4,8 +4,7 @@ import styles from './JournalPage.module.css';
 import { useState, useMemo, useRef } from 'react';
 import { useAppStore } from '@/store/appStore';
 import { motion, AnimatePresence } from 'framer-motion';
-import { BookOpen, TrendingUp, TrendingDown, Activity, DownloadCloud, Upload, LayoutList, CalendarDays, ChevronLeft, ChevronRight, FileDown, FileText, Loader2 } from 'lucide-react';
-import { SEED_TRADES } from '@/data/seedTrades';
+import { BookOpen, TrendingUp, TrendingDown, Activity, Upload, LayoutList, CalendarDays, ChevronLeft, ChevronRight, FileDown, FileText, Loader2 } from 'lucide-react';
 import { TRADEIFY_CRYPTO_LIST, FUTURES_SPECS } from '@/store/appStore';
 
 function guessAssetType(symbol: string): 'crypto' | 'forex' | 'futures' | 'stocks' {
@@ -94,32 +93,6 @@ export default function JournalPage() {
         const newDate = new Date(calendarDate);
         newDate.setMonth(newDate.getMonth() + 1);
         setCalendarDate(newDate);
-    };
-
-    const handleImportTrades = () => {
-        const mappedTrades = SEED_TRADES.map(t => ({
-            id: t.id,
-            asset: t.asset,
-            assetType: t.assetType as 'crypto' | 'forex' | 'futures' | 'stocks',
-            entry: t.entry,
-            stopLoss: t.sl,
-            takeProfit: t.tp,
-            lotSize: t.size,
-            riskUSD: t.risk,
-            rewardUSD: t.reward,
-            rr: t.rr,
-            outcome: t.outcome as 'win' | 'loss' | 'open',
-            createdAt: t.created,
-            closedAt: t.created,
-            pnl: t.pnl,
-            isShort: t.isShort
-        }));
-        // Merge: only add seed trades that aren't already in the store (match by id)
-        const existingIds = new Set(trades.map(t => t.id));
-        const toAdd = mappedTrades.filter(t => !existingIds.has(t.id));
-        if (toAdd.length > 0) {
-            setTrades([...toAdd, ...trades]);
-        }
     };
 
     // Tradeify PDF Import
@@ -401,13 +374,6 @@ export default function JournalPage() {
                             ? <Loader2 size={16} style={{ animation: 'spin 1s linear infinite' }} />
                             : <FileText size={16} />}
                         Import Tradeify Statement (PDF)
-                    </button>
-                    <button
-                        onClick={handleImportTrades}
-                        className="btn btn--ghost"
-                        style={{ display: 'inline-flex', alignItems: 'center', gap: 8, marginTop: 8, fontSize: 12 }}
-                    >
-                        <DownloadCloud size={14} /> Load demo data
                     </button>
                 </div>
             ) : viewMode === 'list' ? (
