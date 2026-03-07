@@ -14,13 +14,19 @@ export interface PropFirmPreset {
 }
 
 export const PROP_FIRMS: PropFirmPreset[] = [
-    { name: 'Tradeify Crypto Eval', short: 'TrdfyE', dailyPct: 3, maxDrawPct: 6, color: '#A6FF4D', propFirmType: '2-Step Evaluation', drawdownType: 'EOD' },
-    { name: 'Tradeify Crypto Instant', short: 'TrdfyI', dailyPct: 3, maxDrawPct: 6, color: '#A6FF4D', propFirmType: 'Instant Funding', drawdownType: 'Trailing' },
-    { name: 'Tradeify Instant Funded 50K', short: 'Trdfy50K', dailyPct: 3, maxDrawPct: 6, color: '#A6FF4D', propFirmType: 'Instant Funding', drawdownType: 'EOD' },
+    // ── Tradeify Crypto ────────────────────────────────────────────
+    // 1-Step: EOT (End-of-Trade) trailing drawdown — floor moves after every closed trade
+    { name: 'Tradeify 1-Step Eval', short: 'Trdfy1S', dailyPct: 3, maxDrawPct: 6, color: '#A6FF4D', propFirmType: '1-Step Evaluation', drawdownType: 'Trailing' },
+    // 2-Step: Static drawdown — floor fixed at starting balance − 6%, never moves
+    { name: 'Tradeify 2-Step Eval', short: 'Trdfy2S', dailyPct: 3, maxDrawPct: 6, color: '#A6FF4D', propFirmType: '2-Step Evaluation', drawdownType: 'Static' },
+    // Instant Funding: EOD (End-of-Day) trailing drawdown — snapshots at 17:00 EST
+    // No profit target, no min days. Consistency ≤ 20% required to request payout.
+    { name: 'Tradeify Instant Funding', short: 'TrdfyIF', dailyPct: 3, maxDrawPct: 6, color: '#A6FF4D', propFirmType: 'Instant Funding', drawdownType: 'EOD' },
+    // ── Other firms ────────────────────────────────────────────────
     { name: 'Funding Pips', short: 'FPips', dailyPct: 5, maxDrawPct: 10, color: '#A6FF4D', propFirmType: '2-Step Evaluation', drawdownType: 'Static' },
     { name: 'FTMO', short: 'FTMO', dailyPct: 5, maxDrawPct: 10, color: '#A6FF4D', propFirmType: '2-Step Evaluation', drawdownType: 'Static' },
     { name: 'The5%ers', short: '5%ers', dailyPct: 4, maxDrawPct: 6, color: '#A6FF4D', propFirmType: '2-Step Evaluation', drawdownType: 'Static' },
-    { name: 'Custom (Build your own)', short: 'Custom', dailyPct: 0, maxDrawPct: 0, color: '#888', drawdownType: 'EOD' },
+    { name: 'Custom (Build your own)', short: 'Custom', dailyPct: 0, maxDrawPct: 0, color: '#888', drawdownType: 'Static' },
 ];
 
 export interface TradeSession {
@@ -58,6 +64,11 @@ export interface AccountSettings {
     isConsistencyActive?: boolean;
     minHoldTimeSec?: number;
     maxTradesPerDay?: number;
+    /**
+     * Instant Funding only — true once the trader has requested ANY payout.
+     * After this, the trailing drawdown floor permanently locks at startingBalance.
+     */
+    payoutLockActive?: boolean;
 }
 
 export interface DailySession {
@@ -310,6 +321,82 @@ export const FUTURES_SPECS: Record<string, FuturesSpec> = {
     'SI': { label: 'Silver', pointValue: 5000, tickSize: 0.005, exchange: 'COMEX' },
     'ZB': { label: '30-Yr T-Bond', pointValue: 1000, tickSize: 0.03125, exchange: 'CBOT' },
 };
+
+/**
+ * Computes the current max-drawdown floor for any Tradeify account type.
+ *
+ * Returns:
+ *   floor      — absolute USD level equity must stay above
+ *   buffer     — current balance − floor (how much room is left)
+ *   isLocked   — true when the floor is permanently at startingBalance
+ *   usedPct    — % of max drawdown already consumed (0–100)
+ */
+export function computeDrawdownFloor(
+    account: AccountSettings,
+    closedTrades: TradeSession[],
+): { floor: number; buffer: number; isLocked: boolean; usedPct: number } {
+    const { startingBalance, balance, drawdownType, maxDrawdownLimit, payoutLockActive } = account;
+    if (!startingBalance || startingBalance === 0) {
+        return { floor: 0, buffer: balance, isLocked: false, usedPct: 0 };
+    }
+
+    // Max drawdown in USD (e.g. 6% of $100K = $6,000)
+    const maxDrawUSD = maxDrawdownLimit ?? startingBalance * 0.06;
+    const staticFloor = startingBalance - maxDrawUSD;
+
+    // ── Payout lock (Instant Funding only) ─────────────────────
+    // Any payout request locks the floor permanently at startingBalance.
+    if (payoutLockActive) {
+        const buf = balance - startingBalance;
+        return { floor: startingBalance, buffer: buf, isLocked: true, usedPct: buf >= 0 ? 0 : 100 };
+    }
+
+    // ── Static (2-Step Eval) ─────────────────────────────────────
+    if (drawdownType === 'Static') {
+        const buf = balance - staticFloor;
+        return { floor: staticFloor, buffer: buf, isLocked: false, usedPct: Math.min(100, ((maxDrawUSD - buf) / maxDrawUSD) * 100) };
+    }
+
+    // Sorted closed trades (oldest first)
+    const sorted = [...closedTrades]
+        .filter(t => t.outcome !== 'open')
+        .sort((a, b) => new Date(a.closedAt ?? a.createdAt).getTime() - new Date(b.closedAt ?? b.createdAt).getTime());
+
+    // ── EOD Trailing (Instant Funding) ───────────────────────────
+    // Floor trails up based on end-of-day balance snapshots at 17:00 EST.
+    if (drawdownType === 'EOD') {
+        const dailyPnl: Record<string, number> = {};
+        sorted.forEach(t => {
+            const day = getTradingDay(t.closedAt ?? t.createdAt);
+            dailyPnl[day] = (dailyPnl[day] ?? 0) + (t.pnl ?? 0);
+        });
+        let peak = startingBalance;
+        let running = startingBalance;
+        Object.keys(dailyPnl).sort().forEach(day => {
+            running += dailyPnl[day];
+            if (running > peak) peak = running;
+        });
+        const rawFloor = peak - maxDrawUSD;
+        const isLocked = rawFloor >= startingBalance;
+        const floor = isLocked ? startingBalance : Math.max(staticFloor, rawFloor);
+        const buf = balance - floor;
+        return { floor, buffer: buf, isLocked, usedPct: Math.min(100, Math.max(0, ((maxDrawUSD - buf) / maxDrawUSD) * 100)) };
+    }
+
+    // ── EOT Trailing (1-Step Eval) ───────────────────────────────
+    // Floor trails up after each individual closed trade.
+    let peak = startingBalance;
+    let running = startingBalance;
+    sorted.forEach(t => {
+        running += t.pnl ?? 0;
+        if (running > peak) peak = running;
+    });
+    const rawFloor = peak - maxDrawUSD;
+    const isLocked = rawFloor >= startingBalance;
+    const floor = isLocked ? startingBalance : Math.max(staticFloor, rawFloor);
+    const buf = balance - floor;
+    return { floor, buffer: buf, isLocked, usedPct: Math.min(100, Math.max(0, ((maxDrawUSD - buf) / maxDrawUSD) * 100)) };
+}
 
 export function getFuturesSpec(symbol: string): FuturesSpec | null {
     const clean = symbol.toUpperCase().replace(/[^A-Z]/g, '');

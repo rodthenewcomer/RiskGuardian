@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState, useMemo, useRef } from 'react';
-import { useAppStore, getTradingDay } from '@/store/appStore';
+import { useAppStore, getTradingDay, computeDrawdownFloor } from '@/store/appStore';
 import { generateForensics } from '@/ai/EdgeForensics';
 import { motion } from 'framer-motion';
 import {
@@ -45,9 +45,23 @@ export default function DashboardPage() {
 
     const { account, trades, getTodayRiskUsed, setActiveTab } = useAppStore();
 
+    // ── Today's trading day string (EST) ───────────────────────
+    const todayStr = new Date().toLocaleDateString('en-CA', { timeZone: 'America/New_York' });
+
+    // ── Today's actual realized losses from trade history ──────
+    const todayActualLoss = useMemo(() => {
+        const net = trades
+            .filter(t => t.outcome !== 'open' && getTradingDay(t.closedAt ?? t.createdAt) === todayStr)
+            .reduce((s, t) => s + (t.pnl ?? 0), 0);
+        return Math.max(0, -net);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [trades, todayStr]);
+
     // ── Daily Guard ────────────────────────────────────────────
-    const used      = mounted ? getTodayRiskUsed() : 0;
-    const remaining = mounted ? Math.max(0, account.dailyLossLimit - used) : account.dailyLossLimit;
+    // Use actual realized P&L if trades exist; fall back to manual session tracking
+    const manualUsed = mounted ? getTodayRiskUsed() : 0;
+    const used       = mounted ? Math.max(manualUsed, todayActualLoss) : 0;
+    const remaining  = mounted ? Math.max(0, account.dailyLossLimit - used) : account.dailyLossLimit;
     const usedPct   = account.dailyLossLimit > 0 ? Math.min(100, (used / account.dailyLossLimit) * 100) : 0;
     const isDanger  = mounted && usedPct >= 90;
     const isWarning = mounted && usedPct >= 60;
@@ -131,7 +145,17 @@ export default function DashboardPage() {
         trades[1].riskUSD > 0 &&
         trades[0].riskUSD > trades[1].riskUSD * 1.3;
 
-    const isTradeify = account.propFirm?.toLowerCase().includes('tradeify');
+    const isTradeify      = account.propFirm?.toLowerCase().includes('tradeify');
+    const isInstantFunded = account.propFirmType === 'Instant Funding';
+    const isEval          = account.propFirmType === '1-Step Evaluation' || account.propFirmType === '2-Step Evaluation';
+
+    // ── Drawdown floor (computed from full trade history) ──────
+    const drawdownInfo = useMemo(() =>
+        computeDrawdownFloor(account, closedTrades),
+    [account, closedTrades]);
+    const floorDanger  = drawdownInfo.usedPct >= 80;
+    const floorWarning = drawdownInfo.usedPct >= 50;
+
 
     // ── Count-up animated values ───────────────────────────────
     const animBalance   = useCountUp(mounted ? account.balance : 0, 1100);
@@ -139,9 +163,11 @@ export default function DashboardPage() {
     const animUsed      = useCountUp(mounted ? used : 0, 800);
     const animRemaining = useCountUp(mounted ? remaining : 0, 800);
     const animSafeNext  = useCountUp(mounted ? safeNextRisk : 0, 800);
-    const animBestDayPct = useCountUp(mounted ? consistencyScore : 0, 900);
-    const animBestDayAmt = useCountUp(mounted ? bestDayPnl : 0, 900);
+    const animBestDayPct  = useCountUp(mounted ? consistencyScore : 0, 900);
+    const animBestDayAmt  = useCountUp(mounted ? bestDayPnl : 0, 900);
     const animTotalProfit = useCountUp(mounted ? totalPnl : 0, 900);
+    const animFloor       = useCountUp(mounted ? drawdownInfo.floor : 0, 900);
+    const animBuffer      = useCountUp(mounted ? Math.max(0, drawdownInfo.buffer) : 0, 900);
 
     // ── Stat colors ────────────────────────────────────────────
     const pnlColor    = totalPnl >= 0 ? '#A6FF4D' : '#ff4757';
@@ -318,8 +344,77 @@ export default function DashboardPage() {
                 )}
             </motion.div>
 
-            {/* ── 6. TRADEIFY CONSISTENCY ────────────────────────── */}
-            {isTradeify && totalPnl > 0 && (
+            {/* ── 6. MAX DRAWDOWN FLOOR ──────────────────────────── */}
+            {account.startingBalance > 0 && (
+                <motion.div variants={fadeUp} style={card}>
+                    <div style={{ padding: '14px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: divider }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                            <Shield size={12} color="#4b5563" />
+                            <span style={lbl}>Max Drawdown Floor</span>
+                            <span style={{ ...mono, fontSize: 10, color: '#4b5563' }}>
+                                / {account.drawdownType === 'Static' ? 'Static' : account.drawdownType === 'EOD' ? 'EOD Trailing' : 'EOT Trailing'}
+                                {drawdownInfo.isLocked ? ' · LOCKED' : ''}
+                            </span>
+                        </div>
+                        <motion.span
+                            animate={floorDanger ? { opacity: [1, 0.5, 1] } : {}}
+                            transition={{ duration: 0.9, repeat: Infinity }}
+                            style={{
+                                ...mono, fontSize: 9, fontWeight: 800, letterSpacing: '0.08em', padding: '3px 8px', textTransform: 'uppercase', borderRadius: 3,
+                                color: floorDanger ? '#ff4757' : floorWarning ? '#EAB308' : '#A6FF4D',
+                                border: `1px solid ${floorDanger ? 'rgba(255,71,87,0.5)' : floorWarning ? 'rgba(234,179,8,0.4)' : 'rgba(166,255,77,0.3)'}`,
+                                background: floorDanger ? 'rgba(255,71,87,0.1)' : floorWarning ? 'rgba(234,179,8,0.08)' : 'rgba(166,255,77,0.06)',
+                            }}
+                        >
+                            {floorDanger ? 'DANGER' : floorWarning ? 'WARNING' : 'SAFE'}
+                        </motion.span>
+                    </div>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', padding: '14px 16px' }}>
+                        {[
+                            { lbl: 'FLOOR',   val: `$${animFloor.toLocaleString('en-US', { maximumFractionDigits: 0 })}`,  clr: '#e2e8f0' },
+                            { lbl: 'BUFFER',  val: `$${animBuffer.toLocaleString('en-US', { maximumFractionDigits: 0 })}`, clr: floorDanger ? '#ff4757' : floorWarning ? '#EAB308' : '#A6FF4D' },
+                            { lbl: 'USED',    val: `${drawdownInfo.usedPct.toFixed(1)}%`, clr: floorDanger ? '#ff4757' : floorWarning ? '#EAB308' : '#A6FF4D' },
+                        ].map((s, i) => (
+                            <motion.div
+                                key={i}
+                                initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }}
+                                transition={{ ease: [0.16, 1, 0.3, 1], duration: 0.4, delay: 0.12 + i * 0.07 }}
+                                style={{ borderRight: i < 2 ? divider : 'none', paddingRight: i < 2 ? 14 : 0, paddingLeft: i > 0 ? 14 : 0 }}
+                            >
+                                <span style={lbl}>{s.lbl}</span>
+                                <span style={{ ...mono, fontSize: 22, fontWeight: 800, color: s.clr, lineHeight: 1, letterSpacing: '-0.02em', display: 'block', marginTop: 4 }}>{s.val}</span>
+                            </motion.div>
+                        ))}
+                    </div>
+                    {/* Explain what the floor means */}
+                    <div style={{ padding: '10px 16px', borderTop: divider, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <span style={{ ...mono, fontSize: 10, color: '#4b5563' }}>
+                            {account.drawdownType === 'Static'
+                                ? `Fixed floor: $${account.startingBalance.toLocaleString()} − ${account.maxDrawdownLimit ? `$${account.maxDrawdownLimit.toLocaleString()}` : '6%'}`
+                                : account.drawdownType === 'EOD'
+                                    ? 'Trails up at 17:00 EST · locks at starting balance'
+                                    : 'Trails up after each closed trade · locks at starting balance'}
+                        </span>
+                        {account.payoutLockActive && (
+                            <span style={{ ...mono, fontSize: 9, fontWeight: 800, color: '#EAB308', padding: '2px 8px', border: '1px solid rgba(234,179,8,0.3)', borderRadius: 3, textTransform: 'uppercase' }}>
+                                Payout Locked
+                            </span>
+                        )}
+                    </div>
+                    {floorDanger && (
+                        <motion.div
+                            initial={{ opacity: 0 }} animate={{ opacity: 1 }}
+                            style={{ padding: '10px 16px', background: 'rgba(255,71,87,0.08)', borderTop: '1px solid rgba(255,71,87,0.2)', display: 'flex', alignItems: 'center', gap: 8 }}
+                        >
+                            <AlertTriangle size={12} color="#ff4757" />
+                            <span style={{ ...mono, fontSize: 11, color: '#ff4757', fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase' }}>CRITICAL — Account floor dangerously close</span>
+                        </motion.div>
+                    )}
+                </motion.div>
+            )}
+
+            {/* ── 7. TRADEIFY CONSISTENCY — INSTANT FUNDING ONLY ─── */}
+            {isInstantFunded && totalPnl > 0 && (
                 <motion.div variants={fadeUp} style={card}>
                     <div style={{ padding: '14px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: divider }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -399,7 +494,7 @@ export default function DashboardPage() {
                 </motion.div>
             )}
 
-            {/* ── 7. SESSION INTELLIGENCE ────────────────────────── */}
+            {/* ── 8. SESSION INTELLIGENCE ────────────────────────── */}
             {closedTrades.length >= 5 && (
                 <motion.div variants={fadeUp} style={card}>
                     <div style={{ padding: '12px 16px', display: 'flex', alignItems: 'center', gap: 8, borderBottom: divider }}>
@@ -437,21 +532,64 @@ export default function DashboardPage() {
                         <span style={{
                             marginLeft: 'auto', ...mono, fontSize: 9, fontWeight: 800, letterSpacing: '0.08em',
                             padding: '2px 8px', textTransform: 'uppercase', borderRadius: 3,
-                            color: isDanger ? '#ff4757' : '#A6FF4D',
-                            border: `1px solid ${isDanger ? 'rgba(255,71,87,0.3)' : 'rgba(166,255,77,0.3)'}`,
-                            background: isDanger ? 'rgba(255,71,87,0.06)' : 'rgba(166,255,77,0.04)',
+                            color: (isDanger || floorDanger) ? '#ff4757' : '#A6FF4D',
+                            border: `1px solid ${(isDanger || floorDanger) ? 'rgba(255,71,87,0.3)' : 'rgba(166,255,77,0.3)'}`,
+                            background: (isDanger || floorDanger) ? 'rgba(255,71,87,0.06)' : 'rgba(166,255,77,0.04)',
                         }}>
-                            {isDanger ? 'AT RISK' : 'COMPLIANT'}
+                            {(isDanger || floorDanger) ? 'AT RISK' : 'COMPLIANT'}
                         </span>
                     </div>
                     <div style={{ padding: '12px 16px', display: 'flex', flexDirection: 'column', gap: 8 }}>
                         {([
-                            { dot: isDanger ? 'red' : isWarning ? 'yellow' : 'green', text: `Daily loss: ${usedPct.toFixed(1)}% used of $${account.dailyLossLimit.toLocaleString()}` },
-                            { dot: 'green', text: `Max trade risk: $${maxPerTrade.toFixed(0)} (${account.maxRiskPercent}%)` },
-                            { dot: 'green', text: `Leverage: ${account.leverage || 2}:1` },
-                            account.maxDrawdownLimit ? { dot: 'yellow', text: `Max drawdown: ${account.drawdownType || 'EOD'} — $${account.maxDrawdownLimit.toLocaleString()}` } : null,
-                            isTradeify ? { icon: 'ban', text: 'Anti-hedging: no offsetting positions' } : null,
-                            isTradeify ? { icon: 'cal', text: 'Inactivity: trade at least every 30 days' } : null,
+                            // ── Daily Loss Limit (all accounts) ─────────────────
+                            { dot: isDanger ? 'red' : isWarning ? 'yellow' : 'green',
+                              text: `Daily loss limit: $${account.dailyLossLimit.toLocaleString()} (3% of account) — ${usedPct.toFixed(1)}% used today` },
+
+                            // ── Max Drawdown ─────────────────────────────────────
+                            account.startingBalance > 0 ? {
+                              dot: floorDanger ? 'red' : floorWarning ? 'yellow' : 'green',
+                              text: isTradeify
+                                ? account.drawdownType === 'Static'
+                                    ? `Max drawdown: 6% static — floor locked at $${(account.startingBalance - (account.maxDrawdownLimit ?? account.startingBalance * 0.06)).toLocaleString()}`
+                                    : account.drawdownType === 'EOD'
+                                        ? `Max drawdown: 6% EOD trailing — snapshots at 17:00 EST · floor $${drawdownInfo.floor.toLocaleString()}`
+                                        : `Max drawdown: 6% EOT trailing — trails after each closed trade · floor $${drawdownInfo.floor.toLocaleString()}`
+                                : `Max drawdown: $${(account.maxDrawdownLimit ?? 0).toLocaleString()}`,
+                            } : null,
+
+                            // ── Leverage (Tradeify) ──────────────────────────────
+                            isTradeify ? {
+                              dot: 'green',
+                              text: isInstantFunded
+                                ? 'Leverage: 2:1 on all pairs (including BTC & ETH)'
+                                : 'Leverage: 5:1 BTC/ETH · 2:1 all other crypto pairs',
+                            } : { dot: 'green', text: `Leverage: ${account.leverage || 2}:1` },
+
+                            // ── Microscalping (Tradeify only) ────────────────────
+                            isTradeify ? { icon: 'clock', text: 'Min hold time: 20 seconds per trade (microscalping rule)' } : null,
+
+                            // ── Consistency (Instant Funding only) ──────────────
+                            isInstantFunded ? {
+                              dot: consistencyPassing ? 'green' : 'yellow',
+                              text: `Consistency score: ${consistencyScore.toFixed(1)}% — must be ≤ 20% to request payout`,
+                            } : null,
+
+                            // ── Payout Lock (Instant Funding only) ──────────────
+                            isInstantFunded ? {
+                              dot: account.payoutLockActive ? 'yellow' : 'green',
+                              text: account.payoutLockActive
+                                ? 'Payout lock: ACTIVE — floor permanently locked at starting balance'
+                                : 'Payout lock: not triggered — activate on first payout request',
+                            } : null,
+
+                            // ── Anti-hedging ─────────────────────────────────────
+                            isTradeify ? { icon: 'ban', text: 'No hedging — offsetting positions not allowed (auto-detected)' } : null,
+
+                            // ── Inactivity ────────────────────────────────────────
+                            isTradeify ? { icon: 'cal', text: 'Inactivity: must trade at least once every 30 days' } : null,
+
+                            // ── Non-Tradeify fallback ────────────────────────────
+                            !isTradeify ? { dot: 'green', text: `Max trade risk: $${maxPerTrade.toFixed(0)} (${account.maxRiskPercent}%)` } : null,
                         ] as any[]).filter(Boolean).map((rule: any, i: number) => (
                             <motion.div
                                 key={i}
@@ -459,13 +597,14 @@ export default function DashboardPage() {
                                 transition={{ ease: [0.16, 1, 0.3, 1], duration: 0.35, delay: 0.04 + i * 0.05 }}
                                 style={{ display: 'flex', alignItems: 'center', gap: 8 }}
                             >
-                                {rule.icon === 'ban' ? <Ban size={11} color="#ff4757" />
-                                    : rule.icon === 'cal' ? <CalendarDays size={11} color="#EAB308" />
-                                        : <div style={{
-                                            width: 5, height: 5, borderRadius: '50%', flexShrink: 0,
-                                            background: rule.dot === 'green' ? '#A6FF4D' : rule.dot === 'yellow' ? '#EAB308' : '#ff4757',
-                                            boxShadow: `0 0 5px ${rule.dot === 'green' ? '#A6FF4D40' : rule.dot === 'yellow' ? '#EAB30840' : '#ff475740'}`,
-                                        }} />}
+                                {rule.icon === 'ban'   ? <Ban size={11} color="#ff4757" />
+                                    : rule.icon === 'cal'   ? <CalendarDays size={11} color="#EAB308" />
+                                    : rule.icon === 'clock' ? <Clock size={11} color="#EAB308" />
+                                    : <div style={{
+                                        width: 5, height: 5, borderRadius: '50%', flexShrink: 0,
+                                        background: rule.dot === 'green' ? '#A6FF4D' : rule.dot === 'yellow' ? '#EAB308' : '#ff4757',
+                                        boxShadow: `0 0 5px ${rule.dot === 'green' ? '#A6FF4D40' : rule.dot === 'yellow' ? '#EAB30840' : '#ff475740'}`,
+                                    }} />}
                                 <span style={{ ...mono, fontSize: 11, color: '#8b949e' }}>{rule.text}</span>
                             </motion.div>
                         ))}
