@@ -1,863 +1,844 @@
 'use client';
 
-import { useState, useRef, useEffect, useMemo } from 'react';
-import styles from './CommandPage.module.css';
-import { useAppStore, getFuturesSpec, calcPositionSize, getESTFull } from '@/store/appStore';
-import { Terminal, Brain, ShieldCheck, Target, Zap } from 'lucide-react';
+import { useState, useMemo, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-    analyzeRiskGuardian, analyzeBehavior, scoreTradeQuality,
-    generateJournalInsights, analyzeStrategy, optimizeTakeProfit,
-    generateDailyReport, calcProfitTarget
+    useAppStore, getFuturesSpec, calcPositionSize, getESTFull,
+    TRADEIFY_CRYPTO_LIST,
+} from '@/store/appStore';
+import {
+    TrendingUp, TrendingDown, AlertTriangle, Terminal,
+    BookmarkPlus, ChevronDown, ChevronUp, Check, RotateCcw,
+    Zap, Shield,
+} from 'lucide-react';
+import {
+    analyzeRiskGuardian, analyzeBehavior,
+    generateDailyReport, calcProfitTarget,
 } from '@/ai/RiskAI';
 
-type LogEntry = {
-    id: string;
-    cmd: string;
-    asset: string;
-    entry: number;
-    size: number;
-    risk: number;
-    sl: number;
-    tp: number;
-    rr: number;
-    comm?: number;
-    notional?: number;
-    approved: boolean;
-    warnings: string[];
-    notices: string[];
-    timestamp: Date;
-    // AI Layer
-    aiGrade?: string;
-    aiScore?: number;
-    aiGuardianStatus?: string;
-    aiGuardianWarning?: string;
-    aiEmotionalState?: string;
-    aiMeta?: string;   // special display type: 'ai' | 'grade' | 'tpopt' | 'coach' | 'strategy'
-    aiData?: Record<string, unknown>;
+// ── Asset type detection ──────────────────────────────────────────────
+function detectType(sym: string): 'crypto' | 'futures' | 'forex' | 'stocks' {
+    if (!sym) return 'crypto';
+    const s = sym.trim().toUpperCase().replace(/[^A-Z0-9/]/g, '');
+    if (getFuturesSpec(s)) return 'futures';
+    if (s.includes('/')) return 'forex';
+    if (TRADEIFY_CRYPTO_LIST.includes(s)) return 'crypto';
+    return 'crypto';
+}
+
+function fmtPrice(n: number): string {
+    if (!n || n === 0) return '—';
+    if (n >= 10000) return n.toLocaleString('en-US', { maximumFractionDigits: 0 });
+    if (n >= 100) return n.toFixed(2);
+    if (n >= 1) return n.toFixed(4);
+    return n.toFixed(6);
+}
+
+function fmtSize(n: number, unit: string): string {
+    if (unit === 'contracts') return `${Math.floor(n)}`;
+    if (n >= 1) return n.toFixed(3);
+    return n.toFixed(4);
+}
+
+// ── Asset chip catalogue ──────────────────────────────────────────────
+const CHIPS = [
+    // Crypto majors
+    { sym: 'BTC',     cat: 'crypto'  },
+    { sym: 'ETH',     cat: 'crypto'  },
+    { sym: 'SOL',     cat: 'crypto'  },
+    { sym: 'XRP',     cat: 'crypto'  },
+    { sym: 'DOGE',    cat: 'crypto'  },
+    { sym: 'PEPE',    cat: 'crypto'  },
+    { sym: 'WIF',     cat: 'crypto'  },
+    { sym: 'SUI',     cat: 'crypto'  },
+    { sym: 'AVAX',    cat: 'crypto'  },
+    { sym: 'LINK',    cat: 'crypto'  },
+    // Futures
+    { sym: 'MNQ',     cat: 'futures' },
+    { sym: 'NQ',      cat: 'futures' },
+    { sym: 'MES',     cat: 'futures' },
+    { sym: 'ES',      cat: 'futures' },
+    { sym: 'MYM',     cat: 'futures' },
+    { sym: 'YM',      cat: 'futures' },
+    { sym: 'CL',      cat: 'futures' },
+    { sym: 'GC',      cat: 'futures' },
+    { sym: 'MGC',     cat: 'futures' },
+    { sym: 'RTY',     cat: 'futures' },
+    // Forex
+    { sym: 'EUR/USD', cat: 'forex'   },
+    { sym: 'GBP/USD', cat: 'forex'   },
+    { sym: 'USD/JPY', cat: 'forex'   },
+];
+
+const CAT_COLOR: Record<string, string> = {
+    crypto:  '#A6FF4D',
+    futures: '#EAB308',
+    forex:   '#60a5fa',
+    stocks:  '#c084fc',
 };
 
+// ── Style constants ───────────────────────────────────────────────────
+const mono: React.CSSProperties = { fontFamily: 'var(--font-mono)' };
+const D = '1px solid #1a1c24';
+const cardBase: React.CSSProperties = {
+    background: '#0c0e13', borderRadius: 12, border: D, overflow: 'hidden',
+};
+
+// ── NLP log entry ─────────────────────────────────────────────────────
+interface NLPLog { id: string; cmd: string; out: string; ok: boolean; }
+
+// ─────────────────────────────────────────────────────────────────────
 export default function CommandPage() {
-    const { account, getDailyRiskRemaining, addTrade, addDailyRisk, setActiveTab, trades, updateAccount, resetTodaySession } = useAppStore();
-    const [input, setInput] = useState('');
-    const [logs, setLogs] = useState<LogEntry[]>([]);
-    const [history, setHistory] = useState<string[]>([]);
-    const [historyIdx, setHistoryIdx] = useState(-1);
-    const [overrideConfirm, setOverrideConfirm] = useState<string | null>(null);
-    const endRef = useRef<HTMLDivElement>(null);
-    const inputRef = useRef<HTMLInputElement>(null);
+    const {
+        account, getDailyRiskRemaining,
+        addTrade, addDailyRisk,
+        setActiveTab, trades,
+        updateAccount, resetTodaySession,
+    } = useAppStore();
 
-    // Form calculator state
-    const [formAsset, setFormAsset] = useState('');
-    const [formDir, setFormDir] = useState<'buy' | 'sell'>('buy');
-    const [formEntry, setFormEntry] = useState('');
-    const [formStop, setFormStop] = useState('');
-    const [formRisk, setFormRisk] = useState('');
+    // ── Form state ──────────────────────────────────────────────────
+    const [asset,   setAsset]   = useState('BTC');
+    const [isShort, setIsShort] = useState(false);
+    const [entry,   setEntry]   = useState('');
+    const [stop,    setStop]    = useState('');
+    const [tp,      setTp]      = useState('');
+    const [riskStr, setRiskStr] = useState('');
+    const [logged,  setLogged]  = useState(false);
 
-    const remainingToday = useMemo(() => getDailyRiskRemaining(), [getDailyRiskRemaining]);
-    const maxTradeRisk = useMemo(() => (account.balance * account.maxRiskPercent) / 100, [account.balance, account.maxRiskPercent]);
-    const todayTradeCount = useMemo(() => {
-        const today = new Date().toLocaleDateString('en-CA', { timeZone: 'America/New_York' });
-        return trades.filter(t => t.createdAt.includes(today) || new Date(t.createdAt).toLocaleDateString('en-CA', { timeZone: 'America/New_York' }) === today).length;
+    // ── NLP bar ─────────────────────────────────────────────────────
+    const [nlpOpen,    setNlpOpen]    = useState(false);
+    const [nlpInput,   setNlpInput]   = useState('');
+    const [nlpLogs,    setNlpLogs]    = useState<NLPLog[]>([]);
+    const [nlpHist,    setNlpHist]    = useState<string[]>([]);
+    const [nlpHistIdx, setNlpHistIdx] = useState(-1);
+
+    const nlpRef    = useRef<HTMLInputElement>(null);
+    const nlpEndRef = useRef<HTMLDivElement>(null);
+    const entryRef  = useRef<HTMLInputElement>(null);
+
+    // ── Derived account values ──────────────────────────────────────
+    const remaining    = useMemo(() => getDailyRiskRemaining(), [getDailyRiskRemaining]);
+    const maxTradeRisk = useMemo(() => (account.balance * account.maxRiskPercent) / 100, [account]);
+    const safeRisk     = Math.max(0, Math.min(maxTradeRisk, remaining));
+
+    const todayCount = useMemo(() => {
+        const d = new Date().toLocaleDateString('en-CA', { timeZone: 'America/New_York' });
+        return trades.filter(t =>
+            new Date(t.createdAt).toLocaleDateString('en-CA', { timeZone: 'America/New_York' }) === d
+        ).length;
     }, [trades]);
 
-    const handleFormCalc = () => {
-        const asset = formAsset.trim().toUpperCase() || 'BTC';
-        const entry = parseFloat(formEntry);
-        const stop = parseFloat(formStop);
-        const risk = parseFloat(formRisk) || maxTradeRisk;
-        if (!entry || !stop) return;
-        const cmd = `${formDir} ${asset} ${entry} stop${stop} risk${risk.toFixed(0)}`;
-        processCommand(cmd);
-        setFormEntry('');
-        setFormStop('');
-    };
+    // ── Parsed numbers ──────────────────────────────────────────────
+    const entryN = parseFloat(entry.replace(/,/g, '')) || 0;
+    const stopN  = parseFloat(stop.replace(/,/g, ''))  || 0;
+    const tpN    = parseFloat(tp.replace(/,/g, ''))    || 0;
+    const riskN  = parseFloat(riskStr) || safeRisk || maxTradeRisk;
 
+    // ── Asset meta ──────────────────────────────────────────────────
+    const aType = useMemo(() => detectType(asset), [asset]);
+    const spec  = useMemo(() => getFuturesSpec(asset.toUpperCase()), [asset]);
+    const pv    = spec?.pointValue ?? 1;
 
+    // ── Live calculation ────────────────────────────────────────────
+    const result = useMemo(() => {
+        if (!entryN || !stopN || entryN === stopN || !asset.trim()) return null;
+        if (!isShort && stopN >= entryN) return null;  // long: stop must be below
+        if (isShort  && stopN <= entryN) return null;  // short: stop must be above
 
-    useEffect(() => {
-        // Auto scroll to latest command
-        endRef.current?.scrollIntoView({ behavior: 'smooth' });
-    }, [logs]);
+        const stopDist = Math.abs(entryN - stopN);
+        const stopPct  = (stopDist / entryN) * 100;
 
-    // iOS: scroll input into view when soft keyboard opens
-    const handleInputFocus = () => {
+        const res = calcPositionSize({
+            balance: account.balance,
+            entry: entryN,
+            stopLoss: stopN,
+            riskAmt: riskN,
+            assetType: aType,
+            symbol: asset.toUpperCase(),
+            isShort,
+            includeFees: true,
+        });
+        if (res.size === 0) return null;
+
+        // TP: provided or auto 2R
+        const autoTp  = isShort ? entryN - stopDist * 2 : entryN + stopDist * 2;
+        const finalTp = tpN > 0 ? tpN : autoTp;
+        const tpDist  = Math.abs(finalTp - entryN);
+        const rr      = stopDist > 0 ? tpDist / stopDist : 2;
+        const reward  = riskN * rr;
+
+        // Tradeify leverage rules
+        const isBtcEth  = ['BTC', 'ETH', 'PAXG'].includes(asset.toUpperCase());
+        const isInstant = account.propFirmType === 'Instant Funding';
+        const isTrdfy   = account.propFirm?.toLowerCase().includes('tradeify') ?? false;
+        const levMax    = isTrdfy
+            ? (isInstant ? 2 : isBtcEth ? 5 : 2)
+            : (account.leverage ?? 100);
+        const levUsed   = account.balance > 0 ? res.notional / account.balance : 0;
+
+        const overLev   = levUsed > levMax + 0.01;
+        const overDaily = riskN   > remaining + 0.01;
+        const lowRR     = rr < 1.5 && tpN === 0; // only warn on auto TP
+
+        // Tradeify microscalping reminder
+        const isMicro = isTrdfy && aType === 'crypto';
+
+        const warnings: string[] = [
+            overLev   ? `Leverage ${levUsed.toFixed(1)}x  >  ${levMax}x max allowed` : '',
+            overDaily ? `Risk $${riskN.toFixed(0)}  >  daily remaining $${remaining.toFixed(0)}` : '',
+            lowRR     ? `Low R:R ${rr.toFixed(2)} — minimum 1.5R recommended` : '',
+        ].filter(Boolean);
+
+        return {
+            size: res.size, unit: res.unit,
+            notional: res.notional,
+            riskAmt: riskN, reward,
+            rr, comm: res.comm,
+            tp: finalTp, tpAuto: tpN === 0,
+            stopPct, levUsed, levMax,
+            overLev, overDaily, lowRR, isMicro,
+            warnings,
+            bad: overLev || overDaily,
+        };
+    }, [entryN, stopN, tpN, riskN, asset, isShort, aType, account, remaining]);
+
+    // ── Guard ribbon state ──────────────────────────────────────────
+    const dailyUsedPct = account.dailyLossLimit > 0
+        ? Math.min(100, ((account.dailyLossLimit - remaining) / account.dailyLossLimit) * 100)
+        : 0;
+    const guardDanger  = dailyUsedPct >= 90;
+    const guardWarn    = dailyUsedPct >= 60;
+    const guardColor   = guardDanger ? '#ff4757' : guardWarn ? '#EAB308' : '#A6FF4D';
+
+    // ── Log trade ───────────────────────────────────────────────────
+    const handleLog = () => {
+        if (!result || logged) return;
+        addTrade({
+            id: (typeof crypto !== 'undefined' && crypto.randomUUID) ? crypto.randomUUID() : Date.now().toString(36),
+            asset: asset.toUpperCase(),
+            assetType: aType,
+            entry: entryN,
+            stopLoss: stopN,
+            takeProfit: result.tp,
+            lotSize: result.size,
+            riskUSD: result.riskAmt,
+            rewardUSD: result.reward,
+            rr: result.rr,
+            outcome: 'open',
+            isShort,
+            createdAt: getESTFull(),
+            pnl: 0,
+        });
+        addDailyRisk(result.riskAmt);
+        setLogged(true);
         setTimeout(() => {
-            inputRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-        }, 300);
+            setLogged(false);
+            setEntry(''); setStop(''); setTp('');
+        }, 1800);
     };
 
-    const getAssetType = (sym: string): 'crypto' | 'forex' | 'futures' | 'stocks' => {
-        const clean = sym.toUpperCase();
-        if (getFuturesSpec(clean)) return 'futures';
-        if (clean.includes('/')) {
-            const cp = ['BTC', 'ETH', 'SOL', 'DOGE', 'XRP', 'AVAX', 'MATIC'];
-            if (cp.some(p => clean.startsWith(p))) return 'crypto';
-            return 'forex';
-        }
-        return 'crypto'; // Default fallback assumption for HUD
+    // ── Chip tap ────────────────────────────────────────────────────
+    const handleChip = (sym: string) => {
+        setAsset(sym);
+        setTimeout(() => entryRef.current?.focus(), 50);
     };
 
-    const processCommand = (cmdStr: string) => {
-        const trimmed = cmdStr.trim();
+    // ── NLP scroll ─────────────────────────────────────────────────
+    useEffect(() => {
+        if (nlpOpen) setTimeout(() => nlpRef.current?.focus(), 120);
+    }, [nlpOpen]);
+    useEffect(() => {
+        nlpEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }, [nlpLogs]);
+
+    // ── NLP command processor ────────────────────────────────────────
+    const pushNlp = (cmd: string, out: string, ok = true) =>
+        setNlpLogs(p => [...p.slice(-14), { id: Date.now().toString(36), cmd, out, ok }]);
+
+    const processNLP = (raw: string) => {
+        const trimmed = raw.trim();
         if (!trimmed) return;
-
-        // Meta Commands Parser
         const lower = trimmed.toLowerCase();
-        const metaParts = lower.split(/\s+/);
-        const metaCmd = metaParts[0];
-
-        if (metaCmd === 'clear') {
-            setLogs([]);
-            setInput('');
-            return;
-        }
-
-        if (metaCmd === 'help') {
-            const helpLog: LogEntry = {
-                id: Math.random().toString(36),
-                cmd: 'help',
-                asset: 'SYSTEM',
-                entry: 0.1, // flag as system info
-                size: 0, risk: 0, sl: 0, tp: 0, rr: 0,
-                approved: true, warnings: [], notices: [],
-                timestamp: new Date()
-            };
-            setLogs(prev => [...prev, helpLog]);
-            setInput('');
-            return;
-        }
-
-        if (metaCmd === 'rules') {
-            const rulesLog: LogEntry = {
-                id: Math.random().toString(36),
-                cmd: 'rules',
-                asset: 'RULES',
-                entry: 0.2, // flag as rules info
-                size: 0, risk: 0, sl: 0, tp: 0, rr: 0,
-                approved: true, warnings: [], notices: [],
-                timestamp: new Date()
-            };
-            setLogs(prev => [...prev, rulesLog]);
-            setInput('');
-            return;
-        }
-
-        if (metaCmd === 'stats') {
-            const closed = trades.filter((t: any) => t.outcome !== 'open');
-            const wins = closed.filter((t: any) => t.outcome === 'win').length;
-            const pnl = closed.reduce((s: number, t: any) => s + ((t.pnl ?? (t.outcome === 'win' ? t.rewardUSD : -t.riskUSD))), 0);
-            const statsLog: LogEntry = {
-                id: Math.random().toString(36),
-                cmd: 'stats',
-                asset: 'PERFORMANCE',
-                entry: 0.3, // Performance flag
-                size: closed.length, // total trades count
-                risk: pnl, // realized pnl
-                sl: wins, // wins count
-                tp: closed.length > 0 ? (wins / closed.length) * 100 : 0, // winrate
-                rr: 0, approved: true, warnings: [], notices: [],
-                timestamp: new Date()
-            };
-            setLogs(prev => [...prev, statsLog]);
-            setInput('');
-            return;
-        }
-
-        if (metaCmd === 'balance' && metaParts[1]) {
-            const newBal = parseFloat(metaParts[1]);
-            if (!isNaN(newBal)) {
-                updateAccount({ balance: newBal });
-                const log: LogEntry = {
-                    id: Math.random().toString(36),
-                    cmd: trimmed,
-                    asset: 'ACCOUNT',
-                    entry: 0.4, // generic system notification
-                    size: 0, risk: 0, sl: 0, tp: 0, rr: 0,
-                    approved: true, warnings: [], notices: [`Balance updated to $${newBal.toLocaleString()}`],
-                    timestamp: new Date()
-                };
-                setLogs(prev => [...prev, log]);
-                setInput('');
-                return;
-            }
-        }
-
-        if (metaCmd === 'daily' && metaParts[1]) {
-            const newLimit = parseFloat(metaParts[1]);
-            if (!isNaN(newLimit)) {
-                updateAccount({ dailyLossLimit: newLimit });
-                const log: LogEntry = {
-                    id: Math.random().toString(36),
-                    cmd: trimmed,
-                    asset: 'ACCOUNT',
-                    entry: 0.4,
-                    size: 0, risk: 0, sl: 0, tp: 0, rr: 0,
-                    approved: true, warnings: [], notices: [`Daily loss limit updated to $${newLimit.toLocaleString()}`],
-                    timestamp: new Date()
-                };
-                setLogs(prev => [...prev, log]);
-                setInput('');
-                return;
-            }
-        }
-
-        if (metaCmd === 'reset') {
-            resetTodaySession();
-            setLogs([]);
-            setInput('');
-            return;
-        }
-
-        if (['journal', 'plan', 'settings', 'dashboard', 'analytics', 'calc'].includes(metaCmd)) {
-            setActiveTab(metaCmd === 'calc' ? 'terminal' : metaCmd as any);
-            setInput('');
-            return;
-        }
-
-        // ── AI Meta Commands ──
-        if (metaCmd === 'ai') {
-            const guardian = analyzeRiskGuardian(account, account.dailyLossLimit - getDailyRiskRemaining());
-            const behavior = analyzeBehavior(trades, maxTradeRisk);
-            const aiLog: LogEntry = {
-                id: crypto.randomUUID?.() || Math.random().toString(36),
-                cmd: trimmed, asset: 'AI', entry: 0.9, size: 0, risk: 0, sl: 0, tp: 0, rr: 0,
-                approved: true, warnings: [], notices: [], timestamp: new Date(),
-                aiMeta: 'ai',
-                aiData: { guardian, behavior }
-            };
-            setLogs(prev => [...prev, aiLog]);
-            setInput('');
-            return;
-        }
-
-        if (metaCmd === 'coach') {
-            const todayUsed = account.dailyLossLimit - getDailyRiskRemaining();
-            const report = generateDailyReport(trades, account, todayUsed);
-            const coachLog: LogEntry = {
-                id: crypto.randomUUID?.() || Math.random().toString(36),
-                cmd: trimmed, asset: 'COACH', entry: 0.95, size: 0, risk: 0, sl: 0, tp: 0, rr: 0,
-                approved: true, warnings: [], notices: [], timestamp: new Date(),
-                aiMeta: 'coach', aiData: { report }
-            };
-            setLogs(prev => [...prev, coachLog]);
-            setInput('');
-            return;
-        }
-
-        if (metaCmd === 'strategy') {
-            const strategy = analyzeStrategy(trades);
-            const stratLog: LogEntry = {
-                id: crypto.randomUUID?.() || Math.random().toString(36),
-                cmd: trimmed, asset: 'STRATEGY', entry: 0.96, size: 0, risk: 0, sl: 0, tp: 0, rr: 0,
-                approved: true, warnings: [], notices: [], timestamp: new Date(),
-                aiMeta: 'strategy', aiData: { strategy }
-            };
-            setLogs(prev => [...prev, stratLog]);
-            setInput('');
-            return;
-        }
-
-        if (metaCmd === 'journal') {
-            const insights = generateJournalInsights(trades, account);
-            const journalLog: LogEntry = {
-                id: crypto.randomUUID?.() || Math.random().toString(36),
-                cmd: trimmed, asset: 'JOURNAL', entry: 0.97, size: 0, risk: 0, sl: 0, tp: 0, rr: 0,
-                approved: true, warnings: [], notices: [], timestamp: new Date(),
-                aiMeta: 'journal', aiData: { insights }
-            };
-            setLogs(prev => [...prev, journalLog]);
-            setInput('');
-            return;
-        }
-
         const parts = trimmed.split(/\s+/);
-        let passet = '';
-        let pentry = 0;
-        let psize = 0;
-        let prisk = 0;
-        let pstop = 0;
-        let ptarget = 0;       // raw TP price
-        let ptargetBal = 0;   // target balance for reverse TP solve
-        let isShort = false;
+        const meta  = parts[0].toLowerCase();
+        setNlpHist(h => [trimmed, ...h].slice(0, 50));
+        setNlpHistIdx(-1);
+        setNlpInput('');
 
-        // Extremely simple powerful parser
+        // ── Meta commands ──────────────────────────────────────────
+        if (meta === 'clear')  { setNlpLogs([]); return; }
+        if (meta === 'reset')  { resetTodaySession(); pushNlp(trimmed, 'Session reset ✓'); return; }
+        if (meta === 'help')   {
+            pushNlp(trimmed,
+                'TRADE: [buy/sell] ASSET ENTRY stop STOP [target TP] [risk $] [size N]\n' +
+                'e.g.  btc 95000 stop93500 risk500\n' +
+                'e.g.  sell mnq 21000 stop21020\n' +
+                'e.g.  sol 185 stop180 target200 risk300\n' +
+                'CMDS: stats · balance N · daily N · reset · clear'
+            );
+            return;
+        }
+        if (meta === 'stats') {
+            const cl = trades.filter(t => t.outcome !== 'open');
+            const w  = cl.filter(t => t.outcome === 'win').length;
+            const pnl = cl.reduce((s, t) => s + (t.pnl ?? 0), 0);
+            const wr  = cl.length > 0 ? ((w / cl.length) * 100).toFixed(0) : '0';
+            pushNlp(trimmed,
+                `${cl.length} trades · ${w}W ${cl.length - w}L · WR ${wr}% · P&L ${pnl >= 0 ? '+' : ''}$${Math.abs(pnl).toFixed(0)}`
+            );
+            return;
+        }
+        if (meta === 'balance' && parts[1]) {
+            const v = parseFloat(parts[1]);
+            if (!isNaN(v)) { updateAccount({ balance: v }); pushNlp(trimmed, `Balance → $${v.toLocaleString()}`); return; }
+        }
+        if (meta === 'daily' && parts[1]) {
+            const v = parseFloat(parts[1]);
+            if (!isNaN(v)) { updateAccount({ dailyLossLimit: v }); pushNlp(trimmed, `Daily limit → $${v.toLocaleString()}`); return; }
+        }
+        if (['dashboard', 'journal', 'analytics', 'settings', 'plan'].includes(meta)) {
+            setActiveTab(meta as 'dashboard');
+            return;
+        }
+
+        // ── Trade NLP parser ─────────────────────────────────────────
+        let pa = '', pe = 0, ps = 0, pr = 0, pz = 0, pt = 0, pShort = isShort;
+
         parts.forEach((p, i) => {
-            const num = parseFloat(p);
-            const lowerp = p.toLowerCase();
-
-            if (lowerp === 'buy' || lowerp === 'long') isShort = false;
-            if (lowerp === 'sell' || lowerp === 'short') isShort = true;
-
-            // Assume first non-number is Asset
-            if (isNaN(num) && !['buy', 'sell', 'long', 'short', 'risk', 'stop', 'target', 'size'].some(k => lowerp.includes(k))) {
-                if (!passet) passet = p.toUpperCase();
-            }
-
-            // Assume first raw number is Entry
-            if (!isNaN(num) && i > 0 && pentry === 0 && !parts[i - 1].toLowerCase().match(/stop|size|risk|target/)) {
-                pentry = num;
-            } else if (!isNaN(num) && pentry !== 0 && psize === 0 && !parts[i - 1].toLowerCase().match(/stop|risk|target/)) {
-                psize = num; // Assume second standalone number is Size
-            }
-
-            // Explicits
-            if (lowerp.startsWith('risk')) {
-                const val = parseFloat(lowerp.replace('risk', ''));
-                if (!isNaN(val)) prisk = val;
-            } else if (i > 0 && parts[i - 1].toLowerCase() === 'risk') {
-                prisk = parseFloat(p);
-            }
-
-            if (lowerp.startsWith('stop')) {
-                const val = parseFloat(lowerp.replace('stop', ''));
-                if (!isNaN(val)) pstop = val;
-            } else if (i > 0 && parts[i - 1].toLowerCase() === 'stop') {
-                pstop = parseFloat(p);
-            }
-
-            if (lowerp.startsWith('size')) {
-                const val = parseFloat(lowerp.replace('size', ''));
-                if (!isNaN(val)) psize = val;
-            } else if (i > 0 && parts[i - 1].toLowerCase() === 'size') {
-                psize = parseFloat(p);
-            }
-
-            if (lowerp.startsWith('targetbalance') || lowerp.startsWith('targetbal')) {
-                const key = lowerp.startsWith('targetbalance') ? 'targetbalance' : 'targetbal';
-                const val = parseFloat(lowerp.replace(key, ''));
-                if (!isNaN(val) && val > 0) ptargetBal = val;
-            } else if (i > 0 && (parts[i - 1].toLowerCase() === 'targetbalance' || parts[i - 1].toLowerCase() === 'targetbal')) {
-                const val = parseFloat(p);
-                if (!isNaN(val) && val > 0) ptargetBal = val;
-            } else if (lowerp.startsWith('target')) {
-                const val = parseFloat(lowerp.replace('target', ''));
-                if (!isNaN(val)) ptarget = val;
-            } else if (i > 0 && parts[i - 1].toLowerCase() === 'target') {
-                ptarget = parseFloat(p);
-            }
+            const n  = parseFloat(p);
+            const lo = p.toLowerCase();
+            if (lo === 'buy'  || lo === 'long')  pShort = false;
+            if (lo === 'sell' || lo === 'short') pShort = true;
+            if (isNaN(n) && !['buy','sell','long','short'].includes(lo) && lo.length <= 12 && !pa) pa = p.toUpperCase();
+            if (!isNaN(n) && pe === 0 && i > 0 && !parts[i-1].toLowerCase().match(/stop|risk|size|target/)) pe = n;
+            if (lo.startsWith('stop'))   { const v = parseFloat(lo.slice(4));   if (!isNaN(v)) ps = v; }
+            else if (i > 0 && parts[i-1].toLowerCase() === 'stop')   ps = n;
+            if (lo.startsWith('risk'))   { const v = parseFloat(lo.slice(4));   if (!isNaN(v)) pr = v; }
+            else if (i > 0 && parts[i-1].toLowerCase() === 'risk')   pr = n;
+            if (lo.startsWith('size'))   { const v = parseFloat(lo.slice(4));   if (!isNaN(v)) pz = v; }
+            else if (i > 0 && parts[i-1].toLowerCase() === 'size')   pz = n;
+            if (lo.startsWith('target')) { const v = parseFloat(lo.slice(6));   if (!isNaN(v)) pt = v; }
+            else if (i > 0 && parts[i-1].toLowerCase() === 'target') pt = n;
         });
 
-        if (!passet) passet = 'SYM';
-        if (prisk === 0) prisk = maxTradeRisk; // Default risk if not specified
+        if (!pa && !pe) { pushNlp(trimmed, 'Could not parse. Type help for syntax.', false); return; }
+        if (!pa) pa = asset.toUpperCase();
+        if (!pr) pr = safeRisk || maxTradeRisk;
 
-        const atype = getAssetType(passet);
-        let pointVal = 1;
-        if (atype === 'futures') {
-            const spec = getFuturesSpec(passet);
-            if (spec) pointVal = spec.pointValue;
+        const at = detectType(pa);
+        const sp = getFuturesSpec(pa);
+        let sz = pz, slPrice = ps, tpPrice = pt;
+
+        if (pe && ps && !pz) {
+            const r = calcPositionSize({
+                balance: account.balance, entry: pe, stopLoss: ps,
+                riskAmt: pr, assetType: at, symbol: pa, isShort: pShort, includeFees: true,
+            });
+            sz = r.size;
+            const dist = Math.abs(pe - ps);
+            tpPrice = pt > 0 ? pt : (pShort ? pe - dist * 2 : pe + dist * 2);
+        } else if (pe && pz && !ps) {
+            pushNlp(trimmed, 'Provide stop price to compute risk.', false);
+            return;
         }
 
-        const warnings: string[] = [];
-        const notices: string[] = [];
-        let r_sl = pstop;
-        let r_tp = ptarget;
-        let r_size = psize;
-        let r_rr = 2; // Default 2R
+        if (!sz) { pushNlp(trimmed, 'Need entry + stop. Try: btc 95000 stop93500', false); return; }
 
-        let r_comm = 0;
-        let r_notional = 0;
+        const dist  = ps ? Math.abs(pe - ps) : 0;
+        const rrOut = dist > 0 && tpPrice ? Math.abs(tpPrice - pe) / dist : 2;
+        const notional = sz * pe * (sp?.pointValue ?? 1);
+        const comm     = notional * 0.0004;
 
-        if (pentry > 0) {
-            // Check direction if explicitly 'stop' not given
-            if (pstop === 0 && psize > 0) {
-                const move = prisk / (psize * pointVal);
-                r_sl = isShort ? pentry + move : pentry - move;
-                r_tp = ptarget > 0 ? ptarget : (isShort ? pentry - (move * 2) : pentry + (move * 2));
-                r_size = psize;
-            } else if (pstop > 0 && psize === 0) {
-                const res = calcPositionSize({ balance: account.balance, entry: pentry, stopLoss: pstop, riskAmt: prisk, assetType: atype, symbol: passet, isShort });
-                r_size = res.size;
-                r_comm = res.comm;
-                r_notional = res.notional;
-                const distance = Math.abs(pentry - pstop);
-                r_tp = ptarget > 0 ? ptarget : (pentry > pstop ? pentry + distance * 2 : pentry - distance * 2);
-            } else if (psize > 0 && pstop > 0) {
-                const distance = Math.abs(pentry - pstop);
-                prisk = distance * psize * pointVal;
-                r_tp = ptarget > 0 ? ptarget : (pentry > pstop ? pentry + distance * 2 : pentry - distance * 2);
-                r_size = psize;
-                r_notional = r_size * pentry * pointVal;
-                r_comm = r_notional * 0.0004;
-            }
+        // Fill form
+        setAsset(pa); setIsShort(pShort);
+        setEntry(pe.toString()); setStop(ps.toString());
+        if (pt > 0) setTp(pt.toString());
+        setRiskStr(pr.toString());
 
-            // ── Target Balance → Reverse TP solve (Use Case 3) ──
-            if (ptargetBal > 0 && pentry > 0 && psize > 0 && pstop > 0) {
-                const tpResult = calcProfitTarget({
-                    entry: pentry, stopLoss: pstop, size: psize * pointVal,
-                    targetBalance: ptargetBal, currentBalance: account.balance
-                });
-                r_tp = tpResult.requiredTP;
-                r_rr = tpResult.rr;
-                notices.push(`Target Balance: $${ptargetBal.toLocaleString()} | Profit needed: $${(ptargetBal - account.balance).toFixed(0)} | TP: ${r_tp.toFixed(5)} | R:R ${r_rr.toFixed(2)}`);
-            } else if (ptargetBal > 0 && pentry > 0 && psize > 0) {
-                // No stop given — estimate TP from balance target via move needed
-                const neededProfit = ptargetBal - account.balance;
-                const move = psize * pointVal > 0 ? neededProfit / (psize * pointVal) : 0;
-                r_tp = pentry + move; // Assume long if no direction given
-                notices.push(`Target Balance: $${ptargetBal.toLocaleString()} | Profit needed: $${neededProfit.toFixed(0)} | TP: ${r_tp.toFixed(5)}`);
-            }
-
-            if (r_sl !== 0 && r_tp !== 0 && pentry !== r_sl) {
-                r_rr = Math.abs(r_tp - pentry) / Math.abs(pentry - r_sl);
-            }
-        }
-
-        // Tradeify Fee Notice
-        if (r_comm > 0) notices.push(`Trade Fee: $${r_comm.toFixed(2)} (0.04% commission)`);
-
-        // Constraints Check
-        if (prisk > remainingToday) warnings.push(`Risk $${prisk.toFixed(0)} exceeds daily limit remaining ($${remainingToday.toFixed(0)})`);
-        if (prisk > maxTradeRisk) warnings.push(`Risk $${prisk.toFixed(0)} exceeds your max per-trade risk ($${maxTradeRisk.toFixed(0)})`);
-        if (account.maxTradesPerDay && account.maxTradesPerDay > 0 && todayTradeCount >= account.maxTradesPerDay) {
-            warnings.push(`Daily trade cap reached: ${todayTradeCount}/${account.maxTradesPerDay} trades today`);
-        }
-
-        // Leverage Check (Tradeify Specific)
-        let maxLev = account.leverage || 100;
-        if (account.propFirm?.includes('Tradeify')) {
-            const isBTC_ETH = passet.includes('BTC') || passet.includes('ETH');
-            const isEval = account.propFirmType?.includes('Evaluation');
-            if (isEval && isBTC_ETH) maxLev = 5;
-            else maxLev = 2;
-            notices.push(`${passet} Max Leverage: ${maxLev}:1`);
-        }
-
-        const posValue = r_notional || (r_size * pentry * pointVal);
-        const maxPosValue = account.balance * maxLev;
-        if (posValue > 0 && posValue > maxPosValue) {
-            warnings.push(`Leverage Cap: position $${posValue.toLocaleString(undefined, { maximumFractionDigits: 0 })} exceeds ${maxLev}:1 limit ($${maxPosValue.toLocaleString(undefined, { maximumFractionDigits: 0 })})`);
-        }
-
-        // Max Drawdown Check
-        if (account.maxDrawdownLimit && account.maxDrawdownLimit > 0) {
-            let floor = account.balance - account.maxDrawdownLimit;
-            if (account.drawdownType === 'Trailing') {
-                floor = Math.min(account.startingBalance, (account.highestBalance || account.balance) - account.maxDrawdownLimit);
-            } else if (account.drawdownType === 'Static') {
-                floor = account.startingBalance - account.maxDrawdownLimit;
-            } else if (account.drawdownType === 'EOD') {
-                floor = (account.highestBalance || account.balance) - account.maxDrawdownLimit;
-            }
-            if ((account.balance - prisk) < floor) {
-                warnings.push(`Breach: $${(account.balance - prisk).toLocaleString()} < Floor $${floor.toLocaleString()}`);
-            }
-        }
-
-        if (account.minHoldTimeSec && account.minHoldTimeSec > 0) {
-            notices.push(`Time Guard: ${account.minHoldTimeSec}s hold required.`);
-        }
-
-        // ── AI Layer: run guardian + quality + behavior on every trade ──
-        const todayUsed = account.dailyLossLimit - remainingToday;
-        const guardian = analyzeRiskGuardian(account, todayUsed, prisk);
-        const behavior = analyzeBehavior(trades, maxTradeRisk);
-
-        const stopDistPct = pentry > 0 && r_sl > 0
-            ? (Math.abs(pentry - r_sl) / pentry) * 100
-            : 1;
-        const remainingDailyPct = account.dailyLossLimit > 0
-            ? (remainingToday / account.dailyLossLimit) * 100
-            : 100;
-
-        const tradeQuality = pentry > 0 ? scoreTradeQuality({
-            riskUSD: prisk,
-            maxTradeRisk,
-            rr: r_rr,
-            stopDistancePct: stopDistPct,
-            remainingDailyPct,
-            behaviorState: behavior.emotionalState
-        }) : null;
-
-        // Embed AI warnings into warnings/notices
-        if (guardian.tradeWarning) warnings.push(`🛡 Guardian: ${guardian.tradeWarning}`);
-        if (behavior.stopTradingRecommended) warnings.push(`🧠 Behavioral: ${behavior.recommendation}`);
-        else if (behavior.revengeRisk) notices.push(`⚠️ Revenge risk detected (+${behavior.revengePct.toFixed(0)}% size after last loss)`);
-
-        const newLog: LogEntry = {
-            id: typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : (Date.now().toString(36) + Math.random().toString(36).substring(2)),
-            cmd: trimmed,
-            asset: passet,
-            entry: pentry,
-            size: r_size,
-            risk: prisk,
-            sl: r_sl,
-            tp: r_tp,
-            rr: r_rr,
-            comm: r_comm,
-            notional: r_notional || (r_size * pentry * pointVal),
-            approved: warnings.length === 0 && pentry > 0,
-            warnings,
-            notices,
-            timestamp: new Date(),
-            aiGrade: tradeQuality?.grade,
-            aiScore: tradeQuality?.score,
-            aiGuardianStatus: guardian.survivalStatus,
-            aiGuardianWarning: guardian.tradeWarning,
-            aiEmotionalState: behavior.emotionalState,
-        };
-
-        setLogs(prev => [...prev, newLog]);
-        setHistory(prev => [trimmed, ...prev].slice(0, 50));
-        setHistoryIdx(-1);
-        setInput('');
+        pushNlp(trimmed,
+            `${pa} ${pShort ? 'SHORT' : 'LONG'} · ${fmtSize(sz, sp ? 'contracts' : 'units')} ${sp ? 'contracts' : pa} · ` +
+            `Risk $${pr.toFixed(0)} · R:R ${rrOut.toFixed(2)} · Fee $${comm.toFixed(2)}`
+        );
     };
 
-    const handleKeyDown = (e: React.KeyboardEvent) => {
-        if (e.key === 'Enter') {
-            processCommand(input);
-        } else if (e.key === 'ArrowUp') {
+    const handleNlpKey = (e: React.KeyboardEvent) => {
+        if (e.key === 'Enter') { processNLP(nlpInput); }
+        else if (e.key === 'ArrowUp') {
             e.preventDefault();
-            if (historyIdx < history.length - 1) {
-                const nextIdx = historyIdx + 1;
-                setHistoryIdx(nextIdx);
-                setInput(history[nextIdx]);
-            }
+            const i = Math.min(nlpHistIdx + 1, nlpHist.length - 1);
+            setNlpHistIdx(i); setNlpInput(nlpHist[i] ?? '');
         } else if (e.key === 'ArrowDown') {
             e.preventDefault();
-            if (historyIdx > -1) {
-                const nextIdx = historyIdx - 1;
-                setHistoryIdx(nextIdx);
-                setInput(nextIdx === -1 ? '' : history[nextIdx]);
-            }
+            const i = nlpHistIdx - 1;
+            setNlpHistIdx(i); setNlpInput(i < 0 ? '' : nlpHist[i]);
         }
     };
 
-    const handleExecute = (log: LogEntry) => {
-        addTrade({
-            id: typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36),
-            asset: log.asset,
-            assetType: getAssetType(log.asset),
-            entry: log.entry,
-            stopLoss: log.sl,
-            takeProfit: log.tp,
-            lotSize: log.size,
-            riskUSD: log.risk,
-            rewardUSD: log.risk * log.rr,
-            rr: log.rr,
-            outcome: 'open',
-            createdAt: getESTFull()
-        });
-        addDailyRisk(log.risk);
-        setActiveTab('plan');
+    // ── Label style ─────────────────────────────────────────────────
+    const lbl: React.CSSProperties = {
+        ...mono, fontSize: 9, color: '#4b5563',
+        letterSpacing: '0.12em', textTransform: 'uppercase' as const,
+        display: 'block', marginBottom: 4,
+    };
+    const inp: React.CSSProperties = {
+        ...mono, width: '100%', background: 'transparent', border: 'none',
+        fontSize: 17, fontWeight: 700, color: '#e2e8f0', outline: 'none',
+        boxSizing: 'border-box' as const, padding: 0,
     };
 
+    // ════════════════════════════════════════════════════════════════
     return (
-        <div className={styles.page}>
-            <div className={styles.header}>
-                <div className={styles.headerLeft}>
-                    <Terminal size={18} className="text-accent" />
-                    <span className={styles.headerTitle}>Risk Engine</span>
-                </div>
-                <div className={styles.headerStats}>
-                    {account.maxTradesPerDay && (
-                        <span className={styles.headerChip} style={{ color: todayTradeCount >= account.maxTradesPerDay ? 'var(--color-danger)' : 'var(--text-muted)' }}>
-                            {todayTradeCount}/{account.maxTradesPerDay} trades
+        <div style={{ display: 'flex', flexDirection: 'column', background: '#090909', minHeight: '100vh', paddingBottom: 80 }}>
+
+            {/* ── 1. HEADER BAR ────────────────────────────────────── */}
+            <div style={{
+                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                padding: '10px 16px', borderBottom: D, gap: 8,
+            }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <span style={{ ...mono, fontSize: 11, color: '#A6FF4D', fontWeight: 900, letterSpacing: '0.12em' }}>_ RISK ENGINE</span>
+                    {aType !== 'crypto' && (
+                        <span style={{ ...mono, fontSize: 9, color: CAT_COLOR[aType] ?? '#4b5563', padding: '2px 6px', border: `1px solid ${CAT_COLOR[aType]}30`, borderRadius: 4, letterSpacing: '0.08em', textTransform: 'uppercase' }}>
+                            {aType}
                         </span>
                     )}
-                    <span className={styles.headerLimit}>
-                        GUARD: <strong className={remainingToday < (account.dailyLossLimit * 0.2) ? styles.danger : ''}>${remainingToday.toFixed(0)}</strong>
-                    </span>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    {todayCount > 0 && (
+                        <span style={{ ...mono, fontSize: 10, color: '#4b5563', padding: '2px 7px', border: D, borderRadius: 4 }}>
+                            {todayCount} logged
+                        </span>
+                    )}
+                    <motion.span
+                        animate={guardDanger ? { opacity: [1, 0.5, 1] } : {}}
+                        transition={{ duration: 0.9, repeat: Infinity }}
+                        style={{
+                            ...mono, fontSize: 10, fontWeight: 800, padding: '3px 9px', borderRadius: 4,
+                            color: guardColor,
+                            border: `1px solid ${guardColor}50`,
+                            background: `${guardColor}0a`,
+                        }}
+                    >
+                        GUARD ${remaining.toFixed(0)}
+                    </motion.span>
                 </div>
             </div>
 
-            {/* ── Visual Calculator Form ── */}
-            <div className={styles.formPanel}>
-                <div className={styles.formRow}>
-                    <div className={styles.formField}>
-                        <label className={styles.formLabel}>Asset</label>
+            {/* ── 2. ASSET CHIP RAIL ────────────────────────────────── */}
+            <div style={{
+                display: 'flex', gap: 5, padding: '10px 16px', borderBottom: D,
+                overflowX: 'auto', WebkitOverflowScrolling: 'touch',
+                scrollbarWidth: 'none', msOverflowStyle: 'none',
+            } as React.CSSProperties}>
+                {CHIPS.map(({ sym, cat }) => {
+                    const active = asset.toUpperCase() === sym.toUpperCase();
+                    const color  = CAT_COLOR[cat] ?? '#A6FF4D';
+                    return (
+                        <motion.button
+                            key={sym}
+                            whileTap={{ scale: 0.93 }}
+                            onClick={() => handleChip(sym)}
+                            style={{
+                                flexShrink: 0,
+                                ...mono, fontSize: 11, fontWeight: 800, letterSpacing: '0.04em',
+                                padding: '5px 11px', borderRadius: 7, cursor: 'pointer',
+                                border: active ? `1.5px solid ${color}` : D,
+                                background: active ? `${color}18` : '#0c0e13',
+                                color: active ? color : '#4b5563',
+                                transition: 'all 0.12s ease',
+                            }}
+                        >
+                            {sym}
+                        </motion.button>
+                    );
+                })}
+            </div>
+
+            <div style={{ padding: '12px 16px', display: 'flex', flexDirection: 'column', gap: 10 }}>
+
+                {/* ── 3. DIRECTION TOGGLE ──────────────────────────── */}
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 7 }}>
+                    {[false, true].map(short => {
+                        const active = isShort === short;
+                        const color  = short ? '#ff4757' : '#A6FF4D';
+                        const label  = short ? 'SHORT' : 'LONG';
+                        return (
+                            <motion.button
+                                key={label}
+                                whileTap={{ scale: 0.96 }}
+                                onClick={() => setIsShort(short)}
+                                style={{
+                                    ...mono, fontSize: 13, fontWeight: 900, letterSpacing: '0.12em',
+                                    padding: '14px 0', borderRadius: 10, cursor: 'pointer',
+                                    border: active ? `1.5px solid ${color}` : D,
+                                    background: active ? `${color}14` : '#0c0e13',
+                                    color: active ? color : '#4b5563',
+                                    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+                                    transition: 'all 0.13s ease',
+                                }}
+                            >
+                                {short
+                                    ? <TrendingDown size={15} color={active ? '#ff4757' : '#4b5563'} />
+                                    : <TrendingUp   size={15} color={active ? '#A6FF4D' : '#4b5563'} />
+                                }
+                                {label}
+                            </motion.button>
+                        );
+                    })}
+                </div>
+
+                {/* ── 4. INPUT CARD ────────────────────────────────── */}
+                <div style={cardBase}>
+                    {/* Asset */}
+                    <div style={{ padding: '12px 14px', borderBottom: D }}>
+                        <label style={lbl}>Asset</label>
                         <input
-                            className={styles.formInput}
-                            placeholder="BTC, SOL, MNQ…"
-                            value={formAsset}
-                            onChange={e => setFormAsset(e.target.value)}
+                            style={{ ...inp, fontSize: 16, color: '#fff', textTransform: 'uppercase' }}
+                            placeholder="BTC · SOL · MNQ · ES · EUR/USD…"
+                            value={asset}
+                            onChange={e => setAsset(e.target.value.toUpperCase())}
+                        />
+                        <span style={{ ...mono, fontSize: 10, color: CAT_COLOR[aType] ?? '#4b5563', marginTop: 3, display: 'block' }}>
+                            {aType.toUpperCase()}
+                            {spec ? ` · $${spec.pointValue}/pt · ${spec.label}` : ''}
+                        </span>
+                    </div>
+
+                    {/* Entry */}
+                    <div style={{ padding: '12px 14px', borderBottom: D }}>
+                        <label style={lbl}>Entry Price</label>
+                        <input
+                            ref={entryRef}
+                            style={inp}
+                            type="number"
+                            placeholder="0.00"
+                            inputMode="decimal"
+                            value={entry}
+                            onChange={e => setEntry(e.target.value)}
                         />
                     </div>
-                    <div className={styles.formField}>
-                        <label className={styles.formLabel}>Direction</label>
-                        <div className={styles.dirToggle}>
-                            <button className={`${styles.dirBtn} ${formDir === 'buy' ? styles.dirBtnBuy : ''}`} onClick={() => setFormDir('buy')}>BUY</button>
-                            <button className={`${styles.dirBtn} ${formDir === 'sell' ? styles.dirBtnSell : ''}`} onClick={() => setFormDir('sell')}>SELL</button>
+
+                    {/* Stop Loss */}
+                    <div style={{ padding: '12px 14px', borderBottom: D }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                            <span style={{ ...lbl, marginBottom: 0 }}>Stop Loss</span>
+                            {entryN > 0 && stopN > 0 && Math.abs(entryN - stopN) > 0 && (
+                                <span style={{ ...mono, fontSize: 11, color: '#ff4757', fontWeight: 800 }}>
+                                    {((Math.abs(entryN - stopN) / entryN) * 100).toFixed(2)}% away
+                                </span>
+                            )}
                         </div>
-                    </div>
-                    <div className={styles.formField}>
-                        <label className={styles.formLabel}>Entry Price</label>
                         <input
-                            className={styles.formInput}
+                            style={inp}
                             type="number"
-                            placeholder="95000"
-                            value={formEntry}
-                            onChange={e => setFormEntry(e.target.value)}
+                            placeholder={isShort ? 'above entry' : 'below entry'}
+                            inputMode="decimal"
+                            value={stop}
+                            onChange={e => setStop(e.target.value)}
                         />
                     </div>
-                    <div className={styles.formField}>
-                        <label className={styles.formLabel}>Stop Loss</label>
+
+                    {/* Take Profit */}
+                    <div style={{ padding: '12px 14px', borderBottom: D }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                            <span style={{ ...lbl, marginBottom: 0 }}>Take Profit</span>
+                            <span style={{ ...mono, fontSize: 10, color: '#4b5563' }}>optional · 2R auto-set</span>
+                        </div>
                         <input
-                            className={styles.formInput}
+                            style={inp}
                             type="number"
-                            placeholder="93500"
-                            value={formStop}
-                            onChange={e => setFormStop(e.target.value)}
+                            placeholder={result ? fmtPrice(result.tp) + ' (auto 2R)' : '0.00'}
+                            inputMode="decimal"
+                            value={tp}
+                            onChange={e => setTp(e.target.value)}
                         />
                     </div>
-                    <div className={styles.formField}>
-                        <label className={styles.formLabel}>Risk $ <span style={{ fontWeight: 400, opacity: 0.5 }}>(default ${maxTradeRisk.toFixed(0)})</span></label>
+
+                    {/* Risk $ */}
+                    <div style={{ padding: '12px 14px' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                            <span style={{ ...lbl, marginBottom: 0 }}>Risk $</span>
+                            <button
+                                onClick={() => setRiskStr(safeRisk.toFixed(0))}
+                                style={{ ...mono, fontSize: 10, color: '#A6FF4D', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
+                            >
+                                use ${safeRisk.toFixed(0)} safe
+                            </button>
+                        </div>
                         <input
-                            className={styles.formInput}
+                            style={inp}
                             type="number"
-                            placeholder={maxTradeRisk.toFixed(0)}
-                            value={formRisk}
-                            onChange={e => setFormRisk(e.target.value)}
+                            placeholder={safeRisk.toFixed(0)}
+                            inputMode="decimal"
+                            value={riskStr}
+                            onChange={e => setRiskStr(e.target.value)}
                         />
                     </div>
                 </div>
-                <button
-                    className={styles.calcBtn}
-                    onClick={handleFormCalc}
-                    disabled={!formEntry || !formStop}
-                >
-                    <ShieldCheck size={14} />
-                    Calculate Position
-                </button>
-            </div>
 
-            <div className={styles.logArea}>
-                {logs.length === 0 ? (
-                    <div className={styles.emptyState}>
-                        <ShieldCheck size={28} strokeWidth={1.5} />
-                        <p>Fill in the form above and hit<br /><strong>Calculate Position</strong> to get your lot size</p>
-                        <span className={styles.emptyHint}>Or type <code>help</code> for advanced commands</span>
-                    </div>
-                ) : (
-                    <AnimatePresence>
-                        {logs.map(log => (
-                            <motion.div key={log.id} className={styles.block} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
-                                <div className={styles.cmdEcho}>
-                                    &gt; <span>{log.cmd}</span>
+                {/* ── 5. LIVE RESULT CARD ──────────────────────────── */}
+                <AnimatePresence mode="wait">
+                    {result ? (
+                        <motion.div
+                            key="result"
+                            initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }}
+                            transition={{ ease: [0.16, 1, 0.3, 1], duration: 0.32 }}
+                            style={{ ...cardBase, border: result.bad ? '1px solid rgba(255,71,87,0.35)' : result.warnings.length > 0 ? '1px solid rgba(234,179,8,0.3)' : '1px solid rgba(166,255,77,0.2)' }}
+                        >
+                            {/* Numbers strip */}
+                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', padding: '14px 14px 10px' }}>
+                                {[
+                                    {
+                                        lbl: 'POSITION SIZE',
+                                        val: fmtSize(result.size, result.unit),
+                                        sub: result.unit,
+                                        clr: '#fff',
+                                    },
+                                    {
+                                        lbl: 'NOTIONAL',
+                                        val: result.notional >= 1000
+                                            ? `$${(result.notional / 1000).toFixed(1)}K`
+                                            : `$${result.notional.toFixed(0)}`,
+                                        sub: `fee $${result.comm.toFixed(2)}`,
+                                        clr: '#e2e8f0',
+                                    },
+                                    {
+                                        lbl: 'R:R RATIO',
+                                        val: `${result.rr.toFixed(2)}R`,
+                                        sub: `+$${result.reward.toFixed(0)}`,
+                                        clr: result.rr >= 2 ? '#A6FF4D' : result.rr >= 1.5 ? '#EAB308' : '#ff4757',
+                                    },
+                                ].map((s, i) => (
+                                    <div key={i} style={{
+                                        paddingRight: i < 2 ? 10 : 0,
+                                        paddingLeft:  i > 0 ? 10 : 0,
+                                        borderRight:  i < 2 ? D  : 'none',
+                                    }}>
+                                        <span style={{ ...lbl, marginBottom: 4 }}>{s.lbl}</span>
+                                        <span style={{ ...mono, fontSize: 20, fontWeight: 900, color: s.clr, lineHeight: 1, display: 'block', letterSpacing: '-0.02em' }}>{s.val}</span>
+                                        <span style={{ ...mono, fontSize: 10, color: '#4b5563', display: 'block', marginTop: 3 }}>{s.sub}</span>
+                                    </div>
+                                ))}
+                            </div>
+
+                            {/* TP row */}
+                            <div style={{ padding: '8px 14px', borderTop: D, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                <span style={{ ...mono, fontSize: 10, color: '#4b5563', letterSpacing: '0.08em', textTransform: 'uppercase' }}>
+                                    {result.tpAuto ? '2R AUTO TP' : 'TARGET'}
+                                </span>
+                                <span style={{ ...mono, fontSize: 13, fontWeight: 800, color: isShort ? '#ff4757' : '#A6FF4D' }}>
+                                    {fmtPrice(result.tp)}
+                                </span>
+                            </div>
+
+                            {/* Leverage + stop % row */}
+                            <div style={{ padding: '7px 14px', borderTop: D, display: 'flex', justifyContent: 'space-between' }}>
+                                <span style={{ ...mono, fontSize: 10, color: result.overLev ? '#ff4757' : '#4b5563' }}>
+                                    Leverage {result.levUsed.toFixed(2)}x / {result.levMax}x
+                                </span>
+                                <span style={{ ...mono, fontSize: 10, color: '#4b5563' }}>
+                                    SL {result.stopPct.toFixed(2)}% from entry
+                                </span>
+                            </div>
+
+                            {/* Micro-scalp reminder (Tradeify crypto) */}
+                            {result.isMicro && (
+                                <div style={{ padding: '7px 14px', borderTop: D, display: 'flex', alignItems: 'center', gap: 7, background: 'rgba(234,179,8,0.04)' }}>
+                                    <Zap size={11} color="#EAB308" />
+                                    <span style={{ ...mono, fontSize: 10, color: '#EAB308' }}>Hold ≥ 20 seconds — Tradeify microscalping rule</span>
                                 </div>
+                            )}
 
-                                {log.aiMeta === 'ai' ? (
-                                    <div className={styles.responseBox}>
-                                        <span className={styles.resTitle}><Brain size={11} style={{ display: 'inline', marginRight: 4 }} />AI SYSTEM STATUS</span>
-                                        {(() => {
-                                            const g = (log.aiData?.guardian as any);
-                                            const b = (log.aiData?.behavior as any);
-                                            if (!g) return null;
-                                            return (
-                                                <div className={`text-[12px] mt-2 space-y-1`}>
-                                                    <div className="flex justify-between"><span className="text-muted">Survival Status</span><span className={`font-bold ${g.survivalStatus === 'safe' ? 'text-success' : g.survivalStatus === 'caution' ? 'text-warning' : 'text-danger'}`}>{g.survivalStatus?.toUpperCase()}</span></div>
-                                                    <div className="flex justify-between"><span className="text-muted">Daily Remaining</span><span className="font-mono font-bold">${g.remainingDaily?.toFixed(0)}</span></div>
-                                                    <div className="flex justify-between"><span className="text-muted">Safe Risk/Trade</span><span className="font-mono font-bold text-accent">${g.safeRisk?.toFixed(0)}</span></div>
-                                                    <div className="flex justify-between"><span className="text-muted">Trades Left</span><span className="font-mono font-bold">{g.maxTradesLeft}</span></div>
-                                                    <div className="flex justify-between"><span className="text-muted">Emotional State</span><span className={`font-bold ${b?.emotionalState === 'disciplined' ? 'text-success' : b?.emotionalState === 'cautious' ? 'text-warning' : 'text-danger'}`}>{b?.emotionalState?.toUpperCase()}</span></div>
-                                                    <div className="mt-2 text-muted italic text-[11px]">{g.recommendation}</div>
-                                                </div>
-                                            );
-                                        })()}
-                                    </div>
-                                ) : log.aiMeta === 'coach' ? (
-                                    <div className={styles.responseBox}>
-                                        <span className={styles.resTitle}><Brain size={11} style={{ display: 'inline', marginRight: 4 }} />AI COACHING REPORT</span>
-                                        {(() => {
-                                            const r = (log.aiData?.report as any);
-                                            if (!r) return null;
-                                            return (
-                                                <div className="text-[12px] mt-2 space-y-1">
-                                                    <div className="flex justify-between"><span className="text-muted">Session Trades</span><span className="font-mono font-bold">{r.trades}</span></div>
-                                                    <div className="flex justify-between"><span className="text-muted">Net P&L</span><span className={`font-mono font-bold ${r.netProfit >= 0 ? 'text-success' : 'text-danger'}`}>{r.netProfit >= 0 ? '+' : ''}${r.netProfit?.toFixed(0)}</span></div>
-                                                    <div className="flex justify-between"><span className="text-muted">Discipline Grade</span><span className="font-bold text-accent">{r.disciplineGrade}</span></div>
-                                                    <div className="flex justify-between"><span className="text-muted">Revenge Trades</span><span className={`font-bold ${r.revengeTradesDetected > 0 ? 'text-danger' : 'text-success'}`}>{r.revengeTradesDetected}</span></div>
-                                                    {r.strengths?.length > 0 && <div className="mt-1 text-success text-[11px]">✅ {r.strengths[0]}</div>}
-                                                    {r.weaknesses?.length > 0 && <div className="text-danger text-[11px]">⚠️ {r.weaknesses[0]}</div>}
-                                                    <div className="mt-2 text-muted italic text-[11px]">{r.tomorrowFocus}</div>
-                                                </div>
-                                            );
-                                        })()}
-                                    </div>
-                                ) : log.aiMeta === 'strategy' ? (
-                                    <div className={styles.responseBox}>
-                                        <span className={styles.resTitle}><Target size={11} style={{ display: 'inline', marginRight: 4 }} />PERSONAL RULEBOOK</span>
-                                        {(() => {
-                                            const s = (log.aiData?.strategy as any);
-                                            if (!s) return null;
-                                            return (
-                                                <div className="text-[12px] mt-2 space-y-1">
-                                                    <p className="text-muted italic text-[11px] mb-2">{s.aiRulesSummary}</p>
-                                                    {s.bestConditions?.length > 0 && <div className="text-success text-[11px]">✅ Best: {s.bestConditions.join(' · ')}</div>}
-                                                    {s.worstConditions?.length > 0 && <div className="text-danger text-[11px]">❌ Avoid: {s.worstConditions.join(' · ')}</div>}
-                                                    <div className="flex justify-between mt-1"><span className="text-muted">Top Asset</span><span className="font-bold text-accent">{s.topAsset}</span></div>
-                                                    <div className="flex justify-between"><span className="text-muted">Floor R:R</span><span className="font-bold">{s.optimalRRFloor}R</span></div>
-                                                </div>
-                                            );
-                                        })()}
-                                    </div>
-                                ) : log.aiMeta === 'journal' ? (
-                                    <div className={styles.responseBox}>
-                                        <span className={styles.resTitle}><Zap size={11} style={{ display: 'inline', marginRight: 4 }} />AI JOURNAL INSIGHTS</span>
-                                        {(() => {
-                                            const ins = (log.aiData?.insights as any);
-                                            if (!ins) return null;
-                                            return (
-                                                <div className="text-[12px] mt-2 space-y-1">
-                                                    <p className="text-muted italic text-[11px] mb-1">{ins.dailySummary}</p>
-                                                    <div className="flex justify-between"><span className="text-muted">Win Rate</span><span className={`font-bold ${ins.winRate >= 55 ? 'text-success' : 'text-danger'}`}>{ins.winRate?.toFixed(0)}%</span></div>
-                                                    <div className="flex justify-between"><span className="text-muted">Expectancy</span><span className={`font-bold ${ins.expectancy >= 0 ? 'text-success' : 'text-danger'}`}>{ins.expectancy >= 0 ? '+' : ''}${ins.expectancy?.toFixed(0)}/trade</span></div>
-                                                    <div className="flex justify-between"><span className="text-muted">Best Setup</span><span className="font-bold text-accent">{ins.bestSetup}</span></div>
-                                                    <div className="mt-2 text-[var(--color-warning)] text-[11px] italic">{ins.aiCoachMessage}</div>
-                                                </div>
-                                            );
-                                        })()}
-                                    </div>
-                                ) : log.asset === 'SYSTEM' && log.entry === 0.1 ? (
-                                    <div className={styles.responseBox}>
-                                        <span className={styles.resTitle}>HUD HELP & SYNTAX</span>
-                                        <div className="text-[12px] mt-1 space-y-2 opacity-90">
-                                            <p className="text-[10px] text-muted uppercase tracking-wider font-bold mb-1">── TRADE COMMANDS ──</p>
-                                            <p><code className="text-accent">asset entry stop</code> - Calc size from stop price.</p>
-                                            <p><code className="text-accent">asset entry size</code> - Calc stop from contract size.</p>
-                                            <p><code className="text-accent">buy/sell</code> - Set SL direction explicitly.</p>
-                                            <p className="text-[10px] text-muted uppercase tracking-wider font-bold mt-2 mb-1">── AI COMMANDS ──</p>
-                                            <p><code className="text-accent">ai</code> - Full AI system status: guardian, behavior, safe risk.</p>
-                                            <p><code className="text-accent">coach</code> - End-of-session coaching report + discipline grade.</p>
-                                            <p><code className="text-accent">strategy</code> - Your personal AI rulebook from trade history.</p>
-                                            <p><code className="text-accent">journal</code> - AI journal: insights, expectancy, best setup.</p>
-                                            <p className="text-[10px] text-muted uppercase tracking-wider font-bold mt-2 mb-1">── ACCOUNT COMMANDS ──</p>
-                                            <p><code className="text-accent">stats</code> - View P&L and win rate summary.</p>
-                                            <p><code className="text-accent">balance [num]</code> - Update total account balance.</p>
-                                            <p><code className="text-accent">daily [num]</code> - Update daily loss limit.</p>
-                                            <p><code className="text-accent">reset</code> - Reset today's risk data.</p>
-                                            <p><code className="text-accent">settings | analytics | calc</code> - Fast navigation.</p>
-                                            <p><code className="text-accent">clear</code> - Wipes terminal logs.</p>
-                                        </div>
-                                    </div>
-                                ) : log.asset === 'PERFORMANCE' && log.entry === 0.3 ? (
-                                    <div className={styles.responseBox}>
-                                        <span className={styles.resTitle}>PERFORMANCE SUMMARY</span>
-                                        <div className={styles.grid2}>
-                                            <div className={styles.kv}><span className={styles.kvKey}>Total Trades</span><span className={styles.kvVal}>{log.size}</span></div>
-                                            <div className={styles.kv}><span className={styles.kvKey}>Win Rate</span><span className={styles.kvVal}>{log.tp.toFixed(1)}%</span></div>
-                                            <div className={styles.kv}><span className={styles.kvKey}>Realized PnL</span><span className={`${styles.kvVal} ${log.risk >= 0 ? 'text-success' : 'text-danger'}`}>{log.risk >= 0 ? '+' : ''}${log.risk.toFixed(2)}</span></div>
-                                            <div className={styles.kv}><span className={styles.kvKey}>Wins</span><span className={styles.kvVal} style={{ color: 'var(--color-success)' }}>{log.sl}</span></div>
-                                        </div>
-                                    </div>
-                                ) : log.entry === 0.4 ? (
-                                    <div className={styles.responseBox}>
-                                        <span className={styles.resTitle}>SYSTEM UPDATE</span>
-                                        <div className="text-[12px] text-accent font-bold">
-                                            {log.notices[0]}
-                                        </div>
-                                    </div>
-                                ) : log.asset === 'RULES' && log.entry === 0.2 ? (
-                                    <div className={styles.responseBox}>
-                                        <span className={`${styles.resTitle} ${styles.warn}`}>ACTIVE CONSTRAINTS</span>
-                                        <div className={styles.grid2}>
-                                            <div className={styles.kv}><span className={styles.kvKey}>Max Risk / Trade</span><span className={styles.kvVal}>${maxTradeRisk.toFixed(0)}</span></div>
-                                            <div className={styles.kv}><span className={styles.kvKey}>Daily Limit</span><span className={styles.kvVal}>${account.dailyLossLimit.toFixed(0)}</span></div>
-                                            <div className={styles.kv}><span className={styles.kvKey}>Drawdown Type</span><span className={styles.kvVal}>{account.drawdownType}</span></div>
-                                            <div className={styles.kv}><span className={styles.kvKey}>Firm Type</span><span className={styles.kvVal}>{account.propFirm || 'Default'}</span></div>
-                                        </div>
-                                    </div>
-                                ) : log.entry === 0 ? (
-                                    <div className={`${styles.responseBox} ${styles.resError}`}>
-                                        <span className={`${styles.resTitle} ${styles.fail}`}>ERROR: Parse Failed</span>
-                                        <div className="text-[12px] mt-1">System requires an entry price to calculate coordinates. Ensure command syntax is correct.</div>
-                                    </div>
-                                ) : (
-                                    <div className={`${styles.responseBox} ${log.warnings.length > 0 ? styles.resWarn : ''}`}>
-                                        <div className="flex justify-between items-start">
-                                            <span className={`${styles.resTitle} ${log.warnings.length > 0 ? styles.warn : styles.safe}`}>
-                                                {log.warnings.length > 0 ? 'REVIEW BEFORE EXECUTING' : 'READY TO LOG'}
-                                            </span>
-                                            {(() => {
-                                                const isDanger = log.aiEmotionalState === 'revenge' || log.aiEmotionalState === 'stressed';
-                                                const needsOverride = isDanger && overrideConfirm !== log.id;
-                                                return needsOverride ? (
-                                                    <button
-                                                        onClick={() => setOverrideConfirm(log.id)}
-                                                        className="bg-[rgba(255,149,0,0.1)] border border-[rgba(255,149,0,0.4)] px-2 py-0.5 rounded text-[10px] font-bold text-[var(--color-warning)] hover:bg-[rgba(255,149,0,0.2)] transition-colors"
-                                                    >
-                                                        Confirm behavioral override
-                                                    </button>
-                                                ) : isDanger && overrideConfirm === log.id ? (
-                                                    <div className="flex gap-1 items-center">
-                                                        <span className="text-[10px] text-[var(--color-warning)] font-bold">Override and log trade?</span>
-                                                        <button onClick={() => { handleExecute(log); setOverrideConfirm(null); }} className="bg-[rgba(255,149,0,0.1)] border border-[rgba(255,149,0,0.3)] px-2 py-0.5 rounded text-[10px] font-bold text-[var(--color-warning)] hover:bg-[rgba(255,149,0,0.2)] transition-colors">LOG IT</button>
-                                                        <button onClick={() => setOverrideConfirm(null)} className="bg-white/5 border border-white/10 px-2 py-0.5 rounded text-[10px] font-bold text-muted hover:bg-white/10 transition-colors">CANCEL</button>
-                                                    </div>
-                                                ) : (
-                                                    <button
-                                                        onClick={() => handleExecute(log)}
-                                                        className={`px-3 py-1 rounded text-[10px] font-bold transition-colors ${log.warnings.length > 0 ? 'bg-[rgba(255,149,0,0.1)] border border-[rgba(255,149,0,0.3)] text-[var(--color-warning)] hover:bg-[rgba(255,149,0,0.2)]' : 'bg-accent/10 border border-accent/20 text-accent hover:bg-accent hover:text-black'}`}
-                                                    >
-                                                        {log.warnings.length > 0 ? 'LOG ANYWAY' : 'LOG TRADE'}
-                                                    </button>
-                                                );
-                                            })()}
-                                        </div>
+                            {/* Warnings */}
+                            {result.warnings.map((w, i) => (
+                                <div key={i} style={{
+                                    padding: '8px 14px', borderTop: D,
+                                    display: 'flex', alignItems: 'center', gap: 7,
+                                    background: w.includes('Leverage') || w.includes('daily') ? 'rgba(255,71,87,0.05)' : 'rgba(234,179,8,0.04)',
+                                }}>
+                                    <AlertTriangle size={11} color={w.includes('Leverage') || w.includes('daily') ? '#ff4757' : '#EAB308'} />
+                                    <span style={{ ...mono, fontSize: 11, color: w.includes('Leverage') || w.includes('daily') ? '#ff4757' : '#EAB308' }}>{w}</span>
+                                </div>
+                            ))}
+                        </motion.div>
+                    ) : (
+                        entryN > 0 && stopN > 0 && (
+                            <motion.div
+                                key="hint"
+                                initial={{ opacity: 0 }} animate={{ opacity: 1 }}
+                                style={{ ...mono, fontSize: 11, color: '#4b5563', textAlign: 'center', padding: '14px 0' }}
+                            >
+                                {!isShort && stopN >= entryN ? 'Long position: stop must be BELOW entry' :
+                                  isShort && stopN <= entryN ? 'Short position: stop must be ABOVE entry' : ''}
+                            </motion.div>
+                        )
+                    )}
+                </AnimatePresence>
 
-                                        {/* Warnings — shown but never block */}
-                                        {log.warnings.length > 0 && (
-                                            <div className="flex flex-col gap-1 mt-1 mb-1">
-                                                {log.warnings.map((w, i) => (
-                                                    <div key={`w-${i}`} className="text-[11px] text-[var(--color-warning)] font-semibold flex items-center gap-1">
-                                                        <span style={{ opacity: 0.6 }}>!</span> {w}
-                                                    </div>
-                                                ))}
-                                            </div>
-                                        )}
+                {/* ── 6. LOG TRADE CTA ─────────────────────────────── */}
+                <AnimatePresence>
+                    {result && (
+                        <motion.div
+                            key="cta"
+                            initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
+                            transition={{ ease: [0.16, 1, 0.3, 1], duration: 0.3 }}
+                        >
+                            <motion.button
+                                onClick={handleLog}
+                                whileTap={{ scale: 0.97 }}
+                                disabled={logged}
+                                style={{
+                                    width: '100%',
+                                    ...mono, fontSize: 13, fontWeight: 900, letterSpacing: '0.1em',
+                                    padding: '16px 0', borderRadius: 11, cursor: logged ? 'default' : 'pointer',
+                                    border: 'none',
+                                    background: logged
+                                        ? '#0d1a06'
+                                        : result.bad
+                                            ? '#1a0f0f'
+                                            : '#A6FF4D',
+                                    color: logged
+                                        ? '#A6FF4D'
+                                        : result.bad
+                                            ? '#ff4757'
+                                            : '#000',
+                                    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 9,
+                                    transition: 'all 0.18s ease',
+                                }}
+                            >
+                                {logged
+                                    ? <><Check size={15} /> TRADE LOGGED</>
+                                    : result.bad
+                                        ? <><AlertTriangle size={15} /> LOG ANYWAY (RISKY)</>
+                                        : <><BookmarkPlus size={15} /> LOG TRADE</>
+                                }
+                            </motion.button>
+                        </motion.div>
+                    )}
+                </AnimatePresence>
 
-                                        <div className={styles.grid2}>
-                                            <div className={styles.kv}><span className={styles.kvKey}>Entry</span><span className={styles.kvVal}>${log.entry.toLocaleString()}</span></div>
-                                            <div className={styles.kv}><span className={styles.kvKey}>Position Size</span><span className={styles.kvVal}>{log.size.toLocaleString(undefined, { maximumFractionDigits: 5 })} units</span></div>
-                                            <div className={styles.kv}><span className={styles.kvKey}>Stop Loss</span><span className={`${styles.kvVal} text-danger`}>{log.sl.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 5 })}</span></div>
-                                            <div className={styles.kv}><span className={styles.kvKey}>Take Profit</span><span className={`${styles.kvVal} text-success`}>{log.tp.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 5 })}</span></div>
-                                            <div className={styles.kv}><span className={styles.kvKey}>Risk</span><span className={`${styles.kvVal} text-danger`}>${log.risk.toFixed(0)}</span></div>
-                                            <div className={styles.kv}><span className={styles.kvKey}>R:R</span><span className={styles.kvVal}>{log.rr.toFixed(1)}R</span></div>
-                                        </div>
-                                        {/* AI Quality Badge */}
-                                        {log.aiGrade && (
-                                            <div className={styles.aiBadgeRow}>
-                                                <div className={`${styles.aiBadge} ${log.aiGrade.startsWith('A') ? styles.aiBadgeA : log.aiGrade.startsWith('B') ? styles.aiBadgeB : styles.aiBadgeC}`}>
-                                                    <Brain size={10} /> Grade: {log.aiGrade} · {log.aiScore}/100
-                                                </div>
-                                                <div className={`${styles.aiBadge} ${log.aiGuardianStatus === 'safe' ? styles.aiBadgeA : log.aiGuardianStatus === 'caution' ? styles.aiBadgeWarn : styles.aiBadgeC}`}>
-                                                    <ShieldCheck size={10} /> {log.aiGuardianStatus?.toUpperCase()}
-                                                </div>
-                                                <div className={`${styles.aiBadge} ${log.aiEmotionalState === 'disciplined' ? styles.aiBadgeA : log.aiEmotionalState === 'cautious' ? styles.aiBadgeWarn : styles.aiBadgeC}`}>
-                                                    <Zap size={10} /> {log.aiEmotionalState?.toUpperCase()}
-                                                </div>
+                {/* ── 7. QUICK RESET ───────────────────────────────── */}
+                {(entry || stop || tp || riskStr) && (
+                    <button
+                        onClick={() => { setEntry(''); setStop(''); setTp(''); setRiskStr(''); }}
+                        style={{
+                            ...mono, fontSize: 10, color: '#4b5563', background: 'none', border: 'none',
+                            cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5,
+                            padding: '4px 0', letterSpacing: '0.06em', textTransform: 'uppercase',
+                        }}
+                    >
+                        <RotateCcw size={10} /> Clear fields
+                    </button>
+                )}
+
+                {/* ── 8. EMPTY STATE ───────────────────────────────── */}
+                {!entry && !stop && (
+                    <motion.div
+                        initial={{ opacity: 0 }} animate={{ opacity: 1 }}
+                        transition={{ delay: 0.3 }}
+                        style={{ padding: '8px 0 4px', display: 'flex', flexDirection: 'column', gap: 4 }}
+                    >
+                        <span style={{ ...mono, fontSize: 10, color: '#4b5563', letterSpacing: '0.06em', textTransform: 'uppercase' }}>Quick examples</span>
+                        {[
+                            { label: 'BTC Long',    cmd: 'btc 95000 stop93500' },
+                            { label: 'MNQ Short',   cmd: 'sell mnq 21000 stop21030 risk250' },
+                            { label: 'SOL scalp',   cmd: 'sol 185 stop182 target192' },
+                            { label: 'EUR/USD',     cmd: 'buy eur/usd 1.0900 stop1.0850' },
+                        ].map(ex => (
+                            <button
+                                key={ex.cmd}
+                                onClick={() => processNLP(ex.cmd)}
+                                style={{
+                                    ...mono, fontSize: 11, color: '#4b5563', background: '#0c0e13',
+                                    border: D, borderRadius: 7, padding: '8px 12px', cursor: 'pointer',
+                                    textAlign: 'left', letterSpacing: '0.04em',
+                                    display: 'flex', justifyContent: 'space-between',
+                                }}
+                            >
+                                <span style={{ color: '#8b949e' }}>{ex.label}</span>
+                                <span style={{ color: '#4b5563' }}>{ex.cmd}</span>
+                            </button>
+                        ))}
+                    </motion.div>
+                )}
+
+                {/* ── 9. NLP COMMAND BAR ───────────────────────────── */}
+                <div style={cardBase}>
+                    <button
+                        onClick={() => setNlpOpen(v => !v)}
+                        style={{
+                            width: '100%', background: 'none', border: 'none', cursor: 'pointer',
+                            padding: '11px 14px', display: 'flex', alignItems: 'center', gap: 8,
+                        }}
+                    >
+                        <Terminal size={12} color="#4b5563" />
+                        <span style={{ ...mono, fontSize: 11, color: '#4b5563', flex: 1, textAlign: 'left' }}>
+                            Command bar
+                        </span>
+                        <span style={{ ...mono, fontSize: 10, color: '#4b5563' }}>
+                            e.g. sell mnq 21000 stop21030
+                        </span>
+                        {nlpOpen ? <ChevronUp size={11} color="#4b5563" /> : <ChevronDown size={11} color="#4b5563" />}
+                    </button>
+
+                    <AnimatePresence>
+                        {nlpOpen && (
+                            <motion.div
+                                key="nlp"
+                                initial={{ height: 0, opacity: 0 }}
+                                animate={{ height: 'auto', opacity: 1 }}
+                                exit={{ height: 0, opacity: 0 }}
+                                transition={{ ease: [0.16, 1, 0.3, 1], duration: 0.28 }}
+                                style={{ overflow: 'hidden' }}
+                            >
+                                {/* Log */}
+                                {nlpLogs.length > 0 && (
+                                    <div style={{ maxHeight: 180, overflowY: 'auto', borderTop: D }}>
+                                        {nlpLogs.map(l => (
+                                            <div key={l.id} style={{ padding: '7px 14px', borderBottom: D }}>
+                                                <div style={{ ...mono, fontSize: 10, color: '#4b5563' }}>&gt; {l.cmd}</div>
+                                                <div style={{
+                                                    ...mono, fontSize: 11, color: l.ok ? '#8b949e' : '#ff4757',
+                                                    marginTop: 2, whiteSpace: 'pre-wrap', lineHeight: 1.5,
+                                                }}>{l.out}</div>
                                             </div>
-                                        )}
-                                        {log.notices.length > 0 && (
-                                            <div className="flex flex-col gap-1 mt-1">
-                                                {log.notices.map((n, i) => (
-                                                    <div key={`n-${i}`} className="text-[11px] text-[#888] font-mono">ℹ {n}</div>
-                                                ))}
-                                            </div>
-                                        )}
+                                        ))}
+                                        <div ref={nlpEndRef} />
                                     </div>
                                 )}
-                            </motion.div>
-                        ))}
-                    </AnimatePresence>
-                )}
-                <div ref={endRef} />
-            </div>
 
-            <div className={styles.inputArea}>
-                <span className={styles.promptSymbol}>&gt;</span>
-                <input
-                    ref={inputRef}
-                    className={styles.input}
-                    value={input}
-                    onChange={e => setInput(e.target.value)}
-                    onKeyDown={handleKeyDown}
-                    onFocus={handleInputFocus}
-                    placeholder="Enter command (e.g. sol 91.65 800) and press Enter"
-                    autoFocus
-                    autoComplete="off"
-                    spellCheck="false"
-                />
+                                {/* Input */}
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 0, borderTop: D, padding: '0 14px' }}>
+                                    <span style={{ ...mono, fontSize: 12, color: '#A6FF4D', marginRight: 8 }}>&gt;</span>
+                                    <input
+                                        ref={nlpRef}
+                                        style={{
+                                            flex: 1, ...mono, fontSize: 12, color: '#e2e8f0',
+                                            background: 'none', border: 'none', outline: 'none',
+                                            padding: '13px 0',
+                                        }}
+                                        placeholder="btc 95000 stop93500 risk500 · type help"
+                                        value={nlpInput}
+                                        onChange={e => setNlpInput(e.target.value)}
+                                        onKeyDown={handleNlpKey}
+                                    />
+                                    <motion.button
+                                        whileTap={{ scale: 0.94 }}
+                                        onClick={() => processNLP(nlpInput)}
+                                        style={{
+                                            ...mono, fontSize: 11, fontWeight: 900, color: '#A6FF4D',
+                                            background: 'none', border: 'none', cursor: 'pointer',
+                                            padding: '8px 0 8px 10px', letterSpacing: '0.08em',
+                                        }}
+                                    >
+                                        RUN
+                                    </motion.button>
+                                </div>
+                            </motion.div>
+                        )}
+                    </AnimatePresence>
+                </div>
+
             </div>
         </div>
     );
