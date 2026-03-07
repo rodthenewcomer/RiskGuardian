@@ -4,7 +4,7 @@ import styles from './JournalPage.module.css';
 import { useState, useMemo, useRef } from 'react';
 import { useAppStore } from '@/store/appStore';
 import { motion, AnimatePresence } from 'framer-motion';
-import { BookOpen, TrendingUp, TrendingDown, Activity, Upload, LayoutList, CalendarDays, ChevronLeft, ChevronRight, FileDown, FileText, Loader2 } from 'lucide-react';
+import { BookOpen, TrendingUp, TrendingDown, Activity, Upload, LayoutList, CalendarDays, ChevronLeft, ChevronRight, FileDown, FileText, Loader2, Trash2 } from 'lucide-react';
 import { TRADEIFY_CRYPTO_LIST, FUTURES_SPECS } from '@/store/appStore';
 
 function guessAssetType(symbol: string): 'crypto' | 'forex' | 'futures' | 'stocks' {
@@ -18,7 +18,7 @@ function guessAssetType(symbol: string): 'crypto' | 'forex' | 'futures' | 'stock
 }
 
 export default function JournalPage() {
-    const { trades, setTrades, updateTradeNote } = useAppStore();
+    const { trades, setTrades, deleteTrade, updateTradeNote } = useAppStore();
     const csvRef = useRef<HTMLInputElement>(null);
     const pdfRef = useRef<HTMLInputElement>(null);
     const [viewMode, setViewMode] = useState<'list' | 'calendar'>('list');
@@ -286,6 +286,20 @@ export default function JournalPage() {
                             <FileDown size={13} /> Export
                         </button>
                     )}
+                    {trades.length > 0 && (
+                        <button
+                            onClick={() => {
+                                if (window.confirm(`Delete all ${trades.length} trades? This cannot be undone.`)) {
+                                    setTrades([]);
+                                }
+                            }}
+                            className="btn btn--ghost btn--sm"
+                            title="Delete all trades"
+                            style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, color: 'var(--color-danger)', borderColor: 'rgba(255,71,87,0.3)' }}
+                        >
+                            <Trash2 size={13} /> Clear all
+                        </button>
+                    )}
                 </div>
             </div>
 
@@ -412,6 +426,15 @@ export default function JournalPage() {
                                     <span className="text-caption uppercase tracking-[0.1em]">
                                         {trade.outcome === 'win' ? 'WIN' : trade.outcome === 'loss' ? 'LOSS' : 'OPEN'}
                                     </span>
+                                    <button
+                                        onClick={() => deleteTrade(trade.id)}
+                                        title="Delete trade"
+                                        style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#4b5563', padding: '2px 0', lineHeight: 1 }}
+                                        onMouseEnter={e => (e.currentTarget.style.color = '#ff4757')}
+                                        onMouseLeave={e => (e.currentTarget.style.color = '#4b5563')}
+                                    >
+                                        <Trash2 size={13} />
+                                    </button>
                                 </div>
                             </div>
 

@@ -79,6 +79,7 @@ interface AppState {
     updateAccount: (settings: Partial<AccountSettings>) => void;
     addTrade: (trade: TradeSession) => void;
     setTrades: (trades: TradeSession[]) => void;
+    deleteTrade: (id: string) => void;
     updateTradeOutcome: (id: string, outcome: 'win' | 'loss' | 'open') => void;
     updateTradeNote: (id: string, note: string) => void;
     setActiveTab: (tab: AppState['activeTab']) => void;
@@ -149,6 +150,9 @@ export const useAppStore = create<AppState>()(
 
             setTrades: (newTrades: TradeSession[]) =>
                 set(() => ({ trades: newTrades })),
+
+            deleteTrade: (id) =>
+                set((s) => ({ trades: s.trades.filter((t) => t.id !== id) })),
 
             updateTradeOutcome: (id, outcome) =>
                 set((s) => ({
