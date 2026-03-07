@@ -104,6 +104,7 @@ export async function POST(req: NextRequest) {
                     { headers: authHeader(token) },
                 );
                 if (!res.ok) {
+                    if (res.status === 429) return NextResponse.json({ error: 'Rate limited by DXTrade — please wait a few minutes and try again' }, { status: 429 });
                     const err = await res.json().catch(() => ({})) as { description?: string };
                     return NextResponse.json({ error: err.description || 'Failed to fetch metrics' }, { status: res.status });
                 }
