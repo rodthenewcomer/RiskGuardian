@@ -2,8 +2,14 @@
 
 import styles from './SettingsPage.module.css';
 import { useState, useRef } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { useAppStore, PROP_FIRMS, type PropFirmPreset } from '@/store/appStore';
-import { Settings2, DollarSign, ShieldAlert, Check, RefreshCw, Building2, Bitcoin, LineChart, CandlestickChart, CircleDollarSign, Wifi, WifiOff, Loader2, Upload, FileText, RotateCcw } from 'lucide-react';
+import {
+    Settings2, DollarSign, ShieldAlert, Check, RefreshCw, Building2,
+    Bitcoin, LineChart, CandlestickChart, CircleDollarSign,
+    Wifi, WifiOff, Loader2, Upload, FileText, RotateCcw,
+    Brain, Download, Trash2, AlertTriangle,
+} from 'lucide-react';
 import { dxConnect, dxGetMetrics, dxGetHistory, dxGetPositions } from '@/lib/dxtradeSync';
 
 const getFirmLogo = (name: string) => {
@@ -14,14 +20,23 @@ const getFirmLogo = (name: string) => {
     return null;
 };
 
-export default function SettingsPage() {
-    const { account, updateAccount, resetTodaySession, resetOnboarding,
-        dxtradeConfig, dxtradeLastSync, setDXTradeConfig, setDXTradeLastSync,
-        setTrades, trades } = useAppStore();
-    const [saved, setSaved] = useState(false);
-    const [selectedFirm, setSelectedFirm] = useState<string | null>(null);
+const container = { visible: { transition: { staggerChildren: 0.07 } } };
+const sectionVariant = {
+    hidden: { opacity: 0, y: 14 },
+    visible: { opacity: 1, y: 0, transition: { duration: 0.28, ease: [0.25, 0.46, 0.45, 0.94] as [number, number, number, number] } },
+};
 
-    // DXTrade reconnect form state
+export default function SettingsPage() {
+    const {
+        account, updateAccount, resetTodaySession, resetOnboarding,
+        dxtradeConfig, dxtradeLastSync, setDXTradeConfig, setDXTradeLastSync,
+        setTrades, trades,
+    } = useAppStore();
+
+    const [saved, setSaved] = useState(false);
+    const [selectedFirm, setSelectedFirm] = useState<string | null>(account.propFirm || null);
+
+    // DXTrade form
     const [showDxForm, setShowDxForm] = useState(false);
     const [dxServer, setDxServer] = useState(dxtradeConfig?.server ?? 'dx.tradeifycrypto.co');
     const [dxUsername, setDxUsername] = useState(dxtradeConfig?.username ?? '');
@@ -36,6 +51,10 @@ export default function SettingsPage() {
     const [pdfBusy, setPdfBusy] = useState(false);
     const [pdfMsg, setPdfMsg] = useState('');
 
+    // Danger zone
+    const [clearConfirm, setClearConfirm] = useState(false);
+
+    // Account fields
     const startBalVal = account.startingBalance || account.balance || 10000;
     const initialDrawPct = account.maxDrawdownLimit ? (account.maxDrawdownLimit / startBalVal) * 100 : 10;
 
@@ -50,7 +69,13 @@ export default function SettingsPage() {
     const [maxDrawdownPct, setMaxDrawdownPct] = useState(String(initialDrawPct.toFixed(1)));
     const [maxTradesPerDay, setMaxTradesPerDay] = useState(String(account.maxTradesPerDay ?? ''));
 
-    // ── DXTrade: connect / reconnect ──────────────────────────────
+    // Behavioral guards
+    const [consecLossEnabled, setConsecLossEnabled] = useState(!!(account.maxConsecutiveLosses));
+    const [maxConsecLosses, setMaxConsecLosses] = useState(String(account.maxConsecutiveLosses ?? '3'));
+    const [coolDownEnabled, setCoolDownEnabled] = useState(!!(account.coolDownMinutes));
+    const [coolDownMins, setCoolDownMins] = useState(String(account.coolDownMinutes ?? '15'));
+
+    // ── DXTrade ─────────────────────────────────────────────────────
     async function handleDXConnect() {
         if (!dxUsername || !dxPassword) { setDxError('Username and password required'); return; }
         setDxBusy(true); setDxError(''); setDxProgress('');
@@ -58,7 +83,6 @@ export default function SettingsPage() {
             const result = await dxConnect(dxServer, dxUsername, dxDomain, dxPassword, setDxProgress);
             setDXTradeConfig({ server: dxServer, username: dxUsername, domain: dxDomain, accountCode: result.accountCode, token: result.token, connectedAt: new Date().toISOString() });
             setDXTradeLastSync(new Date().toISOString());
-            // Merge DXTrade trades with any existing manual trades (deduplicate by id)
             const dxIds = new Set([...result.trades, ...result.positions].map(t => t.id));
             const manual = trades.filter(t => !dxIds.has(t.id) && !t.id.startsWith('dxtrade-'));
             setTrades([...result.positions, ...result.trades, ...manual]);
@@ -71,7 +95,6 @@ export default function SettingsPage() {
         } finally { setDxBusy(false); }
     }
 
-    // ── DXTrade: sync now (use stored token, refresh if needed) ──
     async function handleDXSync() {
         if (!dxtradeConfig) return;
         setDxBusy(true); setDxError(''); setDxProgress('Syncing live data…');
@@ -82,7 +105,6 @@ export default function SettingsPage() {
                 dxGetHistory(config, dxtradeLastSync ?? undefined),
                 dxGetPositions(config),
             ]);
-            // Deduplicate: keep manual trades, replace DXTrade ones
             const manual = trades.filter(t => !t.id.startsWith('dxtrade-'));
             setTrades([...positions, ...history, ...manual]);
             updateAccount({ balance: metrics.balance });
@@ -94,11 +116,9 @@ export default function SettingsPage() {
         } finally { setDxBusy(false); }
     }
 
-    // ── PDF import ────────────────────────────────────────────────
     async function handlePDFImport(e: React.ChangeEvent<HTMLInputElement>) {
         const file = e.target.files?.[0];
         if (!e.target) return;
-        // Reset input so same file can be re-imported
         (e.target as HTMLInputElement).value = '';
         if (!file) return;
         setPdfBusy(true); setPdfMsg('Parsing statement…');
@@ -106,7 +126,6 @@ export default function SettingsPage() {
             const { parseTradeifyPDF } = await import('@/lib/parseTradeifyPDF');
             const result = await parseTradeifyPDF(file);
             if (result.error) { setPdfMsg(`Error: ${result.error}`); return; }
-            // Merge: remove old PDF trades, keep DXTrade + manual, add new PDF trades
             const existing = trades.filter(t => !t.id.startsWith('tradeify-'));
             const pdfIds = new Set(result.trades.map(t => t.id));
             const merged = [...result.trades.map(t => ({ ...t, note: '' })), ...existing.filter(t => !pdfIds.has(t.id))];
@@ -117,25 +136,39 @@ export default function SettingsPage() {
         } finally { setPdfBusy(false); }
     }
 
+    function handleExportCSV() {
+        if (trades.length === 0) return;
+        const headers = ['id', 'asset', 'assetType', 'entry', 'stopLoss', 'takeProfit', 'lotSize', 'riskUSD', 'rewardUSD', 'rr', 'outcome', 'pnl', 'createdAt', 'closedAt', 'isShort'] as const;
+        const rows = trades.map(t => headers.map(h => {
+            const v = t[h as keyof typeof t];
+            return v === undefined ? '' : String(v);
+        }).join(','));
+        const csv = [headers.join(','), ...rows].join('\n');
+        const blob = new Blob([csv], { type: 'text/csv' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `riskguardian-trades-${new Date().toISOString().slice(0, 10)}.csv`;
+        a.click();
+        URL.revokeObjectURL(url);
+    }
+
     const handleSave = () => {
-        // Calculate max drawdown limit USD based on %
         const bal = parseFloat(balance) || account.balance;
         const startBal = parseFloat(startingBalance) || bal;
         const maxDrawUSD = (startBal * (parseFloat(maxDrawdownPct) || 0)) / 100;
-
         let leverage = account.leverage || 2;
-        if (propFirm?.includes('Tradeify Crypto')) {
+        if (propFirm?.includes('Tradeify')) {
             if (propFirmType.includes('Evaluation')) leverage = 5;
             else if (propFirmType === 'Instant Funding') leverage = 2;
         }
-
         updateAccount({
             balance: bal,
             dailyLossLimit: parseFloat(dailyLimit) || account.dailyLossLimit,
             maxDrawdownLimit: maxDrawUSD,
             maxRiskPercent: parseFloat(maxRisk) || account.maxRiskPercent,
             assetType,
-            propFirm: propFirm === 'Custom' ? '' : propFirm,
+            propFirm: propFirm === 'Custom (Build your own)' ? '' : propFirm,
             propFirmType: propFirmType as '1-Step Evaluation' | '2-Step Evaluation' | 'Instant Funding',
             drawdownType: drawdownType as 'EOD' | 'Trailing' | 'Static',
             leverage,
@@ -144,17 +177,19 @@ export default function SettingsPage() {
             isConsistencyActive: propFirmType === 'Instant Funding' || propFirm?.includes('Instant'),
             minHoldTimeSec: propFirm?.includes('Tradeify') ? 20 : 0,
             maxTradesPerDay: maxTradesPerDay ? parseInt(maxTradesPerDay) : undefined,
+            maxConsecutiveLosses: consecLossEnabled ? parseInt(maxConsecLosses) || 3 : undefined,
+            coolDownMinutes: coolDownEnabled ? parseInt(coolDownMins) || 15 : undefined,
         });
         setSaved(true);
-        setTimeout(() => setSaved(false), 2000);
+        setTimeout(() => setSaved(false), 2500);
     };
 
     const applyFirm = (firm: PropFirmPreset) => {
-        if (firm.dailyPct === 0) return; // custom
+        if (firm.dailyPct === 0) return;
         const bal = parseFloat(balance) || account.balance;
         const dl = Math.round((bal * firm.dailyPct) / 100);
         setDailyLimit(String(dl));
-        setMaxRisk(String((firm.dailyPct / 5).toFixed(1))); // per-trade = daily / 5
+        setMaxRisk(String((firm.dailyPct / 5).toFixed(1)));
         setSelectedFirm(firm.name);
         setPropFirm(firm.name);
         if (firm.propFirmType) setPropFirmType(firm.propFirmType);
@@ -163,326 +198,432 @@ export default function SettingsPage() {
     };
 
     const balNum = parseFloat(balance) || 0;
+    const activeFirm = PROP_FIRMS.find(f => f.name === selectedFirm);
 
     return (
-        <div className={styles.page}>
-            <div className={styles.pageHeader}>
+        <motion.div className={styles.page} variants={container} initial="hidden" animate="visible">
+
+            {/* ── Header ─────────────────────────────────────────── */}
+            <motion.div variants={sectionVariant} className={styles.pageHeader}>
                 <div className={styles.pageIcon}><Settings2 size={18} /></div>
                 <div>
                     <h1 className="text-subheading">Settings</h1>
-                    <p className="text-caption">Your trading rules & account config</p>
+                    <p className="text-caption">Risk rules, account & live connection</p>
                 </div>
-            </div>
+                <motion.button
+                    onClick={handleSave}
+                    className={`btn ${saved ? 'btn--success' : 'btn--primary'} btn--sm`}
+                    style={{ marginLeft: 'auto', flexShrink: 0, display: 'flex', alignItems: 'center', gap: 6 }}
+                    whileTap={{ scale: 0.94 }}
+                >
+                    {saved ? <><Check size={13} /> Saved!</> : <><Check size={13} /> Save</>}
+                </motion.button>
+            </motion.div>
 
-            {/* ─── Prop Firm Presets ─── */}
-            <div>
-                <div className="section-header">
-                    <span className="section-title">Prop Firm Presets</span>
-                    <Building2 size={14} className="text-muted" />
+            {/* ── 1. Prop Firm Presets ────────────────────────────── */}
+            <motion.div variants={sectionVariant}>
+                <div className={styles.sectionLabel}>
+                    <Building2 size={13} />
+                    <span>Prop Firm</span>
                 </div>
-                <div className={styles.firmGrid}>
-                    {PROP_FIRMS.map(firm => (
-                        <button
+                <div className={styles.firmRail}>
+                    {PROP_FIRMS.filter(f => f.dailyPct > 0).map(firm => (
+                        <motion.button
                             key={firm.name}
-                            className={`${styles.firmCard} ${selectedFirm === firm.name ? styles.firmCardActive : ''} ${firm.dailyPct === 0 ? styles.firmCardCustom : ''}`}
+                            className={`${styles.firmChip} ${selectedFirm === firm.name ? styles.firmChipActive : ''}`}
                             onClick={() => applyFirm(firm)}
-                            title={firm.name}
-                            style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px' }}
+                            whileTap={{ scale: 0.93 }}
                         >
-                            <div style={{ width: 24, height: 24, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                                {getFirmLogo(firm.name) ? (
-                                    <img src={getFirmLogo(firm.name) as string} alt={firm.name} style={{ width: '100%', height: '100%', borderRadius: 4, objectFit: 'contain' }} />
-                                ) : (
-                                    <Settings2 size={20} className="text-muted" />
-                                )}
-                            </div>
-                            {firm.dailyPct > 0 ? (
-                                <span className={styles.firmPct}>{firm.dailyPct}%/day</span>
-                            ) : (
-                                <span className={styles.firmPct}>custom</span>
+                            {getFirmLogo(firm.name) && (
+                                <img src={getFirmLogo(firm.name)!} alt="" style={{ width: 14, height: 14, borderRadius: 3, flexShrink: 0 }} />
                             )}
-                            {selectedFirm === firm.name && <div className={styles.firmCheck}><Check size={9} strokeWidth={3} /></div>}
-                        </button>
+                            <span className={styles.firmChipName}>{firm.short}</span>
+                            <span className={styles.firmChipType}>
+                                {firm.propFirmType === '1-Step Evaluation' ? '1S'
+                                    : firm.propFirmType === '2-Step Evaluation' ? '2S'
+                                        : 'IF'}
+                            </span>
+                        </motion.button>
                     ))}
+                    <motion.button
+                        className={`${styles.firmChip} ${styles.firmChipCustom} ${selectedFirm === 'Custom (Build your own)' ? styles.firmChipActive : ''}`}
+                        onClick={() => { setSelectedFirm('Custom (Build your own)'); setPropFirm('Custom (Build your own)'); }}
+                        whileTap={{ scale: 0.93 }}
+                    >
+                        <Settings2 size={12} style={{ flexShrink: 0 }} />
+                        <span className={styles.firmChipName}>Custom</span>
+                    </motion.button>
                 </div>
-                {selectedFirm && selectedFirm !== 'Custom' && (
-                    <div className="p-3 mt-4 bg-[rgba(166,255,77,0.05)] border border-[var(--accent)] rounded-lg">
-                        <p className="text-[13px] text-[#fff]">
-                            Activated <strong>{selectedFirm}</strong> configuration.
-                        </p>
-                        <p className="text-[11px] text-[var(--text-muted)] mt-1">
-                            Daily Limit: ${dailyLimit} · Max Risk/Trade: {maxRisk}% · Drawdown Mode: {drawdownType}
-                        </p>
-                        {selectedFirm.includes('Tradeify') && (
-                            <div className="mt-2 pt-2 border-t border-white/5 text-[10px] text-accent/80 font-bold uppercase tracking-wider">
-                                ⚡ Tradeify Crypto Rules: 0.04% Fee · 20s Min Hold · 5x BTC/ETH · 2x Alts
+
+                <AnimatePresence>
+                    {activeFirm && (
+                        <motion.div
+                            className={styles.firmActiveBanner}
+                            initial={{ opacity: 0, height: 0 }}
+                            animate={{ opacity: 1, height: 'auto' }}
+                            exit={{ opacity: 0, height: 0 }}
+                            style={{ overflow: 'hidden' }}
+                        >
+                            <div className={styles.firmBannerRow}>
+                                <span className={styles.firmBannerName}>{activeFirm.name}</span>
+                                <span className={styles.firmBannerBadge}>{propFirmType}</span>
                             </div>
-                        )}
-                    </div>
-                )}
-            </div>
+                            <div className={styles.firmBannerStats}>
+                                <span>Daily <strong>${dailyLimit}</strong></span>
+                                <span>Drawdown <strong>{drawdownType} {activeFirm.maxDrawPct}%</strong></span>
+                                {activeFirm.name.includes('Tradeify') && <span>Hold <strong>20s min</strong></span>}
+                                {propFirmType === 'Instant Funding' && <span>Consistency <strong>≤20%</strong></span>}
+                            </div>
+                        </motion.div>
+                    )}
+                </AnimatePresence>
+            </motion.div>
 
-            {/* ─── Account ─── */}
-            <div className={`glass-card glass-card--elevated ${styles.section}`}>
+            {/* ── 2. Account & Balance ────────────────────────────── */}
+            <motion.div variants={sectionVariant} className={`glass-card glass-card--elevated ${styles.section}`}>
                 <div className={styles.sectionTitleRow}>
-                    <DollarSign size={14} className="text-success" />
-                    <span className={styles.sectionTitle}>Account</span>
+                    <DollarSign size={14} style={{ color: '#22c55e' }} />
+                    <span className={styles.sectionTitle}>Account & Balance</span>
                 </div>
 
-                <div className="field-group">
-                    <label className="field-label">Current Balance (USD)</label>
-                    <input className="field-input" type="number" inputMode="decimal"
-                        value={balance} onChange={e => setBalance(e.target.value)}
-                        placeholder="10000" id="settings-balance" />
-                    <span className="field-hint">Your live, current equity</span>
+                <div className={styles.inputGrid}>
+                    <div className="field-group" style={{ marginBottom: 0 }}>
+                        <label className="field-label">Current Balance</label>
+                        <input className="field-input" type="number" inputMode="decimal"
+                            value={balance} onChange={e => setBalance(e.target.value)} placeholder="10000" />
+                    </div>
+                    <div className="field-group" style={{ marginBottom: 0 }}>
+                        <label className="field-label">Starting Balance</label>
+                        <input className="field-input" type="number" inputMode="decimal"
+                            value={startingBalance} onChange={e => setStartingBalance(e.target.value)} placeholder="10000" />
+                    </div>
                 </div>
 
-                <div className="field-group">
-                    <label className="field-label">Starting Balance (USD)</label>
-                    <input className="field-input" type="number" inputMode="decimal"
-                        value={startingBalance} onChange={e => setStartingBalance(e.target.value)}
-                        placeholder="10000" id="settings-start-balance" />
-                    <span className="field-hint">Initial funding amount (crucial for Trailing Drawdown calculation)</span>
-                </div>
-
-                <div className="field-group">
-                    <label className="field-label">Asset Type (default)</label>
+                <div className="field-group" style={{ marginBottom: 0 }}>
+                    <label className="field-label">Default Asset Type</label>
                     <div className={styles.assetBtns}>
                         {(['crypto', 'forex', 'futures', 'stocks'] as const).map(type => (
-                            <button key={type} className={`${styles.assetBtn} ${assetType === type ? styles.assetBtnActive : ''}`}
-                                onClick={() => setAssetType(type)} id={`asset-type-${type}`}>
-                                {type === 'crypto' ? <div className="flex items-center gap-1.5 justify-center"><Bitcoin size={14} /> Crypto</div> :
-                                    type === 'forex' ? <div className="flex items-center gap-1.5 justify-center"><CircleDollarSign size={14} /> Forex</div> :
-                                        type === 'futures' ? <div className="flex items-center gap-1.5 justify-center"><LineChart size={14} /> Futures</div> :
-                                            <div className="flex items-center gap-1.5 justify-center"><CandlestickChart size={14} /> Stocks</div>}
+                            <button key={type}
+                                className={`${styles.assetBtn} ${assetType === type ? styles.assetBtnActive : ''}`}
+                                onClick={() => setAssetType(type)}>
+                                {type === 'crypto' ? <><Bitcoin size={12} /> Crypto</> :
+                                    type === 'forex' ? <><CircleDollarSign size={12} /> Forex</> :
+                                        type === 'futures' ? <><LineChart size={12} /> Futures</> :
+                                            <><CandlestickChart size={12} /> Stocks</>}
                             </button>
                         ))}
                     </div>
                 </div>
-            </div>
+            </motion.div>
 
-            {/* ─── Risk Rules ─── */}
-            <div className={`glass-card glass-card--elevated ${styles.section}`}>
+            {/* ── 3. Risk Rules ───────────────────────────────────── */}
+            <motion.div variants={sectionVariant} className={`glass-card glass-card--elevated ${styles.section}`}>
                 <div className={styles.sectionTitleRow}>
-                    <ShieldAlert size={14} className="text-danger" />
+                    <ShieldAlert size={14} style={{ color: '#f87171' }} />
                     <span className={styles.sectionTitle}>Risk Rules</span>
                 </div>
 
-                <div className="field-group">
-                    <label className="field-label">Daily Loss Limit (USD)</label>
-                    <input className="field-input" type="number" inputMode="decimal"
-                        value={dailyLimit} onChange={e => setDailyLimit(e.target.value)}
-                        placeholder="500" id="settings-daily-limit" />
-                    <span className="field-hint">
-                        {balNum > 0 && dailyLimit
-                            ? `${((parseFloat(dailyLimit) / balNum) * 100).toFixed(2)}% of your $${balNum.toLocaleString()} balance`
-                            : 'Max loss allowed per trading day'}
-                    </span>
+                <div className={styles.inputGrid}>
+                    <div className="field-group" style={{ marginBottom: 0 }}>
+                        <label className="field-label">Daily Loss Limit</label>
+                        <input className="field-input" type="number" inputMode="decimal"
+                            value={dailyLimit} onChange={e => setDailyLimit(e.target.value)} placeholder="300" />
+                        {balNum > 0 && dailyLimit && (
+                            <span className="field-hint">{((parseFloat(dailyLimit) / balNum) * 100).toFixed(2)}% of balance</span>
+                        )}
+                    </div>
+                    <div className="field-group" style={{ marginBottom: 0 }}>
+                        <label className="field-label">Max Risk / Trade</label>
+                        <input className="field-input" type="number" inputMode="decimal"
+                            value={maxRisk} onChange={e => setMaxRisk(e.target.value)} placeholder="1" />
+                        {balNum > 0 && maxRisk && (
+                            <span className="field-hint">≈ ${((balNum * parseFloat(maxRisk)) / 100).toFixed(0)} per trade</span>
+                        )}
+                    </div>
                 </div>
 
-                <div className="field-group">
-                    <label className="field-label">Max Risk Per Trade (%)</label>
-                    <input className="field-input" type="number" inputMode="decimal"
-                        value={maxRisk} onChange={e => setMaxRisk(e.target.value)}
-                        placeholder="1" id="settings-max-risk" />
-                    <span className="field-hint">
-                        {balNum > 0 && maxRisk
-                            ? `≈ $${((balNum * parseFloat(maxRisk)) / 100).toFixed(0)} per trade`
-                            : 'Risk per individual trade'}
-                    </span>
-                </div>
-
-                <div className="field-group">
-                    <label className="field-label">Max Trades Per Day</label>
+                <div className="field-group" style={{ marginBottom: 0 }}>
+                    <label className="field-label">Max Trades / Day</label>
                     <input className="field-input" type="number" inputMode="numeric"
-                        value={maxTradesPerDay} onChange={e => setMaxTradesPerDay(e.target.value)}
-                        placeholder="e.g. 3" id="settings-max-trades" />
-                    <span className="field-hint">
-                        {maxTradesPerDay
-                            ? `Hard cap: stop after ${maxTradesPerDay} trades regardless of P&L`
-                            : `Calculated minimum: ${balNum > 0 && dailyLimit && maxRisk ? Math.floor(parseFloat(dailyLimit) / ((balNum * parseFloat(maxRisk)) / 100)) : '—'} at max risk — set your own hard cap here`}
-                    </span>
-                </div>
-
-                <button className={`btn btn--ghost btn--sm ${styles.resetDayBtn}`} onClick={resetTodaySession} id="reset-day-btn">
-                    <RefreshCw size={12} /> Reset Today&#39;s Session
-                </button>
-            </div>
-
-            {/* Save */}
-            <button className={`btn ${saved ? 'btn--success' : 'btn--primary'} btn--full`} onClick={handleSave} id="save-settings-btn">
-                {saved ? <><Check size={16} /> Saved!</> : <><Check size={16} /> Save Settings</>}
-            </button>
-
-            {/* ─── DXTrade Live Sync ─── */}
-            <div className={`glass-card glass-card--elevated ${styles.section}`}>
-                <div className={styles.sectionTitleRow}>
-                    <Wifi size={14} className={dxtradeConfig ? 'text-success' : 'text-muted'} />
-                    <span className={styles.sectionTitle}>DXTrade Live Sync</span>
-                    {dxtradeConfig && (
-                        <span style={{ marginLeft: 'auto', fontFamily: 'var(--font-mono)', fontSize: 9, color: '#A6FF4D', background: 'rgba(166,255,77,0.08)', border: '1px solid rgba(166,255,77,0.25)', padding: '2px 8px', borderRadius: 3, letterSpacing: '0.06em', textTransform: 'uppercase' }}>
-                            CONNECTED
+                        value={maxTradesPerDay} onChange={e => setMaxTradesPerDay(e.target.value)} placeholder="e.g. 3" />
+                    {!maxTradesPerDay && balNum > 0 && dailyLimit && maxRisk && (
+                        <span className="field-hint">
+                            Min possible: {Math.floor(parseFloat(dailyLimit) / ((balNum * parseFloat(maxRisk)) / 100))} trades at max risk
                         </span>
                     )}
                 </div>
+            </motion.div>
 
-                {dxtradeConfig ? (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                        {/* Connection info */}
-                        <div style={{ padding: '12px 14px', background: 'rgba(166,255,77,0.04)', border: '1px solid rgba(166,255,77,0.12)', borderRadius: 6 }}>
-                            <div style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: '#e2e8f0', marginBottom: 4 }}>
-                                <strong>{dxtradeConfig.username}</strong> @ {dxtradeConfig.server}
+            {/* ── 4. Behavioral Guards (NEW) ──────────────────────── */}
+            <motion.div variants={sectionVariant} className={`glass-card glass-card--elevated ${styles.section}`}>
+                <div className={styles.sectionTitleRow}>
+                    <Brain size={14} style={{ color: '#a78bfa' }} />
+                    <span className={styles.sectionTitle}>Behavioral Guards</span>
+                    <span className={styles.newBadge}>NEW</span>
+                </div>
+                <p className={styles.guardSubtitle}>Circuit breakers that protect you from emotional trading.</p>
+
+                {/* Consecutive loss stop */}
+                <div className={styles.guardRow}>
+                    <div className={styles.guardInfo}>
+                        <span className={styles.guardLabel}>Consecutive Loss Stop</span>
+                        <span className={styles.guardDesc}>Lock trading after N losses in a row</span>
+                    </div>
+                    <button
+                        className={`${styles.toggle} ${consecLossEnabled ? styles.toggleOn : ''}`}
+                        onClick={() => setConsecLossEnabled(v => !v)}
+                        aria-label="Toggle consecutive loss stop"
+                    />
+                </div>
+                <AnimatePresence>
+                    {consecLossEnabled && (
+                        <motion.div
+                            initial={{ opacity: 0, height: 0 }}
+                            animate={{ opacity: 1, height: 'auto' }}
+                            exit={{ opacity: 0, height: 0 }}
+                            style={{ overflow: 'hidden' }}
+                        >
+                            <div className="field-group" style={{ marginBottom: 0, marginTop: 8 }}>
+                                <label className="field-label">Max Consecutive Losses</label>
+                                <input className="field-input" type="number" inputMode="numeric"
+                                    value={maxConsecLosses} onChange={e => setMaxConsecLosses(e.target.value)}
+                                    placeholder="3" min="1" max="10" />
+                                <span className="field-hint">Prompted to stop after {maxConsecLosses} losses in a row</span>
                             </div>
-                            <div style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: '#6b7280' }}>
-                                Account: {dxtradeConfig.accountCode}
+                        </motion.div>
+                    )}
+                </AnimatePresence>
+
+                <div className={styles.divider} />
+
+                {/* Cool-down timer */}
+                <div className={styles.guardRow}>
+                    <div className={styles.guardInfo}>
+                        <span className={styles.guardLabel}>Post-Loss Cool-Down</span>
+                        <span className={styles.guardDesc}>Mandatory wait before re-entering after a loss</span>
+                    </div>
+                    <button
+                        className={`${styles.toggle} ${coolDownEnabled ? styles.toggleOn : ''}`}
+                        onClick={() => setCoolDownEnabled(v => !v)}
+                        aria-label="Toggle cool-down timer"
+                    />
+                </div>
+                <AnimatePresence>
+                    {coolDownEnabled && (
+                        <motion.div
+                            initial={{ opacity: 0, height: 0 }}
+                            animate={{ opacity: 1, height: 'auto' }}
+                            exit={{ opacity: 0, height: 0 }}
+                            style={{ overflow: 'hidden' }}
+                        >
+                            <div className="field-group" style={{ marginBottom: 0, marginTop: 8 }}>
+                                <label className="field-label">Cool-Down Duration (minutes)</label>
+                                <input className="field-input" type="number" inputMode="numeric"
+                                    value={coolDownMins} onChange={e => setCoolDownMins(e.target.value)}
+                                    placeholder="15" min="1" max="120" />
+                                <span className="field-hint">Wait {coolDownMins} min after a losing trade before next entry</span>
                             </div>
-                            {dxtradeLastSync && (
-                                <div style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: '#4b5563', marginTop: 3 }}>
-                                    Last sync: {new Date(dxtradeLastSync).toLocaleString()}
-                                </div>
-                            )}
+                        </motion.div>
+                    )}
+                </AnimatePresence>
+            </motion.div>
+
+            {/* ── Save ────────────────────────────────────────────── */}
+            <motion.button
+                variants={sectionVariant}
+                className={`btn ${saved ? 'btn--success' : 'btn--primary'} btn--full`}
+                onClick={handleSave}
+                whileTap={{ scale: 0.98 }}
+                style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}
+            >
+                {saved ? <><Check size={16} /> Settings Saved!</> : <><Check size={16} /> Save Settings</>}
+            </motion.button>
+
+            {/* ── 5. DXTrade Live Sync ────────────────────────────── */}
+            <motion.div variants={sectionVariant} className={`glass-card glass-card--elevated ${styles.section}`}>
+                <div className={styles.sectionTitleRow}>
+                    {dxtradeConfig
+                        ? <span className={styles.pulseDot} />
+                        : <WifiOff size={14} style={{ color: 'var(--text-muted)' }} />
+                    }
+                    <span className={styles.sectionTitle}>DXTrade Live Sync</span>
+                    {dxtradeConfig && <span className={styles.connectedBadge}>LIVE</span>}
+                </div>
+
+                {dxtradeConfig && !showDxForm ? (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                        <div className={styles.connInfo}>
+                            <div className={styles.connInfoRow}>
+                                <span style={{ fontWeight: 700, color: '#e2e8f0' }}>{dxtradeConfig.username}</span>
+                                <span style={{ color: '#6b7280' }}>@</span>
+                                <span style={{ color: '#6b7280', fontSize: 10 }}>{dxtradeConfig.server}</span>
+                            </div>
+                            <div style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: '#4b5563', marginTop: 3 }}>
+                                {dxtradeConfig.accountCode}
+                                {dxtradeLastSync && ` · Synced ${new Date(dxtradeLastSync).toLocaleTimeString()}`}
+                            </div>
                         </div>
 
-                        {/* Progress / error */}
-                        {dxProgress && !dxError && (
-                            <div style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: '#A6FF4D', padding: '8px 12px', background: 'rgba(166,255,77,0.04)', border: '1px solid rgba(166,255,77,0.12)', borderRadius: 6 }}>
-                                {dxProgress}
-                            </div>
-                        )}
-                        {dxError && (
-                            <div style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: '#ff4757', padding: '8px 12px', background: 'rgba(255,71,87,0.06)', border: '1px solid rgba(255,71,87,0.2)', borderRadius: 6 }}>
-                                {dxError}
+                        {(dxProgress || dxError) && (
+                            <div className={dxError ? styles.msgError : styles.msgSuccess}>
+                                {dxError || dxProgress}
                             </div>
                         )}
 
                         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-                            <button
-                                onClick={handleDXSync}
-                                disabled={dxBusy}
-                                className="btn btn--primary btn--sm"
-                                style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}
-                            >
+                            <button onClick={handleDXSync} disabled={dxBusy} className="btn btn--primary btn--sm"
+                                style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
                                 {dxBusy ? <Loader2 size={13} style={{ animation: 'spin 1s linear infinite' }} /> : <RefreshCw size={13} />}
                                 Sync Now
                             </button>
-                            <button
-                                onClick={() => { setShowDxForm(v => !v); setDxError(''); setDxProgress(''); }}
+                            <button onClick={() => { setShowDxForm(true); setDxError(''); setDxProgress(''); }}
                                 className="btn btn--ghost btn--sm"
-                                style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}
-                            >
+                                style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
                                 <RotateCcw size={13} /> Reconnect
                             </button>
                         </div>
-
                         <button
-                            onClick={() => { setDXTradeConfig(null); setDxProgress(''); setDxError(''); }}
+                            onClick={() => { setDXTradeConfig(null); setDxProgress(''); setDxError(''); setShowDxForm(false); }}
                             className="btn btn--ghost btn--sm"
-                            style={{ color: 'var(--color-danger)', fontSize: 11, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}
+                            style={{ color: 'var(--color-danger)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}
                         >
-                            <WifiOff size={12} /> Disconnect DXTrade
+                            <WifiOff size={12} /> Disconnect
                         </button>
                     </div>
                 ) : (
-                    <p style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: '#6b7280', marginBottom: 10 }}>
-                        Connect your Tradeify DXTrade account to auto-sync balance and trade history.
-                    </p>
+                    !showDxForm && (
+                        <p style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: '#6b7280' }}>
+                            Connect your Tradeify DXTrade account to auto-sync balance and trade history.
+                        </p>
+                    )
                 )}
 
-                {/* Connect / Reconnect form */}
                 {(!dxtradeConfig || showDxForm) && (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: dxtradeConfig ? 0 : 0 }}>
-                        {['Server', 'Username', 'Domain', 'Password'].map((field) => {
-                            const fieldMap: Record<string, { val: string; set: (v: string) => void; type?: string; placeholder: string }> = {
-                                Server:   { val: dxServer,   set: setDxServer,   placeholder: 'dx.tradeifycrypto.co' },
-                                Username: { val: dxUsername, set: setDxUsername, placeholder: 'your_username' },
-                                Domain:   { val: dxDomain,   set: setDxDomain,   placeholder: 'default' },
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: dxtradeConfig ? 8 : 4 }}>
+                        {(['Server', 'Username', 'Domain', 'Password'] as const).map(field => {
+                            const map = {
+                                Server:   { val: dxServer,   set: setDxServer,   type: 'text',     placeholder: 'dx.tradeifycrypto.co' },
+                                Username: { val: dxUsername, set: setDxUsername, type: 'text',     placeholder: 'your_username' },
+                                Domain:   { val: dxDomain,   set: setDxDomain,   type: 'text',     placeholder: 'default' },
                                 Password: { val: dxPassword, set: setDxPassword, type: 'password', placeholder: '••••••••' },
                             };
-                            const f = fieldMap[field];
+                            const f = map[field];
                             return (
                                 <div className="field-group" key={field} style={{ marginBottom: 0 }}>
                                     <label className="field-label">{field}</label>
-                                    <input
-                                        className="field-input"
-                                        type={f.type || 'text'}
-                                        value={f.val}
+                                    <input className="field-input" type={f.type} value={f.val}
                                         onChange={e => f.set(e.target.value)}
                                         placeholder={f.placeholder}
-                                        autoCapitalize="none"
-                                        autoCorrect="off"
-                                    />
+                                        autoCapitalize="none" autoCorrect="off" />
                                 </div>
                             );
                         })}
 
                         {dxProgress && !dxError && (
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontFamily: 'var(--font-mono)', fontSize: 11, color: '#A6FF4D' }}>
-                                <Loader2 size={12} style={{ animation: 'spin 1s linear infinite' }} /> {dxProgress}
+                            <div className={styles.msgProgress}>
+                                <Loader2 size={12} style={{ animation: 'spin 1s linear infinite', flexShrink: 0 }} />
+                                {dxProgress}
                             </div>
                         )}
-                        {dxError && (
-                            <div style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: '#ff4757' }}>{dxError}</div>
-                        )}
+                        {dxError && <div className={styles.msgError}>{dxError}</div>}
 
-                        <button
-                            onClick={handleDXConnect}
-                            disabled={dxBusy || !dxUsername || !dxPassword}
+                        <button onClick={handleDXConnect} disabled={dxBusy || !dxUsername || !dxPassword}
                             className="btn btn--primary btn--sm"
-                            style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, marginTop: 4 }}
-                        >
+                            style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, marginTop: 4 }}>
                             {dxBusy ? <Loader2 size={13} style={{ animation: 'spin 1s linear infinite' }} /> : <Wifi size={13} />}
                             {dxBusy ? 'Connecting…' : 'Connect & Sync'}
                         </button>
+                        {showDxForm && (
+                            <button onClick={() => setShowDxForm(false)} className="btn btn--ghost btn--sm"
+                                style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                Cancel
+                            </button>
+                        )}
                     </div>
                 )}
-            </div>
+            </motion.div>
 
-            {/* ─── PDF Statement Import ─── */}
-            <div className={`glass-card glass-card--elevated ${styles.section}`}>
+            {/* ── 6. Data Import / Export ─────────────────────────── */}
+            <motion.div variants={sectionVariant} className={`glass-card glass-card--elevated ${styles.section}`}>
                 <div className={styles.sectionTitleRow}>
-                    <FileText size={14} className="text-muted" />
-                    <span className={styles.sectionTitle}>Import PDF Statement</span>
+                    <FileText size={14} style={{ color: '#60a5fa' }} />
+                    <span className={styles.sectionTitle}>Data</span>
+                    <span style={{ marginLeft: 'auto', fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--text-muted)' }}>
+                        {trades.length} trades stored
+                    </span>
                 </div>
-                <p style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: '#6b7280', marginBottom: 12, lineHeight: 1.6 }}>
-                    Download your Tradeify &quot;Single-Currency Account Statement&quot; PDF from DXTrade and import it here to sync all closed trades.
-                </p>
 
                 {pdfMsg && (
-                    <div style={{
-                        fontFamily: 'var(--font-mono)', fontSize: 11,
-                        color: pdfMsg.startsWith('Error') || pdfMsg.startsWith('Failed') ? '#ff4757' : '#A6FF4D',
-                        padding: '8px 12px', borderRadius: 6, marginBottom: 10,
-                        background: pdfMsg.startsWith('Error') || pdfMsg.startsWith('Failed') ? 'rgba(255,71,87,0.06)' : 'rgba(166,255,77,0.04)',
-                        border: `1px solid ${pdfMsg.startsWith('Error') || pdfMsg.startsWith('Failed') ? 'rgba(255,71,87,0.2)' : 'rgba(166,255,77,0.12)'}`,
-                    }}>
+                    <div className={pdfMsg.startsWith('Error') || pdfMsg.startsWith('Failed') ? styles.msgError : styles.msgSuccess}>
                         {pdfMsg}
                     </div>
                 )}
 
-                <input
-                    ref={pdfRef}
-                    type="file"
-                    accept=".pdf"
-                    style={{ display: 'none' }}
-                    onChange={handlePDFImport}
-                />
-                <button
-                    onClick={() => pdfRef.current?.click()}
-                    disabled={pdfBusy}
-                    className="btn btn--ghost btn--sm"
-                    style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, width: '100%' }}
-                >
-                    {pdfBusy
-                        ? <><Loader2 size={13} style={{ animation: 'spin 1s linear infinite' }} /> Parsing…</>
-                        : <><Upload size={13} /> Choose PDF Statement</>
-                    }
-                </button>
-            </div>
+                <input ref={pdfRef} type="file" accept=".pdf" style={{ display: 'none' }} onChange={handlePDFImport} />
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                    <button onClick={() => pdfRef.current?.click()} disabled={pdfBusy}
+                        className="btn btn--ghost btn--sm"
+                        style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+                        {pdfBusy ? <Loader2 size={13} style={{ animation: 'spin 1s linear infinite' }} /> : <Upload size={13} />}
+                        Import PDF
+                    </button>
+                    <button onClick={handleExportCSV} disabled={trades.length === 0}
+                        className="btn btn--ghost btn--sm"
+                        style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+                        <Download size={13} /> Export CSV
+                    </button>
+                </div>
+                <p style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: '#4b5563', marginTop: 0 }}>
+                    Import: Tradeify &quot;Single-Currency Account Statement&quot; PDF · Export: all trades as .csv
+                </p>
+            </motion.div>
 
-            {/* Reset onboarding */}
-            <button className={`btn btn--ghost btn--sm ${styles.resetWizardBtn}`} onClick={resetOnboarding} id="reset-onboarding-btn">
-                ↺ Reset &amp; re-run setup wizard
-            </button>
-        </div>
+            {/* ── 7. Danger Zone ──────────────────────────────────── */}
+            <motion.div variants={sectionVariant} className={`glass-card glass-card--elevated ${styles.section} ${styles.dangerSection}`}>
+                <div className={styles.sectionTitleRow}>
+                    <AlertTriangle size={14} style={{ color: '#f87171' }} />
+                    <span className={`${styles.sectionTitle} ${styles.dangerTitle}`}>Danger Zone</span>
+                </div>
+
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                    <button className="btn btn--ghost btn--sm" onClick={resetTodaySession}
+                        style={{ display: 'flex', alignItems: 'center', gap: 6, justifyContent: 'center' }}>
+                        <RefreshCw size={12} /> Reset Today&apos;s Session
+                    </button>
+
+                    <AnimatePresence mode="wait">
+                        {clearConfirm ? (
+                            <motion.div key="confirm" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+                                style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                                <p style={{ fontSize: 11, color: '#f87171', fontFamily: 'var(--font-mono)', textAlign: 'center' }}>
+                                    Delete all {trades.length} trades? This cannot be undone.
+                                </p>
+                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
+                                    <button className="btn btn--ghost btn--sm" onClick={() => setClearConfirm(false)}>Cancel</button>
+                                    <button className="btn btn--ghost btn--sm"
+                                        style={{ color: '#f87171', borderColor: 'rgba(248,113,113,0.3)' }}
+                                        onClick={() => { setTrades([]); setClearConfirm(false); }}>
+                                        <Trash2 size={12} /> Confirm
+                                    </button>
+                                </div>
+                            </motion.div>
+                        ) : (
+                            <motion.button key="clear" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+                                className="btn btn--ghost btn--sm"
+                                onClick={() => setClearConfirm(true)}
+                                style={{ color: '#f87171', display: 'flex', alignItems: 'center', gap: 6, justifyContent: 'center' }}>
+                                <Trash2 size={12} /> Clear All Trades
+                            </motion.button>
+                        )}
+                    </AnimatePresence>
+
+                    <button className="btn btn--ghost btn--sm" onClick={resetOnboarding}
+                        style={{ display: 'flex', alignItems: 'center', gap: 6, justifyContent: 'center' }}>
+                        <RotateCcw size={12} /> Reset &amp; Re-run Setup Wizard
+                    </button>
+                </div>
+            </motion.div>
+
+        </motion.div>
     );
 }

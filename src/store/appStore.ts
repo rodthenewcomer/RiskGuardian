@@ -69,6 +69,10 @@ export interface AccountSettings {
      * After this, the trailing drawdown floor permanently locks at startingBalance.
      */
     payoutLockActive?: boolean;
+    /** Behavioral guard: stop trading after N consecutive losses in the same day */
+    maxConsecutiveLosses?: number;
+    /** Behavioral guard: mandatory cool-down (minutes) before next entry after a loss */
+    coolDownMinutes?: number;
 }
 
 export interface DailySession {

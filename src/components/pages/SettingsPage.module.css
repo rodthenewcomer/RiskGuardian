@@ -1,10 +1,12 @@
-/* SettingsPage — pure black + lime */
+/* SettingsPage — 2026 redesign */
+
 .page {
     display: flex;
     flex-direction: column;
     gap: var(--space-4);
 }
 
+/* ── Header ─────────────────────────────────────────────────── */
 .pageHeader {
     display: flex;
     align-items: center;
@@ -24,84 +26,125 @@
     flex-shrink: 0;
 }
 
-/* ─── Prop Firm Grid ─── */
-.firmGrid {
-    display: grid;
-    grid-template-columns: repeat(4, 1fr);
-    gap: var(--space-2);
-    margin-top: var(--space-2);
+/* ── Section label (above-card label style) ─────────────────── */
+.sectionLabel {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.07em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    margin-bottom: 10px;
+    padding-left: 2px;
 }
 
-.firmCard {
-    position: relative;
+/* ── Prop Firm chip rail ─────────────────────────────────────── */
+.firmRail {
     display: flex;
-    flex-direction: column;
+    gap: 6px;
+    overflow-x: auto;
+    padding-bottom: 4px;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+}
+.firmRail::-webkit-scrollbar { display: none; }
+
+.firmChip {
+    display: flex;
     align-items: center;
-    gap: 3px;
-    padding: 10px 4px;
+    gap: 6px;
+    padding: 7px 12px;
     background: var(--bg-card);
     border: 1px solid var(--border-subtle);
-    border-radius: var(--radius-md);
+    border-radius: 20px;
     cursor: pointer;
+    white-space: nowrap;
+    flex-shrink: 0;
     transition: all var(--t-fast);
     -webkit-tap-highlight-color: transparent;
+    outline: none;
 }
+.firmChip:hover { border-color: var(--border-medium); }
 
-.firmCard:hover {
-    border-color: var(--border-medium);
-}
-
-.firmCardActive {
-    border-color: var(--accent-border);
+.firmChipActive {
     background: var(--accent-dim);
+    border-color: var(--accent-border);
 }
 
-.firmCardCustom {
-    opacity: 0.5;
-    cursor: default;
-}
+.firmChipCustom { opacity: 0.65; }
 
-.firmShort {
+.firmChipName {
     font-size: 11px;
-    font-weight: 800;
+    font-weight: 700;
     color: var(--text-primary);
     letter-spacing: -0.01em;
 }
 
-.firmPct {
+.firmChipType {
     font-size: 9px;
-    font-weight: 600;
+    font-family: var(--font-mono);
+    font-weight: 700;
+    color: var(--text-muted);
+    background: var(--bg-elevated);
+    padding: 1px 5px;
+    border-radius: 3px;
+    border: 1px solid var(--border-subtle);
+}
+
+/* ── Active firm banner ──────────────────────────────────────── */
+.firmActiveBanner {
+    margin-top: 10px;
+    padding: 12px 14px;
+    background: rgba(166, 255, 77, 0.04);
+    border: 1px solid rgba(166, 255, 77, 0.15);
+    border-radius: var(--radius-md);
+}
+
+.firmBannerRow {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 7px;
+}
+
+.firmBannerName {
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--text-primary);
+}
+
+.firmBannerBadge {
+    font-size: 9px;
+    font-family: var(--font-mono);
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--accent);
+    background: rgba(166, 255, 77, 0.08);
+    border: 1px solid rgba(166, 255, 77, 0.2);
+    padding: 2px 7px;
+    border-radius: 3px;
+}
+
+.firmBannerStats {
+    display: flex;
+    gap: 14px;
+    flex-wrap: wrap;
+}
+
+.firmBannerStats span {
+    font-size: 10px;
     font-family: var(--font-mono);
     color: var(--text-muted);
 }
 
-.firmCheck {
-    position: absolute;
-    top: -5px;
-    right: -5px;
-    width: 14px;
-    height: 14px;
-    background: var(--accent);
-    border-radius: 50%;
-    color: #000;
-    display: flex;
-    align-items: center;
-    justify-content: center;
+.firmBannerStats strong {
+    color: var(--text-primary);
 }
 
-.firmNote {
-    font-size: 12px;
-    color: var(--text-secondary);
-    margin-top: 8px;
-    padding-left: 2px;
-    line-height: 1.5;
-}
-
-.firmNote strong {
-    color: var(--accent);
-}
-
-/* ─── Section Card ─── */
+/* ── Section card ────────────────────────────────────────────── */
 .section {
     padding: var(--space-4);
     display: flex;
@@ -113,7 +156,7 @@
     display: flex;
     align-items: center;
     gap: 7px;
-    margin-bottom: var(--space-1);
+    margin-bottom: 2px;
 }
 
 .sectionTitle {
@@ -124,7 +167,18 @@
     color: var(--text-muted);
 }
 
-/* ─── Asset Type Buttons ─── */
+/* ── 2-col input grid ────────────────────────────────────────── */
+.inputGrid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: var(--space-3);
+}
+
+@media (max-width: 360px) {
+    .inputGrid { grid-template-columns: 1fr; }
+}
+
+/* ── Asset type buttons ──────────────────────────────────────── */
 .assetBtns {
     display: grid;
     grid-template-columns: repeat(4, 1fr);
@@ -136,103 +190,211 @@
 }
 
 .assetBtn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
     padding: 8px 4px;
-    border: none;
+    border: 1px solid transparent;
     border-radius: var(--radius-sm);
     background: transparent;
     color: var(--text-muted);
-    font-size: 11px;
+    font-size: 10px;
     font-weight: 600;
     cursor: pointer;
     transition: all var(--t-fast);
     -webkit-tap-highlight-color: transparent;
+    outline: none;
 }
 
 .assetBtnActive {
     background: var(--accent-dim);
     color: var(--accent);
-    border: 1px solid var(--accent-border);
+    border-color: var(--accent-border);
 }
 
-/* ─── Rule Row ─── */
-.ruleRow {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: var(--space-2);
-    padding-top: var(--space-1);
+/* ── Behavioral guards ───────────────────────────────────────── */
+.newBadge {
+    font-size: 8px;
+    font-family: var(--font-mono);
+    font-weight: 800;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: #a78bfa;
+    background: rgba(167, 139, 250, 0.1);
+    border: 1px solid rgba(167, 139, 250, 0.22);
+    padding: 1px 6px;
+    border-radius: 3px;
+    margin-left: 4px;
 }
 
-.ruleItem {
-    background: var(--bg-elevated);
-    border: 1px solid var(--border-subtle);
-    border-radius: var(--radius-md);
-    padding: var(--space-3);
+.guardSubtitle {
+    font-size: 11px;
+    font-family: var(--font-mono);
+    color: var(--text-muted);
+    line-height: 1.6;
+    margin-top: -4px;
+}
+
+.guardRow {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+}
+
+.guardInfo {
     display: flex;
     flex-direction: column;
     gap: 3px;
+    flex: 1;
+    min-width: 0;
 }
 
-.ruleLabel {
-    font-size: 10px;
-    color: var(--text-muted);
-    font-weight: 500;
-    line-height: 1.3;
-}
-
-.ruleValue {
-    font-family: var(--font-mono);
-    font-size: 20px;
-    font-weight: 800;
+.guardLabel {
+    font-size: 12px;
+    font-weight: 600;
     color: var(--text-primary);
-    letter-spacing: -0.02em;
 }
 
-/* Presets (kept for backward compat) */
-.presets {
+.guardDesc {
+    font-size: 10px;
+    font-family: var(--font-mono);
+    color: var(--text-muted);
+    line-height: 1.4;
+}
+
+/* ── Toggle switch ───────────────────────────────────────────── */
+.toggle {
+    width: 40px;
+    height: 23px;
+    background: var(--bg-elevated);
+    border: 1px solid var(--border-medium);
+    border-radius: 12px;
+    position: relative;
+    cursor: pointer;
+    flex-shrink: 0;
+    transition: background 0.2s ease, border-color 0.2s ease;
+    -webkit-tap-highlight-color: transparent;
+    outline: none;
+    appearance: none;
+    -webkit-appearance: none;
+}
+
+.toggle::after {
+    content: '';
+    position: absolute;
+    width: 17px;
+    height: 17px;
+    background: #6b7280;
+    border-radius: 50%;
+    top: 2px;
+    left: 2px;
+    transition: transform 0.2s ease, background 0.2s ease;
+}
+
+.toggleOn {
+    background: rgba(166, 255, 77, 0.15);
+    border-color: var(--accent-border);
+}
+
+.toggleOn::after {
+    background: var(--accent);
+    transform: translateX(17px);
+}
+
+/* ── Divider ─────────────────────────────────────────────────── */
+.divider {
+    height: 1px;
+    background: var(--border-subtle);
+    margin: 2px 0;
+}
+
+/* ── Status messages ─────────────────────────────────────────── */
+.msgSuccess {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: #A6FF4D;
+    padding: 8px 12px;
+    background: rgba(166, 255, 77, 0.04);
+    border: 1px solid rgba(166, 255, 77, 0.12);
+    border-radius: var(--radius-md);
+    line-height: 1.5;
+}
+
+.msgError {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: #ff4757;
+    padding: 8px 12px;
+    background: rgba(255, 71, 87, 0.06);
+    border: 1px solid rgba(255, 71, 87, 0.2);
+    border-radius: var(--radius-md);
+    line-height: 1.5;
+}
+
+.msgProgress {
     display: flex;
-    gap: var(--space-2);
+    align-items: center;
+    gap: 8px;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: #A6FF4D;
+    line-height: 1.5;
+}
+
+/* ── DXTrade connection info ─────────────────────────────────── */
+.pulseDot {
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    background: #22c55e;
+    border-radius: 50%;
+    flex-shrink: 0;
+    animation: dxPulse 2s ease-in-out infinite;
+}
+
+@keyframes dxPulse {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50%       { opacity: 0.55; transform: scale(0.82); }
+}
+
+.connectedBadge {
+    margin-left: auto;
+    font-family: var(--font-mono);
+    font-size: 9px;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--accent);
+    background: rgba(166, 255, 77, 0.08);
+    border: 1px solid rgba(166, 255, 77, 0.25);
+    padding: 2px 8px;
+    border-radius: 3px;
+}
+
+.connInfo {
+    padding: 12px 14px;
+    background: rgba(166, 255, 77, 0.03);
+    border: 1px solid rgba(166, 255, 77, 0.1);
+    border-radius: var(--radius-md);
+    font-family: var(--font-mono);
+    font-size: 11px;
+}
+
+.connInfoRow {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 3px;
     flex-wrap: wrap;
 }
 
-.presetBtn {
-    flex: 1;
-    min-width: 80px;
-    background: var(--bg-card);
-    border: 1px solid var(--border-subtle);
-    border-radius: var(--radius-md);
-    padding: var(--space-3);
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 4px;
-    cursor: pointer;
-    transition: border-color var(--t-fast);
-    -webkit-tap-highlight-color: transparent;
+/* ── Danger Zone ─────────────────────────────────────────────── */
+.dangerSection {
+    border-color: rgba(248, 113, 113, 0.1);
 }
 
-.presetActive {
-    border-color: var(--accent-border);
-    background: var(--accent-dim);
-}
-
-.presetRisk {
-    font-family: var(--font-mono);
-    font-size: 16px;
-    font-weight: 800;
-    color: var(--text-primary);
-}
-
-.presetDaily {
-    font-size: 11px;
-    color: var(--text-muted);
-}
-
-/* Buttons */
-.resetDayBtn {
-    align-self: flex-start;
-}
-
-.resetWizardBtn {
-    align-self: center;
-    margin-top: 4px;
+.dangerTitle {
+    color: #f87171 !important;
 }
