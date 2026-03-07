@@ -266,7 +266,10 @@ export async function dxConnect(
     const token = await dxLogin(server, username, domain, password);
 
     onProgress?.('Fetching account info…');
-    const user = await dxGetUser(server, token, username);
+    const rawUser = await dxGetUser(server, token, username);
+
+    // Tradeify wraps the response in userDetails[0]
+    const user: DXUser = (rawUser as unknown as { userDetails?: DXUser[] }).userDetails?.[0] ?? rawUser;
 
     // DXTrade may nest accounts differently — try all known shapes
     const accounts: DXAccountDetail[] = user.accounts
