@@ -267,9 +267,28 @@ export async function dxConnect(
 
     onProgress?.('Fetching account info…');
     const user = await dxGetUser(server, token, username);
-    const activeAccount = user.accounts?.find(a => a.accountStatus === 'FULL_TRADING') ?? user.accounts?.[0];
-    if (!activeAccount) throw new Error('No active trading accounts found on this DXTrade account');
-    const accountCode = activeAccount.account;
+
+    // DXTrade may nest accounts differently — try all known shapes
+    const accounts: DXAccountDetail[] = user.accounts
+        ?? (user as unknown as Record<string, unknown[]>).accountSummaries as DXAccountDetail[]
+        ?? [];
+
+    const activeAccount =
+        accounts.find(a => a.accountStatus === 'FULL_TRADING') ??
+        accounts.find(a => /trading|active|enabled/i.test(a.accountStatus ?? '')) ??
+        accounts[0];
+
+    if (!activeAccount) {
+        throw new Error(
+            `No accounts found on this DXTrade user. Raw user data: ${JSON.stringify(user)}`
+        );
+    }
+
+    // Account code may be in .account or .accountCode
+    const accountCode: string =
+        activeAccount.account ??
+        (activeAccount as unknown as Record<string, string>).accountCode ??
+        (activeAccount as unknown as Record<string, string>).code;
 
     const config: DXConfig = { server, token, accountCode, username };
 
