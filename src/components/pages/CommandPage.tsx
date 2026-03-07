@@ -8,8 +8,7 @@ import {
 } from '@/store/appStore';
 import {
     TrendingUp, TrendingDown, AlertTriangle, Terminal,
-    BookmarkPlus, ChevronDown, ChevronUp, Check, RotateCcw,
-    Zap, Shield,
+    BookmarkPlus, Check, RotateCcw, Zap,
 } from 'lucide-react';
 import {
     analyzeRiskGuardian, analyzeBehavior,
@@ -106,7 +105,6 @@ export default function CommandPage() {
     const [logged,  setLogged]  = useState(false);
 
     // ── NLP bar ─────────────────────────────────────────────────────
-    const [nlpOpen,    setNlpOpen]    = useState(false);
     const [nlpInput,   setNlpInput]   = useState('');
     const [nlpLogs,    setNlpLogs]    = useState<NLPLog[]>([]);
     const [nlpHist,    setNlpHist]    = useState<string[]>([]);
@@ -244,9 +242,6 @@ export default function CommandPage() {
     };
 
     // ── NLP scroll ─────────────────────────────────────────────────
-    useEffect(() => {
-        if (nlpOpen) setTimeout(() => nlpRef.current?.focus(), 120);
-    }, [nlpOpen]);
     useEffect(() => {
         nlpEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     }, [nlpLogs]);
@@ -762,81 +757,115 @@ export default function CommandPage() {
                     </motion.div>
                 )}
 
-                {/* ── 9. NLP COMMAND BAR ───────────────────────────── */}
-                <div style={cardBase}>
-                    <button
-                        onClick={() => setNlpOpen(v => !v)}
-                        style={{
-                            width: '100%', background: 'none', border: 'none', cursor: 'pointer',
-                            padding: '11px 14px', display: 'flex', alignItems: 'center', gap: 8,
-                        }}
-                    >
-                        <Terminal size={12} color="#4b5563" />
-                        <span style={{ ...mono, fontSize: 11, color: '#4b5563', flex: 1, textAlign: 'left' }}>
-                            Command bar
-                        </span>
-                        <span style={{ ...mono, fontSize: 10, color: '#4b5563' }}>
-                            e.g. sell mnq 21000 stop21030
-                        </span>
-                        {nlpOpen ? <ChevronUp size={11} color="#4b5563" /> : <ChevronDown size={11} color="#4b5563" />}
-                    </button>
+                {/* ── 9. TERMINAL COMMAND BAR ──────────────────────── */}
+                <div style={{ borderRadius: 12, border: '1px solid #1a2a14', overflow: 'hidden', background: '#04070a' }}>
 
+                    {/* Terminal header strip */}
+                    <div style={{
+                        display: 'flex', alignItems: 'center', gap: 8, padding: '8px 14px',
+                        borderBottom: '1px solid #0e1a10',
+                        background: 'linear-gradient(90deg, #070d07 0%, #04070a 100%)',
+                    }}>
+                        <Terminal size={11} color="#A6FF4D" />
+                        <span style={{ ...mono, fontSize: 9, color: '#A6FF4D', letterSpacing: '0.18em', fontWeight: 900, textTransform: 'uppercase' }}>
+                            NLP COMMAND
+                        </span>
+                        <span style={{ ...mono, fontSize: 9, color: '#2a4a1e', marginLeft: 4 }}>
+                            btc 95000 stop93500 risk500 · sell mnq 21000 stop21030 · help
+                        </span>
+                        {/* Terminal traffic lights */}
+                        <div style={{ marginLeft: 'auto', display: 'flex', gap: 5 }}>
+                            {['#ff5f57','#ffbd2e','#28c840'].map((c, i) => (
+                                <div key={i} style={{ width: 8, height: 8, borderRadius: '50%', background: c, opacity: 0.6 }} />
+                            ))}
+                        </div>
+                    </div>
+
+                    {/* Log output area */}
                     <AnimatePresence>
-                        {nlpOpen && (
+                        {nlpLogs.length > 0 && (
                             <motion.div
-                                key="nlp"
                                 initial={{ height: 0, opacity: 0 }}
                                 animate={{ height: 'auto', opacity: 1 }}
-                                exit={{ height: 0, opacity: 0 }}
-                                transition={{ ease: [0.16, 1, 0.3, 1], duration: 0.28 }}
-                                style={{ overflow: 'hidden' }}
+                                style={{ maxHeight: 200, overflowY: 'auto', background: '#030508' }}
                             >
-                                {/* Log */}
-                                {nlpLogs.length > 0 && (
-                                    <div style={{ maxHeight: 180, overflowY: 'auto', borderTop: D }}>
-                                        {nlpLogs.map(l => (
-                                            <div key={l.id} style={{ padding: '7px 14px', borderBottom: D }}>
-                                                <div style={{ ...mono, fontSize: 10, color: '#4b5563' }}>&gt; {l.cmd}</div>
-                                                <div style={{
-                                                    ...mono, fontSize: 11, color: l.ok ? '#8b949e' : '#ff4757',
-                                                    marginTop: 2, whiteSpace: 'pre-wrap', lineHeight: 1.5,
-                                                }}>{l.out}</div>
-                                            </div>
-                                        ))}
-                                        <div ref={nlpEndRef} />
-                                    </div>
-                                )}
-
-                                {/* Input */}
-                                <div style={{ display: 'flex', alignItems: 'center', gap: 0, borderTop: D, padding: '0 14px' }}>
-                                    <span style={{ ...mono, fontSize: 12, color: '#A6FF4D', marginRight: 8 }}>&gt;</span>
-                                    <input
-                                        ref={nlpRef}
+                                {nlpLogs.map((l, idx) => (
+                                    <motion.div
+                                        key={l.id}
+                                        initial={{ opacity: 0, x: -6 }} animate={{ opacity: 1, x: 0 }}
+                                        transition={{ ease: [0.16, 1, 0.3, 1], duration: 0.28, delay: idx === nlpLogs.length - 1 ? 0 : 0 }}
                                         style={{
-                                            flex: 1, ...mono, fontSize: 12, color: '#e2e8f0',
-                                            background: 'none', border: 'none', outline: 'none',
-                                            padding: '13px 0',
-                                        }}
-                                        placeholder="btc 95000 stop93500 risk500 · type help"
-                                        value={nlpInput}
-                                        onChange={e => setNlpInput(e.target.value)}
-                                        onKeyDown={handleNlpKey}
-                                    />
-                                    <motion.button
-                                        whileTap={{ scale: 0.94 }}
-                                        onClick={() => processNLP(nlpInput)}
-                                        style={{
-                                            ...mono, fontSize: 11, fontWeight: 900, color: '#A6FF4D',
-                                            background: 'none', border: 'none', cursor: 'pointer',
-                                            padding: '8px 0 8px 10px', letterSpacing: '0.08em',
+                                            padding: '8px 14px',
+                                            borderBottom: '1px solid #0a0f08',
+                                            borderLeft: `3px solid ${l.ok ? '#A6FF4D' : '#ff4757'}`,
+                                            background: idx % 2 === 0 ? 'transparent' : 'rgba(166,255,77,0.01)',
                                         }}
                                     >
-                                        RUN
-                                    </motion.button>
-                                </div>
+                                        <div style={{ ...mono, fontSize: 11, color: '#2e5220', marginBottom: 3 }}>
+                                            <span style={{ color: '#A6FF4D' }}>&gt;</span> {l.cmd}
+                                        </div>
+                                        <div style={{
+                                            ...mono, fontSize: 11, lineHeight: 1.6, whiteSpace: 'pre-wrap',
+                                            color: l.ok ? '#7dba5a' : '#ff6b6b',
+                                            textShadow: l.ok ? '0 0 8px rgba(166,255,77,0.15)' : '0 0 8px rgba(255,71,87,0.15)',
+                                        }}>
+                                            {l.out}
+                                        </div>
+                                    </motion.div>
+                                ))}
+                                <div ref={nlpEndRef} />
                             </motion.div>
                         )}
                     </AnimatePresence>
+
+                    {/* Input row */}
+                    <div style={{
+                        display: 'flex', alignItems: 'center', padding: '0 14px',
+                        background: '#030508',
+                        borderTop: nlpLogs.length > 0 ? '1px solid #0e1a10' : 'none',
+                    }}>
+                        {/* Blinking cursor prompt */}
+                        <motion.span
+                            animate={{ opacity: [1, 0, 1] }}
+                            transition={{ duration: 1, repeat: Infinity, repeatType: 'loop', ease: [0,0,1,1] }}
+                            style={{ ...mono, fontSize: 15, color: '#A6FF4D', fontWeight: 900, marginRight: 10, userSelect: 'none' }}
+                        >
+                            &gt;
+                        </motion.span>
+                        <input
+                            ref={nlpRef}
+                            style={{
+                                flex: 1,
+                                ...mono, fontSize: 14, fontWeight: 600,
+                                color: '#A6FF4D',
+                                textShadow: '0 0 12px rgba(166,255,77,0.4)',
+                                background: 'transparent', border: 'none', outline: 'none',
+                                padding: '14px 0',
+                                caretColor: '#A6FF4D',
+                            }}
+                            placeholder="Enter command and press Enter…"
+                            value={nlpInput}
+                            onChange={e => setNlpInput(e.target.value)}
+                            onKeyDown={handleNlpKey}
+                            spellCheck={false}
+                            autoComplete="off"
+                            autoCorrect="off"
+                            autoCapitalize="none"
+                        />
+                        <motion.button
+                            whileTap={{ scale: 0.92 }}
+                            onClick={() => processNLP(nlpInput)}
+                            style={{
+                                ...mono, fontSize: 10, fontWeight: 900, letterSpacing: '0.12em',
+                                color: '#A6FF4D', background: 'rgba(166,255,77,0.08)',
+                                border: '1px solid rgba(166,255,77,0.2)', borderRadius: 5,
+                                cursor: 'pointer', padding: '5px 10px',
+                                textShadow: '0 0 8px rgba(166,255,77,0.3)',
+                            }}
+                        >
+                            RUN
+                        </motion.button>
+                    </div>
                 </div>
 
             </div>
