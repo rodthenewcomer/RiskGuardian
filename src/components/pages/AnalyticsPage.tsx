@@ -8,13 +8,14 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
     PieChart, Pie, Cell, ResponsiveContainer, BarChart, Bar, XAxis, Tooltip, YAxis, ReferenceLine
 } from 'recharts';
-import { Target, AlertTriangle, Info } from 'lucide-react';
+import { Target, AlertTriangle, Download, Link2, Check, Info } from 'lucide-react';
 
 export default function AnalyticsPage() {
     const { trades, account } = useAppStore();
     const [activeTab, setActiveTab] = useState('OVERVIEW');
     const [dateFrom, setDateFrom] = useState('');
     const [dateTo, setDateTo] = useState('');
+    const [copied, setCopied] = useState(false);
 
     // Sort chronological + apply date range filter
     const closed = useMemo(() => {
@@ -99,20 +100,181 @@ export default function AnalyticsPage() {
     const bestDay = Math.max(...dailyData.map(d => d.pnl), 0);
     const worstDay = Math.min(...dailyData.map(d => d.pnl), 0);
     const avgDaily = dailyData.length > 0 ? dailyData.reduce((s, d) => s + d.pnl, 0) / dailyData.length : 0;
+    const bestDayDate = dailyData.reduce((a, b) => b.pnl > a.pnl ? b : a, { date: '', pnl: -Infinity }).date;
+    const worstDayDate = dailyData.reduce((a, b) => b.pnl < a.pnl ? b : a, { date: '', pnl: Infinity }).date;
+
+    // Median daily P&L
+    const medianDaily = (() => {
+        if (dailyData.length === 0) return 0;
+        const sorted = [...dailyData].map(d => d.pnl).sort((a, b) => a - b);
+        const mid = Math.floor(sorted.length / 2);
+        return sorted.length % 2 !== 0 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
+    })();
+
+    // Daily volatility — standard deviation of daily P&L
+    const dailyVolatility = (() => {
+        if (dailyData.length < 2) return 0;
+        const variance = dailyData.reduce((s, d) => s + Math.pow(d.pnl - avgDaily, 2), 0) / dailyData.length;
+        return Math.sqrt(variance);
+    })();
+    const daysWithin1Std = dailyData.length > 0 && dailyVolatility > 0
+        ? Math.round((dailyData.filter(d => Math.abs(d.pnl - avgDaily) <= dailyVolatility).length / dailyData.length) * 100)
+        : 0;
+
+    // Weekly breakdown — groups trading days into Mon–Sun calendar weeks
+    const weeklyBreakdown = (() => {
+        const weekMap: Record<string, { trades: typeof closed; days: Set<string> }> = {};
+        closed.forEach(t => {
+            const day = getTradingDay(t.closedAt ?? t.createdAt);
+            const dt = new Date(day + 'T12:00:00Z');
+            const dow = dt.getUTCDay();
+            const offset = dow === 0 ? -6 : 1 - dow;
+            const mon = new Date(dt);
+            mon.setUTCDate(dt.getUTCDate() + offset);
+            const weekKey = mon.toISOString().slice(0, 10);
+            if (!weekMap[weekKey]) weekMap[weekKey] = { trades: [], days: new Set() };
+            weekMap[weekKey].trades.push(t);
+            weekMap[weekKey].days.add(day);
+        });
+        return Object.entries(weekMap).sort(([a], [b]) => a.localeCompare(b)).map(([weekStart, { trades: wt, days }]) => {
+            const netPnl = wt.reduce((s, t) => s + (t.pnl ?? 0), 0);
+            const weekWins = wt.filter(t => (t.pnl ?? 0) > 0).length;
+            const winRate = wt.length > 0 ? (weekWins / wt.length) * 100 : 0;
+            const dayPnls: Record<string, number> = {};
+            wt.forEach(t => {
+                const d = getTradingDay(t.closedAt ?? t.createdAt);
+                dayPnls[d] = (dayPnls[d] || 0) + (t.pnl ?? 0);
+            });
+            const dayVals = Object.values(dayPnls);
+            const bestDayPnl = dayVals.length ? Math.max(...dayVals) : 0;
+            const worstDayPnl = dayVals.length ? Math.min(...dayVals) : 0;
+            const worstDayStr = Object.entries(dayPnls).find(([, p]) => p === worstDayPnl)?.[0] ?? '';
+            const sortedDays = [...days].sort();
+            const weekEnd = sortedDays[sortedDays.length - 1];
+            let flag = '';
+            let flagSev: 'critical' | 'warning' | 'clean' = 'clean';
+            if (netPnl < 0 && worstDayPnl < 0 && Math.abs(worstDayPnl) >= Math.abs(netPnl) * 0.7) {
+                const dl = worstDayStr ? new Date(worstDayStr + 'T12:00:00Z').toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '';
+                flag = `CRITICAL – ${dl} blowup wiped the entire week`;
+                flagSev = 'critical';
+            } else if (netPnl > 0 && winRate >= 60) {
+                flag = 'Solid execution';
+                flagSev = 'clean';
+            } else if (netPnl < 0) {
+                flag = 'Net loss week';
+                flagSev = 'warning';
+            }
+            return { weekStart, weekEnd, numDays: sortedDays.length, netPnl, bestDayPnl, worstDayPnl, winRate, flag, flagSev };
+        });
+    })();
+
+    // Report date range (from first to last closed trade)
+    const reportRange = closed.length > 0 ? {
+        from: new Date(closed[0].createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
+        to: new Date(closed[closed.length - 1].createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
+        fromShort: new Date(closed[0].createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+        toShort: new Date(closed[closed.length - 1].createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
+    } : null;
+
+    const handleCopyLink = () => {
+        navigator.clipboard.writeText(window.location.href).then(() => {
+            setCopied(true);
+            setTimeout(() => setCopied(false), 2000);
+        });
+    };
+
+    const handleExportPDF = () => {
+        window.print();
+    };
 
     const PIE_COLORS = ['#A6FF4D', '#00D4FF', '#EAB308', '#ff4757', '#fb923c'];
 
     return (
         <div className={styles.page}>
-            <div className={styles.dateFilterRow}>
-                <label className={styles.dateLabel}>From</label>
-                <input type="date" className={styles.dateInput} value={dateFrom} onChange={e => setDateFrom(e.target.value)} />
-                <label className={styles.dateLabel}>To</label>
-                <input type="date" className={styles.dateInput} value={dateTo} onChange={e => setDateTo(e.target.value)} />
-                {(dateFrom || dateTo) && (
-                    <button className={styles.dateClear} onClick={() => { setDateFrom(''); setDateTo(''); }}>✕ Clear</button>
+            {/* ── REPORT HEADER ──────────────────────────────────── */}
+            <div style={{ borderBottom: '1px solid #1a1c24' }}>
+                {/* Critical patterns alert */}
+                {forensics.patterns.length > 0 && (
+                    <div style={{
+                        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                        padding: '10px 32px', background: 'rgba(230,0,35,0.06)',
+                        borderBottom: '1px solid rgba(230,0,35,0.2)',
+                    }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                            <AlertTriangle size={12} color="#e60023" />
+                            <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, fontWeight: 700, color: '#e60023', letterSpacing: '0.1em', textTransform: 'uppercase' }}>
+                                {forensics.patterns.length} Critical Pattern{forensics.patterns.length > 1 ? 's' : ''} Detected
+                            </span>
+                        </div>
+                        <button
+                            onClick={() => setActiveTab('PATTERNS')}
+                            style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: '#e60023', background: 'none', border: 'none', cursor: 'pointer', letterSpacing: '0.06em', textDecoration: 'underline' }}>
+                            EXPLORE →
+                        </button>
+                    </div>
                 )}
-                <span className={styles.dateCount}>{closed.length} trades</span>
+
+                {/* Main header row */}
+                <div style={{ padding: '20px 32px 16px', display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap' }}>
+                    <div>
+                        <h1 style={{ fontFamily: 'var(--font-mono)', fontSize: 26, fontWeight: 900, color: '#fff', letterSpacing: '-0.03em', lineHeight: 1, marginBottom: 8 }}>
+                            Analysis{reportRange ? ` · ${reportRange.fromShort} – ${reportRange.toShort}` : ''}
+                        </h1>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+                            <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: '#6b7280' }}>
+                                {closed.length} trades
+                            </span>
+                            {closed.length > 0 && (
+                                <>
+                                    <span style={{ color: '#1a1c24' }}>·</span>
+                                    <span style={{ fontFamily: 'var(--font-mono)', fontSize: 13, fontWeight: 700, color: netPnl >= 0 ? '#A6FF4D' : '#ff4757' }}>
+                                        {netPnl >= 0 ? '+' : ''}${netPnl.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} net P&L
+                                    </span>
+                                </>
+                            )}
+                            {/* Date range pickers (compact) */}
+                            <span style={{ color: '#1a1c24' }}>·</span>
+                            <input type="date" className={styles.dateInput} value={dateFrom} onChange={e => setDateFrom(e.target.value)} style={{ padding: '3px 8px', fontSize: 11 }} />
+                            <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: '#4b5563' }}>to</span>
+                            <input type="date" className={styles.dateInput} value={dateTo} onChange={e => setDateTo(e.target.value)} style={{ padding: '3px 8px', fontSize: 11 }} />
+                            {(dateFrom || dateTo) && (
+                                <button className={styles.dateClear} onClick={() => { setDateFrom(''); setDateTo(''); }} style={{ padding: '3px 8px', fontSize: 10 }}>✕</button>
+                            )}
+                        </div>
+                    </div>
+
+                    {/* Action buttons */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+                        <button
+                            onClick={handleExportPDF}
+                            style={{
+                                display: 'flex', alignItems: 'center', gap: 6,
+                                fontFamily: 'var(--font-mono)', fontSize: 11, fontWeight: 700, letterSpacing: '0.06em',
+                                padding: '8px 14px', background: 'transparent',
+                                border: '1px solid #1a1c24', color: '#8b949e', cursor: 'pointer',
+                                transition: 'all 0.15s',
+                            }}
+                            onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.borderColor = '#A6FF4D'; (e.currentTarget as HTMLButtonElement).style.color = '#A6FF4D'; }}
+                            onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.borderColor = '#1a1c24'; (e.currentTarget as HTMLButtonElement).style.color = '#8b949e'; }}
+                        >
+                            <Download size={12} /> EXPORT PDF
+                        </button>
+                        <button
+                            onClick={handleCopyLink}
+                            style={{
+                                display: 'flex', alignItems: 'center', gap: 6,
+                                fontFamily: 'var(--font-mono)', fontSize: 11, fontWeight: 700, letterSpacing: '0.06em',
+                                padding: '8px 14px',
+                                background: copied ? 'rgba(166,255,77,0.1)' : 'transparent',
+                                border: `1px solid ${copied ? 'rgba(166,255,77,0.4)' : '#1a1c24'}`,
+                                color: copied ? '#A6FF4D' : '#8b949e', cursor: 'pointer',
+                                transition: 'all 0.15s',
+                            }}
+                        >
+                            {copied ? <><Check size={12} /> COPIED</> : <><Link2 size={12} /> COPY LINK</>}
+                        </button>
+                    </div>
+                </div>
             </div>
             <div className={styles.topTabsWrapper}>
                 <div className={styles.topTabs}>
@@ -226,39 +388,136 @@ export default function AnalyticsPage() {
 
                     {activeTab === 'DAILY' && (
                         <motion.div key="daily" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="flex flex-col gap-6">
-                            <span className={styles.sectionTitle}>Daily Performance</span>
+                            <span className={styles.sectionTitle}>
+                                Daily P&L Breakdown · {dailyData.length} Session{dailyData.length !== 1 ? 's' : ''}
+                            </span>
+
+                            {/* Bar Chart with X axis dates */}
                             <div className={styles.fullWidthCard} style={{ height: 300, paddingBottom: 20 }}>
                                 <ResponsiveContainer width="100%" height="100%">
-                                    <BarChart data={dailyData.slice(-30)}>
+                                    <BarChart data={dailyData.slice(-30)} margin={{ bottom: 20 }}>
                                         <ReferenceLine y={0} stroke="rgba(255,255,255,0.1)" />
-                                        <XAxis dataKey="date" hide />
-                                        <Tooltip contentStyle={{ backgroundColor: '#0b0e14', border: '1px solid #1a1c24' }} />
-                                        <Bar dataKey="pnl">
+                                        <XAxis
+                                            dataKey="date"
+                                            tick={{ fontSize: 9, fill: '#4b5563', fontFamily: 'var(--font-mono)' }}
+                                            axisLine={false}
+                                            tickLine={false}
+                                            tickFormatter={d => {
+                                                const dt = new Date(d + 'T12:00:00Z');
+                                                return dt.toLocaleDateString('en-US', { month: '2-digit', day: '2-digit' });
+                                            }}
+                                        />
+                                        <YAxis hide />
+                                        <Tooltip
+                                            contentStyle={{ backgroundColor: '#0b0e14', border: '1px solid #1a1c24', fontFamily: 'var(--font-mono)', fontSize: 12 }}
+                                            formatter={(v: number) => [`${v >= 0 ? '+' : ''}$${Math.abs(v).toFixed(2)}`, 'P&L']}
+                                            labelFormatter={l => new Date(l + 'T12:00:00Z').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
+                                        />
+                                        <Bar dataKey="pnl" radius={[2, 2, 0, 0]}>
                                             {dailyData.map((d, i) => <Cell key={i} fill={d.pnl >= 0 ? '#A6FF4D' : '#ff4757'} />)}
                                         </Bar>
                                     </BarChart>
                                 </ResponsiveContainer>
                             </div>
+
+                            {/* 4 KPI Cards — Best Day, Worst Day, Avg Daily, Daily Volatility */}
                             <div className={styles.kpiGrid}>
                                 <div className={styles.kpiBox}>
-                                    <span className={styles.kpiLabel}>BEST DAY</span>
-                                    <span className={`${styles.kpiValue} ${styles.textGreen}`}>+${bestDay.toFixed(0)}</span>
+                                    <span className={styles.kpiLabel}>Best Day</span>
+                                    <span className={`${styles.kpiValue} ${styles.textGreen}`}>
+                                        {bestDay > 0 ? `+$${bestDay.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '—'}
+                                    </span>
+                                    {bestDayDate && <span className={styles.kpiSub}>
+                                        {new Date(bestDayDate + 'T12:00:00Z').toLocaleDateString('en-US', { month: '2-digit', day: '2-digit' })}
+                                    </span>}
                                 </div>
                                 <div className={styles.kpiBox}>
-                                    <span className={styles.kpiLabel}>WORST DAY</span>
-                                    <span className={`${styles.kpiValue} ${styles.textRed}`}>-${Math.abs(worstDay).toFixed(0)}</span>
+                                    <span className={styles.kpiLabel}>Worst Day</span>
+                                    <span className={`${styles.kpiValue} ${styles.textRed}`}>
+                                        {worstDay < 0 ? `-$${Math.abs(worstDay).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '—'}
+                                    </span>
+                                    {worstDayDate && <span className={styles.kpiSub}>
+                                        {new Date(worstDayDate + 'T12:00:00Z').toLocaleDateString('en-US', { month: '2-digit', day: '2-digit' })}
+                                    </span>}
                                 </div>
                                 <div className={styles.kpiBox}>
-                                    <span className={styles.kpiLabel}>AVG SESSION</span>
-                                    <span className={styles.kpiValue}>${avgDaily.toFixed(0)}</span>
-                                </div>
-                                <div className={styles.kpiBox} style={{ borderRight: 'none' }}>
-                                    <span className={styles.kpiLabel}>CONSISTENCY</span>
-                                    <span className={`${styles.kpiValue} ${styles.textYellow}`}>
-                                        {dailyData.length > 0 ? Math.round((dailyData.filter(d => d.pnl > 0).length / dailyData.length) * 100) + '%' : '—'}
+                                    <span className={styles.kpiLabel}>Avg Daily P&L</span>
+                                    <span className={`${styles.kpiValue} ${avgDaily >= 0 ? styles.textGreen : styles.textRed}`}>
+                                        {avgDaily >= 0 ? '+' : ''}${avgDaily.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                    </span>
+                                    <span className={styles.kpiSub}>
+                                        Median: {medianDaily >= 0 ? '+' : ''}${medianDaily.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                                     </span>
                                 </div>
+                                <div className={styles.kpiBox} style={{ borderRight: 'none' }}>
+                                    <span className={styles.kpiLabel}>Daily Volatility</span>
+                                    <span className={`${styles.kpiValue} ${styles.textYellow}`}>
+                                        {dailyVolatility > 0 ? `±$${dailyVolatility.toLocaleString(undefined, { maximumFractionDigits: 2 })}` : '—'}
+                                    </span>
+                                    {dailyData.length >= 2 && <span className={styles.kpiSub}>
+                                        {daysWithin1Std}% days within 1 StdDev
+                                    </span>}
+                                </div>
                             </div>
+
+                            {/* Weekly Performance Breakdown */}
+                            {weeklyBreakdown.length > 0 && (
+                                <div className="flex flex-col gap-3">
+                                    <span className={styles.sectionTitle}>Weekly Performance Breakdown</span>
+                                    <div className={styles.fullWidthCard} style={{ padding: 0, overflow: 'hidden' }}>
+                                        <table style={{ width: '100%', borderCollapse: 'collapse', fontFamily: 'var(--font-mono)', fontSize: 11 }}>
+                                            <thead>
+                                                <tr style={{ borderBottom: '1px solid #1a1c24', background: '#0d1117' }}>
+                                                    {['WEEK', 'DAYS', 'NET P&L', 'BEST', 'WORST', 'WIN %', 'FLAG'].map((h, i) => (
+                                                        <th key={i} style={{ padding: '12px 16px', textAlign: i === 0 ? 'left' : 'right', color: '#4b5563', fontWeight: 700, letterSpacing: '0.08em', fontSize: 10, whiteSpace: 'nowrap' }}>
+                                                            {h}
+                                                        </th>
+                                                    ))}
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                {weeklyBreakdown.map((w, i) => (
+                                                    <tr key={i} style={{ borderBottom: '1px solid #1a1c24', transition: 'background 0.1s' }}
+                                                        onMouseEnter={e => (e.currentTarget as HTMLTableRowElement).style.background = '#0d1117'}
+                                                        onMouseLeave={e => (e.currentTarget as HTMLTableRowElement).style.background = 'transparent'}
+                                                    >
+                                                        <td style={{ padding: '14px 16px', color: '#c9d1d9', fontWeight: 600, whiteSpace: 'nowrap' }}>
+                                                            {w.weekStart} to {w.weekEnd}
+                                                        </td>
+                                                        <td style={{ padding: '14px 16px', textAlign: 'right', color: '#6b7280' }}>{w.numDays}</td>
+                                                        <td style={{ padding: '14px 16px', textAlign: 'right', fontWeight: 700, color: w.netPnl >= 0 ? '#A6FF4D' : '#ff4757' }}>
+                                                            {w.netPnl >= 0 ? '+' : ''}${w.netPnl.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                                        </td>
+                                                        <td style={{ padding: '14px 16px', textAlign: 'right', color: '#A6FF4D' }}>
+                                                            +${w.bestDayPnl.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                                        </td>
+                                                        <td style={{ padding: '14px 16px', textAlign: 'right', color: '#ff4757' }}>
+                                                            -${Math.abs(w.worstDayPnl).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                                        </td>
+                                                        <td style={{ padding: '14px 16px', textAlign: 'right', color: w.winRate >= 55 ? '#A6FF4D' : w.winRate >= 45 ? '#EAB308' : '#ff4757', fontWeight: 700 }}>
+                                                            {w.winRate.toFixed(1)}%
+                                                        </td>
+                                                        <td style={{ padding: '14px 16px', textAlign: 'right' }}>
+                                                            {w.flag && (
+                                                                <span style={{
+                                                                    display: 'inline-block', padding: '3px 8px',
+                                                                    fontSize: 9, fontWeight: 700, letterSpacing: '0.04em',
+                                                                    border: `1px solid ${w.flagSev === 'critical' ? 'rgba(255,71,87,0.4)' : w.flagSev === 'warning' ? 'rgba(234,179,8,0.4)' : 'rgba(166,255,77,0.3)'}`,
+                                                                    color: w.flagSev === 'critical' ? '#ff4757' : w.flagSev === 'warning' ? '#EAB308' : '#A6FF4D',
+                                                                    background: w.flagSev === 'critical' ? 'rgba(255,71,87,0.08)' : w.flagSev === 'warning' ? 'rgba(234,179,8,0.06)' : 'rgba(166,255,77,0.06)',
+                                                                    whiteSpace: 'nowrap', maxWidth: 280, overflow: 'hidden', textOverflow: 'ellipsis',
+                                                                }}>
+                                                                    {w.flag}
+                                                                </span>
+                                                            )}
+                                                        </td>
+                                                    </tr>
+                                                ))}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            )}
                         </motion.div>
                     )}
 
