@@ -63,7 +63,13 @@ export async function POST(req: NextRequest) {
                     return NextResponse.json({ error: desc }, { status: 401 });
                 }
                 const data = JSON.parse(text);
-                return NextResponse.json({ token: data.token });
+                // DXTrade may return the session token under different field names
+                const token = data.token ?? data.userSession ?? data.sessionToken ?? data.sessionId ?? data.access_token;
+                if (!token) {
+                    console.error('[DXTrade login] Unexpected response shape:', JSON.stringify(data));
+                    return NextResponse.json({ error: 'No token in login response', _raw: data }, { status: 502 });
+                }
+                return NextResponse.json({ token });
             }
 
             case 'ping': {

@@ -201,7 +201,7 @@ async function proxyCall(config: Partial<DXConfig> & { server: string }, action:
 /** Step 1 of connect flow: authenticate and get session token */
 export async function dxLogin(server: string, username: string, domain: string, password: string): Promise<string> {
     const data = await proxyCall({ server }, 'login', { username, domain, password });
-    if (!data.token) throw new Error('No token returned from DXTrade');
+    if (!data.token) throw new Error(`No token returned from DXTrade${data._raw ? ` — raw response: ${JSON.stringify(data._raw)}` : ''}`);
     return data.token as string;
 }
 
