@@ -165,8 +165,9 @@ function buildTrades(rawTxs: RawTx[]): Omit<TradeSession, 'note'>[] {
             const pnl = tx.settledPnl - tx.commission - (open?.commission ?? 0);
             const isShort = open ? open.direction === 'Sell' : tx.direction === 'Buy';
 
+            // ID is deterministic: same trade always produces the same ID → real dedup on re-import
             trades.push({
-                id: `tradeify-${tx.txId}-${Date.now() + trades.length}`,
+                id: `tradeify-${tx.txId}`,
                 asset: tx.baseSymbol,
                 assetType: 'crypto',
                 entry: open?.price ?? tx.price,
@@ -196,7 +197,14 @@ function buildTrades(rawTxs: RawTx[]): Omit<TradeSession, 'note'>[] {
 
 export async function parseTradeifyPDF(
     file: File
-): Promise<{ trades: Omit<TradeSession, 'note'>[]; count: number; error?: string }> {
+): Promise<{
+    trades: Omit<TradeSession, 'note'>[];
+    count: number;
+    error?: string;
+    closingBalance?: number;   // extracted from PDF summary if present
+    coverageStart?: string;    // YYYY-MM-DD of earliest trade
+    coverageEnd?: string;      // YYYY-MM-DD of latest trade
+}> {
     try {
         const pdfjsLib = await import('pdfjs-dist');
         // On mobile (iOS Safari, Android WebView) Web Workers are unreliable.
@@ -256,7 +264,28 @@ export async function parseTradeifyPDF(
         }
 
         const trades = buildTrades(rawTxs);
-        return { trades, count: trades.length };
+
+        // ── Extract closing balance from summary section ──────
+        // The Tradeify statement header (before the Transactions table) contains
+        // lines like "Closing Balance 52,600.00" or "Balance: 52600.00"
+        const headerText = txIdx >= 0 ? fullText.slice(0, txIdx) : '';
+        let closingBalance: number | undefined;
+        const balM = headerText.match(
+            /(?:closing|ending|final|current)\s+balance[:\s]*\$?\s*([\d,]+\.?\d*)/i
+        ) ?? headerText.match(
+            /balance[:\s]+\$?\s*([\d,]+\.?\d{2})\b/i
+        );
+        if (balM) {
+            const parsed = parseFloat(balM[1].replace(/,/g, ''));
+            if (parsed > 0) closingBalance = parsed;
+        }
+
+        // ── Coverage dates ────────────────────────────────────
+        const dates = rawTxs.map(t => t.dateISO).sort();
+        const coverageStart = dates[0]?.slice(0, 10);
+        const coverageEnd   = dates[dates.length - 1]?.slice(0, 10);
+
+        return { trades, count: trades.length, closingBalance, coverageStart, coverageEnd };
 
     } catch (e) {
         return {

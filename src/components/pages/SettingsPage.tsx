@@ -126,11 +126,32 @@ export default function SettingsPage() {
             const { parseTradeifyPDF } = await import('@/lib/parseTradeifyPDF');
             const result = await parseTradeifyPDF(file);
             if (result.error) { setPdfMsg(`Error: ${result.error}`); return; }
-            const existing = trades.filter(t => !t.id.startsWith('tradeify-'));
-            const pdfIds = new Set(result.trades.map(t => t.id));
-            const merged = [...result.trades.map(t => ({ ...t, note: '' })), ...existing.filter(t => !pdfIds.has(t.id))];
-            setTrades(merged);
-            setPdfMsg(`Imported ${result.count} trades from statement.`);
+
+            // ── Merge: keep existing non-PDF trades + old PDF trades not in this upload
+            // This allows incremental uploads (e.g. upload Mar 7-11 without losing Feb 27-Mar 6)
+            const nonPdf    = trades.filter(t => !t.id.startsWith('tradeify-'));
+            const oldPdf    = trades.filter(t => t.id.startsWith('tradeify-'));
+            const newIds    = new Set(result.trades.map(t => t.id));
+            const oldKept   = oldPdf.filter(t => !newIds.has(t.id));   // old trades not overwritten
+            const newTrades = result.trades.map(t => ({ ...t, note: '' }));
+            setTrades([...newTrades, ...oldKept, ...nonPdf]);
+
+            // ── Auto-update balance if PDF contains it ────────────────────────
+            if (result.closingBalance) {
+                updateAccount({ balance: result.closingBalance });
+                setBalance(String(result.closingBalance));
+            }
+
+            // ── Build message ─────────────────────────────────────────────────
+            const added    = newTrades.length;
+            const kept     = oldKept.length;
+            const coverage = result.coverageStart && result.coverageEnd
+                ? ` · Coverage ${result.coverageStart} → ${result.coverageEnd}`
+                : '';
+            const balMsg   = result.closingBalance
+                ? ` · Balance updated to $${result.closingBalance.toLocaleString()}`
+                : ' · Update your balance in Settings';
+            setPdfMsg(`${added} trades imported, ${kept} existing kept${coverage}${balMsg}`);
         } catch (err) {
             setPdfMsg(`Failed: ${err instanceof Error ? err.message : 'Unknown error'}`);
         } finally { setPdfBusy(false); }
