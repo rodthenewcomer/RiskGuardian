@@ -120,6 +120,13 @@ interface AppState {
     resetTodaySession: () => void;
     setDXTradeConfig: (config: DXTradeConfig | null) => void;
     setDXTradeLastSync: (time: string) => void;
+    /**
+     * Auto-compute balance, highestBalance, and dailyLossLimit from trade history.
+     * Called automatically after setTrades / addTrade / deleteTrade.
+     * Safe to call manually from Settings as a "Recalculate" action.
+     * Skips update if startingBalance is not set.
+     */
+    autoSync: () => void;
 }
 
 /**
@@ -222,14 +229,20 @@ export const useAppStore = create<AppState>()(
             updateAccount: (settings) =>
                 set((s) => ({ account: { ...s.account, ...settings } })),
 
-            addTrade: (trade) =>
-                set((s) => ({ trades: [trade, ...s.trades] })),
+            addTrade: (trade) => {
+                set((s) => ({ trades: [trade, ...s.trades] }));
+                get().autoSync();
+            },
 
-            setTrades: (newTrades: TradeSession[]) =>
-                set(() => ({ trades: newTrades })),
+            setTrades: (newTrades: TradeSession[]) => {
+                set(() => ({ trades: newTrades }));
+                get().autoSync();
+            },
 
-            deleteTrade: (id) =>
-                set((s) => ({ trades: s.trades.filter((t) => t.id !== id) })),
+            deleteTrade: (id) => {
+                set((s) => ({ trades: s.trades.filter((t) => t.id !== id) }));
+                get().autoSync();
+            },
 
             updateTradeOutcome: (id, outcome) =>
                 set((s) => ({
@@ -285,6 +298,50 @@ export const useAppStore = create<AppState>()(
                 set((s) => ({
                     dailySessions: s.dailySessions.filter((d) => d.date !== todayStr),
                 }));
+            },
+
+            autoSync: () => {
+                const s = get();
+                if (!s.account.startingBalance) return;
+
+                const closed = s.trades
+                    .filter(t => (t.outcome === 'win' || t.outcome === 'loss') && typeof t.pnl === 'number')
+                    .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+
+                if (closed.length === 0) return;
+
+                // Running balance and peak balance over trade history
+                let running = s.account.startingBalance;
+                let highest = s.account.startingBalance;
+                for (const t of closed) {
+                    running += t.pnl ?? 0;
+                    if (running > highest) highest = running;
+                }
+                const newBalance = Math.round(running * 100) / 100;
+                const newHighest = Math.round(Math.max(highest, s.account.highestBalance ?? 0) * 100) / 100;
+
+                // Auto-scale daily loss limit with the current balance if prop firm is set
+                const firm = PROP_FIRMS.find(f => f.name === s.account.propFirm && f.dailyPct > 0);
+                const newDailyLimit = firm
+                    ? Math.round((newBalance * firm.dailyPct) / 100)
+                    : s.account.dailyLossLimit;
+
+                // Only write if values actually changed (avoid unnecessary re-renders)
+                const changed =
+                    Math.abs(newBalance - s.account.balance) > 0.01 ||
+                    newHighest !== s.account.highestBalance ||
+                    newDailyLimit !== s.account.dailyLossLimit;
+
+                if (changed) {
+                    set(s2 => ({
+                        account: {
+                            ...s2.account,
+                            balance: newBalance,
+                            highestBalance: newHighest,
+                            dailyLossLimit: newDailyLimit,
+                        },
+                    }));
+                }
             },
         }),
         {

@@ -4,11 +4,12 @@ import styles from './SettingsPage.module.css';
 import { useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAppStore, PROP_FIRMS, type PropFirmPreset } from '@/store/appStore';
+import { scanViolations, type TradeViolation } from '@/lib/tradeViolations';
 import {
     Settings2, DollarSign, ShieldAlert, Check, RefreshCw, Building2,
     Bitcoin, LineChart, CandlestickChart, CircleDollarSign,
     Wifi, WifiOff, Loader2, Upload, FileText, RotateCcw,
-    Brain, Download, Trash2, AlertTriangle,
+    Brain, Download, Trash2, AlertTriangle, Zap,
 } from 'lucide-react';
 import { dxConnect, dxGetMetrics, dxGetHistory, dxGetPositions } from '@/lib/dxtradeSync';
 
@@ -30,7 +31,7 @@ export default function SettingsPage() {
     const {
         account, updateAccount, resetTodaySession, resetOnboarding,
         dxtradeConfig, dxtradeLastSync, setDXTradeConfig, setDXTradeLastSync,
-        setTrades, trades,
+        setTrades, trades, autoSync,
     } = useAppStore();
 
     const [saved, setSaved] = useState(false);
@@ -50,6 +51,7 @@ export default function SettingsPage() {
     const pdfRef = useRef<HTMLInputElement>(null);
     const [pdfBusy, setPdfBusy] = useState(false);
     const [pdfMsg, setPdfMsg] = useState('');
+    const [violations, setViolations] = useState<TradeViolation[]>([]);
 
     // Danger zone
     const [clearConfirm, setClearConfirm] = useState(false);
@@ -136,22 +138,34 @@ export default function SettingsPage() {
             const newTrades = result.trades.map(t => ({ ...t, note: '' }));
             setTrades([...newTrades, ...oldKept, ...nonPdf]);
 
-            // ── Auto-update balance if PDF contains it ────────────────────────
+            // ── Auto-update balance: PDF closing balance wins; fallback = computed ─
+            // autoSync() is already called inside setTrades(), so balance/highestBalance
+            // are already recomputed. If PDF has an explicit closing balance, apply it
+            // on top (it's the ground truth from the broker).
             if (result.closingBalance) {
                 updateAccount({ balance: result.closingBalance });
                 setBalance(String(result.closingBalance));
+            } else {
+                // Read the just-updated computed balance from store
+                const computed = useAppStore.getState().account.balance;
+                if (computed > 0) setBalance(String(computed));
             }
+
+            // ── Violation scan on the full merged trade set ───────────────────
+            const allTrades = [...newTrades, ...oldKept, ...nonPdf];
+            const found = scanViolations(allTrades, account);
+            setViolations(found);
 
             // ── Build message ─────────────────────────────────────────────────
             const added    = newTrades.length;
             const kept     = oldKept.length;
             const coverage = result.coverageStart && result.coverageEnd
-                ? ` · Coverage ${result.coverageStart} → ${result.coverageEnd}`
+                ? ` · ${result.coverageStart} → ${result.coverageEnd}`
                 : '';
-            const balMsg   = result.closingBalance
-                ? ` · Balance updated to $${result.closingBalance.toLocaleString()}`
-                : ' · Update your balance in Settings';
-            setPdfMsg(`${added} trades imported, ${kept} existing kept${coverage}${balMsg}`);
+            const finalBal = useAppStore.getState().account.balance;
+            const balMsg   = finalBal > 0 ? ` · Balance $${finalBal.toLocaleString()}` : '';
+            const warnMsg  = found.length > 0 ? ` · ${found.filter(v => v.severity === 'breach').length} violations found` : ' · No violations';
+            setPdfMsg(`${added} imported, ${kept} kept${coverage}${balMsg}${warnMsg}`);
         } catch (err) {
             setPdfMsg(`Failed: ${err instanceof Error ? err.message : 'Unknown error'}`);
         } finally { setPdfBusy(false); }
@@ -594,6 +608,49 @@ export default function SettingsPage() {
                         <Download size={13} /> Export CSV
                     </button>
                 </div>
+
+                {/* Violation report */}
+                <AnimatePresence>
+                    {violations.length > 0 && (
+                        <motion.div
+                            initial={{ opacity: 0, height: 0 }}
+                            animate={{ opacity: 1, height: 'auto' }}
+                            exit={{ opacity: 0, height: 0 }}
+                            style={{ overflow: 'hidden' }}
+                        >
+                            <div className={styles.violationBox}>
+                                <div className={styles.violationHeader}>
+                                    <AlertTriangle size={12} />
+                                    <span>{violations.filter(v => v.severity === 'breach').length} breach{violations.filter(v => v.severity === 'breach').length !== 1 ? 'es' : ''}, {violations.filter(v => v.severity === 'warning').length} warning{violations.filter(v => v.severity === 'warning').length !== 1 ? 's' : ''} detected</span>
+                                </div>
+                                {violations.slice(0, 5).map((v, i) => (
+                                    <div key={i} className={`${styles.violationRow} ${v.severity === 'breach' ? styles.violationBreach : styles.violationWarn}`}>
+                                        <span className={styles.violationDate}>{v.date}</span>
+                                        <span className={styles.violationDetail}>{v.detail}</span>
+                                    </div>
+                                ))}
+                                {violations.length > 5 && (
+                                    <p style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: '#6b7280', marginTop: 4 }}>
+                                        +{violations.length - 5} more
+                                    </p>
+                                )}
+                            </div>
+                        </motion.div>
+                    )}
+                </AnimatePresence>
+
+                {/* Recalculate balance from trades */}
+                {trades.length > 0 && account.startingBalance > 0 && (
+                    <button
+                        onClick={() => { autoSync(); const b = useAppStore.getState().account.balance; setBalance(String(b)); }}
+                        className="btn btn--ghost btn--sm"
+                        style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}
+                    >
+                        <Zap size={12} style={{ color: 'var(--accent)' }} />
+                        Recalculate balance from {trades.filter(t => t.outcome !== 'open').length} trades
+                    </button>
+                )}
+
                 <p style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: '#4b5563', marginTop: 0 }}>
                     Import: Tradeify &quot;Single-Currency Account Statement&quot; PDF · Export: all trades as .csv
                 </p>

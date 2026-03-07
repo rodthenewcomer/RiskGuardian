@@ -391,6 +391,53 @@
 }
 
 /* ── Danger Zone ─────────────────────────────────────────────── */
+/* ── Violation report ────────────────────────────────────────────── */
+.violationBox {
+    background: rgba(248, 113, 113, 0.04);
+    border: 1px solid rgba(248, 113, 113, 0.18);
+    border-radius: var(--radius-md);
+    padding: 10px 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.violationHeader {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    font-weight: 700;
+    color: #f87171;
+}
+
+.violationRow {
+    display: flex;
+    gap: 10px;
+    align-items: baseline;
+    padding: 4px 0;
+    border-top: 1px solid var(--border-subtle);
+}
+
+.violationBreach { color: #f87171; }
+.violationWarn   { color: #f59e0b; }
+
+.violationDate {
+    font-family: var(--font-mono);
+    font-size: 9px;
+    font-weight: 700;
+    white-space: nowrap;
+    flex-shrink: 0;
+    opacity: 0.7;
+}
+
+.violationDetail {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    line-height: 1.4;
+}
+
 .dangerSection {
     border-color: rgba(248, 113, 113, 0.1);
 }
