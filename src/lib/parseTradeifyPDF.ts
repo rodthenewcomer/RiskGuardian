@@ -199,7 +199,12 @@ export async function parseTradeifyPDF(
 ): Promise<{ trades: Omit<TradeSession, 'note'>[]; count: number; error?: string }> {
     try {
         const pdfjsLib = await import('pdfjs-dist');
-        pdfjsLib.GlobalWorkerOptions.workerSrc = '/pdf.worker.min.mjs';
+        // On mobile (iOS Safari, Android WebView) Web Workers are unreliable.
+        // Setting workerSrc = '' forces pdf.js to run synchronously in the main
+        // thread — slower but universally compatible.
+        const isMobile = typeof navigator !== 'undefined'
+            && /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+        pdfjsLib.GlobalWorkerOptions.workerSrc = isMobile ? '' : '/pdf.worker.min.mjs';
 
         const buf = await file.arrayBuffer();
         const pdf = await pdfjsLib.getDocument({ data: buf }).promise;

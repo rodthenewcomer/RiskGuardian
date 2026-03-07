@@ -67,12 +67,27 @@ export interface DailySession {
     guardTriggered: boolean;
 }
 
+/** Persisted DXTrade connection config (token only — no password stored) */
+export interface DXTradeConfig {
+    server: string;       // e.g. "live.tradeify.com"
+    username: string;
+    domain: string;
+    accountCode: string;  // DXTrade "clearing:account" code
+    token: string;        // Session token (expires on inactivity)
+    connectedAt: string;  // ISO timestamp of last successful login
+}
+
 interface AppState {
     hasOnboarded: boolean;
     account: AccountSettings;
     trades: TradeSession[];
     dailySessions: DailySession[];
     activeTab: 'dashboard' | 'terminal' | 'bridge' | 'calculator' | 'plan' | 'journal' | 'analytics' | 'settings';
+
+    /** DXTrade live connection (null = not connected) */
+    dxtradeConfig: DXTradeConfig | null;
+    /** ISO timestamp of last successful DXTrade sync */
+    dxtradeLastSync: string | null;
 
     // Actions
     completeOnboarding: () => void;
@@ -88,6 +103,8 @@ interface AppState {
     getDailyRiskRemaining: () => number;
     addDailyRisk: (amount: number) => void;
     resetTodaySession: () => void;
+    setDXTradeConfig: (config: DXTradeConfig | null) => void;
+    setDXTradeLastSync: (time: string) => void;
 }
 
 /**
@@ -169,6 +186,8 @@ export const useAppStore = create<AppState>()(
             trades: [],
             dailySessions: [],
             activeTab: 'dashboard',
+            dxtradeConfig: null,
+            dxtradeLastSync: null,
 
             completeOnboarding: () => set({ hasOnboarded: true }),
 
@@ -178,7 +197,12 @@ export const useAppStore = create<AppState>()(
                 trades: [],
                 dailySessions: [],
                 activeTab: 'dashboard',
+                dxtradeConfig: null,
+                dxtradeLastSync: null,
             }),
+
+            setDXTradeConfig: (config) => set({ dxtradeConfig: config }),
+            setDXTradeLastSync: (time) => set({ dxtradeLastSync: time }),
 
             updateAccount: (settings) =>
                 set((s) => ({ account: { ...s.account, ...settings } })),
@@ -255,6 +279,8 @@ export const useAppStore = create<AppState>()(
                 account: s.account,
                 trades: s.trades.slice(0, 100),
                 dailySessions: s.dailySessions.slice(-30),
+                dxtradeConfig: s.dxtradeConfig,
+                dxtradeLastSync: s.dxtradeLastSync,
             }),
         }
     )

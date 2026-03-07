@@ -1,9 +1,10 @@
 'use client';
 
 import styles from './SettingsPage.module.css';
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { useAppStore, PROP_FIRMS, type PropFirmPreset } from '@/store/appStore';
-import { Settings2, DollarSign, ShieldAlert, Check, RefreshCw, Building2, Bitcoin, LineChart, CandlestickChart, CircleDollarSign } from 'lucide-react';
+import { Settings2, DollarSign, ShieldAlert, Check, RefreshCw, Building2, Bitcoin, LineChart, CandlestickChart, CircleDollarSign, Wifi, WifiOff, Loader2, Upload, FileText, RotateCcw } from 'lucide-react';
+import { dxConnect, dxGetMetrics, dxGetHistory, dxGetPositions } from '@/lib/dxtradeSync';
 
 const getFirmLogo = (name: string) => {
     if (name.includes('Tradeify')) return 'https://www.google.com/s2/favicons?domain=tradeify.co&sz=128';
@@ -14,9 +15,26 @@ const getFirmLogo = (name: string) => {
 };
 
 export default function SettingsPage() {
-    const { account, updateAccount, resetTodaySession, resetOnboarding } = useAppStore();
+    const { account, updateAccount, resetTodaySession, resetOnboarding,
+        dxtradeConfig, dxtradeLastSync, setDXTradeConfig, setDXTradeLastSync,
+        setTrades, trades } = useAppStore();
     const [saved, setSaved] = useState(false);
     const [selectedFirm, setSelectedFirm] = useState<string | null>(null);
+
+    // DXTrade reconnect form state
+    const [showDxForm, setShowDxForm] = useState(false);
+    const [dxServer, setDxServer] = useState(dxtradeConfig?.server ?? 'live.tradeify.com');
+    const [dxUsername, setDxUsername] = useState(dxtradeConfig?.username ?? '');
+    const [dxDomain, setDxDomain] = useState(dxtradeConfig?.domain ?? 'default');
+    const [dxPassword, setDxPassword] = useState('');
+    const [dxBusy, setDxBusy] = useState(false);
+    const [dxProgress, setDxProgress] = useState('');
+    const [dxError, setDxError] = useState('');
+
+    // PDF import
+    const pdfRef = useRef<HTMLInputElement>(null);
+    const [pdfBusy, setPdfBusy] = useState(false);
+    const [pdfMsg, setPdfMsg] = useState('');
 
     const startBalVal = account.startingBalance || account.balance || 10000;
     const initialDrawPct = account.maxDrawdownLimit ? (account.maxDrawdownLimit / startBalVal) * 100 : 10;
@@ -31,6 +49,73 @@ export default function SettingsPage() {
     const [drawdownType, setDrawdownType] = useState(account.drawdownType || 'EOD');
     const [maxDrawdownPct, setMaxDrawdownPct] = useState(String(initialDrawPct.toFixed(1)));
     const [maxTradesPerDay, setMaxTradesPerDay] = useState(String(account.maxTradesPerDay ?? ''));
+
+    // ── DXTrade: connect / reconnect ──────────────────────────────
+    async function handleDXConnect() {
+        if (!dxUsername || !dxPassword) { setDxError('Username and password required'); return; }
+        setDxBusy(true); setDxError(''); setDxProgress('');
+        try {
+            const result = await dxConnect(dxServer, dxUsername, dxDomain, dxPassword, setDxProgress);
+            setDXTradeConfig({ server: dxServer, username: dxUsername, domain: dxDomain, accountCode: result.accountCode, token: result.token, connectedAt: new Date().toISOString() });
+            setDXTradeLastSync(new Date().toISOString());
+            // Merge DXTrade trades with any existing manual trades (deduplicate by id)
+            const dxIds = new Set([...result.trades, ...result.positions].map(t => t.id));
+            const manual = trades.filter(t => !dxIds.has(t.id) && !t.id.startsWith('dxtrade-'));
+            setTrades([...result.positions, ...result.trades, ...manual]);
+            updateAccount({ balance: result.balance, startingBalance: result.balance });
+            setBalance(String(result.balance));
+            setDxProgress(`Connected! ${result.trades.length} trades synced.`);
+            setShowDxForm(false);
+        } catch (e) {
+            setDxError(e instanceof Error ? e.message : 'Connection failed. Check credentials and server URL.');
+        } finally { setDxBusy(false); }
+    }
+
+    // ── DXTrade: sync now (use stored token, refresh if needed) ──
+    async function handleDXSync() {
+        if (!dxtradeConfig) return;
+        setDxBusy(true); setDxError(''); setDxProgress('Syncing live data…');
+        try {
+            const config = { server: dxtradeConfig.server, token: dxtradeConfig.token, accountCode: dxtradeConfig.accountCode, username: dxtradeConfig.username };
+            const [metrics, history, positions] = await Promise.all([
+                dxGetMetrics(config),
+                dxGetHistory(config, dxtradeLastSync ?? undefined),
+                dxGetPositions(config),
+            ]);
+            // Deduplicate: keep manual trades, replace DXTrade ones
+            const manual = trades.filter(t => !t.id.startsWith('dxtrade-'));
+            setTrades([...positions, ...history, ...manual]);
+            updateAccount({ balance: metrics.balance });
+            setBalance(String(metrics.balance));
+            setDXTradeLastSync(new Date().toISOString());
+            setDxProgress(`Synced. ${history.length} new trades · Balance $${metrics.balance.toLocaleString()}`);
+        } catch (e) {
+            setDxError(e instanceof Error ? e.message : 'Sync failed. Token may have expired — reconnect.');
+        } finally { setDxBusy(false); }
+    }
+
+    // ── PDF import ────────────────────────────────────────────────
+    async function handlePDFImport(e: React.ChangeEvent<HTMLInputElement>) {
+        const file = e.target.files?.[0];
+        if (!e.target) return;
+        // Reset input so same file can be re-imported
+        (e.target as HTMLInputElement).value = '';
+        if (!file) return;
+        setPdfBusy(true); setPdfMsg('Parsing statement…');
+        try {
+            const { parseTradeifyPDF } = await import('@/lib/parseTradeifyPDF');
+            const result = await parseTradeifyPDF(file);
+            if (result.error) { setPdfMsg(`Error: ${result.error}`); return; }
+            // Merge: remove old PDF trades, keep DXTrade + manual, add new PDF trades
+            const existing = trades.filter(t => !t.id.startsWith('tradeify-'));
+            const pdfIds = new Set(result.trades.map(t => t.id));
+            const merged = [...result.trades.map(t => ({ ...t, note: '' })), ...existing.filter(t => !pdfIds.has(t.id))];
+            setTrades(merged);
+            setPdfMsg(`Imported ${result.count} trades from statement.`);
+        } catch (err) {
+            setPdfMsg(`Failed: ${err instanceof Error ? err.message : 'Unknown error'}`);
+        } finally { setPdfBusy(false); }
+    }
 
     const handleSave = () => {
         // Calculate max drawdown limit USD based on %
@@ -228,6 +313,171 @@ export default function SettingsPage() {
             <button className={`btn ${saved ? 'btn--success' : 'btn--primary'} btn--full`} onClick={handleSave} id="save-settings-btn">
                 {saved ? <><Check size={16} /> Saved!</> : <><Check size={16} /> Save Settings</>}
             </button>
+
+            {/* ─── DXTrade Live Sync ─── */}
+            <div className={`glass-card glass-card--elevated ${styles.section}`}>
+                <div className={styles.sectionTitleRow}>
+                    <Wifi size={14} className={dxtradeConfig ? 'text-success' : 'text-muted'} />
+                    <span className={styles.sectionTitle}>DXTrade Live Sync</span>
+                    {dxtradeConfig && (
+                        <span style={{ marginLeft: 'auto', fontFamily: 'var(--font-mono)', fontSize: 9, color: '#A6FF4D', background: 'rgba(166,255,77,0.08)', border: '1px solid rgba(166,255,77,0.25)', padding: '2px 8px', borderRadius: 3, letterSpacing: '0.06em', textTransform: 'uppercase' }}>
+                            CONNECTED
+                        </span>
+                    )}
+                </div>
+
+                {dxtradeConfig ? (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                        {/* Connection info */}
+                        <div style={{ padding: '12px 14px', background: 'rgba(166,255,77,0.04)', border: '1px solid rgba(166,255,77,0.12)', borderRadius: 6 }}>
+                            <div style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: '#e2e8f0', marginBottom: 4 }}>
+                                <strong>{dxtradeConfig.username}</strong> @ {dxtradeConfig.server}
+                            </div>
+                            <div style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: '#6b7280' }}>
+                                Account: {dxtradeConfig.accountCode}
+                            </div>
+                            {dxtradeLastSync && (
+                                <div style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: '#4b5563', marginTop: 3 }}>
+                                    Last sync: {new Date(dxtradeLastSync).toLocaleString()}
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Progress / error */}
+                        {dxProgress && !dxError && (
+                            <div style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: '#A6FF4D', padding: '8px 12px', background: 'rgba(166,255,77,0.04)', border: '1px solid rgba(166,255,77,0.12)', borderRadius: 6 }}>
+                                {dxProgress}
+                            </div>
+                        )}
+                        {dxError && (
+                            <div style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: '#ff4757', padding: '8px 12px', background: 'rgba(255,71,87,0.06)', border: '1px solid rgba(255,71,87,0.2)', borderRadius: 6 }}>
+                                {dxError}
+                            </div>
+                        )}
+
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                            <button
+                                onClick={handleDXSync}
+                                disabled={dxBusy}
+                                className="btn btn--primary btn--sm"
+                                style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}
+                            >
+                                {dxBusy ? <Loader2 size={13} style={{ animation: 'spin 1s linear infinite' }} /> : <RefreshCw size={13} />}
+                                Sync Now
+                            </button>
+                            <button
+                                onClick={() => { setShowDxForm(v => !v); setDxError(''); setDxProgress(''); }}
+                                className="btn btn--ghost btn--sm"
+                                style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}
+                            >
+                                <RotateCcw size={13} /> Reconnect
+                            </button>
+                        </div>
+
+                        <button
+                            onClick={() => { setDXTradeConfig(null); setDxProgress(''); setDxError(''); }}
+                            className="btn btn--ghost btn--sm"
+                            style={{ color: 'var(--color-danger)', fontSize: 11, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}
+                        >
+                            <WifiOff size={12} /> Disconnect DXTrade
+                        </button>
+                    </div>
+                ) : (
+                    <p style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: '#6b7280', marginBottom: 10 }}>
+                        Connect your Tradeify DXTrade account to auto-sync balance and trade history.
+                    </p>
+                )}
+
+                {/* Connect / Reconnect form */}
+                {(!dxtradeConfig || showDxForm) && (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: dxtradeConfig ? 0 : 0 }}>
+                        {['Server', 'Username', 'Domain', 'Password'].map((field) => {
+                            const fieldMap: Record<string, { val: string; set: (v: string) => void; type?: string; placeholder: string }> = {
+                                Server:   { val: dxServer,   set: setDxServer,   placeholder: 'live.tradeify.com' },
+                                Username: { val: dxUsername, set: setDxUsername, placeholder: 'your_username' },
+                                Domain:   { val: dxDomain,   set: setDxDomain,   placeholder: 'default' },
+                                Password: { val: dxPassword, set: setDxPassword, type: 'password', placeholder: '••••••••' },
+                            };
+                            const f = fieldMap[field];
+                            return (
+                                <div className="field-group" key={field} style={{ marginBottom: 0 }}>
+                                    <label className="field-label">{field}</label>
+                                    <input
+                                        className="field-input"
+                                        type={f.type || 'text'}
+                                        value={f.val}
+                                        onChange={e => f.set(e.target.value)}
+                                        placeholder={f.placeholder}
+                                        autoCapitalize="none"
+                                        autoCorrect="off"
+                                    />
+                                </div>
+                            );
+                        })}
+
+                        {dxProgress && !dxError && (
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontFamily: 'var(--font-mono)', fontSize: 11, color: '#A6FF4D' }}>
+                                <Loader2 size={12} style={{ animation: 'spin 1s linear infinite' }} /> {dxProgress}
+                            </div>
+                        )}
+                        {dxError && (
+                            <div style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: '#ff4757' }}>{dxError}</div>
+                        )}
+
+                        <button
+                            onClick={handleDXConnect}
+                            disabled={dxBusy || !dxUsername || !dxPassword}
+                            className="btn btn--primary btn--sm"
+                            style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, marginTop: 4 }}
+                        >
+                            {dxBusy ? <Loader2 size={13} style={{ animation: 'spin 1s linear infinite' }} /> : <Wifi size={13} />}
+                            {dxBusy ? 'Connecting…' : 'Connect & Sync'}
+                        </button>
+                    </div>
+                )}
+            </div>
+
+            {/* ─── PDF Statement Import ─── */}
+            <div className={`glass-card glass-card--elevated ${styles.section}`}>
+                <div className={styles.sectionTitleRow}>
+                    <FileText size={14} className="text-muted" />
+                    <span className={styles.sectionTitle}>Import PDF Statement</span>
+                </div>
+                <p style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: '#6b7280', marginBottom: 12, lineHeight: 1.6 }}>
+                    Download your Tradeify &quot;Single-Currency Account Statement&quot; PDF from DXTrade and import it here to sync all closed trades.
+                </p>
+
+                {pdfMsg && (
+                    <div style={{
+                        fontFamily: 'var(--font-mono)', fontSize: 11,
+                        color: pdfMsg.startsWith('Error') || pdfMsg.startsWith('Failed') ? '#ff4757' : '#A6FF4D',
+                        padding: '8px 12px', borderRadius: 6, marginBottom: 10,
+                        background: pdfMsg.startsWith('Error') || pdfMsg.startsWith('Failed') ? 'rgba(255,71,87,0.06)' : 'rgba(166,255,77,0.04)',
+                        border: `1px solid ${pdfMsg.startsWith('Error') || pdfMsg.startsWith('Failed') ? 'rgba(255,71,87,0.2)' : 'rgba(166,255,77,0.12)'}`,
+                    }}>
+                        {pdfMsg}
+                    </div>
+                )}
+
+                <input
+                    ref={pdfRef}
+                    type="file"
+                    accept=".pdf"
+                    style={{ display: 'none' }}
+                    onChange={handlePDFImport}
+                />
+                <button
+                    onClick={() => pdfRef.current?.click()}
+                    disabled={pdfBusy}
+                    className="btn btn--ghost btn--sm"
+                    style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, width: '100%' }}
+                >
+                    {pdfBusy
+                        ? <><Loader2 size={13} style={{ animation: 'spin 1s linear infinite' }} /> Parsing…</>
+                        : <><Upload size={13} /> Choose PDF Statement</>
+                    }
+                </button>
+            </div>
 
             {/* Reset onboarding */}
             <button className={`btn btn--ghost btn--sm ${styles.resetWizardBtn}`} onClick={resetOnboarding} id="reset-onboarding-btn">
