@@ -1,432 +1,430 @@
 'use client';
 
 /**
- * BridgePage — RiskGuardian Live Bridge Dashboard
+ * BridgePage — Live DXTrade Monitor + Pre-Trade AI Analyzer
  * ─────────────────────────────────────────────────────────────────
- * Real-time trade monitoring when connected to local bridge software.
- * Three observation methods: Log File · Memory Read · Screen Parse.
- * Passive observation only — no trade control.
+ * Two real functions:
+ *   1. Live Position Monitor — polls DXTrade open positions every 3s
+ *   2. Pre-Trade AI Check    — instant risk analysis before entry
  */
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-    ShieldCheck, ShieldAlert, Wifi, WifiOff, Activity, Send,
-    RefreshCw, Eye, Terminal, Cpu, FileText, Play, Trash2,
-    AlertTriangle, CheckCircle, Clock, Zap
+    Activity, Wifi, WifiOff, RefreshCw, TrendingUp, TrendingDown,
+    Zap, ShieldCheck, ShieldAlert, AlertTriangle, Clock,
+    ArrowUpRight, ArrowDownRight, Settings2, CheckCircle, XCircle,
 } from 'lucide-react';
 import styles from './BridgePage.module.css';
+import { useAppStore } from '@/store/appStore';
+import { dxGetPositions, dxGetMetrics, type DXMetrics } from '@/lib/dxtradeSync';
+import type { TradeSession } from '@/store/appStore';
 
-// ── Types ──────────────────────────────────────────────────────────
-interface BridgeTrade {
-    id: string;
-    symbol: string;
-    direction: 'BUY' | 'SELL' | 'UNKNOWN';
-    lots: number;
-    entry: number;
-    stopLoss: number;
-    takeProfit: number;
-    accountBalance: number;
-    dailyLossLimit: number;
-    platform: string;
-    method: string;
-    timestamp: string;
-    ai?: {
-        riskUSD: number;
-        riskPct: number;
-        remainingDailyUSD: number;
-        rrRatio: number;
-        survivalStatus: 'safe' | 'caution' | 'danger' | 'critical';
-        approved: boolean;
-        warnings: string[];
-        recommendation: string;
-    };
+const POLL_MS = 3000;
+
+// ── Pre-trade risk calculation ─────────────────────────────────────
+function calcPreTrade(entry: number, stop: number, tp: number, lots: number, balance: number, dailyLimit: number, dailyUsed: number) {
+    if (!entry || !stop || !lots || !balance) return null;
+    const stopDist = Math.abs(entry - stop);
+    const riskUSD = stopDist * lots;
+    const riskPct = (riskUSD / balance) * 100;
+    const tpDist = tp > 0 ? Math.abs(tp - entry) : 0;
+    const rr = tpDist > 0 && stopDist > 0 ? tpDist / stopDist : 0;
+    const dailyRemaining = Math.max(0, dailyLimit - dailyUsed);
+    const wouldExceedDaily = riskUSD > dailyRemaining;
+    const isOver3Pct = riskPct > 3;
+    const isRRWeak = rr > 0 && rr < 1.5;
+    const warnings: string[] = [];
+    if (wouldExceedDaily) warnings.push(`$${riskUSD.toFixed(0)} would exceed your daily remaining ($${dailyRemaining.toFixed(0)})`);
+    if (isOver3Pct) warnings.push(`${riskPct.toFixed(1)}% risk exceeds 3% per-trade max`);
+    if (isRRWeak) warnings.push(`${rr.toFixed(1)}R is below minimum 1.5R`);
+    const verdict: 'GO' | 'CAUTION' | 'STOP' =
+        warnings.length === 0 ? 'GO' :
+            warnings.length === 1 ? 'CAUTION' : 'STOP';
+    return { riskUSD, riskPct, rr, dailyRemaining, warnings, verdict };
 }
 
-interface BridgeStatus {
-    connected: boolean;
-    sessionId: string;
-    lastPing: number;
-    tradeCount: number;
-    trades: BridgeTrade[];
+// ── Time elapsed ───────────────────────────────────────────────────
+function elapsed(isoTime: string): string {
+    const diff = Math.floor((Date.now() - new Date(isoTime).getTime()) / 1000);
+    if (diff < 60) return `${diff}s`;
+    if (diff < 3600) return `${Math.floor(diff / 60)}m`;
+    return `${Math.floor(diff / 3600)}h ${Math.floor((diff % 3600) / 60)}m`;
 }
-
-const API_URL = '/api/bridge';
-const API_KEY = 'rg-bridge-local-dev';
-const POLL_MS = 2500;
-
-// ── Demo trade injector (simulates bridge software) ──────────────
-const DEMO_TRADES: Partial<BridgeTrade>[] = [
-    { symbol: 'BTCUSD', direction: 'BUY', lots: 0.05, entry: 65200, stopLoss: 64900, takeProfit: 65800, accountBalance: 52600, dailyLossLimit: 1500, platform: 'DXTrade', method: 'log' },
-    { symbol: 'ETHUSD', direction: 'SELL', lots: 0.3, entry: 3200, stopLoss: 3280, takeProfit: 3040, accountBalance: 52600, dailyLossLimit: 1500, platform: 'DXTrade', method: 'memory' },
-    { symbol: 'SOLUSD', direction: 'BUY', lots: 12, entry: 91.65, stopLoss: 90.48, takeProfit: 93.99, accountBalance: 52600, dailyLossLimit: 1500, platform: 'DXTrade', method: 'screen' },
-    { symbol: 'BTCUSD', direction: 'BUY', lots: 0.15, entry: 65100, stopLoss: 64200, takeProfit: 66900, accountBalance: 51200, dailyLossLimit: 1500, platform: 'MatchTrader', method: 'log' },
-];
-
-type SetupStep = 'method' | 'install' | 'connect' | 'live';
 
 export default function BridgePage() {
-    const [status, setStatus] = useState<BridgeStatus | null>(null);
+    const { dxtradeConfig, account, trades } = useAppStore();
+
+    // ── Live monitor state ─────────────────────────────────────────
+    const [positions, setPositions] = useState<TradeSession[]>([]);
+    const [metrics, setMetrics] = useState<DXMetrics | null>(null);
     const [polling, setPolling] = useState(false);
-    const [setupStep, setSetupStep] = useState<SetupStep>('method');
-    const [selectedMethod, setMethod] = useState<'log' | 'memory' | 'screen'>('log');
-    const [injecting, setInjecting] = useState(false);
-    const [newCount, setNewCount] = useState(0);
-    const [lastKnownCount, setLastKnownCount] = useState(0);
+    const [lastPoll, setLastPoll] = useState<Date | null>(null);
+    const [pollError, setPollError] = useState('');
+    const [activeTab, setActiveTab] = useState<'monitor' | 'pretrade'>('monitor');
     const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-    // ── Fetch status from API ──────────────────────────────────────
-    const fetchStatus = useCallback(async () => {
+    // ── Pre-trade state ────────────────────────────────────────────
+    const [ptSymbol, setPtSymbol] = useState('');
+    const [ptDir, setPtDir] = useState<'LONG' | 'SHORT'>('LONG');
+    const [ptEntry, setPtEntry] = useState('');
+    const [ptStop, setPtStop] = useState('');
+    const [ptTP, setPtTP] = useState('');
+    const [ptLots, setPtLots] = useState('');
+
+    // ── Poll DXTrade ───────────────────────────────────────────────
+    const poll = useCallback(async () => {
+        if (!dxtradeConfig) return;
         try {
-            const res = await fetch(`${API_URL}?limit=20`, { cache: 'no-store' });
-            if (!res.ok) return;
-            const data: BridgeStatus = await res.json();
-            setStatus(prev => {
-                if (prev && data.tradeCount > (prev.tradeCount || 0)) {
-                    setNewCount(n => n + (data.tradeCount - (prev.tradeCount || 0)));
-                }
-                return data;
-            });
-        } catch { /* network offline */ }
-    }, []);
-
-    // ── Start / stop polling ───────────────────────────────────────
-    const startPolling = useCallback(() => {
-        if (pollRef.current) return;
-        setPolling(true);
-        fetchStatus();
-        pollRef.current = setInterval(fetchStatus, POLL_MS);
-    }, [fetchStatus]);
-
-    const stopPolling = useCallback(() => {
-        if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null; }
-        setPolling(false);
-    }, []);
+            const config = {
+                server: dxtradeConfig.server,
+                token: dxtradeConfig.token,
+                accountCode: dxtradeConfig.accountCode,
+                username: dxtradeConfig.username,
+            };
+            const [pos, m] = await Promise.all([dxGetPositions(config), dxGetMetrics(config)]);
+            setPositions(pos);
+            setMetrics(m);
+            setLastPoll(new Date());
+            setPollError('');
+        } catch (e) {
+            setPollError(e instanceof Error ? e.message : 'Poll failed');
+        }
+    }, [dxtradeConfig]);
 
     useEffect(() => {
-        startPolling();
-        return stopPolling;
-    }, [startPolling, stopPolling]);
+        if (!dxtradeConfig) { setPolling(false); return; }
+        setPolling(true);
+        poll();
+        pollRef.current = setInterval(poll, POLL_MS);
+        return () => {
+            if (pollRef.current) clearInterval(pollRef.current);
+            setPolling(false);
+        };
+    }, [dxtradeConfig, poll]);
 
-    // ── Inject demo trade (simulates bridge push) ─────────────────
-    const injectDemo = async () => {
-        setInjecting(true);
-        const demo = DEMO_TRADES[Math.floor(Math.random() * DEMO_TRADES.length)];
-        try {
-            await fetch(API_URL, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${API_KEY}` },
-                body: JSON.stringify(demo)
-            });
-            await fetchStatus();
-        } catch { /* offline */ }
-        setInjecting(false);
-    };
+    // ── Pre-trade calc ─────────────────────────────────────────────
+    const todayUsed = trades
+        .filter(t => t.outcome === 'loss' && t.closedAt && t.closedAt.startsWith(new Date().toISOString().slice(0, 10)))
+        .reduce((s, t) => s + Math.abs(t.pnl ?? 0), 0);
 
-    // ── Clear session ─────────────────────────────────────────────
-    const clearSession = async () => {
-        await fetch(API_URL, { method: 'DELETE', headers: { 'Authorization': `Bearer ${API_KEY}` } });
-        setNewCount(0);
-        await fetchStatus();
-    };
+    const ptResult = calcPreTrade(
+        parseFloat(ptEntry), parseFloat(ptStop), parseFloat(ptTP),
+        parseFloat(ptLots),
+        metrics?.balance ?? account.balance,
+        account.dailyLossLimit,
+        todayUsed,
+    );
 
-    const isConnected = status?.connected ?? false;
-    const trades = status?.trades ?? [];
+    const isConnected = !!dxtradeConfig;
+    const balanceDisplay = metrics?.balance ?? account.balance;
 
     return (
         <div className={styles.page}>
-            {/* ── Status Bar ────────────────────────────────────── */}
-            <div className={`${styles.statusBar} ${isConnected ? styles.statusConnected : polling ? styles.statusPolling : styles.statusOff}`}>
-                <div className={styles.statusDot} />
-                <div className="flex-1">
+
+            {/* ── Status bar ──────────────────────────────────────── */}
+            <div className={`${styles.statusBar} ${isConnected && !pollError ? styles.statusConnected : isConnected ? styles.statusWarning : styles.statusOff}`}>
+                <div className={`${styles.statusDot} ${isConnected && !pollError ? styles.dotLive : isConnected ? styles.dotWarn : styles.dotOff}`} />
+                <div style={{ flex: 1 }}>
                     <span className={styles.statusLabel}>
-                        {isConnected ? 'BRIDGE CONNECTED' : polling ? 'LISTENING FOR BRIDGE…' : 'BRIDGE OFFLINE'}
+                        {!isConnected ? 'NO DXTRADE CONNECTION'
+                            : pollError ? 'CONNECTION ERROR'
+                                : polling ? 'LIVE · POLLING EVERY 3s'
+                                    : 'CONNECTING…'}
                     </span>
-                    {isConnected && status?.lastPing && (
+                    {isConnected && lastPoll && !pollError && (
                         <span className={styles.statusSub}>
-                            Last ping: {Math.round((Date.now() - status.lastPing) / 1000)}s ago ·{' '}
-                            {status.tradeCount} trades observed
+                            {dxtradeConfig!.username} · {positions.length} open · updated {lastPoll.toLocaleTimeString()}
                         </span>
                     )}
+                    {pollError && <span className={styles.statusSubErr}>{pollError}</span>}
                 </div>
-                {isConnected
-                    ? <ShieldCheck size={18} className={styles.statusIcon} />
-                    : polling
-                        ? <Activity size={18} className={`${styles.statusIcon} ${styles.pulse}`} />
-                        : <WifiOff size={18} className={styles.statusIcon} />
+                {isConnected && !pollError
+                    ? <ShieldCheck size={16} style={{ color: '#22c55e', flexShrink: 0 }} />
+                    : isConnected
+                        ? <AlertTriangle size={16} style={{ color: '#f59e0b', flexShrink: 0 }} />
+                        : <WifiOff size={16} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />
                 }
             </div>
 
-            {/* ── No trades yet — Setup Wizard ─────────────────── */}
-            {trades.length === 0 && (
-                <div className={styles.wizard}>
-                    {/* Step tabs */}
-                    <div className={styles.stepTabs}>
-                        {(['method', 'install', 'connect', 'live'] as SetupStep[]).map((s, i) => (
-                            <button key={s}
-                                className={`${styles.stepTab} ${setupStep === s ? styles.stepTabActive : ''}`}
-                                onClick={() => setSetupStep(s)}>
-                                <span className={styles.stepNum}>{i + 1}</span>
-                                <span className={styles.stepLabel}>{s.charAt(0).toUpperCase() + s.slice(1)}</span>
-                            </button>
-                        ))}
-                    </div>
-
-                    <AnimatePresence mode="wait">
-                        {setupStep === 'method' && (
-                            <motion.div key="method" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className={styles.stepContent}>
-                                <h2 className={styles.stepTitle}>Choose your bridge method</h2>
-                                <p className={styles.stepSub}>Select how RiskGuardian Bridge reads your platform data. Start with Log File — it works on 90% of platforms.</p>
-                                <div className={styles.methodCards}>
-                                    {[
-                                        { id: 'log' as const, icon: <FileText size={20} />, label: 'Log File Reader', sub: 'Reads trade logs DXTrade/MatchTrader write to disk. Zero permissions required.', difficulty: 'Easy', compat: '90% platforms' },
-                                        { id: 'memory' as const, icon: <Cpu size={20} />, label: 'Memory Reader', sub: 'Reads platform process memory to detect positions. Used by professional copiers.', difficulty: 'Advanced', compat: 'MT4/MT5' },
-                                        { id: 'screen' as const, icon: <Eye size={20} />, label: 'Screen Parser', sub: 'OCR vision reads numbers directly from platform UI. Fallback for any platform.', difficulty: 'Medium', compat: 'Universal' },
-                                    ].map(m => (
-                                        <button key={m.id}
-                                            className={`${styles.methodCard} ${selectedMethod === m.id ? styles.methodCardActive : ''}`}
-                                            onClick={() => setMethod(m.id)}>
-                                            <div className={styles.methodIcon}>{m.icon}</div>
-                                            <div className={styles.methodBody}>
-                                                <p className={styles.methodLabel}>{m.label}</p>
-                                                <p className={styles.methodSub}>{m.sub}</p>
-                                                <div className={styles.methodMeta}>
-                                                    <span className={styles.methodDiff}>{m.difficulty}</span>
-                                                    <span className={styles.methodCompat}>{m.compat}</span>
-                                                </div>
-                                            </div>
-                                        </button>
-                                    ))}
-                                </div>
-                                <button className={styles.nextBtn} onClick={() => setSetupStep('install')}>
-                                    Continue with {selectedMethod === 'log' ? 'Log File Reader' : selectedMethod === 'memory' ? 'Memory Reader' : 'Screen Parser'} →
-                                </button>
-                            </motion.div>
-                        )}
-
-                        {setupStep === 'install' && (
-                            <motion.div key="install" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className={styles.stepContent}>
-                                <h2 className={styles.stepTitle}>Install RiskGuardian Bridge</h2>
-                                <p className={styles.stepSub}>A lightweight background app that runs on your trading computer and sends trade data to this dashboard.</p>
-                                <div className={styles.codeBlock}>
-                                    <div className={styles.codeHeader}><Terminal size={12} /> bridge_installer.sh</div>
-                                    <pre className={styles.code}>{
-                                        `# Download RiskGuardian Bridge (macOS/Windows/Linux)
-curl -fsSL https://bridge.riskguardian.com/install | bash
-
-# Or run directly from source:
-git clone https://github.com/riskguardian/bridge
-cd bridge && npm install && npm start
-
-# Configure your API key:
-RISKGUARDIAN_API_KEY=${API_KEY}
-RISKGUARDIAN_SERVER=https://riskguardian.com/api/bridge`
-                                    }</pre>
-                                </div>
-                                {selectedMethod === 'log' && (
-                                    <div className={styles.codeBlock}>
-                                        <div className={styles.codeHeader}><FileText size={12} /> Log path examples</div>
-                                        <pre className={styles.code}>{
-                                            `# DXTrade logs (Windows):
-C:\\Users\\{USER}\\AppData\\DXTrade\\logs\\trades.log
-
-# MatchTrader:
-~/Library/Application\\ Support/MatchTrader/trades.json
-
-# Bridge watches this folder for new entries automatically`
-                                        }</pre>
-                                    </div>
-                                )}
-                                <button className={styles.nextBtn} onClick={() => setSetupStep('connect')}>
-                                    I've installed the bridge →
-                                </button>
-                            </motion.div>
-                        )}
-
-                        {setupStep === 'connect' && (
-                            <motion.div key="connect" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className={styles.stepContent}>
-                                <h2 className={styles.stepTitle}>Connect the bridge</h2>
-                                <p className={styles.stepSub}>Your bridge needs this API key to authenticate. Copy it into the bridge config file.</p>
-                                <div className={styles.keyCard}>
-                                    <div className={styles.keyLabel}>Your API Key</div>
-                                    <code className={styles.keyValue}>{API_KEY}</code>
-                                    <button className={styles.copyBtn} onClick={() => navigator.clipboard.writeText(API_KEY)}>Copy</button>
-                                </div>
-                                <div className={styles.codeBlock}>
-                                    <div className={styles.codeHeader}><Terminal size={12} /> riskguardian.config.json</div>
-                                    <pre className={styles.code}>{JSON.stringify({
-                                        api_key: API_KEY,
-                                        server: window?.location?.origin + '/api/bridge',
-                                        method: selectedMethod,
-                                        poll_interval_ms: 500,
-                                        platform: 'DXTrade',
-                                        tls: true
-                                    }, null, 2)}</pre>
-                                </div>
-                                <div className={styles.archDiagram}>
-                                    {['Trading Platform', 'RiskGuardian Bridge', 'TLS/HTTPS', 'AI Risk Engine', 'This Dashboard'].map((node, i, arr) => (
-                                        <div key={node} className={styles.archRow}>
-                                            <div className={`${styles.archNode} ${i === arr.length - 1 ? styles.archNodeFinal : ''}`}>{node}</div>
-                                            {i < arr.length - 1 && <div className={styles.archArrow}>↓</div>}
-                                        </div>
-                                    ))}
-                                </div>
-                                <button className={styles.nextBtn} onClick={() => setSetupStep('live')}>
-                                    Bridge is configured →
-                                </button>
-                            </motion.div>
-                        )}
-
-                        {setupStep === 'live' && (
-                            <motion.div key="live" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className={styles.stepContent}>
-                                <h2 className={styles.stepTitle}>Waiting for first trade…</h2>
-                                <p className={styles.stepSub}>RiskGuardian is listening. Execute any trade in your platform. The bridge will detect it within 500ms and AI analysis will appear here.</p>
-                                <div className={styles.listeningAnimation}>
-                                    <div className={styles.sonarRing} />
-                                    <div className={styles.sonarRing} style={{ animationDelay: '0.6s' }} />
-                                    <div className={styles.sonarRing} style={{ animationDelay: '1.2s' }} />
-                                    <ShieldCheck size={28} className={styles.sonarIcon} />
-                                </div>
-                                <p className={styles.demoNote}>No bridge installed yet?</p>
-                                <button className={styles.demoBtn} onClick={injectDemo} disabled={injecting}>
-                                    <Play size={14} />
-                                    {injecting ? 'Injecting…' : 'Inject demo trade'}
-                                </button>
-                            </motion.div>
-                        )}
-                    </AnimatePresence>
-                </div>
-            )}
-
-            {/* ── Live Feed ─────────────────────────────────────── */}
-            {trades.length > 0 && (
-                <div className={styles.liveFeed}>
-                    {/* Feed controls */}
-                    <div className={styles.feedHeader}>
-                        <div className="flex items-center gap-2">
-                            <Zap size={14} className="text-accent" />
-                            <span className={styles.feedTitle}>Live Trade Feed</span>
-                            {newCount > 0 && (
-                                <motion.span
-                                    key={newCount}
-                                    initial={{ scale: 1.4, opacity: 0 }}
-                                    animate={{ scale: 1, opacity: 1 }}
-                                    className={styles.newBadge}
-                                >{newCount} new</motion.span>
-                            )}
-                        </div>
-                        <div className={styles.feedActions}>
-                            <button className={styles.iconBtn} onClick={injectDemo} disabled={injecting} title="Inject demo trade">
-                                <Send size={13} />
-                            </button>
-                            <button className={styles.iconBtn} onClick={fetchStatus} title="Refresh">
-                                <RefreshCw size={13} />
-                            </button>
-                            <button className={`${styles.iconBtn} ${styles.dangerBtn}`} onClick={clearSession} title="Clear session">
-                                <Trash2 size={13} />
-                            </button>
-                        </div>
-                    </div>
-
-                    {/* Trade cards */}
-                    <div className={styles.tradeList}>
-                        <AnimatePresence>
-                            {trades.map((trade, idx) => {
-                                const status = trade.ai?.survivalStatus || 'safe';
-                                const approved = trade.ai?.approved ?? true;
-                                return (
-                                    <motion.div
-                                        key={trade.id}
-                                        initial={{ opacity: 0, x: -20, scale: 0.97 }}
-                                        animate={{ opacity: 1, x: 0, scale: 1 }}
-                                        transition={{ delay: idx < 3 ? idx * 0.05 : 0 }}
-                                        className={`${styles.tradeCard} ${status === 'safe' ? styles.tradeSafe :
-                                                status === 'caution' ? styles.tradeCaution :
-                                                    status === 'danger' ? styles.tradeDanger : styles.tradeCritical
-                                            }`}
-                                    >
-                                        {/* Trade header */}
-                                        <div className={styles.tradeHeader}>
-                                            <div className={styles.tradeSymbol}>
-                                                <span className={`${styles.dirBadge} ${trade.direction === 'BUY' ? styles.dirBuy : styles.dirSell}`}>
-                                                    {trade.direction}
-                                                </span>
-                                                <span className={styles.symbolText}>{trade.symbol}</span>
-                                                <span className={styles.platformBadge}>{trade.platform} · {trade.method}</span>
-                                            </div>
-                                            <div className={styles.tradeMeta}>
-                                                {approved
-                                                    ? <CheckCircle size={14} className="text-success" />
-                                                    : <AlertTriangle size={14} className="text-danger" />
-                                                }
-                                                <span className={styles.tradeTime}>
-                                                    {new Date(trade.timestamp).toLocaleTimeString('en-US', { timeZone: 'America/New_York', hour: '2-digit', minute: '2-digit', second: '2-digit' })} EST
-                                                </span>
-                                            </div>
-                                        </div>
-
-                                        {/* Trade numbers */}
-                                        <div className={styles.tradeGrid}>
-                                            <div className={styles.tv}><span className={styles.tk}>Entry</span><span className={styles.tvv}>{trade.entry.toLocaleString()}</span></div>
-                                            <div className={styles.tv}><span className={styles.tk}>Lots</span><span className={styles.tvv}>{trade.lots}</span></div>
-                                            <div className={styles.tv}><span className={styles.tk}>Stop Loss</span><span className={`${styles.tvv} text-danger`}>{trade.stopLoss || '—'}</span></div>
-                                            <div className={styles.tv}><span className={styles.tk}>Take Profit</span><span className={`${styles.tvv} text-success`}>{trade.takeProfit || '—'}</span></div>
-                                        </div>
-
-                                        {/* AI overlay */}
-                                        {trade.ai && (
-                                            <div className={styles.aiOverlay}>
-                                                <div className={styles.aiRow}>
-                                                    <div className={styles.aiStat}>
-                                                        <span className={styles.aiStatLabel}>Risk</span>
-                                                        <span className={`${styles.aiStatValue} ${trade.ai.riskUSD > (trade.dailyLossLimit * 0.5) ? 'text-danger' : 'text-accent'}`}>
-                                                            ${trade.ai.riskUSD.toFixed(0)} ({trade.ai.riskPct.toFixed(1)}%)
-                                                        </span>
-                                                    </div>
-                                                    <div className={styles.aiStat}>
-                                                        <span className={styles.aiStatLabel}>R:R</span>
-                                                        <span className={`${styles.aiStatValue} ${trade.ai.rrRatio >= 2 ? 'text-success' : trade.ai.rrRatio >= 1.5 ? 'text-warning' : 'text-danger'}`}>
-                                                            {trade.ai.rrRatio.toFixed(1)}R
-                                                        </span>
-                                                    </div>
-                                                    <div className={styles.aiStat}>
-                                                        <span className={styles.aiStatLabel}>Daily Left</span>
-                                                        <span className={styles.aiStatValue}>${trade.ai.remainingDailyUSD.toFixed(0)}</span>
-                                                    </div>
-                                                    <div className={styles.aiStat}>
-                                                        <span className={styles.aiStatLabel}>Status</span>
-                                                        <span className={`${styles.aiStatValue} font-bold ${status === 'safe' ? 'text-success' :
-                                                                status === 'caution' ? 'text-warning' :
-                                                                    'text-danger'
-                                                            }`}>{status.toUpperCase()}</span>
-                                                    </div>
-                                                </div>
-                                                <p className={styles.aiRec}>{trade.ai.recommendation}</p>
-                                                {trade.ai.warnings.length > 0 && (
-                                                    <div className={styles.aiWarnings}>
-                                                        {trade.ai.warnings.map((w, i) => (
-                                                            <div key={i} className={styles.aiWarning}>
-                                                                <AlertTriangle size={10} className="flex-shrink-0" />
-                                                                <span>{w}</span>
-                                                            </div>
-                                                        ))}
-                                                    </div>
-                                                )}
-                                            </div>
-                                        )}
-                                    </motion.div>
-                                );
-                            })}
-                        </AnimatePresence>
-                    </div>
-
-                    {/* Demo inject button at bottom */}
-                    <button className={styles.demoBtn} style={{ marginTop: 12 }} onClick={injectDemo} disabled={injecting}>
-                        <Play size={14} />
-                        {injecting ? 'Injecting…' : 'Simulate incoming trade'}
+            {/* ── Not connected CTA ───────────────────────────────── */}
+            {!isConnected && (
+                <div className={styles.noConnCard}>
+                    <WifiOff size={28} style={{ color: 'var(--text-muted)', marginBottom: 8 }} />
+                    <p className={styles.noConnTitle}>DXTrade not connected</p>
+                    <p className={styles.noConnSub}>
+                        Connect your account in Settings to enable the live position monitor.
+                        The Pre-Trade Analyzer below works without a connection.
+                    </p>
+                    <button
+                        className="btn btn--ghost btn--sm"
+                        style={{ display: 'flex', alignItems: 'center', gap: 6 }}
+                        onClick={() => useAppStore.getState().setActiveTab('settings')}
+                    >
+                        <Settings2 size={13} /> Go to Settings
                     </button>
                 </div>
             )}
+
+            {/* ── Tabs ────────────────────────────────────────────── */}
+            <div className={styles.tabs}>
+                <button
+                    className={`${styles.tab} ${activeTab === 'monitor' ? styles.tabActive : ''}`}
+                    onClick={() => setActiveTab('monitor')}
+                >
+                    <Activity size={13} /> Live Monitor
+                    {positions.length > 0 && <span className={styles.tabBadge}>{positions.length}</span>}
+                </button>
+                <button
+                    className={`${styles.tab} ${activeTab === 'pretrade' ? styles.tabActive : ''}`}
+                    onClick={() => setActiveTab('pretrade')}
+                >
+                    <Zap size={13} /> Pre-Trade Check
+                </button>
+            </div>
+
+            <AnimatePresence mode="wait">
+
+                {/* ── Monitor tab ─────────────────────────────────── */}
+                {activeTab === 'monitor' && (
+                    <motion.div key="monitor" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}>
+
+                        {/* Account metrics strip */}
+                        {metrics && (
+                            <div className={styles.metricsStrip}>
+                                {[
+                                    { label: 'Balance', value: `$${metrics.balance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, color: '' },
+                                    { label: 'Equity', value: `$${metrics.equity.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, color: metrics.equity >= metrics.balance ? '#22c55e' : '#f87171' },
+                                    { label: 'Open P&L', value: `${metrics.openPl >= 0 ? '+' : ''}$${metrics.openPl.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, color: metrics.openPl >= 0 ? '#22c55e' : '#f87171' },
+                                    { label: 'Margin', value: `$${metrics.margin.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`, color: '' },
+                                ].map(m => (
+                                    <div key={m.label} className={styles.metricCell}>
+                                        <span className={styles.metricLabel}>{m.label}</span>
+                                        <span className={styles.metricValue} style={m.color ? { color: m.color } : {}}>{m.value}</span>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+
+                        {/* Positions */}
+                        {isConnected && positions.length === 0 && !pollError && (
+                            <div className={styles.emptyState}>
+                                <div className={styles.sonarWrap}>
+                                    <div className={styles.sonarRing} />
+                                    <div className={styles.sonarRing} style={{ animationDelay: '0.7s' }} />
+                                    <div className={styles.sonarRing} style={{ animationDelay: '1.4s' }} />
+                                    <ShieldCheck size={22} style={{ color: 'var(--accent)', position: 'relative', zIndex: 1 }} />
+                                </div>
+                                <p className={styles.emptyTitle}>No open positions</p>
+                                <p className={styles.emptySub}>Monitoring live · positions appear here within 3s of opening</p>
+                            </div>
+                        )}
+
+                        <div className={styles.positionList}>
+                            <AnimatePresence>
+                                {positions.map((pos, i) => {
+                                    const stopDist = pos.stopLoss ? Math.abs(pos.entry - pos.stopLoss) : 0;
+                                    const riskUSD = stopDist * pos.lotSize;
+                                    const riskPct = balanceDisplay > 0 ? (riskUSD / balanceDisplay) * 100 : 0;
+                                    const tpDist = pos.takeProfit ? Math.abs(pos.takeProfit - pos.entry) : 0;
+                                    const rr = stopDist > 0 && tpDist > 0 ? tpDist / stopDist : 0;
+                                    const isLong = !pos.isShort;
+                                    const riskStatus = riskPct > 3 ? 'danger' : riskPct > 1.5 ? 'caution' : 'safe';
+
+                                    return (
+                                        <motion.div
+                                            key={pos.id}
+                                            initial={{ opacity: 0, x: -16 }}
+                                            animate={{ opacity: 1, x: 0 }}
+                                            exit={{ opacity: 0, x: 16 }}
+                                            transition={{ delay: i * 0.04 }}
+                                            className={`${styles.posCard} ${riskStatus === 'danger' ? styles.posDanger : riskStatus === 'caution' ? styles.posCaution : styles.posSafe}`}
+                                        >
+                                            <div className={styles.posHeader}>
+                                                <div className={styles.posLeft}>
+                                                    <span className={`${styles.dirBadge} ${isLong ? styles.dirLong : styles.dirShort}`}>
+                                                        {isLong ? <ArrowUpRight size={11} /> : <ArrowDownRight size={11} />}
+                                                        {isLong ? 'LONG' : 'SHORT'}
+                                                    </span>
+                                                    <span className={styles.posSymbol}>{pos.asset}</span>
+                                                </div>
+                                                <div className={styles.posRight}>
+                                                    <Clock size={11} style={{ color: 'var(--text-muted)' }} />
+                                                    <span className={styles.posElapsed}>{elapsed(pos.createdAt)}</span>
+                                                </div>
+                                            </div>
+
+                                            <div className={styles.posGrid}>
+                                                <div className={styles.posCell}>
+                                                    <span className={styles.posCellLabel}>Entry</span>
+                                                    <span className={styles.posCellValue}>{pos.entry.toLocaleString()}</span>
+                                                </div>
+                                                <div className={styles.posCell}>
+                                                    <span className={styles.posCellLabel}>Size</span>
+                                                    <span className={styles.posCellValue}>{pos.lotSize}</span>
+                                                </div>
+                                                <div className={styles.posCell}>
+                                                    <span className={styles.posCellLabel}>Stop</span>
+                                                    <span className={styles.posCellValue} style={{ color: '#f87171' }}>{pos.stopLoss || '—'}</span>
+                                                </div>
+                                                <div className={styles.posCell}>
+                                                    <span className={styles.posCellLabel}>Target</span>
+                                                    <span className={styles.posCellValue} style={{ color: '#22c55e' }}>{pos.takeProfit || '—'}</span>
+                                                </div>
+                                            </div>
+
+                                            {riskUSD > 0 && (
+                                                <div className={styles.posRiskRow}>
+                                                    <span className={styles.posRiskItem}>
+                                                        Risk <strong style={{ color: riskStatus === 'danger' ? '#f87171' : riskStatus === 'caution' ? '#f59e0b' : 'var(--accent)' }}>
+                                                            ${riskUSD.toFixed(0)} ({riskPct.toFixed(1)}%)
+                                                        </strong>
+                                                    </span>
+                                                    {rr > 0 && (
+                                                        <span className={styles.posRiskItem}>
+                                                            R:R <strong style={{ color: rr >= 2 ? '#22c55e' : rr >= 1.5 ? '#f59e0b' : '#f87171' }}>{rr.toFixed(1)}R</strong>
+                                                        </span>
+                                                    )}
+                                                    {riskStatus !== 'safe' && (
+                                                        <span className={styles.posWarn}>
+                                                            <AlertTriangle size={10} />
+                                                            {riskStatus === 'danger' ? 'OVER LIMIT' : 'HIGH RISK'}
+                                                        </span>
+                                                    )}
+                                                </div>
+                                            )}
+                                        </motion.div>
+                                    );
+                                })}
+                            </AnimatePresence>
+                        </div>
+
+                        {/* Manual refresh */}
+                        {isConnected && (
+                            <button className={styles.refreshBtn} onClick={poll}>
+                                <RefreshCw size={12} /> Refresh now
+                            </button>
+                        )}
+                    </motion.div>
+                )}
+
+                {/* ── Pre-Trade tab ────────────────────────────────── */}
+                {activeTab === 'pretrade' && (
+                    <motion.div key="pretrade" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}>
+                        <div className={`glass-card glass-card--elevated ${styles.ptCard}`}>
+                            <div className={styles.ptHeader}>
+                                <Zap size={14} style={{ color: '#a78bfa' }} />
+                                <span className={styles.ptTitle}>Pre-Trade AI Check</span>
+                                <span className={styles.ptSub}>Fill before pressing the button</span>
+                            </div>
+
+                            {/* Direction toggle */}
+                            <div className={styles.dirToggle}>
+                                {(['LONG', 'SHORT'] as const).map(d => (
+                                    <button key={d}
+                                        className={`${styles.dirBtn} ${ptDir === d ? (d === 'LONG' ? styles.dirBtnLong : styles.dirBtnShort) : ''}`}
+                                        onClick={() => setPtDir(d)}>
+                                        {d === 'LONG' ? <ArrowUpRight size={13} /> : <ArrowDownRight size={13} />}
+                                        {d}
+                                    </button>
+                                ))}
+                            </div>
+
+                            {/* Symbol */}
+                            <div className="field-group" style={{ marginBottom: 0 }}>
+                                <label className="field-label">Symbol</label>
+                                <input className="field-input" value={ptSymbol} onChange={e => setPtSymbol(e.target.value.toUpperCase())}
+                                    placeholder="BTC, ETH, SOL, MNQ…" autoCapitalize="characters" />
+                            </div>
+
+                            {/* Price inputs */}
+                            <div className={styles.ptGrid}>
+                                <div className="field-group" style={{ marginBottom: 0 }}>
+                                    <label className="field-label">Entry</label>
+                                    <input className="field-input" type="number" inputMode="decimal"
+                                        value={ptEntry} onChange={e => setPtEntry(e.target.value)} placeholder="65000" />
+                                </div>
+                                <div className="field-group" style={{ marginBottom: 0 }}>
+                                    <label className="field-label">Stop Loss</label>
+                                    <input className="field-input" type="number" inputMode="decimal"
+                                        value={ptStop} onChange={e => setPtStop(e.target.value)} placeholder="64500" />
+                                </div>
+                                <div className="field-group" style={{ marginBottom: 0 }}>
+                                    <label className="field-label">Take Profit</label>
+                                    <input className="field-input" type="number" inputMode="decimal"
+                                        value={ptTP} onChange={e => setPtTP(e.target.value)} placeholder="66000" />
+                                </div>
+                                <div className="field-group" style={{ marginBottom: 0 }}>
+                                    <label className="field-label">Lot Size</label>
+                                    <input className="field-input" type="number" inputMode="decimal"
+                                        value={ptLots} onChange={e => setPtLots(e.target.value)} placeholder="0.05" />
+                                </div>
+                            </div>
+
+                            {/* Result */}
+                            <AnimatePresence>
+                                {ptResult && (
+                                    <motion.div
+                                        initial={{ opacity: 0, height: 0 }}
+                                        animate={{ opacity: 1, height: 'auto' }}
+                                        exit={{ opacity: 0, height: 0 }}
+                                        style={{ overflow: 'hidden' }}
+                                    >
+                                        <div className={`${styles.ptResult} ${ptResult.verdict === 'GO' ? styles.ptResultGo : ptResult.verdict === 'CAUTION' ? styles.ptResultCaution : styles.ptResultStop}`}>
+                                            {/* Verdict */}
+                                            <div className={styles.ptVerdict}>
+                                                {ptResult.verdict === 'GO'
+                                                    ? <><CheckCircle size={18} /> <span>GO</span></>
+                                                    : ptResult.verdict === 'CAUTION'
+                                                        ? <><AlertTriangle size={18} /> <span>CAUTION</span></>
+                                                        : <><XCircle size={18} /> <span>STOP</span></>
+                                                }
+                                            </div>
+
+                                            {/* Stats row */}
+                                            <div className={styles.ptStats}>
+                                                <div className={styles.ptStat}>
+                                                    <span>Risk</span>
+                                                    <strong>${ptResult.riskUSD.toFixed(0)} ({ptResult.riskPct.toFixed(1)}%)</strong>
+                                                </div>
+                                                {ptResult.rr > 0 && (
+                                                    <div className={styles.ptStat}>
+                                                        <span>R:R</span>
+                                                        <strong>{ptResult.rr.toFixed(1)}R</strong>
+                                                    </div>
+                                                )}
+                                                <div className={styles.ptStat}>
+                                                    <span>Daily left</span>
+                                                    <strong>${ptResult.dailyRemaining.toFixed(0)}</strong>
+                                                </div>
+                                            </div>
+
+                                            {/* Warnings */}
+                                            {ptResult.warnings.length > 0 && (
+                                                <div className={styles.ptWarnings}>
+                                                    {ptResult.warnings.map((w, i) => (
+                                                        <div key={i} className={styles.ptWarning}>
+                                                            <AlertTriangle size={10} style={{ flexShrink: 0 }} />
+                                                            <span>{w}</span>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            )}
+                                        </div>
+                                    </motion.div>
+                                )}
+                            </AnimatePresence>
+
+                            {/* Using balance info */}
+                            <p style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: '#4b5563', marginTop: -4 }}>
+                                Using: Balance ${balanceDisplay.toLocaleString()} · Daily limit ${account.dailyLossLimit.toLocaleString()} · Used today ${todayUsed.toFixed(0)}
+                                {metrics && ' (live)'}
+                            </p>
+                        </div>
+                    </motion.div>
+                )}
+
+            </AnimatePresence>
         </div>
     );
 }
