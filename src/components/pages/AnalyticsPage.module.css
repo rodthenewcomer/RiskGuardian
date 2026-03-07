@@ -103,8 +103,7 @@
 
 .tabActive {
     color: #ffffff;
-    border-bottom: 2px solid #b28dff;
-    /* Purple underline matching screenshot */
+    border-bottom: 2px solid #A6FF4D;
 }
 
 .content {
@@ -227,7 +226,7 @@
     display: inline-block;
     width: 2px;
     height: 12px;
-    background: #b28dff;
+    background: #A6FF4D;
 }
 
 .findingsBox {

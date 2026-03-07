@@ -142,15 +142,15 @@ export function generateForensics(trades: Trade[], accountData: any) {
 
     // 3. Verdict & Dashboard Scoring
     const revScore = revFreq > 0 ? Math.min(60, revFreq * 20) : 0;
-    const financialScore = Math.abs(patterns.reduce((a, b) => a + (b.impact || 0), 0)) > (balance * 0.05) ? 25 : 10;
-    const wrErosion = (wins.length / closed.length < 0.35) ? 15 : 0;
-    const riskScore = Math.min(100, revScore + financialScore + wrErosion);
+    const financialScore = closed.length > 0 && Math.abs(patterns.reduce((a, b) => a + (b.impact || 0), 0)) > (balance * 0.05) ? 25 : 0;
+    const wrErosion = closed.length > 0 && (wins.length / closed.length < 0.35) ? 15 : 0;
+    const riskScore = closed.length === 0 ? 0 : Math.min(100, revScore + financialScore + wrErosion);
 
     const scorecard = [
         { metric: 'Stop Loss Discipline', grade: lossTrades.length === 0 ? 'A' : Math.max(...lossTrades.map(l => Math.abs(l.pnl ?? 0))) < balance * 0.02 ? 'A' : 'C', desc: 'Max loss per trade contained to < 2%.' },
         { metric: 'Tilt Management', grade: revFreq === 0 ? 'A' : 'F', desc: 'Sizing increases after losses.' },
         { metric: 'Hold Time Asymmetry', grade: avgWinDur >= avgLossDur ? 'A' : 'F', desc: 'Winners held longer than losers.' },
-        { metric: 'Expectancy Ratio', grade: (avgWinAmt / avgLossAmt) > 1.5 ? 'A' : 'D', desc: 'Dollar value yielded per structural risk.' },
+        { metric: 'Expectancy Ratio', grade: wins.length === 0 || lossTrades.length === 0 ? '—' : (avgWinAmt / avgLossAmt) > 1.5 ? 'A' : 'D', desc: 'Dollar value yielded per structural risk.' },
         { metric: 'Micro Management', grade: microPnl >= 0 ? 'A' : 'F', desc: 'Discipline in tier-1 product isolation.' },
         { metric: 'First Hour Logic', grade: (() => {
             const fh = closed.filter(t => new Date(t.createdAt).getHours() < 10);

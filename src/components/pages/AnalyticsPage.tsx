@@ -100,7 +100,7 @@ export default function AnalyticsPage() {
     const worstDay = Math.min(...dailyData.map(d => d.pnl), 0);
     const avgDaily = dailyData.length > 0 ? dailyData.reduce((s, d) => s + d.pnl, 0) / dailyData.length : 0;
 
-    const PIE_COLORS = ['#38bdf8', '#facc15', '#a855f7', '#fb923c', '#ec4899'];
+    const PIE_COLORS = ['#A6FF4D', '#00D4FF', '#EAB308', '#ff4757', '#fb923c'];
 
     return (
         <div className={styles.page}>
@@ -188,6 +188,15 @@ export default function AnalyticsPage() {
                                     <div className="relative w-full h-full flex items-center justify-center flex-col mt-4">
                                         {(() => {
                                             const rs = forensics.riskScore;
+                                            if (closed.length === 0) return (
+                                                <>
+                                                    <svg width="100" height="60" viewBox="0 0 100 60">
+                                                        <path d="M 10 50 A 40 40 0 0 1 90 50" fill="none" stroke="#1a1c24" strokeWidth="8" strokeLinecap="round" />
+                                                    </svg>
+                                                    <span className="text-2xl font-bold font-sans mt-[-20px] text-[#4b5563]">—</span>
+                                                    <span className="text-[9px] uppercase tracking-widest mt-4 text-[#4b5563]">NO DATA</span>
+                                                </>
+                                            );
                                             const riskColor = rs > 75 ? '#ff4757' : rs > 30 ? '#EAB308' : '#A6FF4D';
                                             const riskLabel = rs > 75 ? 'CRITICAL RISK' : rs > 30 ? 'ELEVATED RISK' : 'HEALTHY RISK';
                                             return (<>
@@ -426,7 +435,7 @@ export default function AnalyticsPage() {
                             <div className="grid grid-cols-2 gap-4">
                                 {forensics.scorecard.map((s: any, i: number) => (
                                     <div key={i} className={styles.kpiBox + ' flex-row items-center gap-6'}>
-                                        <div className={`text-[42px] font-black ${s.grade === 'A' ? styles.textGreen : s.grade === 'C' ? styles.textYellow : styles.textRed}`}>
+                                        <div className={`text-[42px] font-black ${s.grade === 'A' ? styles.textGreen : s.grade === 'B' ? 'text-[#00D4FF]' : s.grade === 'C' ? styles.textYellow : s.grade === '—' ? 'text-[#6b7280]' : styles.textRed}`}>
                                             {s.grade}
                                         </div>
                                         <div className="flex flex-col">
@@ -478,8 +487,8 @@ export default function AnalyticsPage() {
                             if (p.severity === 'CRITICAL') gradeScore -= 20;
                             else gradeScore -= 10;
                         });
-                        if (winRate < 50) gradeScore -= 10;
-                        if (profitFactor < 1) gradeScore -= 20;
+                        if (closed.length > 0 && winRate < 50) gradeScore -= 10;
+                        if (closed.length > 0 && profitFactor < 1) gradeScore -= 20;
                         gradeScore = Math.max(0, gradeScore);
                         const grade = gradeScore >= 90 ? 'A' : gradeScore >= 75 ? 'B' : gradeScore >= 55 ? 'C' : 'D';
                         const gradeColor = grade === 'A' ? '#A6FF4D' : grade === 'B' ? '#00D4FF' : grade === 'C' ? '#EAB308' : '#ff4757';
