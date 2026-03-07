@@ -1,19 +1,14 @@
 'use client';
 
 /**
- * AIChatPage — Use Case 8: Smart Risk AI Assistant
- * ─────────────────────────────────────────────────
- * Natural language interface for all risk questions.
- * Zero latency. Pure algorithmic intelligence.
- * "If I enter BTC at 65,200 and risk $900 how many contracts?"
- * "Where should my stop be for $800 risk on 800 SOL?"
- * "What TP do I need to reach $53,468?"
+ * AIChatPage — AI Risk Coach
+ * Terminal aesthetic · 2026 redesign · Mobile-first
  */
 
 import { useState, useRef, useEffect } from 'react';
-import { useAppStore } from '@/store/appStore';
+import { useAppStore, getTradingDay } from '@/store/appStore';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Brain, Send, RotateCcw, Zap, ShieldCheck, Target } from 'lucide-react';
+import { Brain, Send, RotateCcw, ShieldCheck, Zap, Activity } from 'lucide-react';
 import {
     calcSmartPositionSize, calcProfitTarget, analyzeRiskGuardian,
     analyzeBehavior, optimizeTakeProfit, generateDailyReport
@@ -36,7 +31,7 @@ interface ChatCard {
 }
 
 // ─────────────────────────────────────────────────────────────────
-// Asset type detector — routes to correct lot/size calculation
+// Asset type detector
 // ─────────────────────────────────────────────────────────────────
 const FUTURES_SYMBOLS = new Set(['ES', 'MES', 'NQ', 'MNQ', 'RTY', 'M2K', 'YM', 'MYM', 'CL', 'QM', 'GC', 'MGC', 'SI', 'ZB']);
 const CRYPTO_SYMBOLS = new Set(['BTC', 'ETH', 'SOL', 'PEPE', 'WIF', 'BONK', 'PNUT', 'DOGE', 'SUI', 'AVAX', 'APT', 'LINK', 'UNI', 'ADA', 'XRP', 'DOT', 'NEAR', 'FET', 'LTC', 'BCH', 'RENDER', 'TAO', 'TIA', 'SEI', 'INJ', 'JUP', 'PYTH', 'OP', 'ARB', 'STRK']);
@@ -52,9 +47,7 @@ function detectAssetType(symbol: string): 'crypto' | 'forex' | 'futures' | 'stoc
 
 // ─────────────────────────────────────────────────────────────────
 // Natural Language AI Processor
-// Parses trader questions and routes to the right AI function
 // ─────────────────────────────────────────────────────────────────
-
 function processNaturalLanguage(
     input: string,
     balance: number,
@@ -67,7 +60,6 @@ function processNaturalLanguage(
     const lower = input.toLowerCase().trim();
     const nums = (input.match(/[\d,]+\.?\d*/g) || []).map(n => parseFloat(n.replace(/,/g, ''))).filter(n => !isNaN(n) && n > 0);
 
-    // ── Extract keywords ──
     const hasEntry = /entry|enter|entered|@|at\s+\d/.test(lower);
     const hasStop = /stop|sl|stoploss/.test(lower);
     const hasRisk = /risk|risking|\$\d+/.test(lower);
@@ -84,7 +76,7 @@ function processNaturalLanguage(
     const second = nums[1] || 0;
     const third = nums[2] || 0;
 
-    // ── STATUS CHECK ──
+    // STATUS CHECK
     if (hasStatus || (!hasEntry && !hasRisk && !hasTP && nums.length === 0)) {
         const guardian = analyzeRiskGuardian(account, todayUsed);
         const beh = analyzeBehavior(trades, maxRisk);
@@ -101,7 +93,7 @@ function processNaturalLanguage(
         };
     }
 
-    // ── COACHING REPORT ──
+    // COACHING REPORT
     if (hasCoach) {
         const report = generateDailyReport(trades, account, todayUsed);
         return {
@@ -117,7 +109,7 @@ function processNaturalLanguage(
         };
     }
 
-    // ── BEHAVIORAL ANALYSIS ──
+    // BEHAVIORAL ANALYSIS
     if (hasBehavior) {
         const beh = analyzeBehavior(trades, maxRisk);
         return {
@@ -132,7 +124,7 @@ function processNaturalLanguage(
         };
     }
 
-    // ── TP OPTIMIZER ──
+    // TP OPTIMIZER
     if (hasTpOpt && entry > 0 && second > 0) {
         const wins = trades.filter(t => t.outcome === 'win').length;
         const total = trades.filter(t => t.outcome === 'win' || t.outcome === 'loss').length;
@@ -151,7 +143,7 @@ function processNaturalLanguage(
         };
     }
 
-    // ── POSITION SIZE: entry + stop + risk ──
+    // POSITION SIZE: entry + stop + risk
     if (hasEntry && hasStop && hasRisk && entry > 0 && second > 0) {
         const riskAmt = third || maxRisk;
         const result = calcSmartPositionSize({ entry, stopLoss: second, riskUSD: riskAmt, assetType: detectAssetType(asset), symbol: asset });
@@ -166,17 +158,17 @@ function processNaturalLanguage(
                 { label: 'TP 3R', value: result.tp3R.toFixed(4) },
                 { label: 'Notional', value: `$${result.notional.toLocaleString(undefined, { maximumFractionDigits: 0 })}` },
                 { label: 'Commission (0.04%)', value: `$${result.comm.toFixed(2)}` },
-                { label: 'Guardian Warning', value: guardian.tradeWarning || '✅ Clear to trade', danger: !!guardian.tradeWarning },
+                { label: 'Guardian Warning', value: guardian.tradeWarning || 'Clear to trade', danger: !!guardian.tradeWarning },
             ]
         };
     }
 
-    // ── STOP LOSS from size + risk ──
+    // STOP LOSS from size + risk
     if (hasSize && hasRisk && entry > 0 && second > 0 && !hasStop) {
         const size = second;
         const riskAmt = third || maxRisk;
         const move = size > 0 ? riskAmt / size : 0;
-        const sl = entry - move; // assume long
+        const sl = entry - move;
         const tp2r = entry + move * 2;
         return {
             content: `Stop Loss for ${asset} — Entry: ${entry}, Size: ${size}, Risk: $${riskAmt}:`,
@@ -190,7 +182,7 @@ function processNaturalLanguage(
         };
     }
 
-    // ── BALANCE TARGET TP ──
+    // BALANCE TARGET TP
     if (hasBalance && hasTP && entry > 0 && second > 0) {
         const targetBal = nums.find(n => n > balance * 0.9 && n > balance) || second;
         const size = nums.find(n => n < entry * 100 && n !== entry && n !== targetBal) || 1;
@@ -207,10 +199,10 @@ function processNaturalLanguage(
         };
     }
 
-    // ── SIMPLE: HOW MANY CONTRACTS ──
+    // SIMPLE: HOW MANY CONTRACTS
     if (hasSize && entry > 0) {
         const riskAmt = second || maxRisk;
-        const stopPct = 0.01; // assume 1% stop
+        const stopPct = 0.01;
         const sl = entry * (1 - stopPct);
         const result = calcSmartPositionSize({ entry, stopLoss: sl, riskUSD: riskAmt, assetType: detectAssetType(asset), symbol: asset });
         return {
@@ -224,74 +216,85 @@ function processNaturalLanguage(
         };
     }
 
-    // ── FALLBACK ──
+    // FALLBACK
     return {
-        content: `I understand you're asking about risk. Try asking me:
-• "How many lots for BTC at 65200 with $900 risk and stop at 64900?"
-• "Where's my stop for $800 risk on 800 SOL at 91.65?"
-• "What TP do I need to reach $53,468 with 800 SOL at 91.65?"
-• "What's my status?" — to see your account health
-• "Coach me" — for your daily coaching report`,
+        content: `I understand you're asking about risk. Try:\n· "Size NQ at 21450 stop 21400 risk $500"\n· "Where's my stop for $800 risk on 2 ES at 5820?"\n· "What's my status?" — live account health\n· "Coach me on today's session"`,
         cards: []
     };
 }
 
 // ─────────────────────────────────────────────────────────────────
-// Suggestion Pills
+// Suggestion chips — icon + text
 // ─────────────────────────────────────────────────────────────────
-
 const SUGGESTIONS = [
-    'What\'s my status?',
-    'Coach me on today\'s session',
-    'Am I showing revenge trading?',
-    'Check if I\'m safe to trade',
-    'What\'s my best TP probability?',
+    { icon: '🛡', text: "What's my status?" },
+    { icon: '📊', text: "Coach me on today's session" },
+    { icon: '🧠', text: "Am I showing revenge trading?" },
+    { icon: '✅', text: "Check if I'm safe to trade" },
+    { icon: '🎯', text: "What's my best TP probability?" },
+    { icon: '📐', text: "Size NQ at 21450 stop 21400 risk $500" },
 ];
 
 // ─────────────────────────────────────────────────────────────────
 // Component
 // ─────────────────────────────────────────────────────────────────
-
 export default function AIChatPage() {
     const { account, trades, getDailyRiskRemaining } = useAppStore();
-    const [messages, setMessages] = useState<ChatMessage[]>([
-        {
-            id: 'welcome',
-            role: 'assistant',
-            content: `I'm your AI Risk Copilot. Ask me anything about your trades — position sizing, stop loss, take profit, consistency, or account health.\n\nTry: "How many lots for SOL at 91.65 with stop at 90.48 and $800 risk?"`,
-            cards: [],
-            timestamp: new Date()
-        }
-    ]);
+
+    const [messages, setMessages] = useState<ChatMessage[]>([{
+        id: 'welcome',
+        role: 'assistant',
+        content: `I'm your AI Risk Coach. Ask me anything about your trades — position sizing, stop loss, take profit, consistency, or account health.\n\nTry: "Size NQ at 21450 stop 21400 risk $500"`,
+        cards: [],
+        timestamp: new Date(),
+    }]);
     const [input, setInput] = useState('');
     const [loading, setLoading] = useState(false);
+    const [isMobile, setIsMobile] = useState(false);
     const endRef = useRef<HTMLDivElement>(null);
+
+    useEffect(() => {
+        const check = () => setIsMobile(window.innerWidth < 640);
+        check();
+        window.addEventListener('resize', check);
+        return () => window.removeEventListener('resize', check);
+    }, []);
+
+    useEffect(() => {
+        endRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }, [messages]);
 
     const balance = account.balance;
     const maxRisk = (balance * account.maxRiskPercent) / 100;
     const dailyLimit = account.dailyLossLimit;
     const todayUsed = dailyLimit - getDailyRiskRemaining();
+    const dailyLeft = Math.max(0, dailyLimit - todayUsed);
+    const dailyLeftPct = dailyLimit > 0 ? dailyLeft / dailyLimit : 1;
+    const dailyColor = dailyLeftPct > 0.5 ? '#A6FF4D' : dailyLeftPct > 0.25 ? '#EAB308' : '#ff4757';
 
-    useEffect(() => { endRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [messages]);
+    const todayStr = getTradingDay(new Date().toISOString());
+    const todayTrades = trades.filter(t => getTradingDay(t.closedAt ?? t.createdAt) === todayStr);
+    const todayPnl = todayTrades.filter(t => t.outcome !== 'open').reduce((s, t) => s + (t.pnl ?? 0), 0);
+
+    const mono: React.CSSProperties = { fontFamily: 'var(--font-mono)' };
+    const divider = '1px solid #1a1c24';
+    const lbl: React.CSSProperties = { ...mono, fontSize: 8, color: '#4b5563', letterSpacing: '0.1em', textTransform: 'uppercase' as const };
 
     const handleSend = (text?: string) => {
         const q = (text || input).trim();
         if (!q) return;
-
         const userMsg: ChatMessage = {
             id: crypto.randomUUID?.() || String(Date.now()),
-            role: 'user', content: q, cards: [], timestamp: new Date()
+            role: 'user', content: q, cards: [], timestamp: new Date(),
         };
         setMessages(prev => [...prev, userMsg]);
         setInput('');
         setLoading(true);
-
-        // Simulate slight processing delay for feel
         setTimeout(() => {
             const result = processNaturalLanguage(q, balance, maxRisk, todayUsed, dailyLimit, trades, account);
             const aiMsg: ChatMessage = {
                 id: crypto.randomUUID?.() || String(Date.now() + 1),
-                role: 'assistant', content: result.content, cards: result.cards, timestamp: new Date()
+                role: 'assistant', content: result.content, cards: result.cards, timestamp: new Date(),
             };
             setMessages(prev => [...prev, aiMsg]);
             setLoading(false);
@@ -299,73 +302,195 @@ export default function AIChatPage() {
     };
 
     return (
-        <div className={styles.page}>
-            {/* Header */}
-            <div className={styles.header}>
-                <div className={styles.headerIcon}><Brain size={20} /></div>
-                <div className="flex-1">
-                    <h1 className="text-subheading">AI Risk Copilot</h1>
-                    <p className="text-caption">Natural language · Real-time intelligence</p>
+        <div className={styles.page} style={{ display: 'flex', flexDirection: 'column', background: '#090909' }}>
+
+            {/* ── HEADER ──────────────────────────────────────── */}
+            <div style={{
+                padding: isMobile ? '10px 14px' : '13px 20px',
+                borderBottom: divider,
+                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                flexShrink: 0,
+            }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    {/* Brain icon + pulse dot */}
+                    <div style={{ position: 'relative', width: 30, height: 30, background: 'rgba(166,255,77,0.07)', border: '1px solid rgba(166,255,77,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                        <Brain size={15} color="#A6FF4D" />
+                        <span className={styles.pulseDot} />
+                    </div>
+                    <div>
+                        <span style={{ ...mono, fontSize: 13, fontWeight: 900, color: '#fff', letterSpacing: '0.04em', display: 'block', lineHeight: 1 }}>AI COACH</span>
+                        <span style={{ ...lbl, display: 'block', marginTop: 3 }}>Natural language · Real-time intelligence</span>
+                    </div>
                 </div>
-                <button className={styles.clearBtn} onClick={() => setMessages(m => [m[0]])} title="Clear chat">
-                    <RotateCcw size={14} />
+                <button
+                    onClick={() => setMessages(m => [m[0]])}
+                    style={{ background: 'none', border: '1px solid #1a1c24', padding: '6px 10px', cursor: 'pointer', color: '#4b5563', display: 'flex', alignItems: 'center', gap: 5 }}
+                    onMouseEnter={e => { e.currentTarget.style.borderColor = '#e2e8f0'; e.currentTarget.style.color = '#e2e8f0'; }}
+                    onMouseLeave={e => { e.currentTarget.style.borderColor = '#1a1c24'; e.currentTarget.style.color = '#4b5563'; }}
+                    title="Reset chat"
+                >
+                    <RotateCcw size={11} />
+                    <span style={{ ...mono, fontSize: 9, letterSpacing: '0.06em', textTransform: 'uppercase' as const }}>RESET</span>
                 </button>
             </div>
 
-            {/* Account Pulse Bar */}
-            <div className={styles.pulseBar}>
-                {[
-                    { icon: <ShieldCheck size={10} />, label: 'Remaining', value: `$${(dailyLimit - todayUsed).toFixed(0)}` },
-                    { icon: <Target size={10} />, label: 'Safe Risk', value: `$${maxRisk.toFixed(0)}` },
-                    { icon: <Zap size={10} />, label: 'Balance', value: `$${balance.toLocaleString()}` },
-                ].map(s => (
-                    <div key={s.label} className={styles.pulsePill}>
-                        {s.icon}
-                        <span className={styles.pillLabel}>{s.label}</span>
-                        <span className={styles.pillValue}>{s.value}</span>
+            {/* ── CONTEXT STRIP — 4 live KPIs ─────────────────── */}
+            <div style={{
+                display: 'grid',
+                gridTemplateColumns: isMobile ? 'repeat(2,1fr)' : 'repeat(4,1fr)',
+                borderBottom: divider,
+                flexShrink: 0,
+            }}>
+                {([
+                    {
+                        icon: <ShieldCheck size={9} color={dailyColor} />,
+                        lbl: 'Daily Left',
+                        val: `$${dailyLeft.toFixed(0)}`,
+                        clr: dailyColor,
+                        sub: `${Math.round(dailyLeftPct * 100)}% of limit`,
+                    },
+                    {
+                        icon: <Zap size={9} color="#4b5563" />,
+                        lbl: 'Safe Risk',
+                        val: `$${maxRisk.toFixed(0)}`,
+                        clr: '#e2e8f0',
+                        sub: `${account.maxRiskPercent}% per trade`,
+                    },
+                    {
+                        icon: <Activity size={9} color="#4b5563" />,
+                        lbl: 'Balance',
+                        val: balance >= 1000 ? `$${(balance / 1000).toFixed(1)}K` : `$${balance.toFixed(0)}`,
+                        clr: '#e2e8f0',
+                        sub: 'account equity',
+                    },
+                    {
+                        icon: null,
+                        lbl: 'Today',
+                        val: todayTrades.length.toString(),
+                        clr: todayPnl >= 0 ? '#A6FF4D' : '#ff4757',
+                        sub: todayTrades.length > 0 ? `${todayPnl >= 0 ? '+' : ''}$${todayPnl.toFixed(0)} P&L` : 'no trades yet',
+                    },
+                ] as const).map((s, i) => (
+                    <div key={i} style={{
+                        padding: isMobile ? '10px 12px' : '11px 16px',
+                        borderRight: isMobile ? (i % 2 === 0 ? divider : 'none') : (i < 3 ? divider : 'none'),
+                        borderBottom: isMobile && i < 2 ? divider : 'none',
+                    }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: 4 }}>
+                            {s.icon}
+                            <span style={lbl}>{s.lbl}</span>
+                        </div>
+                        <span style={{ ...mono, fontSize: isMobile ? 15 : 17, fontWeight: 800, color: s.clr, display: 'block', lineHeight: 1, letterSpacing: '-0.02em' }}>{s.val}</span>
+                        <span style={{ ...mono, fontSize: 9, color: '#4b5563', display: 'block', marginTop: 3 }}>{s.sub}</span>
                     </div>
                 ))}
             </div>
 
-            {/* Messages */}
-            <div className={styles.messages}>
+            {/* ── MESSAGES ────────────────────────────────────── */}
+            <div className={styles.messages} style={{ flex: 1, minHeight: 0 }}>
                 <AnimatePresence initial={false}>
-                    {messages.map(msg => (
-                        <motion.div
-                            key={msg.id}
-                            initial={{ opacity: 0, y: 10 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            transition={{ duration: 0.2 }}
-                            className={`${styles.bubble} ${msg.role === 'user' ? styles.bubbleUser : styles.bubbleAI}`}
-                        >
-                            {msg.role === 'assistant' && (
-                                <div className={styles.aiAvatar}><Brain size={12} /></div>
-                            )}
-                            <div className={styles.bubbleContent}>
-                                <p className={styles.bubbleText}>{msg.content}</p>
-                                {msg.cards && msg.cards.length > 0 && (
-                                    <div className={styles.cards}>
-                                        {msg.cards.map((card, i) => (
-                                            <div key={i} className={`${styles.card} ${card.highlight ? styles.cardHighlight : ''} ${card.danger ? styles.cardDanger : ''}`}>
-                                                <span className={styles.cardLabel}>{card.label}</span>
-                                                <span className={styles.cardValue}>{card.value}</span>
-                                            </div>
-                                        ))}
+                    {messages.map(msg => {
+                        const isUser = msg.role === 'user';
+                        return (
+                            <motion.div
+                                key={msg.id}
+                                initial={{ opacity: 0, y: 8 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                transition={{ duration: 0.16 }}
+                                style={{
+                                    display: 'flex',
+                                    flexDirection: isUser ? 'row-reverse' : 'row',
+                                    padding: isMobile ? '10px 14px' : '12px 20px',
+                                    gap: 10,
+                                    borderBottom: divider,
+                                    alignItems: 'flex-start',
+                                }}
+                            >
+                                {/* AI avatar */}
+                                {!isUser && (
+                                    <div style={{
+                                        width: 22, height: 22, flexShrink: 0, marginTop: 2,
+                                        background: 'rgba(166,255,77,0.07)', border: '1px solid rgba(166,255,77,0.18)',
+                                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                    }}>
+                                        <Brain size={11} color="#A6FF4D" />
                                     </div>
                                 )}
-                                <span className={styles.timestamp}>
-                                    {msg.timestamp.toLocaleTimeString('en-US', { timeZone: 'America/New_York', hour: '2-digit', minute: '2-digit' })} EST
-                                </span>
-                            </div>
-                        </motion.div>
-                    ))}
 
+                                {/* Content block */}
+                                <div style={{
+                                    display: 'flex', flexDirection: 'column', gap: 5,
+                                    maxWidth: isUser ? (isMobile ? '85%' : '72%') : '100%',
+                                    flex: isUser ? 'unset' : 1,
+                                }}>
+                                    {/* Role label */}
+                                    <span style={{ ...lbl, display: 'block', textAlign: isUser ? 'right' : 'left' }}>
+                                        {isUser ? 'You' : 'AI Coach'}
+                                    </span>
+
+                                    {/* Message bubble */}
+                                    <div style={{
+                                        padding: isMobile ? '10px 12px' : '11px 14px',
+                                        background: isUser ? 'rgba(166,255,77,0.04)' : '#0d1117',
+                                        borderTop: `1px solid ${isUser ? 'rgba(166,255,77,0.12)' : '#1a1c24'}`,
+                                        borderRight: `1px solid ${isUser ? 'rgba(166,255,77,0.12)' : '#1a1c24'}`,
+                                        borderBottom: `1px solid ${isUser ? 'rgba(166,255,77,0.12)' : '#1a1c24'}`,
+                                        borderLeft: `2px solid ${isUser ? '#A6FF4D' : '#1f2937'}`,
+                                    }}>
+                                        <p style={{ ...mono, fontSize: 12, color: isUser ? '#d1fae5' : '#8b949e', lineHeight: 1.75, whiteSpace: 'pre-wrap', margin: 0 }}>
+                                            {msg.content}
+                                        </p>
+                                    </div>
+
+                                    {/* Response cards */}
+                                    {msg.cards && msg.cards.length > 0 && (
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                                            {msg.cards.map((card, ci) => (
+                                                <div key={ci} style={{
+                                                    display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                                                    padding: '8px 12px', gap: 12,
+                                                    background: card.highlight ? 'rgba(166,255,77,0.04)' : card.danger ? 'rgba(255,71,87,0.04)' : '#0a0a0a',
+                                                    border: `1px solid ${card.highlight ? 'rgba(166,255,77,0.14)' : card.danger ? 'rgba(255,71,87,0.18)' : '#1a1c24'}`,
+                                                    borderLeft: `3px solid ${card.highlight ? '#A6FF4D' : card.danger ? '#ff4757' : '#1f2937'}`,
+                                                }}>
+                                                    <span style={{ ...lbl, flex: 1, letterSpacing: '0.07em' }}>{card.label}</span>
+                                                    <span style={{
+                                                        ...mono, fontSize: 13, fontWeight: 700,
+                                                        color: card.highlight ? '#A6FF4D' : card.danger ? '#ff4757' : '#e2e8f0',
+                                                        textAlign: 'right', maxWidth: '60%', wordBreak: 'break-all',
+                                                    }}>{card.value}</span>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
+
+                                    {/* Timestamp */}
+                                    <span style={{ ...mono, fontSize: 8, color: '#2d3748', textAlign: isUser ? 'right' : 'left', display: 'block' }}>
+                                        {msg.timestamp.toLocaleTimeString('en-US', { timeZone: 'America/New_York', hour: '2-digit', minute: '2-digit' })} EST
+                                    </span>
+                                </div>
+                            </motion.div>
+                        );
+                    })}
+
+                    {/* Typing indicator */}
                     {loading && (
-                        <motion.div key="loading" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className={`${styles.bubble} ${styles.bubbleAI}`}>
-                            <div className={styles.aiAvatar}><Brain size={12} /></div>
-                            <div className={styles.bubbleContent}>
-                                <div className={styles.typingDots}>
-                                    <span /><span /><span />
+                        <motion.div
+                            key="loading"
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            style={{
+                                padding: isMobile ? '10px 14px' : '12px 20px',
+                                display: 'flex', gap: 10, alignItems: 'flex-start', borderBottom: divider,
+                            }}
+                        >
+                            <div style={{ width: 22, height: 22, flexShrink: 0, marginTop: 2, background: 'rgba(166,255,77,0.07)', border: '1px solid rgba(166,255,77,0.18)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                <Brain size={11} color="#A6FF4D" />
+                            </div>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+                                <span style={{ ...lbl, display: 'block' }}>AI Coach</span>
+                                <div style={{ padding: '11px 14px', background: '#0d1117', border: '1px solid #1a1c24', borderLeft: '2px solid #1f2937' }}>
+                                    <div className={styles.typingDots}><span /><span /><span /></div>
                                 </div>
                             </div>
                         </motion.div>
@@ -374,31 +499,63 @@ export default function AIChatPage() {
                 <div ref={endRef} />
             </div>
 
-            {/* Suggestions */}
-            <div className={styles.suggestions}>
+            {/* ── SUGGESTIONS ─────────────────────────────────── */}
+            <div className={styles.suggestions} style={{
+                borderTop: divider, padding: isMobile ? '7px 14px' : '8px 20px',
+                display: 'flex', gap: 6, flexShrink: 0, background: '#0a0a0a',
+            }}>
                 {SUGGESTIONS.map((s) => (
-                    <button key={s} className={styles.suggestionPill} onClick={() => handleSend(s)}>
-                        {s}
+                    <button
+                        key={s.text}
+                        onClick={() => handleSend(s.text)}
+                        style={{
+                            ...mono, flexShrink: 0, display: 'flex', alignItems: 'center', gap: 6,
+                            padding: '7px 12px', background: 'transparent', border: '1px solid #1a1c24',
+                            cursor: 'pointer', fontSize: 10, color: '#6b7280', whiteSpace: 'nowrap',
+                        }}
+                        onMouseEnter={e => { e.currentTarget.style.borderColor = 'rgba(166,255,77,0.3)'; e.currentTarget.style.color = '#A6FF4D'; e.currentTarget.style.background = 'rgba(166,255,77,0.04)'; }}
+                        onMouseLeave={e => { e.currentTarget.style.borderColor = '#1a1c24'; e.currentTarget.style.color = '#6b7280'; e.currentTarget.style.background = 'transparent'; }}
+                    >
+                        <span style={{ fontSize: 11 }}>{s.icon}</span>
+                        {s.text}
                     </button>
                 ))}
             </div>
 
-            {/* Input */}
-            <div className={styles.inputArea}>
+            {/* ── INPUT BAR ───────────────────────────────────── */}
+            <div style={{
+                borderTop: `1px solid ${input.trim() ? 'rgba(166,255,77,0.2)' : '#1a1c24'}`,
+                display: 'flex', alignItems: 'center',
+                padding: isMobile ? '10px 14px' : '12px 20px',
+                gap: 12, flexShrink: 0,
+                background: '#090909',
+                transition: 'border-color 0.2s',
+            }}>
                 <input
-                    className={styles.input}
                     value={input}
                     onChange={e => setInput(e.target.value)}
                     onKeyDown={e => e.key === 'Enter' && !e.shiftKey && handleSend()}
-                    placeholder="How many lots for SOL at 91.65 with stop 90.48 risk $800?"
+                    placeholder={isMobile ? 'Ask about sizing, stops, TP...' : 'How many lots for SOL at 91.65 with stop 90.48 risk $800?'}
                     autoComplete="off"
+                    style={{
+                        ...mono, flex: 1, background: 'transparent', border: 'none', outline: 'none',
+                        fontSize: 12, color: '#e2e8f0', lineHeight: 1.5,
+                    }}
                 />
                 <button
-                    className={`${styles.sendBtn} ${input.trim() ? styles.sendBtnActive : ''}`}
                     onClick={() => handleSend()}
                     disabled={!input.trim() || loading}
+                    style={{
+                        width: 34, height: 34, flexShrink: 0,
+                        background: input.trim() ? '#A6FF4D' : '#0d1117',
+                        border: `1px solid ${input.trim() ? '#A6FF4D' : '#1a1c24'}`,
+                        cursor: input.trim() ? 'pointer' : 'default',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        transition: 'all 0.15s',
+                        boxShadow: input.trim() ? '0 0 14px rgba(166,255,77,0.22)' : 'none',
+                    }}
                 >
-                    <Send size={16} />
+                    <Send size={14} color={input.trim() ? '#000' : '#2d3748'} />
                 </button>
             </div>
         </div>
