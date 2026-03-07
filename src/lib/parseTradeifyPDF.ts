@@ -1,5 +1,5 @@
 /**
- * Tradeify PDF Statement Parser — v2
+ * Tradeify PDF Statement Parser — v3
  * ────────────────────────────────────────────────────────────
  * Parses the "Single-Currency account statement" PDF from Tradeify.
  *
@@ -9,10 +9,13 @@
  *    lines in the PDF table cell — row-grouping approaches fail.
  *  • Opening trades have "—" (em dash) in the Settled PnL column.
  *  • Closing trades have a numeric Settled PnL value.
+ *  • Column order after Order ID: Settled PnL | Commission | Financing
+ *  • Commission is charged on BOTH the open and close leg.
+ *  • True net PnL = Settled PnL − commission_close − commission_open
  *
  * Strategy: extract ALL text as a flat token stream, anchor on
  * DD/MM/YYYY date patterns, then extract direction / symbol /
- * size / price / PnL from the surrounding context window.
+ * size / price / PnL / commission from the surrounding context window.
  * No row grouping needed — works regardless of PDF cell wrapping.
  */
 
@@ -28,6 +31,7 @@ interface RawTx {
     baseSymbol: string;
     price: number;
     settledPnl: number | null;  // null = opening transaction
+    commission: number;         // always present for both legs
 }
 
 // ── Constants ──────────────────────────────────────────────────
@@ -82,23 +86,43 @@ function extractTransactions(tableText: string): RawTx[] {
         const size  = numTokens[0];
         const price = numTokens[1];
 
-        // ── Determine open vs close ────────────────────────────
-        // Find the 6-digit Order ID (space-delimited integer, not part of decimal)
+        // ── Determine open vs close, extract commission ────────
+        // Columns after direction: Size Symbol Price OrderID SettledPnl Commission Financing
+        // Find the 6-digit Order ID (space-delimited, not part of a decimal)
         const orderM = afterDir.match(/\s(\d{6})(?=\s|$)/);
         let settledPnl: number | null = null;
+        let commission = 0;
 
         if (orderM) {
             const afterOrder = afterDir
                 .slice(afterDir.indexOf(orderM[0]) + orderM[0].length)
                 .trimStart();
 
+            let restForCommission: string;
+
             // Em dash, en dash, or minus-sign NOT followed by digit → opening (no PnL)
             if (/^[—–−]/.test(afterOrder) || /^-(?!\d)/.test(afterOrder)) {
                 settledPnl = null;
+                // Skip the em-dash; commission is the next number
+                restForCommission = afterOrder.replace(/^[—–−]\s*/, '');
             } else {
-                // First number after order ID = Settled PnL (can be negative)
+                // First token = Settled PnL (can be negative)
                 const pnlM = afterOrder.match(/^(-?[\d,]+\.?\d{1,2})/);
-                if (pnlM) settledPnl = parseFloat(pnlM[1].replace(/,/g, ''));
+                if (pnlM) {
+                    settledPnl = parseFloat(pnlM[1].replace(/,/g, ''));
+                    restForCommission = afterOrder.slice(pnlM[0].length).trimStart();
+                } else {
+                    restForCommission = afterOrder;
+                }
+            }
+
+            // Commission: first number in restForCommission.
+            // Order-ID suffixes are ≥ 6 digits (≥ 100 000) so the < 10 000 guard
+            // safely excludes them while capturing realistic commission amounts.
+            const commM = restForCommission.match(/([\d,]+\.?\d*)/);
+            if (commM) {
+                const val = parseFloat(commM[1].replace(/,/g, ''));
+                if (val < 10000) commission = val;
             }
         }
 
@@ -110,6 +134,7 @@ function extractTransactions(tableText: string): RawTx[] {
             baseSymbol: symM[1].toUpperCase(),
             price,
             settledPnl,
+            commission,
         });
     }
 
@@ -136,7 +161,8 @@ function buildTrades(rawTxs: RawTx[]): Omit<TradeSession, 'note'>[] {
             const open = idx >= 0 ? stack.splice(idx, 1)[0] : stack.shift();
             if (stack.length > 0) stacks.set(key, stack); else stacks.delete(key);
 
-            const pnl = tx.settledPnl;
+            // Net PnL = gross settled PnL − commission on close leg − commission on open leg
+            const pnl = tx.settledPnl - tx.commission - (open?.commission ?? 0);
             const isShort = open ? open.direction === 'Sell' : tx.direction === 'Buy';
 
             trades.push({
