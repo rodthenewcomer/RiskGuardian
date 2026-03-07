@@ -215,7 +215,8 @@ export default function AnalyticsPage() {
     // ── STREAKS: Worst streak details for NLP narrative ──
     const worstStreakInfo = (() => {
         if (closed.length === 0) return null;
-        let best: { start: number; end: number; count: number; pnl: number } | null = null;
+        type StreakBest = { start: number; end: number; count: number; pnl: number };
+        let best: StreakBest | null = null;
         let cs = -1, cc = 0, cp = 0;
         closed.forEach((t, i) => {
             if ((t.pnl ?? 0) < 0) {
@@ -225,15 +226,16 @@ export default function AnalyticsPage() {
             } else { cc = 0; cp = 0; }
         });
         if (!best) return null;
-        const st = closed[best.start], et = closed[best.end];
+        const b = best as StreakBest;
+        const st = closed[b.start], et = closed[b.end];
         const fmtDate = (iso: string) => new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
         const fmtTime = (iso: string) => new Date(iso).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'America/New_York' });
-        const streakTrades = closed.slice(best.start, best.end + 1);
+        const streakTrades = closed.slice(b.start, b.end + 1);
         const assetCounts: Record<string, number> = {};
         streakTrades.forEach(t => { assetCounts[t.asset] = (assetCounts[t.asset] || 0) + 1; });
         const dominantAsset = Object.entries(assetCounts).sort(([, a], [, b]) => b - a)[0]?.[0] ?? '';
         const shortCount = streakTrades.filter(t => t.isShort).length;
-        return { count: best.count, pnl: best.pnl, date: fmtDate(st.createdAt), startTime: fmtTime(st.createdAt), endTime: fmtTime(et.createdAt), dominantAsset, isShort: shortCount > best.count / 2 };
+        return { count: b.count, pnl: b.pnl, date: fmtDate(st.createdAt), startTime: fmtTime(st.createdAt), endTime: fmtTime(et.createdAt), dominantAsset, isShort: shortCount > b.count / 2 };
     })();
 
     // ── STREAKS: Psychological State Profile (derived from pattern + time data) ──
@@ -529,7 +531,7 @@ export default function AnalyticsPage() {
                                         <YAxis hide />
                                         <Tooltip
                                             contentStyle={{ backgroundColor: '#0b0e14', border: '1px solid #1a1c24', fontFamily: 'var(--font-mono)', fontSize: 12 }}
-                                            formatter={(v: number) => [`${v >= 0 ? '+' : ''}$${Math.abs(v).toFixed(2)}`, 'P&L']}
+                                            formatter={(v: number | undefined) => v !== undefined ? [`${v >= 0 ? '+' : ''}$${Math.abs(v).toFixed(2)}`, 'P&L'] : ['—', 'P&L']}
                                             labelFormatter={l => new Date(l + 'T12:00:00Z').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
                                         />
                                         <Bar dataKey="pnl" radius={[2, 2, 0, 0]}>
