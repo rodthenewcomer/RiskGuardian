@@ -18,6 +18,11 @@ import { NextRequest, NextResponse } from 'next/server';
 
 const DXTRADE_PATH = '/dxsca-web';
 
+/** Encode for URL path — keeps colons unencoded (safe in path segments per RFC 3986) */
+function encodeAccount(code: string) {
+    return encodeURIComponent(code).replace(/%3A/gi, ':');
+}
+
 function authHeader(token: string) {
     return { 'Authorization': `DXAPI ${token}`, 'Accept': 'application/json', 'Content-Type': 'application/json' };
 }
@@ -95,7 +100,7 @@ export async function POST(req: NextRequest) {
             case 'metrics': {
                 if (!token || !accountCode) return NextResponse.json({ error: 'Token and accountCode required' }, { status: 400 });
                 const res = await dxFetch(
-                    `${base}/accounts/${encodeURIComponent(accountCode)}/metrics`,
+                    `${base}/accounts/${encodeAccount(accountCode)}/metrics`,
                     { headers: authHeader(token) },
                 );
                 if (!res.ok) {
@@ -108,7 +113,7 @@ export async function POST(req: NextRequest) {
             case 'positions': {
                 if (!token || !accountCode) return NextResponse.json({ error: 'Token and accountCode required' }, { status: 400 });
                 const res = await dxFetch(
-                    `${base}/accounts/${encodeURIComponent(accountCode)}/positions`,
+                    `${base}/accounts/${encodeAccount(accountCode)}/positions`,
                     { headers: authHeader(token) },
                 );
                 if (!res.ok) {
@@ -124,7 +129,7 @@ export async function POST(req: NextRequest) {
                 const params = new URLSearchParams({ 'in-status': 'COMPLETED', limit });
                 if (fromDate) params.set('transaction-from', fromDate);
                 const res = await dxFetch(
-                    `${base}/accounts/${encodeURIComponent(accountCode)}/orders/history?${params}`,
+                    `${base}/accounts/${encodeAccount(accountCode)}/orders/history?${params}`,
                     { headers: authHeader(token) },
                 );
                 if (!res.ok) {
