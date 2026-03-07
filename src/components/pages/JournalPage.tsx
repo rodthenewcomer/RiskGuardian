@@ -1,7 +1,7 @@
 'use client';
 
 import styles from './JournalPage.module.css';
-import { useState, useMemo, useRef } from 'react';
+import { useState, useMemo, useRef, useEffect } from 'react';
 import { useAppStore } from '@/store/appStore';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -58,6 +58,13 @@ export default function JournalPage() {
     const [filter, setFilter] = useState<'all' | 'win' | 'loss' | 'open'>('all');
     const [assetFilter, setAssetFilter] = useState('');
     const [expandedId, setExpandedId] = useState<string | null>(null);
+    const [isMobile, setIsMobile] = useState(false);
+    useEffect(() => {
+        const check = () => setIsMobile(window.innerWidth < 640);
+        check();
+        window.addEventListener('resize', check);
+        return () => window.removeEventListener('resize', check);
+    }, []);
 
     // ── Design tokens ────────────────────────────────────────
     const mono: React.CSSProperties = { fontFamily: 'var(--font-mono)' };
@@ -235,7 +242,7 @@ export default function JournalPage() {
             <input ref={pdfRef} type="file" accept=".pdf" style={{ display: 'none' }} onChange={handlePDFImport} />
 
             {/* ── HEADER ─────────────────────────────────────── */}
-            <div style={{ padding: '14px 20px', borderBottom: divider, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
+            <div style={{ padding: isMobile ? '12px 14px' : '14px 20px', borderBottom: divider, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
                 <div>
                     <h1 style={{ ...mono, fontSize: 18, fontWeight: 900, color: '#fff', letterSpacing: '-0.02em', lineHeight: 1 }}>Journal</h1>
                     <span style={lbl}>Execution history · audit trail</span>
@@ -283,7 +290,7 @@ export default function JournalPage() {
             </AnimatePresence>
 
             {/* ── STATS STRIP ─────────────────────────────────── */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', borderBottom: divider }}>
+            <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'repeat(2,1fr)' : 'repeat(4,1fr)', borderBottom: divider }}>
                 {[
                     {
                         lbl: 'Net P&L', val: closedTrades.length > 0 ? `${totalPnl >= 0 ? '+' : ''}$${Math.abs(totalPnl).toLocaleString(undefined, { maximumFractionDigits: 2 })}` : '—',
@@ -306,9 +313,13 @@ export default function JournalPage() {
                         sub: trades.filter(t => t.outcome === 'open').length > 0 ? `${trades.filter(t => t.outcome === 'open').length} open` : 'all closed'
                     },
                 ].map((s, i) => (
-                    <div key={i} style={{ padding: '14px 16px', borderRight: i < 3 ? divider : 'none' }}>
+                    <div key={i} style={{
+                        padding: isMobile ? '12px 12px' : '14px 16px',
+                        borderRight: isMobile ? (i % 2 === 0 ? divider : 'none') : (i < 3 ? divider : 'none'),
+                        borderBottom: isMobile && i < 2 ? divider : 'none',
+                    }}>
                         <span style={lbl}>{s.lbl}</span>
-                        <span style={{ ...mono, fontSize: 20, fontWeight: 800, color: s.clr, letterSpacing: '-0.02em', display: 'block', marginTop: 4, lineHeight: 1 }}>{s.val}</span>
+                        <span style={{ ...mono, fontSize: isMobile ? 16 : 20, fontWeight: 800, color: s.clr, letterSpacing: '-0.02em', display: 'block', marginTop: 4, lineHeight: 1 }}>{s.val}</span>
                         <span style={{ ...mono, fontSize: 9, color: '#4b5563', display: 'block', marginTop: 3 }}>{s.sub}</span>
                     </div>
                 ))}
@@ -316,7 +327,7 @@ export default function JournalPage() {
 
             {/* ── FILTER + VIEW TOGGLE ────────────────────────── */}
             {trades.length > 0 && (
-                <div style={{ padding: '10px 20px', borderBottom: divider, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                <div style={{ padding: isMobile ? '8px 14px' : '10px 20px', borderBottom: divider, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                     {/* Outcome filters */}
                     {(['all', 'win', 'loss', 'open'] as const).map(f => (
                         <button key={f} onClick={() => setFilter(f)} style={{
@@ -415,13 +426,16 @@ export default function JournalPage() {
                                     )}
                                     {/* W/L dot sequence */}
                                     <div style={{ marginLeft: 'auto', display: 'flex', gap: 4, alignItems: 'center' }}>
-                                        {dayTrades.map((t, i) => (
+                                        {dayTrades.slice(0, isMobile ? 10 : 30).map((t, i) => (
                                             <div key={i} title={t.outcome === 'win' ? 'Win' : t.outcome === 'loss' ? 'Loss' : 'Open'} style={{
-                                                width: 9, height: 9, borderRadius: '50%', flexShrink: 0,
+                                                width: 8, height: 8, borderRadius: '50%', flexShrink: 0,
                                                 background: t.outcome === 'win' ? '#A6FF4D' : t.outcome === 'loss' ? '#ff4757' : '#4b5563',
                                                 opacity: 0.9,
                                             }} />
                                         ))}
+                                        {isMobile && dayTrades.length > 10 && (
+                                            <span style={{ ...mono, fontSize: 9, color: '#4b5563' }}>+{dayTrades.length - 10}</span>
+                                        )}
                                     </div>
                                 </div>
 
@@ -448,7 +462,7 @@ export default function JournalPage() {
                                         >
                                             {/* Main row */}
                                             <div
-                                                style={{ padding: '14px 20px', cursor: 'pointer', display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 }}
+                                                style={{ padding: isMobile ? '12px 14px' : '14px 20px', cursor: 'pointer', display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 10 }}
                                                 onClick={() => setExpandedId(isExpanded ? null : trade.id)}
                                             >
                                                 {/* Left: direction + asset + meta */}
@@ -513,19 +527,29 @@ export default function JournalPage() {
                                                         style={{ overflow: 'hidden', borderTop: divider, background: '#0a0a0a' }}
                                                     >
                                                         {/* Meta grid: ENTRY | SL | TP | R:R | SIZE */}
-                                                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', borderBottom: divider }}>
+                                                        <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'repeat(2, 1fr)' : 'repeat(5, 1fr)', borderBottom: divider }}>
                                                             {[
                                                                 { k: 'Entry', v: trade.entry > 0 ? trade.entry.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 5 }) : '—', c: '#e2e8f0' },
                                                                 { k: 'Stop Loss', v: trade.stopLoss > 0 ? trade.stopLoss.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 5 }) : '—', c: '#ff4757' },
                                                                 { k: 'Take Profit', v: trade.takeProfit > 0 ? trade.takeProfit.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 5 }) : '—', c: '#A6FF4D' },
                                                                 { k: 'Risk : Reward', v: trade.rr > 0 ? `${trade.rr.toFixed(2)}R` : '—', c: '#00D4FF' },
                                                                 { k: 'Size', v: trade.lotSize > 0 ? trade.lotSize.toLocaleString() : '—', c: '#e2e8f0' },
-                                                            ].map((m, i) => (
-                                                                <div key={i} style={{ padding: '12px 14px', borderRight: i < 4 ? divider : 'none' }}>
-                                                                    <span style={lbl}>{m.k}</span>
-                                                                    <span style={{ ...mono, fontSize: 14, fontWeight: 700, color: m.c, display: 'block', marginTop: 3 }}>{m.v}</span>
-                                                                </div>
-                                                            ))}
+                                                            ].map((m, i, arr) => {
+                                                                const cols = isMobile ? 2 : 5;
+                                                                const col = i % cols;
+                                                                const isLastCol = col === cols - 1 || i === arr.length - 1;
+                                                                const isLastRow = i >= arr.length - cols;
+                                                                return (
+                                                                    <div key={i} style={{
+                                                                        padding: isMobile ? '10px 12px' : '12px 14px',
+                                                                        borderRight: isLastCol ? 'none' : divider,
+                                                                        borderBottom: isMobile && !isLastRow ? divider : 'none',
+                                                                    }}>
+                                                                        <span style={lbl}>{m.k}</span>
+                                                                        <span style={{ ...mono, fontSize: isMobile ? 13 : 14, fontWeight: 700, color: m.c, display: 'block', marginTop: 3 }}>{m.v}</span>
+                                                                    </div>
+                                                                );
+                                                            })}
                                                         </div>
 
                                                         {/* Risk $ / Reward $ row */}
@@ -576,12 +600,12 @@ export default function JournalPage() {
 
             {/* ── CALENDAR VIEW ───────────────────────────────── */}
             {trades.length > 0 && viewMode === 'calendar' && (
-                <motion.div initial={{ opacity: 0, scale: 0.98 }} animate={{ opacity: 1, scale: 1 }} className={styles.calendarContainer}>
+                <motion.div initial={{ opacity: 0, scale: 0.98 }} animate={{ opacity: 1, scale: 1 }} className={styles.calendarContainer} style={isMobile ? { borderRadius: 0, margin: 0 } : {}}>
                     <div className={styles.calendarHeader}>
                         <div className={styles.calendarNav}>
-                            <button onClick={prevMonth} className="btn btn--ghost btn--sm p-1" aria-label="Previous Month"><ChevronLeft size={16} /></button>
+                            <button onClick={prevMonth} aria-label="Previous Month" style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#8b949e', padding: '4px', display: 'flex', alignItems: 'center' }}><ChevronLeft size={16} /></button>
                             <h3 className={styles.calendarTitle}>{calendarData.monthName} {calendarData.year}</h3>
-                            <button onClick={nextMonth} className="btn btn--ghost btn--sm p-1" aria-label="Next Month"><ChevronRight size={16} /></button>
+                            <button onClick={nextMonth} aria-label="Next Month" style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#8b949e', padding: '4px', display: 'flex', alignItems: 'center' }}><ChevronRight size={16} /></button>
                         </div>
                         <button onClick={() => setCalendarDate(new Date())} className={styles.btnToday}>Today</button>
                     </div>
