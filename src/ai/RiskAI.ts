@@ -15,6 +15,7 @@
  */
 
 import type { TradeSession, AccountSettings } from '@/store/appStore';
+import { getFuturesSpec } from '@/store/appStore';
 
 // ─────────────────────────────────────────────────────────────────
 // Types
@@ -215,37 +216,56 @@ export function calcSmartPositionSize(params: {
 }): PositionSizeResult {
     const { entry, stopLoss, riskUSD, targetRR = 2, includeTradeifyFee = true } = params;
     const stopDistance = Math.abs(entry - stopLoss);
-    const stopPct = (stopDistance / entry) * 100;
+    const stopPct = stopDistance > 0 ? (stopDistance / entry) * 100 : 0;
+    const isLong = entry > stopLoss;
 
     let size = 0;
     let unit = 'units';
+    let pointValue = 1;
 
     if (params.assetType === 'forex') {
+        // Standard lot = 100,000 units. pip value ≈ $10/lot for USD-quoted pairs.
         size = riskUSD / (100000 * stopDistance);
         unit = 'lots';
+        pointValue = 10; // per pip per standard lot
     } else if (params.assetType === 'futures') {
-        // Simplified — real spec lookup handled in appStore
-        size = riskUSD / stopDistance;
-        unit = 'contracts';
+        const spec = getFuturesSpec(params.symbol);
+        if (spec && stopDistance > 0) {
+            // contracts = risk / (stop_in_points × dollar_per_point)
+            size = riskUSD / (stopDistance * spec.pointValue);
+            unit = 'contracts';
+            pointValue = spec.pointValue;
+        } else {
+            size = stopDistance > 0 ? riskUSD / stopDistance : 0;
+            unit = 'contracts';
+        }
+    } else if (params.assetType === 'stocks') {
+        size = stopDistance > 0 ? riskUSD / stopDistance : 0;
+        unit = 'shares';
     } else {
-        size = riskUSD / stopDistance;
+        // crypto (spot)
+        size = stopDistance > 0 ? riskUSD / stopDistance : 0;
         unit = 'units';
     }
 
     size = Math.round(size * 100) / 100;
 
-    const tp2R = entry > stopLoss
-        ? entry + stopDistance * 2
-        : entry - stopDistance * 2;
-    const tp3R = entry > stopLoss
-        ? entry + stopDistance * 3
-        : entry - stopDistance * 3;
-    const tpCustomR = entry > stopLoss
-        ? entry + stopDistance * targetRR
-        : entry - stopDistance * targetRR;
+    const tp2R = isLong ? entry + stopDistance * 2 : entry - stopDistance * 2;
+    const tp3R = isLong ? entry + stopDistance * 3 : entry - stopDistance * 3;
+    const tpCustomR = isLong ? entry + stopDistance * targetRR : entry - stopDistance * targetRR;
 
-    const notional = size * entry;
-    const comm = includeTradeifyFee ? notional * 0.0004 : 0;
+    // Correct notional per asset class
+    let notional = 0;
+    if (params.assetType === 'futures') {
+        notional = size * entry * pointValue;
+    } else if (params.assetType === 'forex') {
+        notional = size * 100000; // units of base currency
+    } else {
+        notional = size * entry;
+    }
+
+    // Tradeify 0.04% fee applies only to crypto; futures are flat per-contract
+    const comm = (params.assetType === 'crypto' && includeTradeifyFee) ? notional * 0.0004 : 0;
 
     return { size, unit, riskUSD, tp2R, tp3R, tpCustomR, notional, comm, stopDistance, stopPct };
 }
