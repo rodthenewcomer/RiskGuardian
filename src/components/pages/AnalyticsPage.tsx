@@ -18,17 +18,20 @@ export default function AnalyticsPage() {
     const [copied, setCopied] = useState(false);
 
     // Sort chronological + apply date range filter
+    // Date filter uses getTradingDay(closedAt) — trades held overnight are correctly attributed
     const closed = useMemo(() => {
         return trades
             .filter(t => t.outcome === 'win' || t.outcome === 'loss')
             .filter(t => {
-                const d = t.createdAt.split('T')[0];
+                const d = getTradingDay(t.closedAt ?? t.createdAt);
                 if (dateFrom && d < dateFrom) return false;
                 if (dateTo && d > dateTo) return false;
                 return true;
             })
             .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
     }, [trades, dateFrom, dateTo]);
+
+    const filterActive = !!(dateFrom || dateTo);
 
     // Process Algorithmic Forensics
     const forensics = useMemo(() => generateForensics(trades, account), [trades, account]);
@@ -60,12 +63,13 @@ export default function AnalyticsPage() {
     const expectancy = ((winRate / 100) * avgWin) - ((1 - winRate / 100) * avgLoss);
     const wlRatio = avgLoss > 0 ? avgWin / avgLoss : 0;
 
-    // Max Drawdown / Runup
+    // Max Drawdown / Runup — start from startingBalance for accurate absolute drawdown
+    const startBal = account.startingBalance ?? 0;
     let maxDd = 0;
-    let maxPeak = 0;
+    let maxPeak = startBal;
     let maxRunup = 0;
-    let minTrough = 0;
-    let curBal = 0;
+    let minTrough = startBal;
+    let curBal = startBal;
     closed.forEach(t => {
         curBal += (t.pnl ?? 0);
         if (curBal > maxPeak) maxPeak = curBal;
@@ -168,13 +172,19 @@ export default function AnalyticsPage() {
         });
     })();
 
-    // Report date range (from first to last closed trade)
-    const reportRange = closed.length > 0 ? {
-        from: new Date(closed[0].createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
-        to: new Date(closed[closed.length - 1].createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
-        fromShort: new Date(closed[0].createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
-        toShort: new Date(closed[closed.length - 1].createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
-    } : null;
+    // Report date range (from first to last trading day)
+    const reportRange = closed.length > 0 ? (() => {
+        const first = getTradingDay(closed[0].closedAt ?? closed[0].createdAt);
+        const last  = getTradingDay(closed[closed.length - 1].closedAt ?? closed[closed.length - 1].createdAt);
+        const fmt = (d: string, opts: Intl.DateTimeFormatOptions) =>
+            new Date(d + 'T12:00:00Z').toLocaleDateString('en-US', opts);
+        return {
+            from:      fmt(first, { month: 'short', day: 'numeric', year: 'numeric' }),
+            to:        fmt(last,  { month: 'short', day: 'numeric', year: 'numeric' }),
+            fromShort: fmt(first, { month: 'short', day: 'numeric' }),
+            toShort:   fmt(last,  { month: 'short', day: 'numeric', year: 'numeric' }),
+        };
+    })() : null;
 
     const handleCopyLink = () => {
         navigator.clipboard.writeText(window.location.href).then(() => {
@@ -409,6 +419,21 @@ export default function AnalyticsPage() {
                     })}
                 </div>
             </div>
+
+            {filterActive && (
+                <div style={{
+                    display: 'flex', alignItems: 'center', gap: 8,
+                    padding: '7px 16px',
+                    background: 'rgba(251, 191, 36, 0.04)',
+                    borderBottom: '1px solid rgba(251, 191, 36, 0.18)',
+                    fontFamily: 'var(--font-mono)', fontSize: 10, color: '#fbbf24',
+                    letterSpacing: '0.05em',
+                }}>
+                    <Info size={11} />
+                    <span>DATE FILTER ACTIVE — trades outside {dateFrom || '…'} → {dateTo || '…'} are hidden. New imports may not be visible.</span>
+                    <button onClick={() => { setDateFrom(''); setDateTo(''); }} style={{ marginLeft: 'auto', background: 'transparent', border: '1px solid rgba(251,191,36,0.3)', color: '#fbbf24', padding: '2px 8px', cursor: 'pointer', fontSize: 10, fontFamily: 'var(--font-mono)' }}>CLEAR</button>
+                </div>
+            )}
 
             <div className={styles.content}>
                 <AnimatePresence mode="wait">

@@ -121,10 +121,17 @@ export default function JournalPage() {
             const result = await parseTradeifyPDF(file);
             if (result.error) { setPdfStatus({ loading: false, msg: result.error }); return; }
             if (result.count === 0) { setPdfStatus({ loading: false, msg: 'No closed trades found in this statement.' }); return; }
-            const existingIds = new Set(trades.map(t => t.id));
-            const fresh = result.trades.filter(t => !existingIds.has(t.id));
-            if (fresh.length > 0) setTrades([...fresh, ...trades]);
-            setPdfStatus({ loading: false, msg: `Imported ${fresh.length} trade${fresh.length !== 1 ? 's' : ''} from statement.` });
+            // Correct incremental merge: keep all existing non-PDF trades + old PDF trades
+            // not present in the new upload. Same logic as Settings page.
+            const nonPdf  = trades.filter(t => !t.id.startsWith('tradeify-'));
+            const oldPdf  = trades.filter(t => t.id.startsWith('tradeify-'));
+            const newIds  = new Set(result.trades.map(t => t.id));
+            const oldKept = oldPdf.filter(t => !newIds.has(t.id));
+            const newTrades = result.trades.map(t => ({ ...t, note: '' }));
+            setTrades([...newTrades, ...oldKept, ...nonPdf]); // autoSync fires inside setTrades
+            const coverage = result.coverageStart && result.coverageEnd
+                ? ` · ${result.coverageStart} → ${result.coverageEnd}` : '';
+            setPdfStatus({ loading: false, msg: `${newTrades.length} imported, ${oldKept.length} kept${coverage}` });
         } catch (err) {
             setPdfStatus({ loading: false, msg: `Import failed: ${err instanceof Error ? err.message : String(err)}` });
         }
@@ -178,7 +185,9 @@ export default function JournalPage() {
                         if (isNaN(entry) || isNaN(size)) continue;
                         const risk = Math.abs(entry - sl) * size;
                         const reward = Math.abs(tp - entry) * size;
-                        imported.push({ id: `csv-${i}-${Date.now()}`, asset: cols[4]?.toUpperCase() || 'UNKNOWN', assetType: guessAssetType(cols[4] || ''), entry, stopLoss: sl, takeProfit: tp, lotSize: size, riskUSD: risk, rewardUSD: reward, rr: risk > 0 ? reward / risk : 0, outcome: pnl > 0 ? 'win' : pnl < 0 ? 'loss' : 'open', createdAt: cols[1] || new Date().toISOString(), closedAt: cols[1] || new Date().toISOString(), pnl, isShort: type === 'sell' });
+                        // Deterministic ID from content — prevents duplicates on re-import
+                        const id = `csv-${cols[1] ?? ''}-${cols[4] ?? ''}-${cols[5] ?? ''}-${(pnl || 0).toFixed(2)}`;
+                        imported.push({ id, asset: cols[4]?.toUpperCase() || 'UNKNOWN', assetType: guessAssetType(cols[4] || ''), entry, stopLoss: sl, takeProfit: tp, lotSize: size, riskUSD: risk, rewardUSD: reward, rr: risk > 0 ? reward / risk : 0, outcome: pnl > 0 ? 'win' : pnl < 0 ? 'loss' : 'open', createdAt: cols[1] || new Date().toISOString(), closedAt: cols[1] || new Date().toISOString(), pnl, isShort: type === 'sell' });
                     } else {
                         const side = cols[2]?.toLowerCase();
                         const entry = parseFloat(cols[4]);
@@ -189,11 +198,19 @@ export default function JournalPage() {
                         if (isNaN(entry) || isNaN(size)) continue;
                         const risk = Math.abs(entry - (sl || entry * 0.99)) * size;
                         const reward = Math.abs((tp || entry * 1.01) - entry) * size;
-                        imported.push({ id: `csv-${i}-${Date.now()}`, asset: cols[1]?.toUpperCase() || 'UNKNOWN', assetType: guessAssetType(cols[1] || ''), entry, stopLoss: sl || entry * 0.99, takeProfit: tp || entry * 1.01, lotSize: size, riskUSD: risk, rewardUSD: reward, rr: risk > 0 ? reward / risk : 0, outcome: pnl > 0 ? 'win' : pnl < 0 ? 'loss' : 'open', createdAt: cols[0] || new Date().toISOString(), closedAt: cols[0] || new Date().toISOString(), pnl, isShort: side === 'sell' || side === 'short' });
+                        // Deterministic ID from content — prevents duplicates on re-import
+                        const id = `csv-${cols[0] ?? ''}-${cols[1] ?? ''}-${cols[4] ?? ''}-${(pnl || 0).toFixed(2)}`;
+                        imported.push({ id, asset: cols[1]?.toUpperCase() || 'UNKNOWN', assetType: guessAssetType(cols[1] || ''), entry, stopLoss: sl || entry * 0.99, takeProfit: tp || entry * 1.01, lotSize: size, riskUSD: risk, rewardUSD: reward, rr: risk > 0 ? reward / risk : 0, outcome: pnl > 0 ? 'win' : pnl < 0 ? 'loss' : 'open', createdAt: cols[0] || new Date().toISOString(), closedAt: cols[0] || new Date().toISOString(), pnl, isShort: side === 'sell' || side === 'short' });
                     }
                 } catch { continue; }
             }
-            if (imported.length > 0) setTrades([...trades, ...imported]);
+            if (imported.length > 0) {
+                // Merge: keep all existing non-CSV trades + old CSV trades not in this new batch
+                const newIds = new Set(imported.map(t => t.id));
+                const nonCsv = trades.filter(t => !t.id.startsWith('csv-'));
+                const oldCsv = trades.filter(t => t.id.startsWith('csv-') && !newIds.has(t.id));
+                setTrades([...imported, ...oldCsv, ...nonCsv]);
+            }
         };
         reader.readAsText(file);
         e.target.value = '';
