@@ -46,7 +46,7 @@ export default function Onboarding() {
     const [done, setDone] = useState(false);
 
     // DXTrade connect step state
-    const [dxServer, setDxServer] = useState('live.tradeify.com');
+    const [dxServer, setDxServer] = useState('dx.tradeifycrypto.co');
     const [dxUsername, setDxUsername] = useState('');
     const [dxDomain, setDxDomain] = useState('default');
     const [dxPassword, setDxPassword] = useState('');
@@ -405,7 +405,7 @@ export default function Onboarding() {
                                                 style={{ fontSize: 14, padding: '12px 14px', background: '#0d0f14', border: '1px solid #1a1c24', borderRadius: 6, color: '#e2e8f0', width: '100%', boxSizing: 'border-box', fontFamily: 'var(--font-mono)' }}
                                                 value={dxServer}
                                                 onChange={e => setDxServer(e.target.value)}
-                                                placeholder="live.tradeify.com"
+                                                placeholder="dx.tradeifycrypto.co"
                                                 autoCapitalize="none"
                                                 autoCorrect="off"
                                             />

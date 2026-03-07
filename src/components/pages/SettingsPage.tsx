@@ -23,7 +23,7 @@ export default function SettingsPage() {
 
     // DXTrade reconnect form state
     const [showDxForm, setShowDxForm] = useState(false);
-    const [dxServer, setDxServer] = useState(dxtradeConfig?.server ?? 'live.tradeify.com');
+    const [dxServer, setDxServer] = useState(dxtradeConfig?.server ?? 'dx.tradeifycrypto.co');
     const [dxUsername, setDxUsername] = useState(dxtradeConfig?.username ?? '');
     const [dxDomain, setDxDomain] = useState(dxtradeConfig?.domain ?? 'default');
     const [dxPassword, setDxPassword] = useState('');
@@ -393,7 +393,7 @@ export default function SettingsPage() {
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: dxtradeConfig ? 0 : 0 }}>
                         {['Server', 'Username', 'Domain', 'Password'].map((field) => {
                             const fieldMap: Record<string, { val: string; set: (v: string) => void; type?: string; placeholder: string }> = {
-                                Server:   { val: dxServer,   set: setDxServer,   placeholder: 'live.tradeify.com' },
+                                Server:   { val: dxServer,   set: setDxServer,   placeholder: 'dx.tradeifycrypto.co' },
                                 Username: { val: dxUsername, set: setDxUsername, placeholder: 'your_username' },
                                 Domain:   { val: dxDomain,   set: setDxDomain,   placeholder: 'default' },
                                 Password: { val: dxPassword, set: setDxPassword, type: 'password', placeholder: '••••••••' },
