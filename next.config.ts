@@ -5,9 +5,19 @@ const nextConfig: NextConfig = {
   experimental: {
     optimizePackageImports: ['lucide-react', 'framer-motion'],
   },
-  // Silence the "webpack config with no turbopack config" warning in Next.js 16.
+  turbopack: {
+    resolveAlias: {
+      canvas: './empty-module.ts',
+    },
+  },
   // pdfjs-dist is dynamically imported client-side only (text extraction, no canvas rendering).
-  turbopack: {},
+  webpack: (config) => {
+    config.resolve.fallback = {
+      ...config.resolve.fallback,
+      canvas: false,
+    };
+    return config;
+  },
 };
 
 export default nextConfig;

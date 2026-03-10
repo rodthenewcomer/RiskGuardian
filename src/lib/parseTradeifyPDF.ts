@@ -217,9 +217,9 @@ export async function parseTradeifyPDF(
     coverageEnd?: string;      // YYYY-MM-DD of latest trade
 }> {
     try {
-        const pdfjsLib = await import('pdfjs-dist/legacy/build/pdf.mjs');
+        const pdfjsLib = await import('pdfjs-dist/legacy/build/pdf.js');
         // Setting a standard unpkg worker URL which solves mobile parsing issues
-        pdfjsLib.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjsLib.version}/legacy/build/pdf.worker.min.mjs`;
+        pdfjsLib.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjsLib.version}/legacy/build/pdf.worker.min.js`;
 
         const buf = await file.arrayBuffer();
         const pdf = await pdfjsLib.getDocument({ data: buf }).promise;
