@@ -16,6 +16,26 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 
+// ── In-memory rate limiter: max 20 req / 60s per IP ──────────────
+const rateLimitMap = new Map<string, { count: number; resetAt: number }>();
+function checkRateLimit(ip: string): boolean {
+    const now = Date.now();
+    const entry = rateLimitMap.get(ip);
+    if (!entry || now > entry.resetAt) {
+        rateLimitMap.set(ip, { count: 1, resetAt: now + 60_000 });
+        return true; // allowed
+    }
+    if (entry.count >= 20) return false; // rate limited
+    entry.count++;
+    return true;
+}
+
+// Prune stale entries every 5 minutes to prevent memory leak
+setInterval(() => {
+    const now = Date.now();
+    rateLimitMap.forEach((v, k) => { if (now > v.resetAt) rateLimitMap.delete(k); });
+}, 5 * 60_000);
+
 const DXTRADE_PATH = '/dxsca-web';
 
 /** Encode for URL path — keeps colons unencoded (safe in path segments per RFC 3986) */
@@ -41,6 +61,24 @@ const rateLimitError = NextResponse.json({
 }, { status: 429 });
 
 export async function POST(req: NextRequest) {
+    // Rate limit
+    const ip = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ?? req.headers.get('x-real-ip') ?? 'unknown';
+    if (!checkRateLimit(ip)) {
+        return NextResponse.json({ error: 'Too many requests. Please wait 60 seconds.' }, { status: 429 });
+    }
+    // Request size guard (max 50KB)
+    const contentLength = parseInt(req.headers.get('content-length') ?? '0', 10);
+    if (contentLength > 50_000) {
+        return NextResponse.json({ error: 'Request too large' }, { status: 413 });
+    }
+    // CORS — only allow same origin
+    const origin = req.headers.get('origin');
+    const host = req.headers.get('host') ?? '';
+    const allowedOrigins = [`http://${host}`, `https://${host}`, 'http://localhost:3000'];
+    if (origin && !allowedOrigins.some(o => origin.startsWith(o))) {
+        return NextResponse.json({ error: 'CORS: origin not allowed' }, { status: 403 });
+    }
+
     let body: Record<string, unknown>;
     try {
         body = await req.json();

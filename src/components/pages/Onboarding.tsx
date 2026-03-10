@@ -333,7 +333,7 @@ export default function Onboarding() {
                                         <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12, padding: 16, background: 'rgba(166,255,77,0.05)', border: '1px solid var(--border-accent)', borderRadius: 8 }}>
                                             <AlertTriangle size={16} className="text-accent" style={{ marginTop: 2, flexShrink: 0 }} />
                                             <p style={{ fontSize: 12, color: 'var(--text-primary)', textAlign: 'left', margin: 0, lineHeight: 1.5 }}>
-                                                <strong>Max Risk Per Trade:</strong> Automatically set to {maxRiskPercent.toFixed(1)}%. You can adjust this later in Settings.
+                                                <strong>Max Risk Per Trade:</strong> Automatically set to {maxRiskPercent.toFixed(1)}% (assuming 5 trades per day). You can adjust this later in Settings.
                                             </p>
                                         </div>
                                     </div>
@@ -486,17 +486,20 @@ export default function Onboarding() {
                                         </button>
 
                                         {/* Skip */}
-                                        <button
-                                            onClick={() => finish()}
-                                            disabled={dxConnecting}
-                                            style={{
-                                                padding: '12px', background: 'transparent', border: '1px solid #1a1c24',
-                                                borderRadius: 6, cursor: 'pointer', fontFamily: 'var(--font-mono)',
-                                                fontSize: 11, color: '#4b5563', letterSpacing: '0.06em', textTransform: 'uppercase',
-                                            }}
-                                        >
-                                            Skip — I&apos;ll import manually
-                                        </button>
+                                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
+                                            <button
+                                                onClick={() => finish()}
+                                                disabled={dxConnecting}
+                                                style={{
+                                                    width: '100%', padding: '12px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.12)',
+                                                    borderRadius: 6, cursor: 'pointer', fontFamily: 'var(--font-mono)',
+                                                    fontSize: 12, fontWeight: 700, color: '#e2e8f0', letterSpacing: '0.06em', textTransform: 'uppercase',
+                                                }}
+                                            >
+                                                Skip — I&apos;ll connect later
+                                            </button>
+                                            <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: '#4b5563' }}>(works with any prop firm)</span>
+                                        </div>
                                     </div>
                                 )}
                             </div>

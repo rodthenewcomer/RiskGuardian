@@ -49,15 +49,20 @@ function fmtDayLabel(dateStr: string): string {
 }
 
 export default function JournalPage() {
-    const { trades, setTrades, deleteTrade, updateTradeNote } = useAppStore();
+    const { trades, setTrades, deleteTrade, updateTradeNote, setActiveTab } = useAppStore();
     const csvRef = useRef<HTMLInputElement>(null);
     const pdfRef = useRef<HTMLInputElement>(null);
     const [viewMode, setViewMode] = useState<'list' | 'calendar'>('list');
     const [calendarDate, setCalendarDate] = useState(new Date());
+    const [calendarDir, setCalendarDir] = useState<1 | -1>(1);
     const [pdfStatus, setPdfStatus] = useState<{ loading: boolean; msg: string }>({ loading: false, msg: '' });
     const [filter, setFilter] = useState<'all' | 'win' | 'loss' | 'open'>('all');
     const [assetFilter, setAssetFilter] = useState('');
     const [expandedId, setExpandedId] = useState<string | null>(null);
+    const [editPnls, setEditPnls] = useState<Record<string, string>>({});
+    const [inlineWinInput, setInlineWinInput] = useState<Record<string, string>>({});
+    const [inlineLossInput, setInlineLossInput] = useState<Record<string, string>>({});
+    const [inlineOutcomeId, setInlineOutcomeId] = useState<string | null>(null);
     const [isMobile, setIsMobile] = useState(false);
     useEffect(() => {
         const check = () => setIsMobile(window.innerWidth < 640);
@@ -107,8 +112,14 @@ export default function JournalPage() {
         return { year, month, weeks, monthName: calendarDate.toLocaleString('default', { month: 'short' }) };
     }, [calendarDate, trades]);
 
-    const prevMonth = () => { const d = new Date(calendarDate); d.setMonth(d.getMonth() - 1); setCalendarDate(d); };
-    const nextMonth = () => { const d = new Date(calendarDate); d.setMonth(d.getMonth() + 1); setCalendarDate(d); };
+    const prevMonth = () => {
+        setCalendarDir(-1);
+        const d = new Date(calendarDate); d.setMonth(d.getMonth() - 1); setCalendarDate(d);
+    };
+    const nextMonth = () => {
+        setCalendarDir(1);
+        const d = new Date(calendarDate); d.setMonth(d.getMonth() + 1); setCalendarDate(d);
+    };
 
     // ── PDF Import ───────────────────────────────────────────
     const handlePDFImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -403,6 +414,12 @@ export default function JournalPage() {
                         {pdfStatus.loading ? <Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} /> : <FileText size={14} />}
                         Import Tradeify PDF
                     </button>
+                    <button
+                        onClick={() => setActiveTab('calculator')}
+                        style={{ ...mono, marginTop: 4, padding: '12px 24px', background: 'transparent', color: '#8b949e', border: '1px solid #1a1c24', cursor: 'pointer', fontSize: 13, fontWeight: 700, letterSpacing: '0.06em', display: 'flex', alignItems: 'center', gap: 8 }}
+                    >
+                        Log a Trade
+                    </button>
                 </div>
             )}
 
@@ -460,7 +477,6 @@ export default function JournalPage() {
                                 {dayTrades.map((trade) => {
                                     const isWin = trade.outcome === 'win';
                                     const isLoss = trade.outcome === 'loss';
-                                    const isOpen = trade.outcome === 'open';
                                     const accentColor = isWin ? '#A6FF4D' : isLoss ? '#ff4757' : '#EAB308';
                                     const pnlVal = trade.pnl ?? 0;
                                     const holdStr = calcHoldTime(trade.createdAt, trade.closedAt);
@@ -511,7 +527,7 @@ export default function JournalPage() {
                                                     </span>
                                                 </div>
 
-                                                {/* Right: P&L + expand + delete */}
+                                                {/* Right: P&L + inline outcome for open + expand + delete */}
                                                 <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
                                                     <div style={{ textAlign: 'right' }}>
                                                         <span style={{ ...mono, fontSize: 16, fontWeight: 800, color: accentColor, letterSpacing: '-0.02em', display: 'block' }}>
@@ -521,6 +537,60 @@ export default function JournalPage() {
                                                             <span style={{ ...mono, fontSize: 9, color: '#6b7280' }}>{trade.rr.toFixed(1)}R</span>
                                                         )}
                                                     </div>
+                                                    {/* Inline WIN/LOSS buttons for open trades */}
+                                                    {trade.outcome === 'open' && (
+                                                        <div style={{ display: 'flex', alignItems: 'center', gap: 4 }} onClick={e => e.stopPropagation()}>
+                                                            {inlineOutcomeId === trade.id && (
+                                                                <input
+                                                                    type="number"
+                                                                    step="0.01"
+                                                                    placeholder="P&L"
+                                                                    autoFocus
+                                                                    value={inlineWinInput[trade.id] ?? ''}
+                                                                    onChange={e => {
+                                                                        setInlineWinInput(prev => ({ ...prev, [trade.id]: e.target.value }));
+                                                                        setInlineLossInput(prev => ({ ...prev, [trade.id]: e.target.value }));
+                                                                    }}
+                                                                    onKeyDown={e => { if (e.key === 'Escape') setInlineOutcomeId(null); }}
+                                                                    style={{ ...mono, width: 68, background: '#0d1117', border: '1px solid #1a1c24', color: '#e2e8f0', padding: '4px 6px', fontSize: 11, outline: 'none' }}
+                                                                />
+                                                            )}
+                                                            <button
+                                                                title="Mark as Won"
+                                                                onClick={() => {
+                                                                    if (inlineOutcomeId !== trade.id) { setInlineOutcomeId(trade.id); return; }
+                                                                    const raw = inlineWinInput[trade.id] ?? '';
+                                                                    const val = raw !== '' ? parseFloat(raw) : trade.rewardUSD;
+                                                                    if (isNaN(val)) return;
+                                                                    setTrades(trades.map(t => t.id === trade.id ? {
+                                                                        ...t, outcome: 'win', pnl: Math.abs(val),
+                                                                        closedAt: t.closedAt || new Date().toISOString(),
+                                                                        durationSeconds: Math.floor((Date.now() - new Date(t.createdAt).getTime()) / 1000),
+                                                                    } : t));
+                                                                    setInlineOutcomeId(null);
+                                                                    setInlineWinInput(prev => { const n = { ...prev }; delete n[trade.id]; return n; });
+                                                                }}
+                                                                style={{ ...mono, fontSize: 9, fontWeight: 800, padding: '4px 7px', background: 'rgba(166,255,77,0.1)', color: '#A6FF4D', border: '1px solid rgba(166,255,77,0.3)', cursor: 'pointer', letterSpacing: '0.04em', flexShrink: 0 }}
+                                                            >✓ WIN</button>
+                                                            <button
+                                                                title="Mark as Lost"
+                                                                onClick={() => {
+                                                                    if (inlineOutcomeId !== trade.id) { setInlineOutcomeId(trade.id); return; }
+                                                                    const raw = inlineLossInput[trade.id] ?? '';
+                                                                    const val = raw !== '' ? parseFloat(raw) : trade.riskUSD;
+                                                                    if (isNaN(val)) return;
+                                                                    setTrades(trades.map(t => t.id === trade.id ? {
+                                                                        ...t, outcome: 'loss', pnl: -Math.abs(val),
+                                                                        closedAt: t.closedAt || new Date().toISOString(),
+                                                                        durationSeconds: Math.floor((Date.now() - new Date(t.createdAt).getTime()) / 1000),
+                                                                    } : t));
+                                                                    setInlineOutcomeId(null);
+                                                                    setInlineLossInput(prev => { const n = { ...prev }; delete n[trade.id]; return n; });
+                                                                }}
+                                                                style={{ ...mono, fontSize: 9, fontWeight: 800, padding: '4px 7px', background: 'rgba(255,71,87,0.1)', color: '#ff4757', border: '1px solid rgba(255,71,87,0.3)', cursor: 'pointer', letterSpacing: '0.04em', flexShrink: 0 }}
+                                                            >✗ LOSS</button>
+                                                        </div>
+                                                    )}
                                                     {isExpanded ? <ChevronUp size={14} color="#4b5563" /> : <ChevronDown size={14} color="#4b5563" />}
                                                     <button
                                                         onClick={e => { e.stopPropagation(); deleteTrade(trade.id); }}
@@ -568,21 +638,45 @@ export default function JournalPage() {
                                                                 );
                                                             })}
                                                         </div>
-
-                                                        {/* Risk $ / Reward $ row */}
-                                                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', borderBottom: divider }}>
-                                                            <div style={{ padding: '10px 14px', borderRight: divider }}>
-                                                                <span style={lbl}>Risk $</span>
-                                                                <span style={{ ...mono, fontSize: 13, fontWeight: 700, color: '#ff4757', display: 'block', marginTop: 2 }}>
-                                                                    ${trade.riskUSD.toFixed(2)}
-                                                                </span>
+                                                        
+                                                        {/* Outcome Editor */}
+                                                        <div style={{ padding: '12px 14px', borderBottom: divider, display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
+                                                            <span style={{ ...lbl, minWidth: 80 }}>Resolve</span>
+                                                            <div style={{ display: 'flex', alignItems: 'center', background: '#0d1117', border: '1px solid #1a1c24', padding: '0 8px' }}>
+                                                                <span style={{ ...mono, color: '#4b5563', fontSize: 13 }}>$</span>
+                                                                <input
+                                                                    type="number"
+                                                                    step="0.01"
+                                                                    placeholder="P&L"
+                                                                    value={editPnls[trade.id] ?? (trade.pnl !== undefined ? String(Math.abs(trade.pnl)) : '')}
+                                                                    onChange={e => setEditPnls(prev => ({ ...prev, [trade.id]: e.target.value }))}
+                                                                    style={{ ...mono, background: 'transparent', border: 'none', color: '#e2e8f0', padding: '8px 4px', width: 80, fontSize: 13, outline: 'none' }}
+                                                                />
                                                             </div>
-                                                            <div style={{ padding: '10px 14px' }}>
-                                                                <span style={lbl}>Reward target $</span>
-                                                                <span style={{ ...mono, fontSize: 13, fontWeight: 700, color: '#A6FF4D', display: 'block', marginTop: 2 }}>
-                                                                    ${trade.rewardUSD.toFixed(2)}
-                                                                </span>
-                                                            </div>
+                                                            <button
+                                                                onClick={() => {
+                                                                    const holdMs = new Date().getTime() - new Date(trade.createdAt).getTime();
+                                                                    if (holdMs < 20000) {
+                                                                        alert('Micro-scalping rule: Trades must be held for at least 20 seconds. Please wait.');
+                                                                        return;
+                                                                    }
+                                                                    const val = parseFloat(editPnls[trade.id] ?? String(Math.abs(trade.pnl ?? 0)));
+                                                                    if (!isNaN(val)) setTrades(trades.map(t => t.id === trade.id ? { ...t, outcome: 'win', pnl: Math.abs(val), closedAt: t.closedAt || new Date().toISOString(), durationSeconds: Math.floor((Date.now() - new Date(t.createdAt).getTime()) / 1000) } : t));
+                                                                }}
+                                                                style={{ ...mono, fontSize: 11, fontWeight: 700, padding: '7px 12px', background: 'rgba(166,255,77,0.1)', color: '#A6FF4D', border: '1px solid rgba(166,255,77,0.3)', cursor: 'pointer' }}
+                                                            >Mark Won</button>
+                                                            <button
+                                                                onClick={() => {
+                                                                    const holdMs = new Date().getTime() - new Date(trade.createdAt).getTime();
+                                                                    if (holdMs < 20000) {
+                                                                        alert('Micro-scalping rule: Trades must be held for at least 20 seconds. Please wait.');
+                                                                        return;
+                                                                    }
+                                                                    const val = parseFloat(editPnls[trade.id] ?? String(Math.abs(trade.pnl ?? 0)));
+                                                                    if (!isNaN(val)) setTrades(trades.map(t => t.id === trade.id ? { ...t, outcome: 'loss', pnl: -Math.abs(val), closedAt: t.closedAt || new Date().toISOString(), durationSeconds: Math.floor((Date.now() - new Date(t.createdAt).getTime()) / 1000) } : t));
+                                                                }}
+                                                                style={{ ...mono, fontSize: 11, fontWeight: 700, padding: '7px 12px', background: 'rgba(255,71,87,0.1)', color: '#ff4757', border: '1px solid rgba(255,71,87,0.3)', cursor: 'pointer' }}
+                                                            >Mark Lost</button>
                                                         </div>
 
                                                         {/* Journal note */}
@@ -632,32 +726,42 @@ export default function JournalPage() {
                                 <div key={i} className={styles.calendarDayName}>{d}</div>
                             ))}
                         </div>
-                        {calendarData.weeks.map((week, wi) => (
-                            <div key={wi} className={styles.calendarRow}>
-                                {week.days.map((dayData: any, i: number) => (
-                                    <div key={i} className={`${styles.calendarCell} ${!dayData.isCurrentMonth ? styles.calendarCellOut : ''} ${dayData.isToday ? styles.calendarCellToday : ''} ${dayData.pnl > 0 ? styles.pnlPositiveFill : dayData.pnl < 0 ? styles.pnlNegativeFill : ''}`}>
-                                        <span className={styles.calendarCellDate}>{dayData.day}</span>
-                                        <div className={styles.calendarCellContent}>
-                                            {dayData.tradesCount > 0 && (
-                                                <>
-                                                    <span className={`${styles.calendarCellPnl} ${dayData.pnl >= 0 ? styles.pnlPositiveText : styles.pnlNegativeText}`}>
-                                                        {dayData.pnl >= 0 ? '+' : '-'}${Math.abs(dayData.pnl).toFixed(2)}
-                                                    </span>
-                                                    <span className={styles.calendarTrades}>{dayData.tradesCount} {dayData.tradesCount === 1 ? 'trade' : 'trades'}</span>
-                                                </>
-                                            )}
+                        <AnimatePresence mode="wait" initial={false}>
+                            <motion.div
+                                key={`${calendarData.year}-${calendarData.month}`}
+                                initial={{ opacity: 0, x: calendarDir * 30 }}
+                                animate={{ opacity: 1, x: 0 }}
+                                exit={{ opacity: 0, x: calendarDir * -30 }}
+                                transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
+                            >
+                                {calendarData.weeks.map((week, wi) => (
+                                    <div key={wi} className={styles.calendarRow}>
+                                        {week.days.map((dayData: { day: number; isCurrentMonth: boolean; isToday: boolean; pnl: number; tradesCount: number; }, i: number) => (
+                                            <div key={i} className={`${styles.calendarCell} ${!dayData.isCurrentMonth ? styles.calendarCellOut : ''} ${dayData.isToday ? styles.calendarCellToday : ''} ${dayData.pnl > 0 ? styles.pnlPositiveFill : dayData.pnl < 0 ? styles.pnlNegativeFill : ''}`}>
+                                                <span className={styles.calendarCellDate}>{dayData.day}</span>
+                                                <div className={styles.calendarCellContent}>
+                                                    {dayData.tradesCount > 0 && (
+                                                        <>
+                                                            <span className={`${styles.calendarCellPnl} ${dayData.pnl >= 0 ? styles.pnlPositiveText : styles.pnlNegativeText}`}>
+                                                                {dayData.pnl >= 0 ? '+' : '-'}${Math.abs(dayData.pnl).toFixed(2)}
+                                                            </span>
+                                                            <span className={styles.calendarTrades}>{dayData.tradesCount} {dayData.tradesCount === 1 ? 'trade' : 'trades'}</span>
+                                                        </>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        ))}
+                                        <div className={`${styles.calendarCell} ${styles.calendarWeeklyCell}`}>
+                                            <span className={styles.weeklyLabel}>Wk {week.weekNumber}</span>
+                                            <span className={`${styles.calendarCellPnl} ${week.weekPnl >= 0 ? styles.pnlPositiveText : styles.pnlNegativeText}`}>
+                                                {week.weekPnl >= 0 ? '+' : '-'}${Math.abs(week.weekPnl).toFixed(2)}
+                                            </span>
+                                            <span className={styles.calendarTrades}>{week.weekTrades}t</span>
                                         </div>
                                     </div>
                                 ))}
-                                <div className={`${styles.calendarCell} ${styles.calendarWeeklyCell}`}>
-                                    <span className={styles.weeklyLabel}>Wk {week.weekNumber}</span>
-                                    <span className={`${styles.calendarCellPnl} ${week.weekPnl >= 0 ? styles.pnlPositiveText : styles.pnlNegativeText}`}>
-                                        {week.weekPnl >= 0 ? '+' : '-'}${Math.abs(week.weekPnl).toFixed(2)}
-                                    </span>
-                                    <span className={styles.calendarTrades}>{week.weekTrades}t</span>
-                                </div>
-                            </div>
-                        ))}
+                            </motion.div>
+                        </AnimatePresence>
                     </div>
                 </motion.div>
             )}

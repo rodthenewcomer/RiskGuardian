@@ -13,6 +13,7 @@ import AnalyticsPage from '@/components/pages/AnalyticsPage';
 import SettingsPage from '@/components/pages/SettingsPage';
 import JournalPage from '@/components/pages/JournalPage';
 import Onboarding from '@/components/pages/Onboarding';
+import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { AnimatePresence, motion } from 'framer-motion';
 
 const pageVariants = {
@@ -44,7 +45,7 @@ export default function Home() {
     terminal: <CommandPage />,
     bridge: <BridgePage />,
     plan: <AIChatPage />,
-    analytics: <AnalyticsPage />,
+    analytics: <ErrorBoundary><AnalyticsPage /></ErrorBoundary>,
     settings: <SettingsPage />,
     journal: <JournalPage />,
     calculator: <CommandPage />,
@@ -65,18 +66,20 @@ export default function Home() {
       <Header />
       <Sidebar />
       <main className="page-content" id="main-content">
-        <AnimatePresence mode="wait" initial={false}>
-          <motion.div
-            key={activeTab}
-            variants={pageVariants}
-            initial="enter"
-            animate="center"
-            exit="exit"
-            transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
-          >
-            {pages[activeTab] ?? <DashboardPage />}
-          </motion.div>
-        </AnimatePresence>
+        <ErrorBoundary>
+          <AnimatePresence mode="wait" initial={false}>
+            <motion.div
+              key={activeTab}
+              variants={pageVariants}
+              initial="enter"
+              animate="center"
+              exit="exit"
+              transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
+            >
+              {pages[activeTab] ?? <DashboardPage />}
+            </motion.div>
+          </AnimatePresence>
+        </ErrorBoundary>
       </main>
       <BottomNav />
     </div>

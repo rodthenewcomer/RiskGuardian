@@ -25,6 +25,8 @@ export default function CalculatorPage() {
     const [entry,           setEntry]           = useState('');
     const [stopLoss,        setStopLoss]        = useState('');
     const [riskAmount,      setRiskAmount]      = useState(0);
+    const [inputMode,       setInputMode]       = useState<'risk' | 'size'>('risk');
+    const [sizeInput,       setSizeInput]       = useState<string>('');
     const [isShort,         setIsShort]         = useState(false);
     const [showBrowser,     setShowBrowser]     = useState(false);
     const [assetSearch,     setAssetSearch]     = useState('');
@@ -41,7 +43,8 @@ export default function CalculatorPage() {
         if (riskAmount === 0 && maxTradeRisk > 0) {
             setRiskAmount(Math.round(Math.min(maxTradeRisk, remainingToday > 0 ? remainingToday : maxTradeRisk)));
         }
-    }, [maxTradeRisk]);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [maxTradeRisk]); // intentionally: only re-run when account defaults change, not on every risk-amount keystroke
 
     useEffect(() => {
         const check = () => setIsMobile(window.innerWidth < 640);
@@ -78,14 +81,25 @@ export default function CalculatorPage() {
         const atype = getAssetType(asset);
         const eNum  = parseFloat(entry);
         const slNum = parseFloat(stopLoss);
-        const rsk   = riskAmount;
+        let rsk   = riskAmount;
+
+        const sym      = asset.split('/')[0].toUpperCase();
+        const fSpec    = atype === 'futures' ? getFuturesSpec(sym) : null;
+        
+        let cSize = parseFloat(sizeInput);
+        if (inputMode === 'size' && !isNaN(cSize) && cSize > 0) {
+             if (atype === 'futures') {
+                  rsk = cSize * Math.abs(eNum - slNum) * (fSpec ? fSpec.pointValue : 1);
+             } else if (atype === 'forex') {
+                  rsk = cSize * 100000 * Math.abs(eNum - slNum);
+             } else {
+                  rsk = cSize * Math.abs(eNum - slNum);
+             }
+        }
 
         if (isNaN(eNum) || isNaN(slNum) || eNum <= 0 || slNum <= 0 || Math.abs(eNum - slNum) < 0.000001 || rsk <= 0) {
             return null;
         }
-
-        const sym      = asset.split('/')[0].toUpperCase();
-        const fSpec    = atype === 'futures' ? getFuturesSpec(sym) : null;
         const stopDist = Math.abs(eNum - slNum);
         const stopPct  = (stopDist / eNum) * 100;
         const isLong   = !isShort;
@@ -124,7 +138,7 @@ export default function CalculatorPage() {
             }
         }
         const maxLev = account.leverage || 2;
-        if (atype === 'crypto' && pos.notional > account.balance * maxLev) {
+        if (atype === 'crypto' && pos.notional > account.startingBalance * maxLev) {
             blocks.push(`Notional ($${pos.notional.toLocaleString(undefined, { maximumFractionDigits: 0 })}) exceeds ${maxLev}x leverage limit.`);
         }
 
@@ -132,8 +146,26 @@ export default function CalculatorPage() {
         const impliedLong      = slNum < eNum;
         const directionMismatch = (isShort && impliedLong) || (!isShort && !impliedLong);
 
-        const approved   = blocks.length === 0;
         const profit2R   = rsk * 2;
+
+        // Consistency Rule enforcement
+        const closedTrades = trades.filter(t => t.outcome === 'win' || t.outcome === 'loss');
+        const totalPnl = closedTrades.reduce((s, t) => s + (t.pnl ?? 0), 0);
+        if (totalPnl > 0) {
+            const todayStr = getTradingDay(new Date().toISOString());
+            const todayPnl = closedTrades.filter(t => getTradingDay(t.closedAt ?? t.createdAt) === todayStr).reduce((s, t) => s + (t.pnl ?? 0), 0);
+            const projectedTotal = totalPnl + profit2R;
+            const projectedToday = todayPnl + profit2R;
+            if (projectedTotal > 0) {
+                const projectedConsistency = (projectedToday / projectedTotal) * 100;
+                // Only enforce if we have enough a real trading history (e.g. at least 5 trades) to prevent day-1 lockout
+                if (projectedConsistency > 20 && closedTrades.length >= 5) {
+                    blocks.push(`Target profit breached consistency limit. Best day cannot exceed 20% of total profit (Projected: ${projectedConsistency.toFixed(1)}%). Reduce risk size.`);
+                }
+            }
+        }
+
+        const approved   = blocks.length === 0;
         const riskPerUnit = pos.size > 0 ? rsk / pos.size : 0;
         const ticksToStop = fSpec ? stopDist / fSpec.tickSize : 0;
 
@@ -148,7 +180,7 @@ export default function CalculatorPage() {
             fSpec, ticksToStop,
             directionMismatch,
         };
-    }, [asset, entry, stopLoss, riskAmount, isShort, account, remainingToday, maxTradeRisk]);
+    }, [asset, entry, stopLoss, riskAmount, sizeInput, inputMode, isShort, account, remainingToday, maxTradeRisk, trades]);
 
     // ── Design tokens ─────────────────────────────────────────────
     const mono    = { fontFamily: 'var(--font-mono)' } as const;
@@ -179,22 +211,43 @@ export default function CalculatorPage() {
         { label: '$500',  val: 500 },
     ].filter(p => p.val > 0);
 
+    // ── Consistency warning for Instant Funding ───────────────────
+    const consistencyWarning = useMemo(() => {
+        if (!account.isConsistencyActive) return null;
+        if (!calc) return null;
+        const closedTrades = trades.filter(t => t.outcome === 'win' || t.outcome === 'loss');
+        const totalPnl = closedTrades.reduce((s, t) => s + (t.pnl ?? 0), 0);
+        if (totalPnl <= 0) return null;
+        const todayStr = getTradingDay(new Date().toISOString());
+        const todayPnl = closedTrades.filter(t => getTradingDay(t.closedAt ?? t.createdAt) === todayStr).reduce((s, t) => s + (t.pnl ?? 0), 0);
+        const projectedTodayPnl = todayPnl + calc.profit2R;
+        const projectedTotalPnl = totalPnl + calc.profit2R;
+        if (projectedTotalPnl <= 0) return null;
+        const projectedConsistencyPct = (projectedTodayPnl / projectedTotalPnl) * 100;
+        if (projectedConsistencyPct > 20) {
+            return `If this trade wins at 2R, today's P&L would be ${projectedConsistencyPct.toFixed(1)}% of total profit — above the 20% consistency limit.`;
+        }
+        return null;
+    }, [calc, trades, account.isConsistencyActive]);
+
     // ── Log trade ─────────────────────────────────────────────────
     const handleLog = useCallback(() => {
         if (!calc?.approved) return;
         addTrade({
             id: crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36),
-            asset:       calc.sym,
-            assetType:   calc.atype,
-            entry:       calc.eNum,
-            stopLoss:    calc.slNum,
-            takeProfit:  calc.tp2R,
-            lotSize:     calc.size,
-            riskUSD:     calc.rsk,
-            rewardUSD:   calc.profit2R,
-            rr:          2,
-            outcome:     'open',
-            createdAt:   getESTFull(),
+            asset:           calc.sym,
+            assetType:       calc.atype,
+            entry:           calc.eNum,
+            stopLoss:        calc.slNum,
+            takeProfit:      calc.tp2R,
+            lotSize:         calc.size,
+            riskUSD:         calc.rsk,
+            rewardUSD:       calc.profit2R,
+            rr:              2,
+            outcome:         'open',
+            createdAt:       getESTFull(),
+            closedAt:        undefined,
+            durationSeconds: 0,
             isShort,
         });
         addDailyRisk(calc.rsk);
@@ -350,7 +403,7 @@ export default function CalculatorPage() {
                                 exit={{ opacity: 0, y: -4, scale: 0.98 }}
                                 transition={{ duration: 0.13, ease: 'easeOut' }}
                                 className="absolute top-[100%] left-0 z-50 mt-2"
-                                style={{ width: isMobile ? 280 : 360, background: '#0d1117', border: '1px solid #1a1c24', boxShadow: '0 16px 48px rgba(0,0,0,0.7)', overflow: 'hidden', display: 'flex', flexDirection: 'column', maxHeight: 340 }}
+                                style={{ width: isMobile ? 280 : 360, background: '#0d1117', border: '1px solid #1a1c24', boxShadow: '0 16px 48px rgba(0,0,0,0.7)', overflow: 'hidden', display: 'flex', flexDirection: 'column', maxHeight: isMobile ? 200 : 340, overflowY: 'auto' }}
                             >
                                 {/* Search */}
                                 <div style={{ padding: '10px 14px', borderBottom: '1px solid #1a1c24', display: 'flex', alignItems: 'center', gap: 8, background: '#090909' }}>
@@ -407,7 +460,7 @@ export default function CalculatorPage() {
                     <span style={{ ...lbl, display: 'block', marginBottom: 4 }}>Entry Price</span>
                     <input
                         ref={entryInputRef}
-                        type="number" inputMode="decimal"
+                        type="number" inputMode="decimal" pattern="[0-9]*"
                         style={{ ...mono, width: '100%', background: 'transparent', border: 'none', outline: 'none', fontSize: isMobile ? 18 : 22, fontWeight: 900, color: '#e2e8f0', padding: 0 }}
                         value={entry}
                         onChange={e => { setEntry(e.target.value); setCommand(''); }}
@@ -422,7 +475,7 @@ export default function CalculatorPage() {
                 <div style={{ padding: isMobile ? '12px 12px' : '14px 16px', borderRight: divider }}>
                     <span style={{ ...lbl, display: 'block', marginBottom: 4 }}>Stop Loss</span>
                     <input
-                        type="number" inputMode="decimal"
+                        type="number" inputMode="decimal" pattern="[0-9]*"
                         style={{ ...mono, width: '100%', background: 'transparent', border: 'none', outline: 'none', fontSize: isMobile ? 18 : 22, fontWeight: 900, color: '#ff4757', padding: 0 }}
                         value={stopLoss}
                         onChange={e => { setStopLoss(e.target.value); setCommand(''); }}
@@ -435,35 +488,53 @@ export default function CalculatorPage() {
                     </span>
                 </div>
 
-                {/* RISK $ */}
+                {/* RISK $ / SIZE */}
                 <div style={{ padding: isMobile ? '12px 12px' : '14px 16px' }}>
-                    <span style={{ ...lbl, display: 'block', marginBottom: 4 }}>Risk $</span>
-                    <input
-                        type="number" inputMode="decimal"
-                        style={{ ...mono, width: '100%', background: 'transparent', border: 'none', outline: 'none', fontSize: isMobile ? 18 : 22, fontWeight: 900, color: '#A6FF4D', padding: 0 }}
-                        value={riskAmount || ''}
-                        onChange={e => {
-                            const v = parseFloat(e.target.value);
-                            setRiskAmount(!isNaN(v) && v > 0 ? v : 0);
-                            setCommand('');
-                        }}
-                        placeholder={maxTradeRisk > 0 ? maxTradeRisk.toFixed(0) : '0'}
-                    />
-                    {/* Quick risk presets */}
-                    <div style={{ display: 'flex', gap: 4, marginTop: 5, flexWrap: 'wrap' }}>
-                        {riskPresets.map(p => (
-                            <button key={p.label} onClick={() => setRiskAmount(p.val)}
-                                style={{
-                                    ...mono, fontSize: 8, fontWeight: 700, padding: '2px 6px',
-                                    border: `1px solid ${riskAmount === p.val ? '#A6FF4D' : '#1a1c24'}`,
-                                    background: riskAmount === p.val ? 'rgba(166,255,77,0.1)' : 'transparent',
-                                    color: riskAmount === p.val ? '#A6FF4D' : '#4b5563',
-                                    cursor: 'pointer', letterSpacing: '0.04em',
-                                }}>
-                                {p.label}
-                            </button>
-                        ))}
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
+                        <span style={lbl}>{inputMode === 'risk' ? 'Risk $' : 'Size (Contracts/Lots)'}</span>
+                        <button onClick={() => setInputMode(m => m === 'risk' ? 'size' : 'risk')} style={{ ...mono, fontSize: 8, color: '#A6FF4D', background: 'transparent', border: '1px solid #1a1c24', cursor: 'pointer', padding: '2px 4px', borderRadius: 2 }}>Toggle Mode</button>
                     </div>
+                    {inputMode === 'risk' ? (
+                        <input
+                            type="number" inputMode="decimal" pattern="[0-9]*"
+                            style={{ ...mono, width: '100%', background: 'transparent', border: 'none', outline: 'none', fontSize: isMobile ? 18 : 22, fontWeight: 900, color: '#A6FF4D', padding: 0 }}
+                            value={riskAmount || ''}
+                            onChange={e => {
+                                const v = parseFloat(e.target.value);
+                                setRiskAmount(!isNaN(v) && v > 0 ? v : 0);
+                                setCommand('');
+                            }}
+                            placeholder={maxTradeRisk > 0 ? maxTradeRisk.toFixed(0) : '0'}
+                        />
+                    ) : (
+                        <input
+                            type="number" inputMode="decimal" pattern="[0-9]*"
+                            style={{ ...mono, width: '100%', background: 'transparent', border: 'none', outline: 'none', fontSize: isMobile ? 18 : 22, fontWeight: 900, color: '#A6FF4D', padding: 0 }}
+                            value={sizeInput || ''}
+                            onChange={e => {
+                                setSizeInput(e.target.value);
+                                setCommand('');
+                            }}
+                            placeholder="1.0"
+                        />
+                    )}
+                    {/* Quick risk presets */}
+                    {inputMode === 'risk' && (
+                        <div style={{ display: 'flex', gap: 4, marginTop: 5, flexWrap: 'wrap' }}>
+                            {riskPresets.map(p => (
+                                <button key={p.label} onClick={() => setRiskAmount(p.val)}
+                                    style={{
+                                        ...mono, fontSize: 8, fontWeight: 700, padding: '2px 6px',
+                                        border: `1px solid ${riskAmount === p.val ? '#A6FF4D' : '#1a1c24'}`,
+                                        background: riskAmount === p.val ? 'rgba(166,255,77,0.1)' : 'transparent',
+                                        color: riskAmount === p.val ? '#A6FF4D' : '#4b5563',
+                                        cursor: 'pointer', letterSpacing: '0.04em',
+                                    }}>
+                                    {p.label}
+                                </button>
+                            ))}
+                        </div>
+                    )}
                 </div>
             </div>
 
@@ -478,6 +549,16 @@ export default function CalculatorPage() {
                                 <AlertTriangle size={12} color="#EAB308" />
                                 <span style={{ ...mono, fontSize: 10, color: '#EAB308' }}>
                                     Stop is {isShort ? 'below' : 'above'} entry — verify {isShort ? 'SHORT' : 'LONG'} direction is correct
+                                </span>
+                            </div>
+                        )}
+
+                        {/* Consistency warning — Instant Funding only */}
+                        {consistencyWarning && (
+                            <div style={{ padding: '8px 20px', background: 'rgba(234,179,8,0.05)', borderBottom: divider, borderLeft: '3px solid #EAB308', display: 'flex', alignItems: 'center', gap: 8 }}>
+                                <AlertTriangle size={12} color="#EAB308" />
+                                <span style={{ ...mono, fontSize: 10, color: '#EAB308' }}>
+                                    CONSISTENCY — {consistencyWarning}
                                 </span>
                             </div>
                         )}

@@ -74,6 +74,8 @@
     border-bottom: 1px solid #1a1c24;
     padding: 0 32px;
     overflow-x: auto;
+    scroll-behavior: smooth;
+    position: relative;
 }
 
 .topTabs {
@@ -95,6 +97,7 @@
     border-top: none;
     border-left: none;
     border-right: none;
+    scroll-snap-align: start;
 }
 
 .tab:hover {
@@ -366,9 +369,22 @@
         overflow-x: auto;
         -webkit-overflow-scrolling: touch;
         scrollbar-width: none;
+        scroll-snap-type: x mandatory;
+        scroll-behavior: smooth;
     }
     .topTabsWrapper::-webkit-scrollbar {
         display: none;
+    }
+    .topTabsWrapper::after {
+        content: '';
+        position: absolute;
+        top: 0;
+        right: 0;
+        height: 100%;
+        width: 32px;
+        background: linear-gradient(to right, transparent, #0B0E14);
+        pointer-events: none;
+        z-index: 1;
     }
 
     .topTabs {

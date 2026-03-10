@@ -83,7 +83,7 @@ export default function SettingsPage() {
         setDxBusy(true); setDxError(''); setDxProgress('');
         try {
             const result = await dxConnect(dxServer, dxUsername, dxDomain, dxPassword, setDxProgress);
-            setDXTradeConfig({ server: dxServer, username: dxUsername, domain: dxDomain, accountCode: result.accountCode, token: result.token, connectedAt: new Date().toISOString() });
+            setDXTradeConfig({ server: dxServer, username: dxUsername, domain: dxDomain, password: dxPassword, accountCode: result.accountCode, token: result.token, connectedAt: new Date().toISOString() });
             setDXTradeLastSync(new Date().toISOString());
             const dxIds = new Set([...result.trades, ...result.positions].map(t => t.id));
             const manual = trades.filter(t => !dxIds.has(t.id) && !t.id.startsWith('dxtrade-'));

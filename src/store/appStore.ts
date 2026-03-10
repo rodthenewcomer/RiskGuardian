@@ -46,6 +46,7 @@ export interface TradeSession {
     pnl?: number;   // Realized PnL
     isShort?: boolean;
     note?: string;  // Manual journal note
+    durationSeconds?: number;
 }
 
 export interface AccountSettings {
@@ -89,6 +90,7 @@ export interface DXTradeConfig {
     domain: string;
     accountCode: string;  // DXTrade "clearing:account" code
     token: string;        // Session token (expires on inactivity)
+    password?: string;    // CAUTION: Stored plain text in this MVP for auto-reconnect
     connectedAt: string;  // ISO timestamp of last successful login
 }
 
@@ -306,7 +308,7 @@ export const useAppStore = create<AppState>()(
 
                 const closed = s.trades
                     .filter(t => (t.outcome === 'win' || t.outcome === 'loss') && typeof t.pnl === 'number')
-                    .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+                    .sort((a, b) => new Date(a.closedAt ?? a.createdAt).getTime() - new Date(b.closedAt ?? b.createdAt).getTime());
 
                 if (closed.length === 0) return;
 
@@ -349,7 +351,7 @@ export const useAppStore = create<AppState>()(
             partialize: (s) => ({
                 hasOnboarded: s.hasOnboarded,
                 account: s.account,
-                trades: s.trades.slice(0, 100),
+                trades: s.trades.slice(0, 500), // 500 trades ≈ 150KB — well within localStorage 5MB limit
                 dailySessions: s.dailySessions.slice(-30),
                 dxtradeConfig: s.dxtradeConfig,
                 dxtradeLastSync: s.dxtradeLastSync,
@@ -483,7 +485,7 @@ export function calcPositionSize(params: {
     isShort?: boolean;
     includeFees?: boolean;
 }): { size: number; unit: string; pointValue: number; comm: number; notional: number } {
-    const { entry, stopLoss, riskAmt, assetType, symbol, isShort = false, includeFees = true } = params;
+    const { entry, stopLoss, riskAmt, assetType, symbol, includeFees = true } = params;
     const priceDiff = Math.abs(entry - stopLoss);
     if (priceDiff === 0) return { size: 0, unit: 'units', pointValue: 1, comm: 0, notional: 0 };
 

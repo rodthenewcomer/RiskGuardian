@@ -12,6 +12,26 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 
+// ── In-memory rate limiter: max 20 req / 60s per IP ──────────────
+const rateLimitMap = new Map<string, { count: number; resetAt: number }>();
+function checkRateLimit(ip: string): boolean {
+    const now = Date.now();
+    const entry = rateLimitMap.get(ip);
+    if (!entry || now > entry.resetAt) {
+        rateLimitMap.set(ip, { count: 1, resetAt: now + 60_000 });
+        return true;
+    }
+    if (entry.count >= 20) return false;
+    entry.count++;
+    return true;
+}
+
+// Prune stale entries every 5 minutes to prevent memory leak
+setInterval(() => {
+    const now = Date.now();
+    rateLimitMap.forEach((v, k) => { if (now > v.resetAt) rateLimitMap.delete(k); });
+}, 5 * 60_000);
+
 // ── Types ──────────────────────────────────────────────────────────
 export interface BridgeTrade {
     id: string;
@@ -141,6 +161,17 @@ function isAuthorized(req: NextRequest): boolean {
 
 // ── POST — Receive trade ──────────────────────────────────────────
 export async function POST(req: NextRequest) {
+    // Rate limit
+    const ip = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ?? req.headers.get('x-real-ip') ?? 'unknown';
+    if (!checkRateLimit(ip)) {
+        return NextResponse.json({ error: 'Too many requests. Please wait 60 seconds.' }, { status: 429 });
+    }
+    // Request size guard (max 50KB)
+    const contentLength = parseInt(req.headers.get('content-length') ?? '0', 10);
+    if (contentLength > 50_000) {
+        return NextResponse.json({ error: 'Request too large' }, { status: 413 });
+    }
+
     if (!isAuthorized(req)) {
         return NextResponse.json({ error: 'Unauthorized. Include Authorization: Bearer ' + BRIDGE_API_KEY }, { status: 401 });
     }

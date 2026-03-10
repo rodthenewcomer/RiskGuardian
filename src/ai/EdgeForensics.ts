@@ -1,3 +1,4 @@
+import { TRADEIFY_CRYPTO_LIST } from '@/store/appStore';
 
 export interface Trade {
     id: string;
@@ -10,6 +11,8 @@ export interface Trade {
     entry?: number;
     size?: number;
     durationSeconds?: number;
+    closedAt?: string;
+    assetType?: string;
 }
 
 export interface SessionGroup {
@@ -24,7 +27,7 @@ export interface SessionGroup {
 }
 
 export function generateForensics(trades: Trade[], accountData: any) {
-    const closed = trades.filter(t => t.outcome === 'win' || t.outcome === 'loss').sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+    const closed = trades.filter(t => t.outcome === 'win' || t.outcome === 'loss').sort((a, b) => new Date(a.closedAt ?? a.createdAt).getTime() - new Date(b.closedAt ?? b.createdAt).getTime());
     const balance = accountData?.balance || 50000;
 
     // 1. Session Grouping (Gap > 2 hours starts new session)
@@ -32,8 +35,8 @@ export function generateForensics(trades: Trade[], accountData: any) {
     if (closed.length > 0) {
         let currentSessionTrades: Trade[] = [closed[0]];
         for (let i = 1; i < closed.length; i++) {
-            const prevTime = new Date(closed[i - 1].createdAt).getTime();
-            const currTime = new Date(closed[i].createdAt).getTime();
+            const prevTime = new Date(closed[i - 1].closedAt ?? closed[i - 1].createdAt).getTime();
+            const currTime = new Date(closed[i].closedAt ?? closed[i].createdAt).getTime();
             if (currTime - prevTime > 2 * 60 * 60 * 1000) {
                 // End current session
                 sessions.push(createSessionGroup(currentSessionTrades, sessions.length));
@@ -50,7 +53,7 @@ export function generateForensics(trades: Trade[], accountData: any) {
         const wins = trades.filter(t => (t.pnl || 0) > 0).length;
         const wr = (wins / trades.length) * 100;
         const start = trades[0].createdAt;
-        const end = trades[trades.length - 1].createdAt;
+        const end = trades[trades.length - 1].closedAt ?? trades[trades.length - 1].createdAt;
         const dur = (new Date(end).getTime() - new Date(start).getTime()) / 60000;
 
         let tag: SessionGroup['tag'] = 'CLEAN';
@@ -60,8 +63,8 @@ export function generateForensics(trades: Trade[], accountData: any) {
             // Check for revenge within session
             for (let i = 0; i < trades.length - 1; i++) {
                 if ((trades[i].pnl || 0) < 0) {
-                    const t1 = new Date(trades[i].createdAt).getTime();
-                    const t2 = new Date(trades[i + 1].createdAt).getTime();
+                    const t1 = new Date(trades[i].closedAt ?? trades[i].createdAt).getTime();
+                    const t2 = new Date(trades[i + 1].closedAt ?? trades[i + 1].createdAt).getTime();
                     if (t2 - t1 < 5 * 60000) { tag = 'REVENGE'; break; }
                 }
             }
@@ -92,13 +95,15 @@ export function generateForensics(trades: Trade[], accountData: any) {
     let revFreq = 0, revImp = 0, revEvidence: string[] = [];
     for (let i = 0; i < closed.length - 1; i++) {
         if ((closed[i].pnl ?? 0) < 0) {
-            const lTime = new Date(closed[i].createdAt).getTime();
+            const lTime = new Date(closed[i].closedAt ?? closed[i].createdAt).getTime();
             let count = 0, imp = 0, ev: string[] = [];
             for (let j = i + 1; j < closed.length; j++) {
-                if ((new Date(closed[j].createdAt).getTime() - lTime) <= 15 * 60000) {
+                const isCrypto = closed[j].assetType === 'crypto' || TRADEIFY_CRYPTO_LIST?.includes(closed[j].asset);
+                const windowMs = (isCrypto ? 5 : 30) * 60000;
+                if ((new Date(closed[j].closedAt ?? closed[j].createdAt).getTime() - lTime) <= windowMs) {
                     count++;
                     imp += (closed[j].pnl ?? 0);
-                    ev.push(`Trade @ ${new Date(closed[j].createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} (${(closed[j].pnl ?? 0) >= 0 ? '+' : '-'}$${Math.abs(closed[j].pnl ?? 0).toFixed(0)})`);
+                    ev.push(`Trade @ ${new Date(closed[j].closedAt ?? closed[j].createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} (${(closed[j].pnl ?? 0) >= 0 ? '+' : '-'}$${Math.abs(closed[j].pnl ?? 0).toFixed(0)})`);
                 } else break;
             }
             if (count >= 3 && imp < 0) {
@@ -154,7 +159,7 @@ export function generateForensics(trades: Trade[], accountData: any) {
         { metric: 'Micro Management', grade: microPnl >= 0 ? 'A' : 'F', desc: 'Discipline in tier-1 product isolation.' },
         { metric: 'First Hour Logic', grade: (() => {
             const estHour = (iso: string) => parseInt(new Intl.DateTimeFormat('en-US', { timeZone: 'America/New_York', hour: '2-digit', hour12: false }).format(new Date(iso)), 10);
-            const fh = closed.filter(t => estHour(t.createdAt) < 10);
+            const fh = closed.filter(t => estHour(t.closedAt ?? t.createdAt) < 10);
             if (fh.length === 0) return 'A';
             const wr = fh.filter(t => (t.pnl ?? 0) > 0).length / fh.length;
             const pnl = fh.reduce((s, t) => s + (t.pnl ?? 0), 0);
@@ -184,7 +189,7 @@ export function generateForensics(trades: Trade[], accountData: any) {
                 timeZone: 'America/New_York',
                 hour: '2-digit',
                 hour12: false,
-            }).format(new Date(t.createdAt)),
+            }).format(new Date(t.closedAt ?? t.createdAt)),
             10
         );
         hourlyPnl[hour >= 24 ? 0 : hour] += (t.pnl || 0);

@@ -164,6 +164,9 @@ function buildTrades(rawTxs: RawTx[]): Omit<TradeSession, 'note'>[] {
             // Net PnL = gross settled PnL − commission on close leg − commission on open leg
             const pnl = tx.settledPnl - tx.commission - (open?.commission ?? 0);
             const isShort = open ? open.direction === 'Sell' : tx.direction === 'Buy';
+            const createdAt = open?.dateISO ?? tx.dateISO;
+            const closedAt = tx.dateISO;
+            const durationSeconds = open ? Math.max(1, Math.round((new Date(closedAt).getTime() - new Date(createdAt).getTime()) / 1000)) : 1;
 
             // ID is deterministic: same trade always produces the same ID → real dedup on re-import
             trades.push({
@@ -178,10 +181,11 @@ function buildTrades(rawTxs: RawTx[]): Omit<TradeSession, 'note'>[] {
                 rewardUSD: pnl > 0 ? pnl : 0,
                 rr: 0,
                 outcome: pnl > 0 ? 'win' : 'loss',
-                createdAt: open?.dateISO ?? tx.dateISO,
-                closedAt: tx.dateISO,
+                createdAt,
+                closedAt,
                 pnl,
                 isShort,
+                durationSeconds,
             });
         } else {
             // ── Opening transaction ──────────────────────────
@@ -207,12 +211,8 @@ export async function parseTradeifyPDF(
 }> {
     try {
         const pdfjsLib = await import('pdfjs-dist');
-        // On mobile (iOS Safari, Android WebView) Web Workers are unreliable.
-        // Setting workerSrc = '' forces pdf.js to run synchronously in the main
-        // thread — slower but universally compatible.
-        const isMobile = typeof navigator !== 'undefined'
-            && /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
-        pdfjsLib.GlobalWorkerOptions.workerSrc = isMobile ? '' : '/pdf.worker.min.mjs';
+        // Setting a standard unpkg worker URL which solves mobile parsing issues
+        pdfjsLib.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjsLib.version}/build/pdf.worker.min.mjs`;
 
         const buf = await file.arrayBuffer();
         const pdf = await pdfjsLib.getDocument({ data: buf }).promise;

@@ -28,13 +28,21 @@ export default function AnalyticsPage() {
                 if (dateTo && d > dateTo) return false;
                 return true;
             })
-            .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+            .sort((a, b) => new Date(a.closedAt ?? a.createdAt).getTime() - new Date(b.closedAt ?? b.createdAt).getTime());
     }, [trades, dateFrom, dateTo]);
 
     const filterActive = !!(dateFrom || dateTo);
 
+    // Compute durationSeconds for each trade before forensics
+    const tradesWithDuration = useMemo(() => trades.map(t => ({
+        ...t,
+        durationSeconds: t.closedAt
+            ? Math.floor((new Date(t.closedAt).getTime() - new Date(t.createdAt).getTime()) / 1000)
+            : t.durationSeconds,
+    })), [trades]);
+
     // Process Algorithmic Forensics
-    const forensics = useMemo(() => generateForensics(trades, account), [trades, account]);
+    const forensics = useMemo(() => generateForensics(tradesWithDuration, account), [tradesWithDuration, account]);
 
     const TABS = [
         'OVERVIEW',
@@ -412,7 +420,10 @@ export default function AnalyticsPage() {
                     {TABS.map(t => {
                         const tabKey = t.split(' ')[0];
                         return (
-                            <button key={t} className={`${styles.tab} ${activeTab === tabKey ? styles.tabActive : ''}`} onClick={() => setActiveTab(tabKey)}>
+                            <button key={t} className={`${styles.tab} ${activeTab === tabKey ? styles.tabActive : ''}`} onClick={(e) => {
+                                setActiveTab(tabKey);
+                                e.currentTarget.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+                            }}>
                                 {t}
                             </button>
                         );
@@ -695,7 +706,12 @@ export default function AnalyticsPage() {
 
                     {activeTab === 'SESSIONS' && (
                         <motion.div key="sessions" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="flex flex-col gap-6">
-                            <span className={styles.sectionTitle}>Session Forensics</span>
+                            <div className="flex flex-col gap-1">
+                                <span className={styles.sectionTitle}>Session Forensics</span>
+                                <span className="text-[10px] font-mono text-[#8b949e]">
+                                    Sessions are automatically detected when there is a gap of 2+ hours between closed trades.
+                                </span>
+                            </div>
                             <div className="flex flex-col gap-4">
                                 {forensics.sessions.map((s: any) => (
                                     <div key={s.id} className={styles.fullWidthCard + ' flex flex-col gap-4'}>
@@ -722,7 +738,7 @@ export default function AnalyticsPage() {
                                             <tbody>
                                                 {s.trades.map((t: any) => (
                                                     <tr key={t.id} className="border-b border-[#1a1c24]/50">
-                                                        <td className="py-2 opacity-50">{new Date(t.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</td>
+                                                        <td className="py-2 opacity-50">{new Date(t.closedAt ?? t.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</td>
                                                         <td className="py-2">{t.asset}</td>
                                                         <td className={`py-2 ${t.pnl >= 0 ? styles.textGreen : styles.textRed}`}>
                                                             ${Math.abs(t.pnl || 0).toFixed(0)}
@@ -1165,19 +1181,88 @@ export default function AnalyticsPage() {
                         );
                     })()}
 
-                    {activeTab === 'COMPARE' && (
-                        <motion.div key="compare" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="flex flex-col items-center justify-center p-8 sm:p-32 gap-6 opacity-40">
-                            <div className="w-16 h-16 rounded-full border border-dashed border-[#38bdf8] flex items-center justify-center">
-                                <Info size={24} className="text-[#38bdf8]" />
-                            </div>
-                            <div className="flex flex-col items-center gap-2">
-                                <span className="text-[14px] font-black text-white uppercase tracking-[0.3em]">Dataset Locked</span>
-                                <p className="text-[11px] text-[#6b7280] text-center max-w-xs leading-loose">
-                                    RELATIVE PERFORMANCE BENCHMARKING REQUIRES ENHANCED DATASET TELEMETRY. CONNECT YOUR PROP FIRM OR UPLOAD .CSV TO UNLOCK.
+                    {activeTab === 'COMPARE' && (() => {
+                        const thirtyDaysAgo = new Date();
+                        thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+                        const thirtyDayStr = thirtyDaysAgo.toISOString().slice(0, 10);
+
+                        const recent30 = closed.filter(t => getTradingDay(t.closedAt ?? t.createdAt) >= thirtyDayStr);
+                        const prior = closed.filter(t => getTradingDay(t.closedAt ?? t.createdAt) < thirtyDayStr);
+
+                        const calcMetrics = (set: typeof closed) => {
+                            const wins = set.filter(t => (t.pnl ?? 0) > 0);
+                            const losses = set.filter(t => (t.pnl ?? 0) < 0);
+                            const pnl = set.reduce((s, t) => s + (t.pnl ?? 0), 0);
+                            const gp = wins.reduce((s, t) => s + (t.pnl ?? 0), 0);
+                            const gl = losses.reduce((s, t) => s + Math.abs(t.pnl ?? 0), 0);
+                            const wr = set.length > 0 ? (wins.length / set.length) * 100 : 0;
+                            const pf = gl > 0 ? gp / gl : gp > 0 ? 99 : 0;
+                            const avgW = wins.length > 0 ? gp / wins.length : 0;
+                            const avgL = losses.length > 0 ? gl / losses.length : 0;
+                            return { count: set.length, wins: wins.length, losses: losses.length, pnl, wr, pf, avgW, avgL };
+                        };
+
+                        const allMetrics = calcMetrics(closed);
+                        const r30Metrics = calcMetrics(recent30);
+                        const priorMetrics = calcMetrics(prior);
+
+                        if (closed.length < 5) {
+                            return (
+                                <motion.div key="compare" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="flex flex-col items-center justify-center p-12 gap-4 text-center">
+                                    <span className="text-[13px] font-bold text-white">Need 5+ closed trades</span>
+                                    <p className="text-[11px] text-[#6b7280] max-w-xs leading-loose">Log or import more trades to unlock the period-over-period comparison view.</p>
+                                </motion.div>
+                            );
+                        }
+
+                        const rows = [
+                            { label: 'Trades',        all: allMetrics.count.toString(),                    r30: r30Metrics.count.toString(),                    prior: priorMetrics.count.toString() },
+                            { label: 'Net P&L',       all: `${allMetrics.pnl >= 0 ? '+' : ''}$${allMetrics.pnl.toFixed(0)}`,   r30: `${r30Metrics.pnl >= 0 ? '+' : ''}$${r30Metrics.pnl.toFixed(0)}`,   prior: `${priorMetrics.pnl >= 0 ? '+' : ''}$${priorMetrics.pnl.toFixed(0)}` },
+                            { label: 'Win Rate',      all: `${allMetrics.wr.toFixed(1)}%`,                 r30: `${r30Metrics.wr.toFixed(1)}%`,                 prior: priorMetrics.count > 0 ? `${priorMetrics.wr.toFixed(1)}%` : '—' },
+                            { label: 'Profit Factor', all: allMetrics.pf > 90 ? '∞' : allMetrics.pf.toFixed(2), r30: r30Metrics.pf > 90 ? '∞' : r30Metrics.count > 0 ? r30Metrics.pf.toFixed(2) : '—', prior: priorMetrics.pf > 90 ? '∞' : priorMetrics.count > 0 ? priorMetrics.pf.toFixed(2) : '—' },
+                            { label: 'Avg Win',       all: `$${allMetrics.avgW.toFixed(0)}`,               r30: r30Metrics.wins > 0 ? `$${r30Metrics.avgW.toFixed(0)}` : '—',   prior: priorMetrics.wins > 0 ? `$${priorMetrics.avgW.toFixed(0)}` : '—' },
+                            { label: 'Avg Loss',      all: `$${allMetrics.avgL.toFixed(0)}`,               r30: r30Metrics.losses > 0 ? `$${r30Metrics.avgL.toFixed(0)}` : '—', prior: priorMetrics.losses > 0 ? `$${priorMetrics.avgL.toFixed(0)}` : '—' },
+                        ];
+
+                        const trend = r30Metrics.pnl > priorMetrics.pnl && priorMetrics.count > 0 ? '↑ Improving' : r30Metrics.pnl < priorMetrics.pnl && priorMetrics.count > 0 ? '↓ Declining' : '— Stable';
+                        const trendColor = trend.startsWith('↑') ? '#A6FF4D' : trend.startsWith('↓') ? '#ff4757' : '#EAB308';
+
+                        return (
+                            <motion.div key="compare" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="flex flex-col gap-0">
+                                {/* Trend badge */}
+                                <div className="flex items-center gap-3 px-5 py-4 border-b border-[#1a1c24]">
+                                    <span className="text-[11px] font-mono font-black uppercase tracking-widest" style={{ color: trendColor }}>{trend}</span>
+                                    <span className="text-[10px] font-mono text-[#4b5563]">Last 30 days vs. prior period</span>
+                                </div>
+                                {/* Table */}
+                                <div className="overflow-x-auto">
+                                    <table className="w-full text-left border-collapse">
+                                        <thead>
+                                            <tr className="border-b border-[#1a1c24]">
+                                                <th className="px-5 py-3 text-[9px] font-mono uppercase tracking-widest text-[#4b5563]">Metric</th>
+                                                <th className="px-5 py-3 text-[9px] font-mono uppercase tracking-widest text-[#4b5563]">All Time</th>
+                                                <th className="px-5 py-3 text-[9px] font-mono uppercase tracking-widest" style={{ color: '#00D4FF' }}>Last 30d</th>
+                                                <th className="px-5 py-3 text-[9px] font-mono uppercase tracking-widest text-[#4b5563]">Prior</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {rows.map((row, i) => (
+                                                <tr key={i} className="border-b border-[#1a1c24]" style={{ background: i % 2 === 0 ? '#0c0e13' : 'transparent' }}>
+                                                    <td className="px-5 py-3 text-[10px] font-mono text-[#6b7280] uppercase tracking-wider">{row.label}</td>
+                                                    <td className="px-5 py-3 text-[12px] font-mono font-bold text-[#e2e8f0]">{row.all}</td>
+                                                    <td className="px-5 py-3 text-[12px] font-mono font-black" style={{ color: '#00D4FF' }}>{row.r30}</td>
+                                                    <td className="px-5 py-3 text-[12px] font-mono text-[#6b7280]">{row.prior}</td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                </div>
+                                <p className="px-5 py-3 text-[10px] font-mono text-[#4b5563]">
+                                    Last 30d: {r30Metrics.count} trades · Prior: {priorMetrics.count} trades
                                 </p>
-                            </div>
-                        </motion.div>
-                    )}
+                            </motion.div>
+                        );
+                    })()}
                 </AnimatePresence>
             </div>
         </div>

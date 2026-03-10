@@ -133,6 +133,20 @@ function processNaturalLanguage(
     // ── Direction ─────────────────────────────────────────────────
     const isShort = /\b(short|sell|shorting|selling|sold|bear)\b/i.test(lower);
 
+    // ── Daily limit guard ─────────────────────────────────────────
+    const dailyLeft = Math.max(0, dailyLimit - todayUsed);
+    // If daily limit is blown, refuse new trade calculations
+    if (dailyLeft <= 0 && (hasEntry || hasRisk || hasKnownSize)) {
+        return {
+            content: `⛔ Daily loss limit reached ($${dailyLimit.toLocaleString()}). No new trades today. Reset tomorrow at 5:00 PM EST.`,
+            cards: [
+                { label: 'Daily Limit', value: `$${dailyLimit.toLocaleString()}`, danger: true },
+                { label: 'Used Today',  value: `$${todayUsed.toFixed(0)}`,        danger: true },
+                { label: 'Reset',       value: '5:00 PM EST daily',               highlight: false },
+            ],
+        };
+    }
+
     // ─────────────────────────────────────────────────────────────
     // A. INSTRUMENT SPEC QUERY
     // "what's the point value of NQ", "ES tick size", "NQ spec", "tell me about GC"

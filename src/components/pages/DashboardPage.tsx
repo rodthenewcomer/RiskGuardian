@@ -54,7 +54,6 @@ export default function DashboardPage() {
             .filter(t => t.outcome !== 'open' && getTradingDay(t.closedAt ?? t.createdAt) === todayStr)
             .reduce((s, t) => s + (t.pnl ?? 0), 0);
         return Math.max(0, -net);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [trades, todayStr]);
 
     // ── Daily Guard ────────────────────────────────────────────
@@ -145,6 +144,22 @@ export default function DashboardPage() {
         trades[1].riskUSD > 0 &&
         trades[0].riskUSD > trades[1].riskUSD * 1.3;
 
+    // ── Open trades alert ─────────────────────────────────────
+    const openTrades = useMemo(() => trades.filter(t => t.outcome === 'open'), [trades]);
+
+    // Weekend gap risk: warn if there are open crypto trades on Friday after 5PM or Saturday/Sunday
+    const weekendGapAlert = useMemo(() => {
+        if (openTrades.length === 0) return false;
+        const now = new Date();
+        const estNow = new Date(now.toLocaleString('en-US', { timeZone: 'America/New_York' }));
+        const day = estNow.getDay(); // 0=Sun, 5=Fri, 6=Sat
+        const hour = estNow.getHours();
+        const isFridayEvening = day === 5 && hour >= 16;
+        const isWeekend = day === 6 || day === 0;
+        if (!isFridayEvening && !isWeekend) return false;
+        return openTrades.some(t => t.assetType === 'crypto');
+    }, [openTrades]);
+
     const isTradeify      = account.propFirm?.toLowerCase().includes('tradeify');
     const isInstantFunded = account.propFirmType === 'Instant Funding';
     const isEval          = account.propFirmType === '1-Step Evaluation' || account.propFirmType === '2-Step Evaluation';
@@ -186,6 +201,30 @@ export default function DashboardPage() {
         overflow: 'hidden',
     };
 
+    if (!mounted) return null;
+
+    if (account.startingBalance === 0) {
+        return (
+            <motion.div variants={stagger} initial="hidden" animate="show"
+                style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: '#090909', minHeight: '100vh', padding: '20px', textAlign: 'center' }}
+            >
+                <motion.div variants={fadeUp}>
+                    <Shield size={42} style={{ color: '#4b5563', marginBottom: 16 }} />
+                    <h2 style={{ fontSize: 24, fontWeight: 800, color: '#e2e8f0', marginBottom: 8 }}>Account Not Setup</h2>
+                    <p style={{ ...mono, fontSize: 13, color: '#8b949e', marginBottom: 24, maxWidth: 300 }}>
+                        Complete setup in Settings to see your live dashboard — add your starting balance and prop firm rules.
+                    </p>
+                    <button
+                        onClick={() => setActiveTab('settings')}
+                        style={{ padding: '12px 24px', background: '#A6FF4D', color: '#000', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em' }}
+                    >
+                        Go to Settings
+                    </button>
+                </motion.div>
+            </motion.div>
+        );
+    }
+
     return (
         <motion.div variants={stagger} initial="hidden" animate="show"
             style={{ display: 'flex', flexDirection: 'column', background: '#090909', minHeight: '100vh' }}
@@ -224,7 +263,10 @@ export default function DashboardPage() {
 
             {/* ── 2. BALANCE HERO ────────────────────────────────── */}
             <motion.div variants={fadeUp} style={{ padding: '24px 20px 20px', borderBottom: divider }}>
-                <span style={{ ...lbl, marginBottom: 6 }}>Account Balance</span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+                    <span style={lbl}>Account Balance</span>
+                    <span style={{ ...mono, fontSize: 8, padding: '2px 6px', background: 'rgba(166,255,77,0.1)', color: '#A6FF4D', borderRadius: 4, letterSpacing: '0.04em', border: '1px solid rgba(166,255,77,0.2)' }}>AUTO-COMPUTED</span>
+                </div>
                 <div style={{ display: 'flex', alignItems: 'baseline', gap: 14, flexWrap: 'wrap' }}>
                     <motion.span
                         key={account.balance}
@@ -287,6 +329,55 @@ export default function DashboardPage() {
                     </motion.div>
                     <span style={{ ...mono, fontSize: 11, color: '#ff4757', fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase' }}>
                         REVENGE RISK — Last loss was oversized. Reduce next position.
+                    </span>
+                </motion.div>
+            )}
+
+            {/* ── CONSISTENCY ALERT ───────────────────────────────── */}
+            {totalPnl > 0 && consistencyScore > 20 && (
+                <motion.div variants={fadeUp}
+                    style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 20px', borderBottom: '1px solid rgba(234,179,8,0.3)', background: 'rgba(234,179,8,0.06)' }}>
+                    <motion.div animate={{ opacity: [1, 0.4, 1] }} transition={{ duration: 1.2, repeat: Infinity }}>
+                        <AlertTriangle size={13} color="#EAB308" />
+                    </motion.div>
+                    <span style={{ ...mono, fontSize: 11, color: '#EAB308', fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase' }}>
+                        CONSISTENCY WARNING — Best day ({bestTradingDay}) is {consistencyScore.toFixed(1)}% of total profit (Max 20%).
+                    </span>
+                </motion.div>
+            )}
+
+            {/* ── OPEN TRADES ALERT ───────────────────────────────── */}
+            {openTrades.length > 0 && (() => {
+                const agedTrades = openTrades.filter(t => Math.floor((Date.now() - new Date(t.createdAt).getTime()) / 3600000) >= 4);
+                const hasAged = agedTrades.length > 0;
+                return (
+                    <motion.div variants={fadeUp}
+                        onClick={() => setActiveTab('journal')}
+                        style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 20px', borderBottom: `1px solid ${hasAged ? 'rgba(234,179,8,0.3)' : 'rgba(0,212,255,0.3)'}`, background: hasAged ? 'rgba(234,179,8,0.06)' : 'rgba(0,212,255,0.06)', cursor: 'pointer' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                            <motion.div animate={{ opacity: [1, 0.4, 1] }} transition={{ duration: 1.2, repeat: Infinity }}>
+                                <AlertTriangle size={13} color={hasAged ? '#EAB308' : '#00D4FF'} />
+                            </motion.div>
+                            <span style={{ ...mono, fontSize: 11, color: hasAged ? '#EAB308' : '#00D4FF', fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase' }}>
+                                {hasAged
+                                    ? `⚠ ${agedTrades.length} trade${agedTrades.length > 1 ? 's' : ''} have been open for 4h+ — log your outcome`
+                                    : `${openTrades.length} OPEN TRADE${openTrades.length > 1 ? 'S' : ''} — Log outcome to unlock analysis.`
+                                }
+                            </span>
+                        </div>
+                        <ArrowRight size={13} color={hasAged ? '#EAB308' : '#00D4FF'} />
+                    </motion.div>
+                );
+            })()}
+
+            {weekendGapAlert && (
+                <motion.div variants={fadeUp}
+                    style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 20px', borderBottom: '1px solid rgba(234,179,8,0.3)', background: 'rgba(234,179,8,0.06)' }}>
+                    <motion.div animate={{ opacity: [1, 0.4, 1] }} transition={{ duration: 1.2, repeat: Infinity }}>
+                        <AlertTriangle size={13} color="#EAB308" />
+                    </motion.div>
+                    <span style={{ ...mono, fontSize: 11, color: '#EAB308', fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase' }}>
+                        WEEKEND GAP RISK — Open crypto position over weekend. Wider spreads and liquidity gaps on Sunday open.
                     </span>
                 </motion.div>
             )}

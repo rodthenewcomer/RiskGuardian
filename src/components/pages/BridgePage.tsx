@@ -54,7 +54,7 @@ function elapsed(isoTime: string): string {
 }
 
 export default function BridgePage() {
-    const { dxtradeConfig, account, trades } = useAppStore();
+    const { dxtradeConfig, account, trades, setDXTradeConfig } = useAppStore();
 
     // ── Live monitor state ─────────────────────────────────────────
     const [positions, setPositions] = useState<TradeSession[]>([]);
@@ -65,6 +65,7 @@ export default function BridgePage() {
     const [rateLimited, setRateLimited] = useState(false);
     const [rateLimitUntil, setRateLimitUntil] = useState<Date | null>(null);
     const [activeTab, setActiveTab] = useState<'monitor' | 'pretrade'>('monitor');
+    const [tokenExpiredBanner, setTokenExpiredBanner] = useState<'reconnecting' | 'failed' | null>(null);
     const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
     // ── Pre-trade state ────────────────────────────────────────────
@@ -101,6 +102,27 @@ export default function BridgePage() {
                 setRateLimited(true);
                 setRateLimitUntil(until);
                 setPollError(`Rate limited. Auto-resume at ${until.toLocaleTimeString()}`);
+            } else if (msg.includes('401') || msg.includes('Unauthorized') || msg.toLowerCase().includes('token')) {
+                if (dxtradeConfig.password) {
+                    setTokenExpiredBanner('reconnecting');
+                    setPollError('Session expired — reconnecting…');
+                    import('@/lib/dxtradeSync').then(({ dxConnect }) => {
+                        dxConnect(dxtradeConfig.server, dxtradeConfig.username, dxtradeConfig.domain, dxtradeConfig.password!)
+                            .then(res => {
+                                setDXTradeConfig({ ...dxtradeConfig, token: res.token, connectedAt: new Date().toISOString() });
+                                setPollError('');
+                                setTokenExpiredBanner(null);
+                            })
+                            .catch(() => {
+                                setTokenExpiredBanner('failed');
+                                setPollError('Auto-reconnect failed. Please reconnect in Settings.');
+                            });
+                    });
+                    return;
+                }
+                setTokenExpiredBanner('failed');
+                setPollError('Session expired. Please reconnect in Settings.');
+                return;
             } else {
                 setPollError(msg);
             }
@@ -136,6 +158,26 @@ export default function BridgePage() {
 
     return (
         <div className={styles.page}>
+
+            {/* ── Token expired banner ─────────────────────────────── */}
+            {tokenExpiredBanner === 'reconnecting' && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 20px', background: 'rgba(234,179,8,0.08)', borderBottom: '1px solid rgba(234,179,8,0.3)' }}>
+                    <AlertTriangle size={13} color="#EAB308" />
+                    <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: '#EAB308', fontWeight: 700, letterSpacing: '0.06em' }}>Session expired — reconnecting…</span>
+                </div>
+            )}
+            {tokenExpiredBanner === 'failed' && (
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, padding: '10px 20px', background: 'rgba(255,71,87,0.06)', borderBottom: '1px solid rgba(255,71,87,0.3)' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                        <AlertTriangle size={13} color="#ff4757" />
+                        <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: '#ff4757', fontWeight: 700, letterSpacing: '0.06em' }}>Session expired. Please reconnect.</span>
+                    </div>
+                    <button
+                        onClick={() => { setTokenExpiredBanner(null); setDXTradeConfig(null); useAppStore.getState().setActiveTab('settings'); }}
+                        style={{ fontFamily: 'var(--font-mono)', fontSize: 10, fontWeight: 700, padding: '5px 12px', background: 'rgba(255,71,87,0.1)', color: '#ff4757', border: '1px solid rgba(255,71,87,0.3)', cursor: 'pointer', letterSpacing: '0.06em', textTransform: 'uppercase' }}
+                    >Reconnect</button>
+                </div>
+            )}
 
             {/* ── Status bar ──────────────────────────────────────── */}
             <div className={`${styles.statusBar} ${isConnected && !pollError ? styles.statusConnected : isConnected ? styles.statusWarning : styles.statusOff}`}>
