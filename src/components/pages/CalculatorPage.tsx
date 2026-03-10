@@ -148,22 +148,6 @@ export default function CalculatorPage() {
 
         const profit2R   = rsk * 2;
 
-        // Consistency Rule enforcement
-        const closedTrades = trades.filter(t => t.outcome === 'win' || t.outcome === 'loss');
-        const totalPnl = closedTrades.reduce((s, t) => s + (t.pnl ?? 0), 0);
-        if (totalPnl > 0) {
-            const todayStr = getTradingDay(new Date().toISOString());
-            const todayPnl = closedTrades.filter(t => getTradingDay(t.closedAt ?? t.createdAt) === todayStr).reduce((s, t) => s + (t.pnl ?? 0), 0);
-            const projectedTotal = totalPnl + profit2R;
-            const projectedToday = todayPnl + profit2R;
-            if (projectedTotal > 0) {
-                const projectedConsistency = (projectedToday / projectedTotal) * 100;
-                // Only enforce if we have enough a real trading history (e.g. at least 5 trades) to prevent day-1 lockout
-                if (projectedConsistency > 20 && closedTrades.length >= 5) {
-                    blocks.push(`Target profit breached consistency limit. Best day cannot exceed 20% of total profit (Projected: ${projectedConsistency.toFixed(1)}%). Reduce risk size.`);
-                }
-            }
-        }
 
         const approved   = blocks.length === 0;
         const riskPerUnit = pos.size > 0 ? rsk / pos.size : 0;

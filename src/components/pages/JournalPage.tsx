@@ -495,7 +495,7 @@ export default function JournalPage() {
                                         >
                                             {/* Main row */}
                                             <div
-                                                style={{ padding: isMobile ? '12px 14px' : '14px 20px', cursor: 'pointer', display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 10 }}
+                                                style={{ padding: isMobile ? '12px 14px' : '14px 20px', cursor: 'pointer', display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap' }}
                                                 onClick={() => setExpandedId(isExpanded ? null : trade.id)}
                                             >
                                                 {/* Left: direction + asset + meta */}
@@ -528,7 +528,7 @@ export default function JournalPage() {
                                                 </div>
 
                                                 {/* Right: P&L + inline outcome for open + expand + delete */}
-                                                <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 1, flexWrap: 'wrap', minWidth: 200, justifyContent: 'flex-end' }}>
                                                     <div style={{ textAlign: 'right' }}>
                                                         <span style={{ ...mono, fontSize: 16, fontWeight: 800, color: accentColor, letterSpacing: '-0.02em', display: 'block' }}>
                                                             {isWin ? '+' : isLoss ? '-' : '~'}${Math.abs(pnlVal).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
@@ -559,13 +559,15 @@ export default function JournalPage() {
                                                                 title="Mark as Won"
                                                                 onClick={() => {
                                                                     if (inlineOutcomeId !== trade.id) { setInlineOutcomeId(trade.id); return; }
+                                                                    const holdMs = Date.now() - new Date(trade.createdAt).getTime();
+                                                                    if (holdMs < 20000) { alert('Micro-scalping detected: Minimum 20s hold required.'); return; }
                                                                     const raw = inlineWinInput[trade.id] ?? '';
                                                                     const val = raw !== '' ? parseFloat(raw) : trade.rewardUSD;
                                                                     if (isNaN(val)) return;
                                                                     setTrades(trades.map(t => t.id === trade.id ? {
                                                                         ...t, outcome: 'win', pnl: Math.abs(val),
                                                                         closedAt: t.closedAt || new Date().toISOString(),
-                                                                        durationSeconds: Math.floor((Date.now() - new Date(t.createdAt).getTime()) / 1000),
+                                                                        durationSeconds: Math.floor(holdMs / 1000),
                                                                     } : t));
                                                                     setInlineOutcomeId(null);
                                                                     setInlineWinInput(prev => { const n = { ...prev }; delete n[trade.id]; return n; });
@@ -576,13 +578,15 @@ export default function JournalPage() {
                                                                 title="Mark as Lost"
                                                                 onClick={() => {
                                                                     if (inlineOutcomeId !== trade.id) { setInlineOutcomeId(trade.id); return; }
+                                                                    const holdMs = Date.now() - new Date(trade.createdAt).getTime();
+                                                                    if (holdMs < 20000) { alert('Micro-scalping detected: Minimum 20s hold required.'); return; }
                                                                     const raw = inlineLossInput[trade.id] ?? '';
                                                                     const val = raw !== '' ? parseFloat(raw) : trade.riskUSD;
                                                                     if (isNaN(val)) return;
                                                                     setTrades(trades.map(t => t.id === trade.id ? {
                                                                         ...t, outcome: 'loss', pnl: -Math.abs(val),
                                                                         closedAt: t.closedAt || new Date().toISOString(),
-                                                                        durationSeconds: Math.floor((Date.now() - new Date(t.createdAt).getTime()) / 1000),
+                                                                        durationSeconds: Math.floor(holdMs / 1000),
                                                                     } : t));
                                                                     setInlineOutcomeId(null);
                                                                     setInlineLossInput(prev => { const n = { ...prev }; delete n[trade.id]; return n; });
