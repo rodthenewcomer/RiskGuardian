@@ -64,8 +64,6 @@ export interface BridgeTrade {
 // Production: In Vercel dashboard → Storage → Create KV → link project.
 // Vercel auto-injects KV_URL + KV_REST_API_URL + KV_REST_API_TOKEN.
 
-const KV_KEY_TRADES = 'propguard:trades';
-const KV_KEY_PING = 'propguard:lastPing';
 const MAX_TRADES = 50;
 const STALE_MS = 30_000;
 
@@ -82,38 +80,19 @@ if (!global._bridgeMem) {
     global._bridgeMem = { trades: [], lastPing: 0 };
 }
 
-// ── KV helpers: try Vercel KV, fall back to memory ────────────────
+// ── Storage helpers: in-memory (local dev + production serverless) ─
+// @vercel/kv removed — use in-memory global which persists across warm
+// lambda invocations. For durable KV, add your own adapter here.
 async function getTrades(): Promise<BridgeTrade[]> {
-    if (process.env.KV_REST_API_URL) {
-        try {
-            const { kv } = await import('@vercel/kv');
-            const data = await kv.get<BridgeTrade[]>(KV_KEY_TRADES);
-            return data ?? [];
-        } catch { /* fall through */ }
-    }
     return global._bridgeMem!.trades;
 }
 
 async function saveTrades(trades: BridgeTrade[]): Promise<void> {
-    if (process.env.KV_REST_API_URL) {
-        try {
-            const { kv } = await import('@vercel/kv');
-            await kv.set(KV_KEY_TRADES, trades, { ex: 60 * 60 * 24 }); // 24h TTL
-            await kv.set(KV_KEY_PING, Date.now(), { ex: 60 });
-            return;
-        } catch { /* fall through */ }
-    }
     global._bridgeMem!.trades = trades;
     global._bridgeMem!.lastPing = Date.now();
 }
 
 async function getLastPing(): Promise<number> {
-    if (process.env.KV_REST_API_URL) {
-        try {
-            const { kv } = await import('@vercel/kv');
-            return (await kv.get<number>(KV_KEY_PING)) ?? 0;
-        } catch { /* fall through */ }
-    }
     return global._bridgeMem!.lastPing;
 }
 
@@ -222,7 +201,7 @@ export async function GET(req: NextRequest) {
         lastPing,
         tradeCount: trades.length,
         trades: trades.slice(0, limit),
-        storage: process.env.KV_REST_API_URL ? 'vercel-kv' : 'in-memory'
+        storage: 'in-memory'
     });
 }
 
