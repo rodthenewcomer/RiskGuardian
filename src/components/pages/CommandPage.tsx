@@ -102,6 +102,8 @@ export default function CommandPage() {
     const [stop,    setStop]    = useState('');
     const [tp,      setTp]      = useState('');
     const [riskStr, setRiskStr] = useState('');
+    const [sizeStr, setSizeStr] = useState('');
+    const [inputMode, setInputMode] = useState<'risk' | 'size'>('risk');
     const [logged,  setLogged]  = useState(false);
 
     // ── NLP bar ─────────────────────────────────────────────────────
@@ -146,11 +148,23 @@ export default function CommandPage() {
         const stopDist = Math.abs(entryN - stopN);
         const stopPct  = (stopDist / entryN) * 100;
 
+        let effectiveRisk = riskN;
+        const cSize = parseFloat(sizeStr);
+        if (inputMode === 'size' && !isNaN(cSize) && cSize > 0) {
+            if (aType === 'futures') {
+                effectiveRisk = cSize * stopDist * (spec ? spec.pointValue : 1);
+            } else if (aType === 'forex') {
+                effectiveRisk = cSize * 100000 * stopDist;
+            } else {
+                effectiveRisk = cSize * stopDist;
+            }
+        }
+
         const res = calcPositionSize({
             balance: account.balance,
             entry: entryN,
             stopLoss: stopN,
-            riskAmt: riskN,
+            riskAmt: effectiveRisk,
             assetType: aType,
             symbol: asset.toUpperCase(),
             isShort,
@@ -163,7 +177,7 @@ export default function CommandPage() {
         const finalTp = tpN > 0 ? tpN : autoTp;
         const tpDist  = Math.abs(finalTp - entryN);
         const rr      = stopDist > 0 ? tpDist / stopDist : 2;
-        const reward  = riskN * rr;
+        const reward  = effectiveRisk * rr; // Explicitly map reward!
 
         // Tradeify leverage rules
         const isBtcEth  = ['BTC', 'ETH', 'PAXG'].includes(asset.toUpperCase());
@@ -175,7 +189,7 @@ export default function CommandPage() {
         const levUsed   = account.balance > 0 ? res.notional / account.balance : 0;
 
         const overLev   = levUsed > levMax + 0.01;
-        const overDaily = riskN   > remaining + 0.01;
+        const overDaily = effectiveRisk   > remaining + 0.01;
         const lowRR     = rr < 1.5 && tpN === 0; // only warn on auto TP
 
         // Tradeify microscalping reminder
@@ -183,14 +197,14 @@ export default function CommandPage() {
 
         const warnings: string[] = [
             overLev   ? `Leverage ${levUsed.toFixed(1)}x  >  ${levMax}x max allowed` : '',
-            overDaily ? `Risk $${riskN.toFixed(0)}  >  daily remaining $${remaining.toFixed(0)}` : '',
+            overDaily ? `Risk $${effectiveRisk.toFixed(0)}  >  daily remaining $${remaining.toFixed(0)}` : '',
             lowRR     ? `Low R:R ${rr.toFixed(2)} — minimum 1.5R recommended` : '',
         ].filter(Boolean);
 
         return {
             size: res.size, unit: res.unit,
             notional: res.notional,
-            riskAmt: riskN, reward,
+            riskAmt: effectiveRisk, reward,
             rr, comm: res.comm,
             tp: finalTp, tpAuto: tpN === 0,
             stopPct, levUsed, levMax,
@@ -198,7 +212,7 @@ export default function CommandPage() {
             warnings,
             bad: overLev || overDaily,
         };
-    }, [entryN, stopN, tpN, riskN, asset, isShort, aType, account, remaining]);
+    }, [entryN, stopN, tpN, riskN, sizeStr, inputMode, asset, isShort, aType, spec, account, remaining]);
 
     // ── Guard ribbon state ──────────────────────────────────────────
     const dailyUsedPct = account.dailyLossLimit > 0
@@ -231,7 +245,7 @@ export default function CommandPage() {
         setLogged(true);
         setTimeout(() => {
             setLogged(false);
-            setEntry(''); setStop(''); setTp('');
+            setEntry(''); setStop(''); setTp(''); setSizeStr('');
         }, 1800);
     };
 
@@ -348,6 +362,8 @@ export default function CommandPage() {
         setAsset(pa); setIsShort(pShort);
         setEntry(pe.toString()); setStop(ps.toString());
         if (pt > 0) setTp(pt.toString());
+        setInputMode(pz > 0 && !pr ? 'size' : 'risk');
+        if (pz > 0) setSizeStr(pz.toString());
         setRiskStr(pr.toString());
 
         pushNlp(trimmed,
@@ -549,25 +565,48 @@ export default function CommandPage() {
                         />
                     </div>
 
-                    {/* Risk $ */}
+                    {/* Risk $ / Size Component */}
                     <div style={{ padding: '12px 14px' }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
-                            <span style={{ ...lbl, marginBottom: 0 }}>Risk $</span>
-                            <button
-                                onClick={() => setRiskStr(safeRisk.toFixed(0))}
-                                style={{ ...mono, fontSize: 10, color: '#A6FF4D', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
-                            >
-                                use ${safeRisk.toFixed(0)} safe
-                            </button>
+                            <span style={{ ...lbl, marginBottom: 0 }}>
+                                {inputMode === 'risk' ? 'Risk $' : 'Size (Contracts/Lots)'}
+                            </span>
+                            <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                                <button
+                                    onClick={() => setInputMode(m => m === 'risk' ? 'size' : 'risk')}
+                                    style={{ ...mono, fontSize: 9, color: '#A6FF4D', background: 'transparent', border: '1px solid currentColor', cursor: 'pointer', padding: '2px 5px', borderRadius: 4, letterSpacing: '0.04em' }}
+                                >
+                                    Toggle Mode
+                                </button>
+                                {inputMode === 'risk' && (
+                                    <button
+                                        onClick={() => setRiskStr(safeRisk.toFixed(0))}
+                                        style={{ ...mono, fontSize: 10, color: '#4b5563', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
+                                    >
+                                        use ${safeRisk.toFixed(0)} safe
+                                    </button>
+                                )}
+                            </div>
                         </div>
-                        <input
-                            style={inp}
-                            type="number"
-                            placeholder={safeRisk.toFixed(0)}
-                            inputMode="decimal"
-                            value={riskStr}
-                            onChange={e => setRiskStr(e.target.value)}
-                        />
+                        {inputMode === 'risk' ? (
+                            <input
+                                style={inp}
+                                type="number"
+                                placeholder={safeRisk.toFixed(0)}
+                                inputMode="decimal"
+                                value={riskStr}
+                                onChange={e => setRiskStr(e.target.value)}
+                            />
+                        ) : (
+                            <input
+                                style={inp}
+                                type="number"
+                                placeholder="1.0"
+                                inputMode="decimal"
+                                value={sizeStr}
+                                onChange={e => setSizeStr(e.target.value)}
+                            />
+                        )}
                     </div>
                 </div>
 
@@ -598,10 +637,10 @@ export default function CommandPage() {
                                         clr: '#e2e8f0',
                                     },
                                     {
-                                        lbl: 'R:R RATIO',
-                                        val: `${result.rr.toFixed(2)}R`,
+                                        lbl: inputMode === 'size' ? 'RISK AMOUNT' : 'R:R RATIO',
+                                        val: inputMode === 'size' ? `-$${result.riskAmt.toFixed(0)}` : `${result.rr.toFixed(2)}R`,
                                         sub: `+$${result.reward.toFixed(0)}`,
-                                        clr: result.rr >= 2 ? '#A6FF4D' : result.rr >= 1.5 ? '#EAB308' : '#ff4757',
+                                        clr: inputMode === 'size' ? '#ff4757' : (result.rr >= 2 ? '#A6FF4D' : result.rr >= 1.5 ? '#EAB308' : '#ff4757'),
                                     },
                                 ].map((s, i) => (
                                     <div key={i} style={{
