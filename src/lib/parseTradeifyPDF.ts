@@ -77,9 +77,15 @@ function extractTransactions(tableText: string): RawTx[] {
         const afterDir = ctx.slice(dirIdx);
 
         // Extract all positive numbers (size, price, optional order ID, optional PnL, commission)
-        const numTokens = [...afterDir.matchAll(/([\d,]+\.?\d*)/g)]
-            .map(n => parseFloat(n[1].replace(/,/g, '')))
-            .filter(n => !isNaN(n) && isFinite(n) && n > 0);
+        const numPattern = /([\d,]+\.?\d*)/g;
+        const numTokens: number[] = [];
+        let numMatch;
+        while ((numMatch = numPattern.exec(afterDir)) !== null) {
+            const n = parseFloat(numMatch[1].replace(/,/g, ''));
+            if (!isNaN(n) && isFinite(n) && n > 0) {
+                numTokens.push(n);
+            }
+        }
 
         if (numTokens.length < 2) continue;
 
@@ -144,11 +150,12 @@ function extractTransactions(tableText: string): RawTx[] {
 // ── FIFO trade builder ─────────────────────────────────────────
 
 function buildTrades(rawTxs: RawTx[]): Omit<TradeSession, 'note'>[] {
-    const sorted = [...rawTxs].sort((a, b) => a.dateISO.localeCompare(b.dateISO));
+    const sorted = rawTxs.slice().sort((a, b) => a.dateISO.localeCompare(b.dateISO));
     const stacks = new Map<string, RawTx[]>();
     const trades: Omit<TradeSession, 'note'>[] = [];
 
-    for (const tx of sorted) {
+    for (let _i = 0; _i < sorted.length; _i++) {
+        const tx = sorted[_i];
         const key = tx.baseSymbol;
 
         if (tx.settledPnl !== null) {
@@ -226,7 +233,8 @@ export async function parseTradeifyPDF(
             const vp   = page.getViewport({ scale: 1 });
             const content = await page.getTextContent();
 
-            for (const item of content.items) {
+            for (let i = 0; i < content.items.length; i++) {
+                const item = content.items[i];
                 if ('str' in item && item.str.trim()) {
                     items.push({
                         str: item.str.trim(),
