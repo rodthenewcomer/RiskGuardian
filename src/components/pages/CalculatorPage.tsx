@@ -24,6 +24,7 @@ export default function CalculatorPage() {
     const [asset,           setAsset]           = useState('SOL');
     const [entry,           setEntry]           = useState('');
     const [stopLoss,        setStopLoss]        = useState('');
+    const [targetInput,     setTargetInput]     = useState('');
     const [riskAmount,      setRiskAmount]      = useState(0);
     const [inputMode,       setInputMode]       = useState<'risk' | 'size'>('risk');
     const [sizeInput,       setSizeInput]       = useState<string>('');
@@ -116,6 +117,20 @@ export default function CalculatorPage() {
             includeTradeifyFee: atype === 'crypto',
         });
 
+        const tgtNum = parseFloat(targetInput);
+        let customProfit = 0;
+        let isCustomTarget = false;
+        if (!isNaN(tgtNum) && tgtNum > 0) {
+            isCustomTarget = true;
+            if (atype === 'futures') {
+                customProfit = pos.size * Math.abs(tgtNum - eNum) * (fSpec ? fSpec.pointValue : 1);
+            } else if (atype === 'forex') {
+                customProfit = pos.size * 100000 * Math.abs(tgtNum - eNum);
+            } else {
+                customProfit = pos.size * Math.abs(tgtNum - eNum);
+            }
+        }
+
         // Guardian validation
         const blocks: string[] = [];
         if (rsk > remainingToday && remainingToday > 0) {
@@ -163,8 +178,9 @@ export default function CalculatorPage() {
             approved, blocks,
             fSpec, ticksToStop,
             directionMismatch,
+            isCustomTarget, customProfit, tgtNum
         };
-    }, [asset, entry, stopLoss, riskAmount, sizeInput, inputMode, isShort, account, remainingToday, maxTradeRisk, trades]);
+    }, [asset, entry, stopLoss, riskAmount, sizeInput, targetInput, inputMode, isShort, account, remainingToday, maxTradeRisk, trades]);
 
     // ── Design tokens ─────────────────────────────────────────────
     const mono    = { fontFamily: 'var(--font-mono)' } as const;
@@ -204,8 +220,8 @@ export default function CalculatorPage() {
         if (totalPnl <= 0) return null;
         const todayStr = getTradingDay(new Date().toISOString());
         const todayPnl = closedTrades.filter(t => getTradingDay(t.closedAt ?? t.createdAt) === todayStr).reduce((s, t) => s + (t.pnl ?? 0), 0);
-        const projectedTodayPnl = todayPnl + calc.profit2R;
-        const projectedTotalPnl = totalPnl + calc.profit2R;
+        const projectedTodayPnl = todayPnl + (calc.isCustomTarget ? calc.customProfit : calc.profit2R);
+        const projectedTotalPnl = totalPnl + (calc.isCustomTarget ? calc.customProfit : calc.profit2R);
         if (projectedTotalPnl <= 0) return null;
         const projectedConsistencyPct = (projectedTodayPnl / projectedTotalPnl) * 100;
         if (projectedConsistencyPct > 20) {
@@ -359,10 +375,10 @@ export default function CalculatorPage() {
             </AnimatePresence>
 
             {/* ── INPUT GRID ───────────────────────────────────────────── */}
-            <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'repeat(2,1fr)' : 'repeat(4,1fr)', borderBottom: divider }}>
+            <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'repeat(2,1fr)' : 'repeat(5,1fr)', borderBottom: divider }}>
 
                 {/* ASSET */}
-                <div style={{ padding: isMobile ? '12px 12px' : '14px 16px', borderRight: divider, position: 'relative' }} className="asset-browser-wrap">
+                <div style={{ padding: isMobile ? '12px 12px' : '14px 16px', borderRight: divider, borderBottom: isMobile ? divider : 'none', position: 'relative' }} className="asset-browser-wrap">
                     <span style={{ ...lbl, display: 'block', marginBottom: 4 }}>Asset</span>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                         <input
@@ -440,7 +456,7 @@ export default function CalculatorPage() {
                 </div>
 
                 {/* ENTRY PRICE */}
-                <div style={{ padding: isMobile ? '12px 12px' : '14px 16px', borderRight: divider, borderBottom: isMobile ? divider : 'none' }}>
+                <div style={{ padding: isMobile ? '12px 12px' : '14px 16px', borderRight: isMobile ? 'none' : divider, borderBottom: isMobile ? divider : 'none' }}>
                     <span style={{ ...lbl, display: 'block', marginBottom: 4 }}>Entry Price</span>
                     <input
                         ref={entryInputRef}
@@ -456,7 +472,7 @@ export default function CalculatorPage() {
                 </div>
 
                 {/* STOP LOSS */}
-                <div style={{ padding: isMobile ? '12px 12px' : '14px 16px', borderRight: divider }}>
+                <div style={{ padding: isMobile ? '12px 12px' : '14px 16px', borderRight: divider, borderBottom: isMobile ? divider : 'none' }}>
                     <span style={{ ...lbl, display: 'block', marginBottom: 4 }}>Stop Loss</span>
                     <input
                         type="number" inputMode="decimal" pattern="[0-9]*"
@@ -469,6 +485,21 @@ export default function CalculatorPage() {
                         {calc
                             ? `${calc.stopPct.toFixed(2)}% · ${calc.stopDist < 1 ? calc.stopDist.toFixed(5) : calc.stopDist.toFixed(2)} pts`
                             : 'exit if wrong'}
+                    </span>
+                </div>
+
+                {/* TARGET PRICE */}
+                <div style={{ padding: isMobile ? '12px 12px' : '14px 16px', borderRight: isMobile ? 'none' : divider, borderBottom: isMobile ? divider : 'none' }}>
+                    <span style={{ ...lbl, display: 'block', marginBottom: 4 }}>Target (Optional)</span>
+                    <input
+                        type="number" inputMode="decimal" pattern="[0-9]*"
+                        style={{ ...mono, width: '100%', background: 'transparent', border: 'none', outline: 'none', fontSize: isMobile ? 18 : 22, fontWeight: 900, color: '#A6FF4D', padding: 0 }}
+                        value={targetInput}
+                        onChange={e => { setTargetInput(e.target.value); setCommand(''); }}
+                        placeholder="Auto 2R"
+                    />
+                    <span style={{ ...mono, fontSize: 9, color: '#4b5563', display: 'block', marginTop: 3 }}>
+                        {calc?.isCustomTarget ? `Reward: $${calc.customProfit.toFixed(0)}` : 'leave empty for 2R'}
                     </span>
                 </div>
 
@@ -574,12 +605,12 @@ export default function CalculatorPage() {
                                 )}
                             </div>
                             <div style={{ textAlign: 'right', flexShrink: 0 }}>
-                                <span style={{ ...lbl, display: 'block', marginBottom: 6 }}>Potential 2R</span>
+                                <span style={{ ...lbl, display: 'block', marginBottom: 6 }}>{calc.isCustomTarget ? 'Custom Target' : 'Potential 2R'}</span>
                                 <span style={{ ...mono, fontSize: isMobile ? 26 : 32, fontWeight: 900, color: '#A6FF4D', letterSpacing: '-0.03em' }}>
-                                    +${calc.profit2R.toFixed(0)}
+                                    +${calc.isCustomTarget ? calc.customProfit.toFixed(0) : calc.profit2R.toFixed(0)}
                                 </span>
                                 <span style={{ ...mono, fontSize: 9, color: '#4b5563', display: 'block', marginTop: 4 }}>
-                                    vs ${calc.rsk.toFixed(0)} risked · 3R = ${calc.profit3R.toFixed(0)}
+                                    {inputMode === 'size' ? `TOTAL RISK: $${calc.rsk.toFixed(0)}` : `vs $${calc.rsk.toFixed(0)} risked`} · {calc.isCustomTarget ? `RR: ${(calc.customProfit / calc.rsk).toFixed(1)}:1` : `3R = $${calc.profit3R.toFixed(0)}`}
                                 </span>
                             </div>
                         </div>
