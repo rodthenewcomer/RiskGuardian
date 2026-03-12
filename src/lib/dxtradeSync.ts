@@ -192,7 +192,7 @@ async function proxyCall(config: Partial<DXConfig> & { server: string }, action:
         }),
     });
     const data = await res.json();
-    if (!res.ok) throw new Error(data.error || `DXTrade error ${res.status}`);
+    if (!res.ok) throw new Error(`[${res.status}] ${data.error || 'DXTrade error'}`);
     return data;
 }
 

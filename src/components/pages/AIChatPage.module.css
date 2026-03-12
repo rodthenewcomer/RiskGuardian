@@ -59,6 +59,11 @@
     50%       { opacity: 0.4; transform: scale(0.75); }
 }
 
+@keyframes pulse-mic {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(255,71,87,0.4); }
+    50%       { box-shadow: 0 0 0 6px rgba(255,71,87,0); }
+}
+
 /* ── Typing indicator dots ──────────────────────────────── */
 .typingDots {
     display: flex;
@@ -81,4 +86,59 @@
 @keyframes blink {
     0%, 80%, 100% { opacity: 0.18; transform: scale(0.75); }
     40%           { opacity: 1;    transform: scale(1);    }
+}
+
+/* ── UI Elements Responsive ───────────────────────────── */
+.header {
+    padding: 13px 20px;
+}
+.contextStrip {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+}
+.contextCard {
+    padding: 11px 16px;
+    border-right: none;
+    border-bottom: none;
+}
+.contextCard:not(:nth-child(4n)) {
+    border-right: 1px solid #1a1c24;
+}
+.contextCardValue {
+    font-size: 17px;
+}
+
+.messageRow {
+    padding: 12px 20px;
+}
+.messageContentUser {
+    max-width: 72%;
+}
+.messageBubble {
+    padding: 11px 14px;
+}
+.suggestionBar {
+    padding: 8px 20px;
+}
+.inputBar {
+    padding: 12px 20px;
+}
+
+@media (max-width: 640px) {
+    .header { padding: 10px 14px; }
+    .contextStrip { grid-template-columns: repeat(2, 1fr); }
+    .contextCard {
+        padding: 10px 12px;
+        border-right: none;
+        border-bottom: 1px solid #1a1c24;
+    }
+    .contextCard:nth-child(odd) { border-right: 1px solid #1a1c24; }
+    .contextCard:nth-last-child(-n+2) { border-bottom: none; }
+    
+    .contextCardValue { font-size: 15px; }
+    .messageRow { padding: 10px 14px; }
+    .messageContentUser { max-width: 85%; }
+    .messageBubble { padding: 10px 12px; }
+    .suggestionBar { padding: 7px 14px; }
+    .inputBar { padding: 10px 14px; }
 }

@@ -203,7 +203,7 @@ export default function DashboardPage() {
 
     if (!mounted) return null;
 
-    if (account.startingBalance === 0) {
+    if (!account.startingBalance || account.startingBalance === 0) {
         return (
             <motion.div variants={stagger} initial="hidden" animate="show"
                 style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: '#090909', minHeight: '100vh', padding: '20px', textAlign: 'center' }}

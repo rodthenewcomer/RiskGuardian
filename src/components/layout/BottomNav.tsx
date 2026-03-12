@@ -22,6 +22,12 @@ export default function BottomNav() {
             <div className={styles.inner}>
                 {TABS.map(({ id, label, icon: Icon }) => {
                     const active = activeTab === id;
+                    let hasAgedTrades = false;
+                    if (id === 'journal') {
+                        const store = useAppStore();
+                        hasAgedTrades = store.trades.some(t => t.outcome === 'open' && Math.floor((Date.now() - new Date(t.createdAt).getTime()) / 3600000) >= 4);
+                    }
+
                     return (
                         <button
                             key={id}
@@ -30,6 +36,7 @@ export default function BottomNav() {
                             aria-label={label}
                             aria-current={active ? 'page' : undefined}
                             title={label}
+                            style={{ position: 'relative' }}
                         >
                             {active && (
                                 <motion.div
@@ -38,7 +45,12 @@ export default function BottomNav() {
                                     transition={{ type: 'spring', stiffness: 400, damping: 30 }}
                                 />
                             )}
-                            <Icon size={20} strokeWidth={active ? 2.5 : 1.8} className={styles.icon} />
+                            <div style={{ position: 'relative' }}>
+                                <Icon size={20} strokeWidth={active ? 2.5 : 1.8} className={styles.icon} />
+                                {hasAgedTrades && (
+                                    <div style={{ position: 'absolute', top: -2, right: -4, width: 8, height: 8, background: '#ff4757', borderRadius: '50%', border: '2px solid #090909' }} />
+                                )}
+                            </div>
                             <span className={styles.label}>{label}</span>
                         </button>
                     );

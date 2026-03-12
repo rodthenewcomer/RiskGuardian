@@ -209,12 +209,12 @@ export default function LandingPage() {
                     <div className={styles.navLinks}>
                         <a href="#features" className={styles.navLink}>Features</a>
                         <a href="#how" className={styles.navLink}>How it works</a>
-                        <a href="#pricing" className={styles.navLink}>Pricing</a>
+                        <a href="#testimonials" className={styles.navLink}>Reviews</a>
                         <a href="#testimonials" className={styles.navLink}>Reviews</a>
                     </div>
 
                     <div className={styles.navCta}>
-                        <a href="#pricing" className={styles.navCtaSecondary}>See plans</a>
+                        <a href="#features" className={styles.navCtaSecondary}>See features</a>
                         <Link href="/app" className={styles.navCtaPrimary}>
                             Launch App <span>→</span>
                         </Link>
@@ -234,7 +234,6 @@ export default function LandingPage() {
                     <div className={styles.mobileMenu}>
                         <a href="#features" className={styles.mobileLink} onClick={() => setMobileMenuOpen(false)}>Features</a>
                         <a href="#how" className={styles.mobileLink} onClick={() => setMobileMenuOpen(false)}>How it works</a>
-                        <a href="#pricing" className={styles.mobileLink} onClick={() => setMobileMenuOpen(false)}>Pricing</a>
                         <a href="#testimonials" className={styles.mobileLink} onClick={() => setMobileMenuOpen(false)}>Reviews</a>
                         <Link href="/app" className={styles.mobileCta} onClick={() => setMobileMenuOpen(false)}>
                             Launch App →
@@ -454,66 +453,6 @@ export default function LandingPage() {
                 </div>
             </section>
 
-            {/* ── PRICING ── */}
-            <section className={styles.pricing} id="pricing">
-                <div className={styles.pricingOrb} />
-                <div className={styles.sectionInner}>
-                    <div className={styles.sectionLabel}>Pricing</div>
-                    <h2 className={styles.sectionTitle}>Simple, honest pricing</h2>
-                    <p className={styles.sectionSub}>Start free. Upgrade when your edge demands more.</p>
-
-                    <div className={styles.pricingGrid}>
-                        {/* Free */}
-                        <div className={styles.pricingCard}>
-                            <div className={styles.pricingTier}>Free</div>
-                            <div className={styles.pricingPrice}>$0</div>
-                            <div className={styles.pricingPeriod}>forever</div>
-                            <ul className={styles.pricingFeatures}>
-                                {[
-                                    '✓  Position size calculator',
-                                    '✓  Daily Loss Guard',
-                                    '✓  TP/SL calculator',
-                                    '✓  Trade plan builder',
-                                    '✓  5 trades/week journal',
-                                    '✗  Advanced analytics',
-                                    '✗  AI coaching',
-                                    '✗  Unlimited journal',
-                                ].map(f => (
-                                    <li key={f} className={`${styles.pricingFeature} ${f.startsWith('✗') ? styles.pricingFeatureDim : ''}`}>{f}</li>
-                                ))}
-                            </ul>
-                            <Link href="/app" className={styles.pricingCta} id="pricing-free-cta">
-                                Start Free
-                            </Link>
-                        </div>
-
-                        {/* Pro */}
-                        <div className={`${styles.pricingCard} ${styles.pricingCardPro}`}>
-                            <div className={styles.pricingProBadge}>Most Popular</div>
-                            <div className={styles.pricingTier}>Pro</div>
-                            <div className={styles.pricingPrice}>$12</div>
-                            <div className={styles.pricingPeriod}>per month</div>
-                            <ul className={styles.pricingFeatures}>
-                                {[
-                                    '✓  Everything in Free',
-                                    '✓  Unlimited journal',
-                                    '✓  Advanced analytics',
-                                    '✓  P&L curve charts',
-                                    '✓  Behavioral patterns',
-                                    '✓  AI trade coach',
-                                    '✓  Multi-account support',
-                                    '✓  Export to CSV / PDF',
-                                ].map(f => (
-                                    <li key={f} className={styles.pricingFeature}>{f}</li>
-                                ))}
-                            </ul>
-                            <Link href="/app" className={`${styles.pricingCta} ${styles.pricingCtaPro}`} id="pricing-pro-cta">
-                                Start 7-day free trial
-                            </Link>
-                        </div>
-                    </div>
-                </div>
-            </section>
 
             {/* ── FINAL CTA ── */}
             <section className={styles.finalCta}>
@@ -553,7 +492,6 @@ export default function LandingPage() {
                         <div className={styles.footerCol}>
                             <div className={styles.footerColTitle}>Product</div>
                             <a href="#features" className={styles.footerLink}>Features</a>
-                            <a href="#pricing" className={styles.footerLink}>Pricing</a>
                             <Link href="/app" className={styles.footerLink}>Launch App</Link>
                         </div>
                         <div className={styles.footerCol}>

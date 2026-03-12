@@ -158,7 +158,7 @@ export function generateForensics(trades: Trade[], accountData: any) {
         { metric: 'Expectancy Ratio', grade: wins.length === 0 || lossTrades.length === 0 ? '—' : (avgWinAmt / avgLossAmt) > 1.5 ? 'A' : 'D', desc: 'Dollar value yielded per structural risk.' },
         { metric: 'Micro Management', grade: microPnl >= 0 ? 'A' : 'F', desc: 'Discipline in tier-1 product isolation.' },
         { metric: 'First Hour Logic', grade: (() => {
-            const estHour = (iso: string) => parseInt(new Intl.DateTimeFormat('en-US', { timeZone: 'America/New_York', hour: '2-digit', hour12: false }).format(new Date(iso)), 10);
+            const estHour = (iso: string) => new Date(new Date(iso).toLocaleString("en-US", {timeZone: "America/New_York"})).getHours();
             const fh = closed.filter(t => estHour(t.closedAt ?? t.createdAt) < 10);
             if (fh.length === 0) return 'A';
             const wr = fh.filter(t => (t.pnl ?? 0) > 0).length / fh.length;
@@ -184,14 +184,8 @@ export function generateForensics(trades: Trade[], accountData: any) {
     // 4. Time of Day Analysis (hours in EST, matching Tradeify's session convention)
     const hourlyPnl = new Array(24).fill(0);
     closed.forEach(t => {
-        const hour = parseInt(
-            new Intl.DateTimeFormat('en-US', {
-                timeZone: 'America/New_York',
-                hour: '2-digit',
-                hour12: false,
-            }).format(new Date(t.closedAt ?? t.createdAt)),
-            10
-        );
+        const estDate = new Date(new Date(t.closedAt ?? t.createdAt).toLocaleString("en-US", {timeZone: "America/New_York"}));
+        const hour = estDate.getHours();
         hourlyPnl[hour >= 24 ? 0 : hour] += (t.pnl || 0);
     });
     const bestHour = hourlyPnl.indexOf(Math.max(...hourlyPnl));

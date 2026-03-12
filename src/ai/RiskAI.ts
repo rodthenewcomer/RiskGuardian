@@ -285,18 +285,37 @@ export function analyzeConsistency(trades: TradeSession[]): ConsistencyAnalysis 
         };
     }
 
-    // Group by EST date
+    // Group by PROP FIRM trading day (resets at 5:00 PM EST)
+    // A trade taken at 6 PM EST belongs to the NEXT trading day.
     const dailyMap: Record<string, number> = {};
     const assetMap: Record<string, { wins: number; losses: number; pnl: number }> = {};
 
+    const getPropFirmDay = (iso: string): string => {
+        try {
+            const d = new Date(iso);
+            if (isNaN(d.getTime())) return iso.split('T')[0] || 'unknown';
+            // Shift by -17 hours: a trade at 5 PM EST becomes midnight of next day
+            const estOffset = -5 * 60; // EST is UTC-5
+            const localMs = d.getTime() + estOffset * 60000;
+            const estDate = new Date(localMs);
+            const estHour = estDate.getUTCHours();
+            // If hour >= 17 (5 PM), it belongs to the next calendar day
+            if (estHour >= 17) {
+                const nextDay = new Date(estDate.getTime() + 24 * 60 * 60000);
+                return nextDay.toISOString().split('T')[0];
+            }
+            return estDate.toISOString().split('T')[0];
+        } catch {
+            return iso.split('T')[0] || 'unknown';
+        }
+    };
+
     closed.forEach(t => {
         const pnl = (t.pnl ?? (t.outcome === 'win' ? t.rewardUSD : -t.riskUSD));
-        // Try to extract date from createdAt (handles both ISO and locale strings)
-        const rawDate = t.createdAt;
+        const rawDate = t.closedAt || t.createdAt;
         let day = '';
         try {
-            const d = new Date(rawDate);
-            day = isNaN(d.getTime()) ? rawDate.split(',')[0] || rawDate.split('T')[0] : d.toLocaleDateString('en-CA', { timeZone: 'America/New_York' });
+            day = getPropFirmDay(rawDate);
         } catch {
             day = rawDate.split('T')[0] || 'unknown';
         }
@@ -377,14 +396,18 @@ export function analyzeBehavior(trades: TradeSession[], maxTradeRisk: number): B
         }
     }
 
-    // Revenge trading: did size increase significantly after a loss?
+    // ── Revenge trading — SIZE dimension ──────────────────────────
+    // Did risk size jump >30% immediately after a loss?
     let revengePct = 0;
     let revengeRisk = false;
+    let revengeTimeDensity = false;   // NEW: rapid-fire cluster after loss
     if (closed.length >= 2) {
         for (let i = 0; i < closed.length - 1; i++) {
             if (closed[i].outcome === 'loss') {
                 const afterSize = closed[i + 1]?.riskUSD || 0;
-                const bump = ((afterSize - closed[i].riskUSD) / closed[i].riskUSD) * 100;
+                const bump = closed[i].riskUSD > 0
+                    ? ((afterSize - closed[i].riskUSD) / closed[i].riskUSD) * 100
+                    : 0;
                 if (bump > 30) {
                     revengePct = Math.max(revengePct, bump);
                     revengeRisk = true;
@@ -393,8 +416,32 @@ export function analyzeBehavior(trades: TradeSession[], maxTradeRisk: number): B
         }
     }
 
+    // ── Revenge trading — TIME-DENSITY dimension (NEW) ─────────────
+    // 3+ trades within 5 minutes of a loss = revenge cluster even at normal size
+    for (let i = 0; i < closed.length; i++) {
+        if (closed[i].outcome === 'loss') {
+            const lossTime = new Date(closed[i].closedAt || closed[i].createdAt).getTime();
+            if (isNaN(lossTime)) continue;
+            const clusterWindow = 5 * 60 * 1000; // 5 minutes
+            const rapidFollowUps = closed.slice(i + 1).filter(t => {
+                const t2 = new Date(t.createdAt).getTime();
+                return !isNaN(t2) && (t2 - lossTime) <= clusterWindow;
+            });
+            if (rapidFollowUps.length >= 2) {
+                revengeTimeDensity = true;
+                break;
+            }
+        }
+    }
+
+    // Combine both revenge signals
+    if (revengeTimeDensity) revengeRisk = true;
+
     const revengeSeverity: BehaviorAnalysis['revengeSeverity'] =
-        revengePct > 100 ? 'extreme' : revengePct > 60 ? 'high' : revengePct > 30 ? 'low' : 'none';
+        revengePct > 100 || (revengeTimeDensity && revengePct > 30) ? 'extreme'
+        : revengePct > 60  || revengeTimeDensity ? 'high'
+        : revengePct > 30  ? 'low'
+        : 'none';
 
     // Overtrading: more than 6 trades today or avg < 15 min apart
     const todayTrades = trades.filter(t => {
@@ -433,6 +480,8 @@ export function analyzeBehavior(trades: TradeSession[], maxTradeRisk: number): B
     let recommendation = '';
     if (stopTradingRecommended) {
         recommendation = `⛔ STOP TRADING. ${consecutiveLosses} consecutive losses detected. Take a ${cooldownMinutes}-minute break before your next trade.`;
+    } else if (revengeTimeDensity && emotionalState !== 'revenge') {
+        recommendation = `⚠️ TIME-DENSITY ALERT: 2+ rapid-fire trades within 5 min of a loss detected — classic revenge cluster. Take a ${cooldownMinutes}-min break.`;
     } else if (emotionalState === 'stressed') {
         recommendation = `⚠️ Elevated stress signals. Reduce size by 50%. Max 1–2 more trades today.`;
     } else if (revengeRisk) {
@@ -1337,5 +1386,574 @@ export function runStrategySimulator(params: {
         summary: best.config.riskUSD !== currentRisk
             ? `Optimal risk: $${best.config.riskUSD} (${best.config.riskUSD > currentRisk ? '↑ increase' : '↓ reduce'} from $${currentRisk}). +${best.result.medianMonthlyReturn.toFixed(1)}%/month, ${best.result.survivalRate.toFixed(0)}% survival.`
             : `Current config is near-optimal. Survival: ${best.result.survivalRate.toFixed(0)}%, +${best.result.medianMonthlyReturn.toFixed(1)}%/month.`
+    };
+}
+
+// ─────────────────────────────────────────────────────────────────
+// Feature #14 — Natural Language AI Processor (NLP v2)
+// ─────────────────────────────────────────────────────────────────
+
+export interface ChatCard {
+    label: string;
+    value: string;
+    highlight?: boolean;
+    danger?: boolean;
+}
+
+export const VERBAL_ASSET_MAP: Record<string, string> = {
+    GOLD: 'GC', GOLD1: 'GC',
+    OIL: 'CL', CRUDEOIL: 'CL', CRUDE: 'CL', WTI: 'CL',
+    SILVER: 'SI',
+    TBOND: 'ZB', BONDS: 'ZB', BOND: 'ZB',
+    NASDAQ: 'NQ', NDX: 'NQ',
+    SP500: 'ES', SPX: 'ES', SP: 'ES',
+    DOW: 'YM', DJIA: 'YM',
+    RUSSELL: 'RTY', RUT: 'RTY',
+};
+
+export const CRYPTO_SYMBOLS = new Set([
+    'BTC', 'ETH', 'SOL', 'PEPE', 'WIF', 'BONK', 'PNUT', 'DOGE', 'SUI', 'AVAX',
+    'APT', 'LINK', 'UNI', 'ADA', 'XRP', 'DOT', 'NEAR', 'FET', 'LTC', 'BCH',
+    'RENDER', 'TAO', 'TIA', 'SEI', 'INJ', 'JUP', 'PYTH', 'OP', 'ARB', 'STRK',
+]);
+export const FOREX_PREFIXES = ['EUR', 'GBP', 'JPY', 'CHF', 'CAD', 'AUD', 'NZD', 'USD'];
+
+export function resolveAsset(raw: string): string {
+    const s = raw.toUpperCase().replace(/[^A-Z0-9]/g, '');
+    return VERBAL_ASSET_MAP[s] || s;
+}
+
+export function detectAssetType(symbol: string): 'crypto' | 'forex' | 'futures' | 'stocks' {
+    const s = resolveAsset(symbol);
+    const { FUTURES_SPECS } = require('@/store/appStore');
+    const FUTURES_SET = new Set(Object.keys(FUTURES_SPECS || {}));
+    if (FUTURES_SET.has(s)) return 'futures';
+    if (CRYPTO_SYMBOLS.has(s)) return 'crypto';
+    if (s.length === 6 && FOREX_PREFIXES.some(p => s.startsWith(p) || s.endsWith(p))) return 'forex';
+    return 'crypto';
+}
+
+// ─────────────────────────────────────────────────────────────────
+// NLP v3 — Contextual Intent Extraction
+// Maps numbers to their role by CONTEXT (proximity to keywords)
+// Not by position in the array, which breaks for varied word order.
+// ─────────────────────────────────────────────────────────────────
+
+interface ContextualNumbers {
+    entry: number;
+    stopLossPrice: number;   // absolute price, e.g. 21420
+    stopDistPoints: number;  // point/tick/pip distance, e.g. 30 points
+    riskUSD: number;         // dollar risk, e.g. $500
+    knownContracts: number;  // explicit contract/lot count
+    knownTP: number;         // explicit take-profit price
+}
+
+function extractContextualNumbers(text: string, fallbackMaxRisk: number): ContextualNumbers {
+    const result: ContextualNumbers = {
+        entry: 0, stopLossPrice: 0, stopDistPoints: 0,
+        riskUSD: 0, knownContracts: 0, knownTP: 0,
+    };
+
+    // ── Dollar risk (highest specificity — explicit $ sign) ───────
+    const dollarMatch = text.match(/\$\s*([\d,]+(?:\.\d+)?)/);
+    if (dollarMatch) result.riskUSD = parseFloat(dollarMatch[1].replace(/,/g, ''));
+
+    // ── Point/tick/pip stop distance ─────────────────────────────
+    const stopDistMatch = text.match(/(\d+(?:\.\d+)?)\s*(?:point|points|tick|ticks|pip|pips|pt|pts)\b/i);
+    if (stopDistMatch) result.stopDistPoints = parseFloat(stopDistMatch[1]);
+
+    // ── Explicit contract/lot count ───────────────────────────────
+    const sizeMatch = text.match(/(\d+(?:\.\d+)?)\s*(?:contract|contracts|lot|lots|share|shares|unit|units)\b/i);
+    if (sizeMatch) result.knownContracts = parseFloat(sizeMatch[1]);
+
+    // ── Stop loss price: number after "stop at|sl at|stop loss at" ─
+    const stopPriceMatch = text.match(/(?:stop(?:\s*loss)?|sl)\s+(?:at|@|price)?\s*([\d,]+(?:\.\d+)?)/i);
+    if (stopPriceMatch) result.stopLossPrice = parseFloat(stopPriceMatch[1].replace(/,/g, ''));
+    // Also handles "stop: 21420"
+    if (!result.stopLossPrice) {
+        const stopColonMatch = text.match(/stop[\s:]+([\d,]+(?:\.\d+)?)/i);
+        if (stopColonMatch) result.stopLossPrice = parseFloat(stopColonMatch[1].replace(/,/g, ''));
+    }
+
+    // ── Entry price: number after "at|@|entry|entered|from|bought" ─
+    const entryMatch = text.match(/(?:at|@|entry|entered|bought at|sold at|from)\s+([\d,]+(?:\.\d+)?)/i);
+    if (entryMatch) result.entry = parseFloat(entryMatch[1].replace(/,/g, ''));
+
+    // ── Take profit: number after "tp|take profit|target" ─────────
+    const tpMatch = text.match(/(?:tp|take.?profit|target)\s+(?:at|@|price)?\s*([\d,]+(?:\.\d+)?)/i);
+    if (tpMatch) result.knownTP = parseFloat(tpMatch[1].replace(/,/g, ''));
+
+    // ── Fallback: if some fields still empty, use positional order ─
+    // Extract all bare numbers in order as the last resort
+    const allNums = (text.match(/(?<![\$\d])([\d,]+(?:\.\d+)?)(?![%])/g) || [])
+        .map(n => parseFloat(n.replace(/,/g, '')))
+        .filter(n => !isNaN(n) && n > 0);
+
+    if (!result.entry && allNums.length > 0) {
+        // Largest number that looks like a price (> 100 for NQ, or significant)
+        const priceCandidate = allNums.find(n => n > 100) || allNums[0];
+        result.entry = priceCandidate || 0;
+    }
+    if (!result.stopLossPrice && !result.stopDistPoints && allNums.length >= 2) {
+        // Second large number is probably stop loss
+        const remaining = allNums.filter(n => n !== result.entry);
+        if (remaining.length > 0 && remaining[0] < result.entry * 2) {
+            result.stopLossPrice = remaining[0];
+        }
+    }
+    if (!result.riskUSD) {
+        result.riskUSD = fallbackMaxRisk;
+    }
+
+    return result;
+}
+
+export function processNaturalLanguage(
+    input: string,
+    balance: number,
+    maxRisk: number,
+    todayUsed: number,
+    dailyLimit: number,
+    trades: TradeSession[],
+    account: AccountSettings
+): { content: string; cards: ChatCard[] } {
+    const { getFuturesSpec, FUTURES_SPECS } = require('@/store/appStore');
+    const lower = input.toLowerCase().trim();
+
+    // Use contextual extraction (v3)
+    const ctx = extractContextualNumbers(lower, maxRisk);
+    const riskAmt         = ctx.riskUSD;
+    const stopLoss        = ctx.stopLossPrice;
+    const stopDistNum     = ctx.stopDistPoints;
+    const knownSizeNum    = ctx.knownContracts;
+    const entry           = ctx.entry;
+    const customTP        = ctx.knownTP;
+
+    // Keep legacy aliases for branches not yet refactored
+    const nums = (input.match(/[\d,]+\.?\d*/g) || [])
+        .map(n => parseFloat(n.replace(/,/g, '')))
+        .filter(n => !isNaN(n) && n > 0);
+    const second = nums[1] || 0;
+    const third  = nums[2] || 0;
+
+    const hasStopDist = stopDistNum > 0;
+    const hasKnownSize = knownSizeNum > 0;
+    const customSize = 0;
+
+    const assetRaw = (
+        input.match(/\b(BTC|ETH|SOL|XRP|PEPE|DOGE|AVAX|LINK|ADA|SUI|APT|INJ|TAO|OP|ARB|STRK|NQ|MNQ|ES|MES|YM|MYM|RTY|M2K|GC|MGC|CL|QM|SI|ZB|GOLD|OIL|SILVER|NASDAQ|SP500|DOW|RUSSELL|WTI|EURUSD|GBPUSD|USDJPY|AUDUSD|EURUSD|EUR|GBP)\b/i)?.[0]?.toUpperCase()
+    ) || 'ASSET';
+    const asset     = resolveAsset(assetRaw);
+    const assetType = detectAssetType(asset);
+    const fSpec     = assetType === 'futures' ? getFuturesSpec(asset) : null;
+
+    const hasEntry    = /entry|enter|entered|@|at\s+\d|from\s+\d|bought at|sold at|filled/i.test(lower);
+    const hasStop     = /\bstop\b|sl\b|stoploss|stop\.loss|stop price/i.test(lower);
+    const hasRisk     = /\brisk\b|risking|\$\d+/i.test(lower);
+    const hasSize     = /\blot|contract|unit|size|position\b/i.test(lower);
+    const hasTP       = /take.?profit|tp\b|target/i.test(lower);
+    const hasBalance  = /balance|account|reach|goal/i.test(lower);
+    const hasStatus   = /status|guardian|safe|how am i|check|account health/i.test(lower);
+    const hasCoach    = /coach|report|today|session|how did/i.test(lower);
+    const hasBehavior = /revenge|emotional|behavior|overtrading|feeling/i.test(lower);
+    const hasTpOpt    = /best tp|optimal tp|probability|what tp/i.test(lower);
+    const hasSpec     = /point.?value|tick.?size|tick.?value|spec|specification|pip.?value|contract.?size|dollar.?per|notional|how much.*per.?point/i.test(lower)
+                     || /\b(what is|what'?s|how much)\b.*\b(nq|es|mnq|mes|gc|mgc|cl|qm|si|zb|ym|mym|rty|m2k|gold|oil|silver)\b/i.test(lower);
+
+    const hasDollarRisk = /\bmy risk\b|what.*risk|how much.*risk|dollar.*risk|risk.*dollar|risk.*on.*\d.*contract/i.test(lower);
+    const isPayout    = /payout|eligible|eligib|consistent enough|consistency\.check|payout\.check/i.test(lower);
+    const isStrategy  = /what should.*trade|best.*trade|my edge|best.*setup|top.*asset|what.*do i.*trade|my best/i.test(lower);
+    const isBreakEven = /break.?even/i.test(lower);
+    const isRRCalc    = /\b(rr|r:r|risk.?reward)\b/i.test(lower) && nums.length >= 2;
+
+    const isShort = /\b(short|sell|shorting|selling|sold|bear)\b/i.test(lower);
+
+    const dailyLeft = Math.max(0, dailyLimit - todayUsed);
+    if (dailyLeft <= 0 && (hasEntry || hasRisk || hasKnownSize)) {
+        return {
+            content: `⛔ Daily loss limit reached ($${dailyLimit.toLocaleString()}). No new trades today. Reset tomorrow at 5:00 PM EST.`,
+            cards: [
+                { label: 'Daily Limit', value: `$${dailyLimit.toLocaleString()}`, danger: true },
+                { label: 'Used Today',  value: `$${todayUsed.toFixed(0)}`,        danger: true },
+                { label: 'Reset',       value: '5:00 PM EST daily',               highlight: false },
+            ],
+        };
+    }
+
+    if (hasSpec) {
+        if (fSpec) {
+            const tickVal   = fSpec.pointValue * fSpec.tickSize;
+            const move10    = fSpec.pointValue * 10;
+            const move50    = fSpec.pointValue * 50;
+            return {
+                content: `Contract specification for ${asset} — ${fSpec.label} on ${fSpec.exchange}:`,
+                cards: [
+                    { label: 'Point Value',       value: `$${fSpec.pointValue.toFixed(2)} / point / contract`, highlight: true },
+                    { label: 'Tick Size',          value: `${fSpec.tickSize} points` },
+                    { label: 'Tick Value',         value: `$${tickVal.toFixed(2)} per tick per contract` },
+                    { label: 'Exchange',           value: fSpec.exchange },
+                    { label: '10-Point Move',      value: `$${move10.toFixed(0)} per contract` },
+                    { label: '50-Point Move',      value: `$${move50.toFixed(0)} per contract` },
+                    { label: 'Quick Example',      value: `Stop 20pts × 1 contract = $${fSpec.pointValue * 20} risk`, highlight: true },
+                ],
+            };
+        }
+        if (/forex|pip|eurusd|gbpusd|fx/i.test(lower)) {
+            return {
+                content: 'Standard forex pip values — standard lot = 100,000 units:',
+                cards: [
+                    { label: 'Standard Lot (1.0)',  value: '$10 per pip (USD pairs)',   highlight: true },
+                    { label: 'Mini Lot (0.1)',       value: '$1 per pip' },
+                    { label: 'Micro Lot (0.01)',     value: '$0.10 per pip' },
+                    { label: 'JPY Pairs',            value: '~$6.80 per pip (fluctuates)' },
+                    { label: 'Quick Example',        value: '20-pip stop × 0.5 lots = $100 risk', highlight: true },
+                    { label: 'Formula',              value: 'Risk = Pips × PipValue × Lots' },
+                ],
+            };
+        }
+        return {
+            content: 'All tracked futures contract specs:',
+            cards: Object.entries(FUTURES_SPECS).map(([sym, s]: any) => ({
+                label: `${sym} — ${s.label}`,
+                value: `$${s.pointValue}/pt · tick $${(s.pointValue * s.tickSize).toFixed(2)} · ${s.exchange}`,
+            })),
+        };
+    }
+
+    if (hasStopDist && entry > 0) {
+        if (assetType === 'futures' && fSpec) {
+            const rawContracts = riskAmt / (stopDistNum * fSpec.pointValue);
+            const contracts    = Math.max(1, Math.round(rawContracts));
+            const actualRisk   = contracts * stopDistNum * fSpec.pointValue;
+            const slPrice      = isShort ? entry + stopDistNum : entry - stopDistNum;
+            const tp2R         = isShort ? entry - stopDistNum * 2 : entry + stopDistNum * 2;
+            const tp3R         = isShort ? entry - stopDistNum * 3 : entry + stopDistNum * 3;
+            const ticks        = stopDistNum / fSpec.tickSize;
+            return {
+                content: `${asset} (${fSpec.label}) — Entry: ${entry}, Stop: ${stopDistNum} pts (${ticks.toFixed(0)} ticks), Risk: $${riskAmt}:`,
+                cards: [
+                    { label: 'Contracts',         value: contracts.toString(),                                          highlight: true },
+                    { label: 'Stop Loss Price',   value: slPrice.toFixed(2),                                           danger: true },
+                    { label: 'Actual Risk',       value: `$${actualRisk.toFixed(0)}`,                                  danger: actualRisk > maxRisk },
+                    { label: 'Risk / Contract',   value: `$${(stopDistNum * fSpec.pointValue).toFixed(0)}` },
+                    { label: 'TP 2R',             value: tp2R.toFixed(2),                                              highlight: true },
+                    { label: 'TP 3R',             value: tp3R.toFixed(2) },
+                    { label: 'Ticks to Stop',     value: `${ticks.toFixed(0)} ticks @ $${(fSpec.pointValue * fSpec.tickSize).toFixed(2)}/tick` },
+                    { label: 'Guardian',          value: actualRisk > maxRisk ? `Over limit! Reduce to 1 contract` : 'Within risk parameters', danger: actualRisk > maxRisk },
+                ],
+            };
+        }
+
+        if (assetType === 'forex') {
+            const pipValue = 10;
+            const lots     = Math.round((riskAmt / (stopDistNum * pipValue)) * 100) / 100;
+            return {
+                content: `Forex position for ${asset} — Entry: ${entry}, Stop: ${stopDistNum} pips, Risk: $${riskAmt}:`,
+                cards: [
+                    { label: 'Position Size',   value: `${lots} lots`,                                    highlight: true },
+                    { label: 'Stop Pips',       value: `${stopDistNum} pips` },
+                    { label: 'Pip Value',       value: `$${(lots * pipValue).toFixed(2)} per pip` },
+                    { label: 'Actual Risk',     value: `$${(lots * stopDistNum * pipValue).toFixed(0)}` },
+                    { label: 'TP 2R',           value: `${(stopDistNum * 2).toFixed(1)} pips from entry`,  highlight: true },
+                ],
+            };
+        }
+
+        const size = stopDistNum > 0 ? Math.round((riskAmt / stopDistNum) * 100) / 100 : 0;
+        const tp2R = isShort ? entry - stopDistNum * 2 : entry + stopDistNum * 2;
+        return {
+            content: `${asset} position — Entry: ${entry}, Stop distance: $${stopDistNum}, Risk: $${riskAmt}:`,
+            cards: [
+                { label: 'Position Size', value: `${size} units`,                    highlight: true },
+                { label: 'Stop Distance', value: `$${stopDistNum}` },
+                { label: 'Risk',          value: `$${riskAmt}` },
+                { label: 'TP 2R',         value: tp2R.toFixed(4),                    highlight: true },
+                { label: 'TP 3R',         value: (isShort ? entry - stopDistNum * 3 : entry + stopDistNum * 3).toFixed(4) },
+            ],
+        };
+    }
+
+    if ((hasKnownSize || hasDollarRisk) && knownSizeNum > 0 && (stopDistNum > 0 || second > 0)) {
+        const stopPts = stopDistNum > 0 ? stopDistNum : second;
+
+        if (assetType === 'futures' && fSpec) {
+            const totalRisk       = knownSizeNum * stopPts * fSpec.pointValue;
+            const riskPerContract = stopPts * fSpec.pointValue;
+            const ticks           = stopPts / fSpec.tickSize;
+            const tickVal         = fSpec.pointValue * fSpec.tickSize;
+            return {
+                content: `Dollar risk for ${knownSizeNum} ${asset} contract${knownSizeNum > 1 ? 's' : ''}, ${stopPts}-point stop:`,
+                cards: [
+                    { label: 'Total Risk',         value: `$${totalRisk.toFixed(0)}`,                             highlight: totalRisk <= maxRisk, danger: totalRisk > maxRisk },
+                    { label: 'Risk / Contract',    value: `$${riskPerContract.toFixed(0)}` },
+                    { label: 'Stop in Ticks',      value: `${ticks.toFixed(0)} ticks` },
+                    { label: 'Tick Value',         value: `$${tickVal.toFixed(2)} / tick / contract` },
+                    { label: 'Point Value',        value: `$${fSpec.pointValue} / point / contract` },
+                    { label: 'vs Your Max Risk',   value: totalRisk > maxRisk ? `$${(totalRisk - maxRisk).toFixed(0)} OVER your limit` : `$${(maxRisk - totalRisk).toFixed(0)} under your limit`, danger: totalRisk > maxRisk },
+                ],
+            };
+        }
+
+        if (assetType === 'forex') {
+            const pipValue  = 10;
+            const totalRisk = knownSizeNum * stopPts * pipValue;
+            return {
+                content: `Dollar risk: ${knownSizeNum} lots ${asset}, ${stopPts} pip stop:`,
+                cards: [
+                    { label: 'Total Risk',   value: `$${totalRisk.toFixed(0)}`, highlight: totalRisk <= maxRisk, danger: totalRisk > maxRisk },
+                    { label: 'Pip Value',    value: `$${(knownSizeNum * pipValue).toFixed(2)} per pip` },
+                    { label: 'Stop Pips',   value: `${stopPts}` },
+                ],
+            };
+        }
+
+        const totalRisk = knownSizeNum * stopPts;
+        return {
+            content: `Dollar risk for ${knownSizeNum} units ${asset}, $${stopPts} stop distance:`,
+            cards: [
+                { label: 'Total Risk', value: `$${totalRisk.toFixed(0)}`, highlight: totalRisk <= maxRisk, danger: totalRisk > maxRisk },
+                { label: 'Per Unit',   value: `$${stopPts} risk per unit` },
+            ],
+        };
+    }
+
+    if (isPayout) {
+        const c = analyzeConsistency(trades);
+        return {
+            content: `Tradeify payout consistency check — best single day must be ≤ 20% of total profit:`,
+            cards: [
+                { label: 'Payout Eligible',    value: c.payoutEligible ? 'YES — ELIGIBLE' : 'NOT YET',                    highlight: c.payoutEligible, danger: !c.payoutEligible },
+                { label: 'Best Day Share',     value: `${c.bestDayPct.toFixed(1)}% of total profit`,                       danger: c.bestDayPct > 20 },
+                { label: 'Best Day P&L',       value: `$${c.bestDay.toFixed(0)}` },
+                { label: 'Consistency Score',  value: `${c.score}/100`,                                                    highlight: c.score >= 70 },
+                { label: 'Profit Days',        value: `${c.profitDays}G / ${c.lossDays}R` },
+                { label: 'Action',             value: c.payoutEligible ? 'You can submit a payout request' : `Need best day ≤ 20% of total. Currently ${c.bestDayPct.toFixed(1)}%`, danger: !c.payoutEligible },
+            ],
+        };
+    }
+
+    if (isStrategy) {
+        const s = analyzeStrategy(trades);
+        if (s.personalRulebook.length === 0) {
+            return { content: 'Log at least 5 closed trades to generate your personal edge profile.', cards: [] };
+        }
+        return {
+            content: `Your personal edge profile from ${trades.filter(t => t.outcome === 'win' || t.outcome === 'loss').length} closed trades:`,
+            cards: [
+                { label: 'Top Asset',         value: s.topAsset,                                               highlight: true },
+                { label: 'Worst Asset',        value: s.worstAsset,                                             danger: true },
+                { label: 'Best Condition',     value: s.bestConditions[0]  || 'Keep logging',                   highlight: true },
+                { label: 'Avoid',              value: s.worstConditions[0] || 'None detected',                  danger: !!s.worstConditions[0] },
+                { label: 'Optimal R:R Floor',  value: `${s.optimalRRFloor}R minimum`,                           highlight: true },
+                { label: 'AI Summary',         value: s.aiRulesSummary },
+            ],
+        };
+    }
+
+    if (isBreakEven && entry > 0) {
+        const commRate = assetType === 'crypto' ? 0.0004 : 0;
+        const commPerUnit = entry * commRate;
+        const be = isShort ? entry - commPerUnit * 2 : entry + commPerUnit * 2;
+        return {
+            content: `Break-even for ${isShort ? 'SHORT' : 'LONG'} ${asset} at ${entry}:`,
+            cards: [
+                { label: 'Break-even Price',   value: commRate > 0 ? be.toFixed(4) : entry.toFixed(4), highlight: true },
+                { label: 'Direction',          value: isShort ? 'SHORT — exit below entry to profit' : 'LONG — exit above entry to profit' },
+                { label: 'Round-trip Fee',     value: commRate > 0 ? `~$${(commPerUnit * 2).toFixed(4)}/unit` : 'Flat per contract (futures)' },
+                { label: 'Note',              value: 'Move stop to entry once 1R in profit to guarantee break-even.' },
+            ],
+        };
+    }
+
+    if (isRRCalc && entry > 0 && second > 0) {
+        const sl = second;
+        const tp = third > 0 ? third : 0;
+        const risk   = Math.abs(entry - sl);
+        const reward = tp > 0 ? Math.abs(tp - entry) : 0;
+        const rr     = risk > 0 && reward > 0 ? reward / risk : 0;
+        if (rr > 0) {
+            return {
+                content: `R:R for ${asset}: Entry ${entry}, SL ${sl}${tp > 0 ? `, TP ${tp}` : ''}:`,
+                cards: [
+                    { label: 'Risk : Reward',  value: `${rr.toFixed(2)}:1`,                                              highlight: rr >= 2, danger: rr < 1 },
+                    { label: 'Risk Distance',  value: `${risk.toFixed(4)} ${fSpec ? 'points' : 'units'}` },
+                    { label: 'Reward Distance', value: `${reward.toFixed(4)} ${fSpec ? 'points' : 'units'}` },
+                    { label: 'Risk $',          value: fSpec ? `$${(risk * fSpec.pointValue).toFixed(0)}/contract` : `Depends on size` },
+                    { label: 'Verdict',         value: rr >= 2 ? 'Quality setup — minimum 2R met' : rr >= 1.5 ? 'Acceptable — consider improving' : 'Poor R:R — skip or resize', highlight: rr >= 2, danger: rr < 1.5 },
+                ],
+            };
+        }
+    }
+
+    if (hasStatus || (!hasEntry && !hasRisk && !hasTP && !hasStopDist && !hasKnownSize && nums.length === 0)) {
+        const guardian = analyzeRiskGuardian(account, todayUsed);
+        const beh      = analyzeBehavior(trades, maxRisk);
+        return {
+            content: `Live account status:`,
+            cards: [
+                { label: 'Daily Remaining',   value: `$${guardian.remainingDaily.toFixed(0)}`,  highlight: true },
+                { label: 'Safe Risk / Trade', value: `$${guardian.safeRisk.toFixed(0)}`,        highlight: true },
+                { label: 'Trades Left Today', value: `${guardian.maxTradesLeft}` },
+                { label: 'Survival Status',   value: guardian.survivalStatus.toUpperCase(),      danger: guardian.survivalStatus !== 'safe' },
+                { label: 'Emotional State',   value: beh.emotionalState.toUpperCase(),           danger: beh.emotionalState === 'revenge' || beh.emotionalState === 'stressed' },
+                { label: 'Guardian',          value: guardian.recommendation },
+            ],
+        };
+    }
+
+    if (hasCoach) {
+        // Call directly — generateDailyReport is in the same file, no require needed
+        const report = generateDailyReport(trades, account, todayUsed);
+        return {
+            content: `AI coaching report for today's session:`,
+            cards: [
+                { label: 'Trades Today',       value: `${report.trades}` },
+                { label: 'Net Profit',         value: `${report.netProfit >= 0 ? '+' : ''}$${report.netProfit.toFixed(0)}`, highlight: report.netProfit > 0, danger: report.netProfit < 0 },
+                { label: 'Discipline Grade',   value: report.disciplineGrade,                                               highlight: true },
+                { label: 'Revenge Trades',     value: `${report.revengeTradesDetected}`,                                   danger: report.revengeTradesDetected > 0 },
+                { label: 'Strength',           value: report.strengths[0] || 'Keep logging' },
+                { label: 'Tomorrow Focus',     value: report.tomorrowFocus },
+            ],
+        };
+    }
+
+    if (hasBehavior) {
+        const beh = analyzeBehavior(trades, maxRisk);
+        return {
+            content: `Behavioral analysis:`,
+            cards: [
+                { label: 'Emotional State',     value: beh.emotionalState.toUpperCase(),                                              danger: beh.emotionalState !== 'disciplined' },
+                { label: 'Consecutive Losses',  value: `${beh.consecutiveLosses}`,                                                    danger: beh.consecutiveLosses >= 2 },
+                { label: 'Revenge Risk',        value: beh.revengeRisk ? `YES (+${beh.revengePct.toFixed(0)}% size after loss)` : 'None detected', danger: beh.revengeRisk },
+                { label: 'Trades Today',        value: `${beh.tradesThisSession}`,                                                    danger: beh.overtradingAlert },
+                { label: 'Recommendation',      value: beh.recommendation },
+            ],
+        };
+    }
+
+    if (hasTpOpt && entry > 0 && stopLoss > 0) {
+        // Call directly — optimizeTakeProfit is in the same file
+        const wins  = trades.filter(t => t.outcome === 'win').length;
+        const total = trades.filter(t => t.outcome === 'win' || t.outcome === 'loss').length;
+        const wr    = total > 0 ? wins / total : 0.5;
+        const result = optimizeTakeProfit({ entry, stopLoss: stopLoss, riskUSD: third || maxRisk, historicalWinRate: wr });
+        const best   = result.tiers.find((t: any) => t.tp === result.recommendedTP);
+        return {
+            content: `TP Optimizer for ${asset} @ ${entry} (SL: ${stopLoss}):`,
+            cards: [
+                { label: 'Recommended TP',      value: result.recommendedTP.toFixed(4), highlight: true },
+                { label: 'Recommended R:R',     value: `${result.recommendedRR}R`,      highlight: true },
+                { label: 'Hit Probability',     value: `~${best?.estimatedProbability || 50}%` },
+                { label: 'Expected Value',      value: `$${best?.expectedValue.toFixed(0) || 0}/trade` },
+                { label: 'Based On Win Rate',   value: `${(wr * 100).toFixed(0)}% historical` },
+                { label: 'Reasoning',           value: result.reasoning },
+            ],
+        };
+    }
+
+    if (hasEntry && hasStop && hasRisk && entry > 0 && stopLoss > 0) {
+        const result   = calcSmartPositionSize({
+            entry, stopLoss, riskUSD: riskAmt,
+            assetType, symbol: asset,
+            includeTradeifyFee: assetType === 'crypto',
+        });
+        const guardian = analyzeRiskGuardian(account, todayUsed, riskAmt);
+        const tp2R     = isShort
+            ? entry - Math.abs(entry - stopLoss) * 2
+            : entry + Math.abs(entry - stopLoss) * 2;
+
+        const cards: ChatCard[] = [
+            { label: 'Position Size',       value: `${result.size.toLocaleString()} ${result.unit}`, highlight: true },
+            { label: 'Risk Amount',         value: `$${result.riskUSD.toFixed(0)}` },
+            { label: 'Stop Distance',       value: `${result.stopDistance.toFixed(4)} (${result.stopPct.toFixed(2)}%)` },
+            { label: 'TP 2R',              value: tp2R.toFixed(4),                                  highlight: true },
+            { label: 'TP 3R',              value: (isShort ? entry - result.stopDistance * 3 : entry + result.stopDistance * 3).toFixed(4) },
+        ];
+        if (assetType === 'futures' && fSpec) {
+            cards.push({ label: 'Point Value', value: `$${fSpec.pointValue}/pt` });
+            cards.push({ label: 'Notional',    value: `$${result.notional.toLocaleString(undefined, { maximumFractionDigits: 0 })}` });
+        } else {
+            cards.push({ label: 'Notional',    value: `$${result.notional.toLocaleString(undefined, { maximumFractionDigits: 0 })}` });
+        }
+        if (assetType === 'crypto') {
+            cards.push({ label: 'Commission (0.04%)', value: `$${result.comm.toFixed(2)}` });
+        }
+        cards.push({ label: 'Guardian',      value: guardian.tradeWarning || 'Clear to trade', danger: !!guardian.tradeWarning });
+        return { content: `Position sizing for ${isShort ? 'SHORT' : 'LONG'} ${asset} — Entry: ${entry}, SL: ${stopLoss}, Risk: $${riskAmt}:`, cards };
+    }
+
+    if (hasSize && hasRisk && entry > 0 && second > 0 && !hasStop) {
+        const size    = second;
+        let   move    = 0;
+        if (assetType === 'futures' && fSpec) {
+            move = riskAmt / (size * fSpec.pointValue);
+        } else if (assetType === 'forex') {
+            move = riskAmt / (size * 100000);
+        } else {
+            move = size > 0 ? riskAmt / size : 0;
+        }
+        const sl  = isShort ? entry + move : entry - move;
+        const tp2R = isShort ? entry - move * 2 : entry + move * 2;
+        return {
+            content: `Stop Loss for ${isShort ? 'SHORT' : 'LONG'} ${asset} — Entry: ${entry}, Size: ${size} ${fSpec ? 'contracts' : 'units'}, Risk: $${riskAmt}:`,
+            cards: [
+                { label: 'Stop Loss Price',   value: sl.toFixed(4),                       danger: true },
+                { label: 'Stop Distance',     value: `${move.toFixed(4)} ${fSpec ? 'points' : 'units'}` },
+                { label: 'Risk',             value: `$${riskAmt.toFixed(0)}` },
+                { label: 'TP 2R',            value: tp2R.toFixed(4),                      highlight: true },
+                { label: 'Stop %',           value: `${((move / entry) * 100).toFixed(2)}%` },
+                ...(fSpec ? [{ label: 'Point Value', value: `$${fSpec.pointValue}/point` }] : []),
+            ],
+        };
+    }
+
+    if (hasBalance && hasTP && entry > 0 && second > 0) {
+        const targetBal  = nums.find(n => n > balance * 0.9 && n > balance) || second;
+        const size       = nums.find(n => n < entry * 100 && n !== entry && n !== targetBal) || 1;
+        const sl         = second < entry ? second : entry - (entry * 0.01);
+        const result     = calcProfitTarget({ entry, stopLoss: sl, size, targetBalance: targetBal, currentBalance: balance });
+        return {
+            content: `To reach $${targetBal.toLocaleString()} with ${size} ${asset}:`,
+            cards: [
+                { label: 'Required Take Profit', value: result.requiredTP.toFixed(4), highlight: true },
+                { label: 'Profit Needed',        value: `$${result.expectedProfit.toFixed(0)}`, highlight: true },
+                { label: 'R:R Ratio',            value: `${result.rr.toFixed(2)}R` },
+                { label: 'Position Value',       value: `$${result.positionValue.toLocaleString(undefined, { maximumFractionDigits: 0 })}` },
+                { label: 'Note',                value: assetType === 'futures' ? 'Futures: multiply profit by point value for accuracy.' : 'Spot P&L = (TP − entry) × size' },
+            ],
+        };
+    }
+
+    if (hasSize && entry > 0) {
+        if (assetType === 'futures' && fSpec) {
+            const assumedStopPts = fSpec.tickSize * 20; // 20 ticks default
+            const contracts = Math.max(1, Math.round(riskAmt / (assumedStopPts * fSpec.pointValue)));
+            return {
+                content: `Estimated ${asset} position (20-tick stop assumed):`,
+                cards: [
+                    { label: 'Contracts',    value: contracts.toString(),                           highlight: true },
+                    { label: 'Stop Assumed', value: `${assumedStopPts} pts (20 ticks)`,            danger: true },
+                    { label: 'Risk',         value: `$${(contracts * assumedStopPts * fSpec.pointValue).toFixed(0)}` },
+                    { label: 'Point Value',  value: `$${fSpec.pointValue}/pt — provide entry + stop for exact sizing` },
+                ],
+            };
+        }
+        const stopPct = 0.01;
+        const sl      = entry * (1 - stopPct);
+        const result  = calcSmartPositionSize({ entry, stopLoss: sl, riskUSD: riskAmt, assetType, symbol: asset });
+        return {
+            content: `Estimated position for ${asset} @ ${entry} with $${riskAmt} risk (1% stop assumed):`,
+            cards: [
+                { label: 'Recommended Size', value: `${result.size.toLocaleString()} ${result.unit}`, highlight: true },
+                { label: 'Risk',            value: `$${result.riskUSD.toFixed(0)}` },
+                { label: 'Stop Loss (1%)',  value: sl.toFixed(4),                                     danger: true },
+                { label: 'TP 2R',           value: result.tp2R.toFixed(4),                            highlight: true },
+            ],
+        };
+    }
+
+    return {
+        content: `I understand you're asking about risk. Here's what I can calculate:\n\n· "NQ at 21450, 30 point stop, $500 risk" — position size\n· "2 NQ contracts, stop 20 points — what's my risk?" — dollar risk\n· "NQ spec" or "point value of GC" — instrument details\n· "What's my status?" — account health\n· "Coach me on today's session" — coaching report\n· "Am I consistent enough for payout?" — payout check\n· "What should I trade?" — personal edge profile`,
+        cards: [],
     };
 }

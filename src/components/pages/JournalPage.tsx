@@ -49,7 +49,7 @@ function fmtDayLabel(dateStr: string): string {
 }
 
 export default function JournalPage() {
-    const { trades, setTrades, deleteTrade, updateTradeNote, setActiveTab } = useAppStore();
+    const { trades, setTrades, deleteTrade, updateTradeNote, setActiveTab, account } = useAppStore();
     const csvRef = useRef<HTMLInputElement>(null);
     const pdfRef = useRef<HTMLInputElement>(null);
     const [viewMode, setViewMode] = useState<'list' | 'calendar'>('list');
@@ -529,7 +529,11 @@ export default function JournalPage() {
 
                                                 {/* Right: P&L + inline outcome for open + expand + delete */}
                                                 <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 1, flexWrap: 'wrap', minWidth: 200, justifyContent: 'flex-end' }}>
-                                                    <div style={{ textAlign: 'right' }}>
+                                                    <div 
+                                                        style={{ textAlign: 'right', cursor: 'pointer', padding: '4px', borderRadius: 4 }} 
+                                                        onClick={(e) => { e.stopPropagation(); setInlineOutcomeId(trade.id); }}
+                                                        title="Tap to edit outcome/P&L"
+                                                    >
                                                         <span style={{ ...mono, fontSize: 16, fontWeight: 800, color: accentColor, letterSpacing: '-0.02em', display: 'block' }}>
                                                             {isWin ? '+' : isLoss ? '-' : '~'}${Math.abs(pnlVal).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                                                         </span>
@@ -538,7 +542,7 @@ export default function JournalPage() {
                                                         )}
                                                     </div>
                                                     {/* Inline WIN/LOSS buttons for open trades */}
-                                                    {trade.outcome === 'open' && (
+                                                    {(trade.outcome === 'open' || inlineOutcomeId === trade.id) && (
                                                         <div style={{ display: 'flex', alignItems: 'center', gap: 4 }} onClick={e => e.stopPropagation()}>
                                                             {inlineOutcomeId === trade.id && (
                                                                 <input
@@ -558,9 +562,18 @@ export default function JournalPage() {
                                                             <button
                                                                 title="Mark as Won"
                                                                 onClick={() => {
-                                                                    if (inlineOutcomeId !== trade.id) { setInlineOutcomeId(trade.id); return; }
-                                                                    const holdMs = Date.now() - new Date(trade.createdAt).getTime();
-                                                                    if (holdMs < 20000) { alert('Micro-scalping detected: Minimum 20s hold required.'); return; }
+                                                                    const minHoldMs = ((account.minHoldTimeSec ?? 20)) * 1000;
+                                                                    // Only enforce hold-time for still-open trades (not re-labelling a closed one)
+                                                                    if (trade.outcome === 'open' && !trade.closedAt) {
+                                                                        const holdMs = Date.now() - new Date(trade.createdAt).getTime();
+                                                                        if (holdMs < minHoldMs) {
+                                                                            alert(`Minimum hold time is ${account.minHoldTimeSec ?? 20}s (prop-firm rule). Wait ${Math.ceil((minHoldMs - holdMs) / 1000)}s more.`);
+                                                                            return;
+                                                                        }
+                                                                    }
+                                                                    const holdMs = trade.closedAt
+                                                                        ? new Date(trade.closedAt).getTime() - new Date(trade.createdAt).getTime()
+                                                                        : Date.now() - new Date(trade.createdAt).getTime();
                                                                     const raw = inlineWinInput[trade.id] ?? '';
                                                                     const val = raw !== '' ? parseFloat(raw) : trade.rewardUSD;
                                                                     if (isNaN(val)) return;
@@ -577,16 +590,24 @@ export default function JournalPage() {
                                                             <button
                                                                 title="Mark as Lost"
                                                                 onClick={() => {
-                                                                    if (inlineOutcomeId !== trade.id) { setInlineOutcomeId(trade.id); return; }
-                                                                    const holdMs = Date.now() - new Date(trade.createdAt).getTime();
-                                                                    if (holdMs < 20000) { alert('Micro-scalping detected: Minimum 20s hold required.'); return; }
+                                                                    const minHoldMs2 = ((account.minHoldTimeSec ?? 20)) * 1000;
+                                                                    if (trade.outcome === 'open' && !trade.closedAt) {
+                                                                        const holdMs = Date.now() - new Date(trade.createdAt).getTime();
+                                                                        if (holdMs < minHoldMs2) {
+                                                                            alert(`Minimum hold time is ${account.minHoldTimeSec ?? 20}s (prop-firm rule). Wait ${Math.ceil((minHoldMs2 - holdMs) / 1000)}s more.`);
+                                                                            return;
+                                                                        }
+                                                                    }
+                                                                    const holdMs2 = trade.closedAt
+                                                                        ? new Date(trade.closedAt).getTime() - new Date(trade.createdAt).getTime()
+                                                                        : Date.now() - new Date(trade.createdAt).getTime();
                                                                     const raw = inlineLossInput[trade.id] ?? '';
                                                                     const val = raw !== '' ? parseFloat(raw) : trade.riskUSD;
                                                                     if (isNaN(val)) return;
                                                                     setTrades(trades.map(t => t.id === trade.id ? {
                                                                         ...t, outcome: 'loss', pnl: -Math.abs(val),
                                                                         closedAt: t.closedAt || new Date().toISOString(),
-                                                                        durationSeconds: Math.floor(holdMs / 1000),
+                                                                        durationSeconds: Math.floor(holdMs2 / 1000),
                                                                     } : t));
                                                                     setInlineOutcomeId(null);
                                                                     setInlineLossInput(prev => { const n = { ...prev }; delete n[trade.id]; return n; });
@@ -659,25 +680,31 @@ export default function JournalPage() {
                                                             </div>
                                                             <button
                                                                 onClick={() => {
-                                                                    const holdMs = new Date().getTime() - new Date(trade.createdAt).getTime();
-                                                                    if (holdMs < 20000) {
-                                                                        alert('Micro-scalping rule: Trades must be held for at least 20 seconds. Please wait.');
-                                                                        return;
-                                                                    }
-                                                                    const val = parseFloat(editPnls[trade.id] ?? String(Math.abs(trade.pnl ?? 0)));
-                                                                    if (!isNaN(val)) setTrades(trades.map(t => t.id === trade.id ? { ...t, outcome: 'win', pnl: Math.abs(val), closedAt: t.closedAt || new Date().toISOString(), durationSeconds: Math.floor((Date.now() - new Date(t.createdAt).getTime()) / 1000) } : t));
+                                                                     const minHold = (account.minHoldTimeSec ?? 20) * 1000;
+                                                                     if (trade.outcome === 'open' && !trade.closedAt) {
+                                                                         const holdMs = Date.now() - new Date(trade.createdAt).getTime();
+                                                                         if (holdMs < minHold) { alert(`Hold time: ${Math.ceil((minHold - holdMs) / 1000)}s remaining (prop-firm rule).`); return; }
+                                                                     }
+                                                                     const holdMs = trade.closedAt
+                                                                         ? new Date(trade.closedAt).getTime() - new Date(trade.createdAt).getTime()
+                                                                         : Date.now() - new Date(trade.createdAt).getTime();
+                                                                     const val = parseFloat(editPnls[trade.id] ?? String(Math.abs(trade.pnl ?? 0)));
+                                                                     if (!isNaN(val)) setTrades(trades.map(t => t.id === trade.id ? { ...t, outcome: 'win', pnl: Math.abs(val), closedAt: t.closedAt || new Date().toISOString(), durationSeconds: Math.floor(holdMs / 1000) } : t));
                                                                 }}
                                                                 style={{ ...mono, fontSize: 11, fontWeight: 700, padding: '7px 12px', background: 'rgba(166,255,77,0.1)', color: '#A6FF4D', border: '1px solid rgba(166,255,77,0.3)', cursor: 'pointer' }}
                                                             >Mark Won</button>
                                                             <button
                                                                 onClick={() => {
-                                                                    const holdMs = new Date().getTime() - new Date(trade.createdAt).getTime();
-                                                                    if (holdMs < 20000) {
-                                                                        alert('Micro-scalping rule: Trades must be held for at least 20 seconds. Please wait.');
-                                                                        return;
-                                                                    }
-                                                                    const val = parseFloat(editPnls[trade.id] ?? String(Math.abs(trade.pnl ?? 0)));
-                                                                    if (!isNaN(val)) setTrades(trades.map(t => t.id === trade.id ? { ...t, outcome: 'loss', pnl: -Math.abs(val), closedAt: t.closedAt || new Date().toISOString(), durationSeconds: Math.floor((Date.now() - new Date(t.createdAt).getTime()) / 1000) } : t));
+                                                                     const minHold = (account.minHoldTimeSec ?? 20) * 1000;
+                                                                     if (trade.outcome === 'open' && !trade.closedAt) {
+                                                                         const holdMs = Date.now() - new Date(trade.createdAt).getTime();
+                                                                         if (holdMs < minHold) { alert(`Hold time: ${Math.ceil((minHold - holdMs) / 1000)}s remaining (prop-firm rule).`); return; }
+                                                                     }
+                                                                     const holdMs = trade.closedAt
+                                                                         ? new Date(trade.closedAt).getTime() - new Date(trade.createdAt).getTime()
+                                                                         : Date.now() - new Date(trade.createdAt).getTime();
+                                                                     const val = parseFloat(editPnls[trade.id] ?? String(Math.abs(trade.pnl ?? 0)));
+                                                                     if (!isNaN(val)) setTrades(trades.map(t => t.id === trade.id ? { ...t, outcome: 'loss', pnl: -Math.abs(val), closedAt: t.closedAt || new Date().toISOString(), durationSeconds: Math.floor(holdMs / 1000) } : t));
                                                                 }}
                                                                 style={{ ...mono, fontSize: 11, fontWeight: 700, padding: '7px 12px', background: 'rgba(255,71,87,0.1)', color: '#ff4757', border: '1px solid rgba(255,71,87,0.3)', cursor: 'pointer' }}
                                                             >Mark Lost</button>
