@@ -32,6 +32,9 @@ export interface RiskGuardianResult {
     survivalStatus: 'safe' | 'caution' | 'danger' | 'critical';
     recommendation: string;
     tradeWarning?: string;      // set when evaluating a specific trade risk
+    kellyPct: number;           // Kelly-optimal % to risk per trade
+    kellyNote: string;          // human-readable Kelly guidance
+    correlationWarning?: string; // set when open trades are correlated
 }
 
 export interface TradeQualityScore {
@@ -59,6 +62,9 @@ export interface BehaviorAnalysis {
     recommendation: string;
     stopTradingRecommended: boolean;
     cooldownMinutes: number;
+    winStreakRisk: boolean;      // escalating size on a win streak (overconfidence)
+    fomoAlert: boolean;         // trading within 5min of US session open
+    correlationWarning: string | null; // open trades in correlated instruments
 }
 
 export interface ConsistencyAnalysis {
@@ -131,7 +137,8 @@ export interface ProfitTargetResult {
 export function analyzeRiskGuardian(
     account: AccountSettings,
     todayUsed: number,
-    proposedRisk?: number
+    proposedRisk?: number,
+    openTrades?: import('@/store/appStore').TradeSession[]
 ): RiskGuardianResult {
     const remainingDaily = Math.max(0, account.dailyLossLimit - todayUsed);
     const maxPerTrade = (account.balance * account.maxRiskPercent) / 100;
@@ -155,6 +162,46 @@ export function analyzeRiskGuardian(
     const maxDrawdownPct = account.maxDrawdownLimit && account.maxDrawdownLimit > 0
         ? ((account.balance - drawdownFloor) / account.maxDrawdownLimit) * 100
         : 100;
+
+    // ── Kelly Criterion ─────────────────────────────────────────
+    // f* = W - (1-W)/R  where W = win rate, R = avg win/loss ratio
+    // Uses account.maxRiskPercent as baseline reference
+    const W = (account as any).historicalWinRate ?? 0.5;  // default 50%
+    const R = (account as any).historicalAvgRR   ?? 2.0;  // default 2R
+    const kellyFull = W - (1 - W) / R;                    // full Kelly fraction
+    const kellyPct  = Math.max(0, kellyFull * 100);        // as percentage
+    const actualPct = account.maxRiskPercent;
+    const kellyRatio = kellyPct > 0 ? actualPct / kellyPct : 0;
+    let kellyNote = '';
+    if (kellyPct === 0) {
+        kellyNote = 'Negative Kelly — your current stats suggest no edge yet. Log more trades.';
+    } else if (kellyRatio < 0.25) {
+        kellyNote = `You are at ${(kellyRatio * 100).toFixed(0)}% Kelly. Very conservative — you could safely increase risk to ${(kellyPct * 0.3).toFixed(2)}% per trade.`;
+    } else if (kellyRatio < 0.5) {
+        kellyNote = `Half-Kelly suggests ${(kellyPct * 0.5).toFixed(2)}% risk/trade. You are near optimal.`;
+    } else if (kellyRatio > 1) {
+        kellyNote = `You are betting above Kelly (${actualPct}% vs ${kellyPct.toFixed(2)}% Kelly). Risk of ruin elevated.`;
+    } else {
+        kellyNote = `Risk at ${actualPct}% is within Kelly bounds (${kellyPct.toFixed(2)}% full Kelly). Sustainable.`;
+    }
+
+    // ── Correlated instrument warning ───────────────────────────
+    const CORRELATED_PAIRS: [string, string][] = [
+        ['NQ', 'ES'], ['NQ', 'MNQ'], ['ES', 'MES'],
+        ['BTC', 'ETH'], ['BTC', 'SOL'], ['ETH', 'SOL'],
+        ['GC', 'SI'], ['CL', 'NG'],
+        ['EURUSD', 'GBPUSD'], ['AUDUSD', 'NZDUSD'],
+    ];
+    let correlationWarning: string | undefined;
+    if (openTrades && openTrades.length >= 2) {
+        const openSymbols = openTrades.filter(t => t.outcome === 'open').map(t => t.asset.toUpperCase());
+        for (const [a, b] of CORRELATED_PAIRS) {
+            if (openSymbols.includes(a) && openSymbols.includes(b)) {
+                correlationWarning = `Open positions in ${a} + ${b} are highly correlated — you have double exposure in the same direction.`;
+                break;
+            }
+        }
+    }
 
     // Survival status
     let survivalStatus: RiskGuardianResult['survivalStatus'] = 'safe';
@@ -197,7 +244,10 @@ export function analyzeRiskGuardian(
         maxDrawdownPct,
         survivalStatus,
         recommendation,
-        tradeWarning
+        tradeWarning,
+        kellyPct,
+        kellyNote,
+        correlationWarning,
     };
 }
 
@@ -224,10 +274,21 @@ export function calcSmartPositionSize(params: {
     let pointValue = 1;
 
     if (params.assetType === 'forex') {
-        // Standard lot = 100,000 units. pip value ≈ $10/lot for USD-quoted pairs.
-        size = riskUSD / (100000 * stopDistance);
+        // Pip value calculation accounts for quote currency:
+        //  USD-quoted (EURUSD, GBPUSD, AUDUSD): 1 pip = 0.0001, pip value = $10/std lot
+        //  JPY-quoted  (USDJPY, EURJPY, GBPJPY): 1 pip = 0.01,   pip value ≈ $9.09/std lot at ~110 USDJPY
+        //  Cross-pairs: pip value varies; use approximate market price for base conversion
+        const sym = params.symbol.toUpperCase().replace(/[^A-Z]/g, '');
+        const isJPY = sym.endsWith('JPY');
+        const pipSize = isJPY ? 0.01 : 0.0001;
+        // pip value per standard lot in USD
+        const quoteIsUSD = sym.endsWith('USD');
+        const pipValuePerLot = quoteIsUSD ? 10 : isJPY ? (1 / (params.entry > 0 ? params.entry : 110)) * 1000 : 10;
+        // stopDistance is in price units → convert to pips
+        const stopPips = stopDistance / pipSize;
+        size = pipValuePerLot > 0 ? riskUSD / (stopPips * pipValuePerLot) : 0;
         unit = 'lots';
-        pointValue = 10; // per pip per standard lot
+        pointValue = pipValuePerLot;
     } else if (params.assetType === 'futures') {
         const spec = getFuturesSpec(params.symbol);
         if (spec && stopDistance > 0) {
@@ -372,7 +433,13 @@ export function analyzeConsistency(trades: TradeSession[]): ConsistencyAnalysis 
 // ─────────────────────────────────────────────────────────────────
 
 export function analyzeBehavior(trades: TradeSession[], maxTradeRisk: number): BehaviorAnalysis {
-    const recent = trades.slice(0, 10); // last 10 trades for behavioral signals
+    // Use session-based window: today's trades (prop-firm day) capped at 20
+    const todayStr = new Date().toLocaleDateString('en-CA', { timeZone: 'America/New_York' });
+    const sessionTrades = trades.filter(t => {
+        try { return new Date(t.createdAt).toLocaleDateString('en-CA', { timeZone: 'America/New_York' }) === todayStr; }
+        catch { return false; }
+    }).slice(0, 20);
+    const recent = sessionTrades.length >= 3 ? sessionTrades : trades.slice(0, 10); // fallback if < 3 today
     const closed = recent.filter(t => t.outcome === 'win' || t.outcome === 'loss');
 
     let consecutiveLosses = 0;
@@ -437,6 +504,43 @@ export function analyzeBehavior(trades: TradeSession[], maxTradeRisk: number): B
     // Combine both revenge signals
     if (revengeTimeDensity) revengeRisk = true;
 
+    // ── Win Streak Overconfidence Detection (NEW) ──────────────────
+    // Winning streak ≥ 3 + size escalation = overconfidence risk
+    let winStreakRisk = false;
+    if (winStreak >= 3 && closed.length >= 4) {
+        // Compare risk of last trade vs first trade of the streak
+        const streakStart = closed.find(t => t.outcome === 'win')?.riskUSD || 0;
+        const streakEnd   = closed[0]?.riskUSD || 0;  // most recent
+        if (streakStart > 0 && streakEnd > streakStart * 1.4) {
+            winStreakRisk = true;
+        }
+    }
+
+    // ── FOMO Alert: Entering within 5 minutes of US session open ──
+    let fomoAlert = false;
+    const now = new Date();
+    // Convert to EST
+    const estNow = new Date(now.toLocaleString('en-US', { timeZone: 'America/New_York' }));
+    const estHour = estNow.getHours();
+    const estMin  = estNow.getMinutes();
+    // 9:30–9:35 AM EST = FOMO window
+    if (estHour === 9 && estMin >= 30 && estMin <= 35) fomoAlert = true;
+
+    // ── Correlated Instrument Warning ─────────────────────────────
+    const CORR_PAIRS: [string, string][] = [
+        ['NQ', 'ES'], ['NQ', 'MNQ'], ['ES', 'MES'],
+        ['BTC', 'ETH'], ['BTC', 'SOL'],
+        ['GC', 'SI'], ['CL', 'NG'],
+    ];
+    let correlationWarning: string | null = null;
+    const openPositions = trades.filter(t => t.outcome === 'open').map(t => t.asset.toUpperCase());
+    for (const [a, b] of CORR_PAIRS) {
+        if (openPositions.includes(a) && openPositions.includes(b)) {
+            correlationWarning = `⚠️ ${a} + ${b} are correlated — double exposure in same direction.`;
+            break;
+        }
+    }
+
     const revengeSeverity: BehaviorAnalysis['revengeSeverity'] =
         revengePct > 100 || (revengeTimeDensity && revengePct > 30) ? 'extreme'
         : revengePct > 60  || revengeTimeDensity ? 'high'
@@ -476,12 +580,18 @@ export function analyzeBehavior(trades: TradeSession[], maxTradeRisk: number): B
     const stopTradingRecommended = emotionalState === 'revenge' || (overtradingAlert && consecutiveLosses >= 2);
     const cooldownMinutes = consecutiveLosses >= 3 ? 60 : consecutiveLosses >= 2 ? 30 : revengeSeverity === 'high' ? 30 : 15;
 
-    // Recommendation
+    // Recommendation — priority order
     let recommendation = '';
     if (stopTradingRecommended) {
         recommendation = `⛔ STOP TRADING. ${consecutiveLosses} consecutive losses detected. Take a ${cooldownMinutes}-minute break before your next trade.`;
     } else if (revengeTimeDensity && emotionalState !== 'revenge') {
         recommendation = `⚠️ TIME-DENSITY ALERT: 2+ rapid-fire trades within 5 min of a loss detected — classic revenge cluster. Take a ${cooldownMinutes}-min break.`;
+    } else if (winStreakRisk) {
+        recommendation = `⚠️ WIN STREAK OVERCONFIDENCE: ${winStreak} consecutive wins but position size has increased 40%+. Snap back to standard risk — this is how accounts blow.`;
+    } else if (fomoAlert) {
+        recommendation = `⚠️ FOMO ALERT: You are in the first 5 minutes of the US session (9:30–9:35 AM). Wait 10–15 min for price discovery before entering.`;
+    } else if (correlationWarning) {
+        recommendation = correlationWarning + ' Combined exposure = effective 2× position.';
     } else if (emotionalState === 'stressed') {
         recommendation = `⚠️ Elevated stress signals. Reduce size by 50%. Max 1–2 more trades today.`;
     } else if (revengeRisk) {
@@ -496,7 +606,8 @@ export function analyzeBehavior(trades: TradeSession[], maxTradeRisk: number): B
         revengeRisk, revengeSeverity, revengePct, overtradingAlert,
         tradesThisSession, avgTimeBetweenTrades, consecutiveLosses,
         lossStreak, winStreak, emotionalState, recommendation,
-        stopTradingRecommended, cooldownMinutes
+        stopTradingRecommended, cooldownMinutes,
+        winStreakRisk, fomoAlert, correlationWarning,
     };
 }
 
@@ -666,6 +777,24 @@ export function generateJournalInsights(
 
     // What-If Scenarios
     const whatIf: WhatIfResult[] = [];
+
+    // Scenario 0: Only trade your best asset
+    const bestAssetSymbol = sorted[0]?.[0];
+    if (bestAssetSymbol && sorted.length >= 2) {
+        const bestAssetTrades = closed.filter(t => t.asset === bestAssetSymbol);
+        const bestAssetPnl = bestAssetTrades.reduce((s, t) => s + (t.pnl ?? (t.outcome === 'win' ? t.rewardUSD : -t.riskUSD)), 0);
+        const skippedOther = closed.length - bestAssetTrades.length;
+        if (skippedOther > 0 && bestAssetPnl > netPnl) {
+            whatIf.push({
+                scenarioLabel: `Only trade ${bestAssetSymbol}`,
+                pnlActual: netPnl,
+                pnlScenario: bestAssetPnl,
+                difference: bestAssetPnl - netPnl,
+                tradesAvoided: skippedOther,
+                lesson: `Concentrating on ${bestAssetSymbol} only would have saved $${(bestAssetPnl - netPnl).toFixed(0)} by avoiding ${skippedOther} lower-edge trades on other assets.`
+            });
+        }
+    }
 
     // Scenario 1: Stop after 2 consecutive losses
     let whatIfPnl1 = 0;

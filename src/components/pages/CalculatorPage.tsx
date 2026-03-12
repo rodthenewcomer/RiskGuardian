@@ -11,10 +11,10 @@
 
 import { useState, useCallback, useMemo, useEffect, useRef } from 'react';
 import { useAppStore, getFuturesSpec, getESTFull, getTradingDay } from '@/store/appStore';
-import { AlertTriangle, ShieldCheck, Zap, Search, Terminal, TrendingUp, TrendingDown, X, Target } from 'lucide-react';
+import { AlertTriangle, ShieldCheck, Zap, Search, Terminal, TrendingUp, TrendingDown, X, Target, Brain, Activity } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { TRADEIFY_ASSETS } from '@/data/tradeifyAssets';
-import { calcSmartPositionSize } from '@/ai/RiskAI';
+import { calcSmartPositionSize, detectAssetType, scoreTradeQuality, analyzeBehavior, optimizeTakeProfit } from '@/ai/RiskAI';
 
 export default function CalculatorPage() {
     const { account, addTrade, addDailyRisk, getDailyRiskRemaining, trades, setActiveTab } = useAppStore();
@@ -54,15 +54,8 @@ export default function CalculatorPage() {
         return () => window.removeEventListener('resize', check);
     }, []);
 
-    // ── Asset type detection ─────────────────────────────────────
-    const getAssetType = (sym: string): 'crypto' | 'forex' | 'futures' | 'stocks' => {
-        const s = sym.toUpperCase().split('/')[0];
-        if (getFuturesSpec(s)) return 'futures';
-        const crypto = ['BTC','ETH','SOL','DOGE','XRP','AVAX','ADA','LINK','UNI','DOT','PEPE','WIF','SUI','APT','INJ','ARB','OP','BONK'];
-        if (crypto.includes(s)) return 'crypto';
-        if (s.length === 6) return 'forex';
-        return 'crypto';
-    };
+    // ── Asset type detection — uses shared RiskAI.ts (no duplicate) ──
+    const getAssetType = (sym: string) => detectAssetType(sym.split('/')[0]);
 
     // ── Command parser: "nq 21450 21400 500" ────────────────────
     const handleCommand = (val: string) => {
@@ -72,6 +65,7 @@ export default function CalculatorPage() {
         const sym = parts[0].toUpperCase();
         if (sym === 'HELP' || sym === '?') return; // handled in JSX
         setAsset(sym);
+        setSizeInput(''); // clear manual size when quick command fires
         if (parts[1]) { const v = parseFloat(parts[1]); if (!isNaN(v) && v > 0) setEntry(parts[1]); }
         if (parts[2]) { const v = parseFloat(parts[2]); if (!isNaN(v) && v > 0) setStopLoss(parts[2]); }
         if (parts[3]) { const v = parseFloat(parts[3].replace(/[$,]/g, '')); if (!isNaN(v) && v > 0) setRiskAmount(v); }
@@ -255,9 +249,40 @@ export default function CalculatorPage() {
         setTimeout(() => { setLogged(false); setActiveTab('journal'); }, 1800);
     }, [calc, isShort, addTrade, addDailyRisk, setActiveTab]);
 
+    // ── Behavioral analysis (live, session-aware) ─────────────────
+    const behavior = useMemo(() => analyzeBehavior(trades, maxTradeRisk), [trades, maxTradeRisk]);
+    const behaviorBannerColor = behavior.emotionalState === 'revenge' ? '#ff4757'
+        : behavior.winStreakRisk || behavior.fomoAlert || behavior.correlationWarning ? '#EAB308'
+        : behavior.emotionalState === 'stressed' ? '#EAB308' : null;
+
+    // ── Trade Quality Score (live, pre-trade) ──────────────────────
+    const tradeQuality = useMemo(() => {
+        if (!calc) return null;
+        return scoreTradeQuality({
+            riskUSD: calc.rsk,
+            maxTradeRisk: maxTradeRisk || 1,
+            rr: calc.isCustomTarget ? (calc.customProfit / calc.rsk) : 2,
+            stopDistancePct: calc.stopPct,
+            remainingDailyPct: account.dailyLossLimit > 0 ? (remainingToday / account.dailyLossLimit) * 100 : 100,
+            behaviorState: behavior.emotionalState,
+        });
+    }, [calc, maxTradeRisk, account.dailyLossLimit, remainingToday, behavior.emotionalState]);
+
+    // ── TP Probability Tiers (live) ────────────────────────────────
+    const tpTiers = useMemo(() => {
+        if (!calc) return null;
+        const closedTrades = trades.filter(t => t.outcome === 'win' || t.outcome === 'loss');
+        const wins = closedTrades.filter(t => t.outcome === 'win').length;
+        const historicalWinRate = closedTrades.length > 5 ? wins / closedTrades.length : 0.5;
+        return optimizeTakeProfit({ entry: calc.eNum, stopLoss: calc.slNum, riskUSD: calc.rsk, historicalWinRate });
+    }, [calc, trades]);
+
     const isHelp = ['help', '?', 'h'].includes(command.trim().toLowerCase());
     const currentAssetType = getAssetType(asset);
     const currentFSpec = currentAssetType === 'futures' ? getFuturesSpec(asset.split('/')[0]) : null;
+
+    // ── Grade colour ───────────────────────────────────────────────
+    const gradeColor = (g: string) => g.startsWith('A') ? '#A6FF4D' : g.startsWith('B') ? '#EAB308' : '#ff4757';
 
     return (
         <div
@@ -284,8 +309,34 @@ export default function CalculatorPage() {
                 </div>
             </div>
 
+            {/* ── ACCOUNT EMPTY STATE ─────────────────────────────────── */}
+            {account.balance === 0 && (
+                <motion.div initial={{ opacity: 0, y: -6 }} animate={{ opacity: 1, y: 0 }}
+                    style={{ padding: '12px 20px', background: 'rgba(234,179,8,0.07)', borderBottom: '1px solid rgba(234,179,8,0.25)', display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <AlertTriangle size={14} color="#EAB308" style={{ flexShrink: 0 }} />
+                    <span style={{ ...mono, fontSize: 11, color: '#EAB308', flex: 1 }}>
+                        Account not configured — balance is $0. The calculator cannot run without your account settings.
+                    </span>
+                    <button onClick={() => setActiveTab('settings')}
+                        style={{ ...mono, fontSize: 10, fontWeight: 800, padding: '6px 12px', background: '#EAB308', color: '#000', border: 'none', cursor: 'pointer', letterSpacing: '0.06em', flexShrink: 0 }}>
+                        SET UP ACCOUNT →
+                    </button>
+                </motion.div>
+            )}
+
+            {/* ── BEHAVIOR BANNER ─────────────────────────────────────── */}
+            {behaviorBannerColor && behavior.recommendation && (
+                <motion.div initial={{ opacity: 0, y: -6 }} animate={{ opacity: 1, y: 0 }}
+                    style={{ padding: '10px 20px', background: `${behaviorBannerColor}0d`, borderBottom: `1px solid ${behaviorBannerColor}30`, display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <Activity size={13} color={behaviorBannerColor} style={{ flexShrink: 0 }} />
+                    <span style={{ ...mono, fontSize: 10, color: behaviorBannerColor, lineHeight: 1.5 }}>
+                        {behavior.recommendation}
+                    </span>
+                </motion.div>
+            )}
+
             {/* ── CONTEXT STRIP — 4 KPIs ──────────────────────────────── */}
-            <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'repeat(2,1fr)' : 'repeat(4,1fr)', borderBottom: divider, flexShrink: 0 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'repeat(2,1fr)' : 'repeat(4,1fr)', borderBottom: divider, flexShrink: 0, position: 'sticky', top: 0, zIndex: 40, background: '#090909' }}>
                 {([
                     { k: 'Balance',    v: account.balance >= 1000 ? `$${(account.balance/1000).toFixed(1)}K` : `$${account.balance.toFixed(0)}`, c: '#e2e8f0', s: account.propFirm || 'account equity' },
                     { k: 'Daily Left', v: `$${remainingToday.toFixed(0)}`,  c: guardColor, s: `${Math.round(dailyLeftPct * 100)}% of $${account.dailyLossLimit.toFixed(0)}` },
@@ -505,9 +556,25 @@ export default function CalculatorPage() {
 
                 {/* RISK $ / SIZE */}
                 <div style={{ padding: isMobile ? '12px 12px' : '14px 16px' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
+                    {/* Segmented Mode Toggle — proper 40px tap target */}
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
                         <span style={lbl}>{inputMode === 'risk' ? 'Risk $' : 'Size (Contracts/Lots)'}</span>
-                        <button onClick={() => setInputMode(m => m === 'risk' ? 'size' : 'risk')} style={{ ...mono, fontSize: 8, color: '#A6FF4D', background: 'transparent', border: '1px solid #1a1c24', cursor: 'pointer', padding: '2px 4px', borderRadius: 2 }}>Toggle Mode</button>
+                        <div style={{ display: 'flex', border: '1px solid #1a1c24', overflow: 'hidden' }}>
+                            <button onClick={() => setInputMode('risk')} style={{
+                                ...mono, fontSize: 9, fontWeight: 800, padding: '5px 10px', minHeight: 30,
+                                border: 'none', cursor: 'pointer', letterSpacing: '0.05em',
+                                background: inputMode === 'risk' ? '#A6FF4D' : 'transparent',
+                                color: inputMode === 'risk' ? '#000' : '#4b5563',
+                                transition: 'all 0.12s',
+                            }}>RISK $</button>
+                            <button onClick={() => setInputMode('size')} style={{
+                                ...mono, fontSize: 9, fontWeight: 800, padding: '5px 10px', minHeight: 30,
+                                border: 'none', borderLeft: '1px solid #1a1c24', cursor: 'pointer', letterSpacing: '0.05em',
+                                background: inputMode === 'size' ? '#A6FF4D' : 'transparent',
+                                color: inputMode === 'size' ? '#000' : '#4b5563',
+                                transition: 'all 0.12s',
+                            }}>SIZE</button>
+                        </div>
                     </div>
                     {inputMode === 'risk' ? (
                         <input
@@ -650,7 +717,7 @@ export default function CalculatorPage() {
                             ))}
                         </div>
 
-                        {/* VERDICT */}
+                        {/* VERDICT — renamed to RISK RULES */}
                         <div style={{
                             padding: isMobile ? '14px 14px' : '16px 20px', borderBottom: divider,
                             borderLeft: `3px solid ${calc.approved ? '#A6FF4D' : '#ff4757'}`,
@@ -662,7 +729,7 @@ export default function CalculatorPage() {
                                 : <AlertTriangle size={20} color="#ff4757" style={{ flexShrink: 0, marginTop: 1 }} />}
                             <div style={{ flex: 1 }}>
                                 <span style={{ ...mono, fontSize: 12, fontWeight: 900, letterSpacing: '0.08em', display: 'block', color: calc.approved ? '#A6FF4D' : '#ff4757' }}>
-                                    {calc.approved ? 'SAFE TO EXECUTE' : 'TRADE REJECTED'}
+                                    {calc.approved ? 'RISK RULES: PASS' : 'TRADE REJECTED'}
                                 </span>
                                 <span style={{ ...mono, fontSize: 11, color: '#8b949e', display: 'block', marginTop: 3, lineHeight: 1.65 }}>
                                     {calc.approved
@@ -677,6 +744,68 @@ export default function CalculatorPage() {
                                 )}
                             </div>
                         </div>
+
+                        {/* TRADE QUALITY SCORE — between Verdict and LOG */}
+                        {tradeQuality && (
+                            <div style={{ padding: isMobile ? '12px 14px' : '14px 20px', borderBottom: divider, background: '#0a0a0a' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
+                                        <Brain size={13} color={gradeColor(tradeQuality.grade)} />
+                                        <span style={{ ...lbl }}>Trade Quality Score</span>
+                                    </div>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                                        <span style={{ ...mono, fontSize: 18, fontWeight: 900, color: gradeColor(tradeQuality.grade), letterSpacing: '-0.02em' }}>
+                                            {tradeQuality.grade}
+                                        </span>
+                                        <span style={{ ...mono, fontSize: 11, color: '#4b5563' }}>{tradeQuality.score}/100</span>
+                                    </div>
+                                </div>
+                                <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                                    {tradeQuality.breakdown.map((b, i) => (
+                                        <span key={i} style={{
+                                            ...mono, fontSize: 9, fontWeight: 700, padding: '3px 7px', letterSpacing: '0.04em',
+                                            background: b.status === 'good' ? 'rgba(166,255,77,0.08)' : b.status === 'warn' ? 'rgba(234,179,8,0.08)' : 'rgba(255,71,87,0.08)',
+                                            color: b.status === 'good' ? '#A6FF4D' : b.status === 'warn' ? '#EAB308' : '#ff4757',
+                                            border: `1px solid ${b.status === 'good' ? 'rgba(166,255,77,0.2)' : b.status === 'warn' ? 'rgba(234,179,8,0.2)' : 'rgba(255,71,87,0.2)'}`,
+                                        }}>
+                                            {b.status === 'good' ? '✓' : b.status === 'warn' ? '⚠' : '✗'} {b.label}
+                                        </span>
+                                    ))}
+                                </div>
+                                {tradeQuality.riskRating !== 'green' && (
+                                    <span style={{ ...mono, fontSize: 10, color: '#6b7280', display: 'block', marginTop: 6 }}>{tradeQuality.summary}</span>
+                                )}
+                            </div>
+                        )}
+
+                        {/* TP PROBABILITY TIERS */}
+                        {tpTiers && tpTiers.tiers.length > 0 && (
+                            <div style={{ padding: isMobile ? '12px 14px' : '14px 20px', borderBottom: divider }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 8 }}>
+                                    <Target size={12} color="#8b949e" />
+                                    <span style={lbl}>TP Probability Tiers — based on your win rate</span>
+                                </div>
+                                <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                                    {tpTiers.tiers.slice(0, 5).map((t, i) => (
+                                        <div key={i} style={{
+                                            padding: '6px 10px', border: `1px solid ${
+                                                t.recommendation === 'optimal' ? 'rgba(166,255,77,0.3)'
+                                                : t.recommendation === 'viable' ? 'rgba(234,179,8,0.2)'
+                                                : 'rgba(255,71,87,0.15)'}`,
+                                            background: t.recommendation === 'optimal' ? 'rgba(166,255,77,0.05)' : 'transparent',
+                                            flex: 1, minWidth: 70, textAlign: 'center',
+                                        }}>
+                                            <span style={{ ...mono, fontSize: 12, fontWeight: 900, color: t.recommendation === 'optimal' ? '#A6FF4D' : '#e2e8f0', display: 'block' }}>{t.label}</span>
+                                            <span style={{ ...mono, fontSize: 9, color: '#4b5563', display: 'block', marginTop: 2 }}>{t.estimatedProbability}% prob</span>
+                                            <span style={{ ...mono, fontSize: 9, color: t.expectedValue >= 0 ? '#A6FF4D' : '#ff4757', display: 'block' }}>
+                                                EV: ${t.expectedValue >= 0 ? '+' : ''}{t.expectedValue.toFixed(0)}
+                                            </span>
+                                        </div>
+                                    ))}
+                                </div>
+                                <span style={{ ...mono, fontSize: 9, color: '#4b5563', display: 'block', marginTop: 6 }}>{tpTiers.reasoning}</span>
+                            </div>
+                        )}
 
                         {/* LOG CTA */}
                         <div style={{ padding: isMobile ? '14px 14px' : '16px 20px' }}>
