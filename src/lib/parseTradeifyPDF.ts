@@ -95,7 +95,7 @@ function extractTransactions(tableText: string): RawTx[] {
         // ── Determine open vs close, extract commission ────────
         // Columns after direction: Size Symbol Price OrderID SettledPnl Commission Financing
         // Find the 6-digit Order ID (space-delimited, not part of a decimal)
-        const orderM = afterDir.match(/\s(\d{6})(?=\s|$)/);
+        const orderM = afterDir.match(/\s(\d{6,8})(?=\s|$)/);
         let settledPnl: number | null = null;
         let commission = 0;
 
