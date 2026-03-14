@@ -100,25 +100,29 @@ function extractTransactions(tableText: string): RawTx[] {
         let commission = 0;
 
         if (orderM) {
-            // Normalize non-ASCII minus variants (U+2010 ‑, U+2212 −, U+2013 –)
-            // to ASCII '-' so negative PnL values like ‑140.58 are parsed correctly.
-            // Em-dash (U+2014 —) is kept as-is; it signals "no value" on opening legs.
+            // Normalize all non-ASCII minus/dash variants to ASCII '-'.
+            // pdfjs sometimes emits U+2010, U+2212, etc. for negative numbers.
+            // Em-dash U+2014 (—) is kept intentionally as the "no value" sentinel.
             const afterOrder = afterDir
                 .slice(afterDir.indexOf(orderM[0]) + orderM[0].length)
                 .trimStart()
-                .replace(/[\u2010\u2212\u2013]/g, '-');
+                .replace(/[\u00AD\u2010\u2011\u2012\u2013\u2212]/g, '-');
 
             let restForCommission: string;
 
-            // Em dash → opening leg (no PnL). ASCII '-' not followed by digit → same.
-            if (/^—/.test(afterOrder) || /^-(?!\d)/.test(afterOrder)) {
+            // Em dash → opening leg (no PnL).
+            // '-' not followed by optional-spaces-then-digit → also opener (lone dash).
+            // IMPORTANT: "- 140.58" (space between sign and digits) IS a negative PnL —
+            // pdfjs often emits the minus sign as a separate text item from the number.
+            if (/^—/.test(afterOrder) || /^-(?!\s*\d)/.test(afterOrder)) {
                 settledPnl = null;
                 restForCommission = afterOrder.replace(/^(?:—|-)\s*/, '');
             } else {
-                // First token = Settled PnL (can be negative)
-                const pnlM = afterOrder.match(/^(-?[\d,]+\.?\d{1,2})/);
+                // Settled PnL: optional '-', optional whitespace, then the number.
+                // Handles both "-140.58" and "- 140.58" (split text items from pdfjs).
+                const pnlM = afterOrder.match(/^(-?)\s*([\d,]+\.[\d]{1,2})/);
                 if (pnlM) {
-                    settledPnl = parseFloat(pnlM[1].replace(/,/g, ''));
+                    settledPnl = parseFloat((pnlM[1] + pnlM[2]).replace(/,/g, ''));
                     restForCommission = afterOrder.slice(pnlM[0].length).trimStart();
                 } else {
                     restForCommission = afterOrder;
