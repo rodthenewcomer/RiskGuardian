@@ -100,17 +100,20 @@ function extractTransactions(tableText: string): RawTx[] {
         let commission = 0;
 
         if (orderM) {
+            // Normalize non-ASCII minus variants (U+2010 ‑, U+2212 −, U+2013 –)
+            // to ASCII '-' so negative PnL values like ‑140.58 are parsed correctly.
+            // Em-dash (U+2014 —) is kept as-is; it signals "no value" on opening legs.
             const afterOrder = afterDir
                 .slice(afterDir.indexOf(orderM[0]) + orderM[0].length)
-                .trimStart();
+                .trimStart()
+                .replace(/[\u2010\u2212\u2013]/g, '-');
 
             let restForCommission: string;
 
-            // Em dash, en dash, or minus-sign NOT followed by digit → opening (no PnL)
-            if (/^[—–−]/.test(afterOrder) || /^-(?!\d)/.test(afterOrder)) {
+            // Em dash → opening leg (no PnL). ASCII '-' not followed by digit → same.
+            if (/^—/.test(afterOrder) || /^-(?!\d)/.test(afterOrder)) {
                 settledPnl = null;
-                // Skip the em-dash; commission is the next number
-                restForCommission = afterOrder.replace(/^[—–−]\s*/, '');
+                restForCommission = afterOrder.replace(/^(?:—|-)\s*/, '');
             } else {
                 // First token = Settled PnL (can be negative)
                 const pnlM = afterOrder.match(/^(-?[\d,]+\.?\d{1,2})/);
