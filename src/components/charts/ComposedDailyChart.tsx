@@ -44,7 +44,7 @@ export default function ComposedDailyChart({ data, height = 280, rollingWindow =
                 <CartesianGrid stroke="#1a1c24" strokeDasharray="3 3" vertical={false} />
                 <XAxis
                     dataKey="date"
-                    tick={{ fontSize: 9, fill: '#4b5563', fontFamily: FONT }}
+                    tick={{ fontSize: 9, fill: '#8b949e', fontFamily: FONT }}
                     axisLine={false}
                     tickLine={false}
                     tickFormatter={(d: string) => {
@@ -53,16 +53,16 @@ export default function ComposedDailyChart({ data, height = 280, rollingWindow =
                     }}
                 />
                 <YAxis
-                    tick={{ fontSize: 9, fill: '#4b5563', fontFamily: FONT }}
+                    tick={{ fontSize: 9, fill: '#8b949e', fontFamily: FONT }}
                     axisLine={false}
                     tickLine={false}
                     tickFormatter={(v: number) => `$${Math.abs(v) >= 1000 ? `${(v / 1000).toFixed(1)}k` : v.toFixed(0)}`}
                     width={44}
                 />
-                <ReferenceLine y={0} stroke="rgba(255,255,255,0.12)" strokeWidth={1} />
+                <ReferenceLine y={0} stroke="rgba(255,255,255,0.2)" strokeWidth={1} />
                 <Tooltip
-                    contentStyle={{ backgroundColor: '#0b0e14', border: '1px solid #1a1c24', fontFamily: FONT, fontSize: 11, borderRadius: 0 }}
-                    cursor={{ fill: 'rgba(255,255,255,0.03)' }}
+                    contentStyle={{ backgroundColor: '#13151a', border: '1px solid #2d3748', fontFamily: FONT, fontSize: 11, borderRadius: 0, color: '#c9d1d9' }}
+                    cursor={{ fill: 'rgba(255,255,255,0.04)' }}
                     labelFormatter={(l: unknown) => new Date(String(l) + 'T12:00:00Z').toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })}
                     formatter={(v: number | undefined, name: string | undefined) => {
                         if (v === undefined) return ['—', name ?? ''];

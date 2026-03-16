@@ -18,7 +18,7 @@ const FONT = 'var(--font-mono)';
 export default function EquityCurveChart({ data, height = 180, showGrid = true, showAxis = true, gradientId = 'eqGrad' }: Props) {
     if (data.length < 2) {
         return (
-            <div style={{ height, display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: FONT, fontSize: 11, color: '#4b5563' }}>
+            <div style={{ height, display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: FONT, fontSize: 11, color: '#8b949e' }}>
                 No trade data to plot
             </div>
         );
@@ -37,10 +37,10 @@ export default function EquityCurveChart({ data, height = 180, showGrid = true, 
                 </defs>
                 {showGrid && <CartesianGrid stroke="#1a1c24" strokeDasharray="3 3" vertical={false} />}
                 {showAxis && <XAxis dataKey="i" hide />}
-                {showAxis && <YAxis tick={{ fontSize: 9, fill: '#4b5563', fontFamily: FONT }} axisLine={false} tickLine={false} tickFormatter={(v: number) => `$${Math.abs(v) >= 1000 ? `${(v / 1000).toFixed(1)}k` : v.toFixed(0)}`} width={44} />}
-                <ReferenceLine y={0} stroke="rgba(255,255,255,0.08)" />
+                {showAxis && <YAxis tick={{ fontSize: 9, fill: '#8b949e', fontFamily: FONT }} axisLine={false} tickLine={false} tickFormatter={(v: number) => `$${Math.abs(v) >= 1000 ? `${(v / 1000).toFixed(1)}k` : v.toFixed(0)}`} width={44} />}
+                <ReferenceLine y={0} stroke="rgba(255,255,255,0.15)" />
                 <Tooltip
-                    contentStyle={{ backgroundColor: '#0b0e14', border: '1px solid #1a1c24', fontFamily: FONT, fontSize: 11, borderRadius: 0 }}
+                    contentStyle={{ backgroundColor: '#13151a', border: '1px solid #2d3748', fontFamily: FONT, fontSize: 11, borderRadius: 0, color: '#c9d1d9' }}
                     formatter={(v: number | undefined) => v !== undefined ? [`${v >= 0 ? '+' : ''}$${Math.abs(v).toFixed(2)}`, 'Cumulative P&L'] : ['—', 'Cumulative P&L']}
                     labelFormatter={(l: unknown) => `Trade #${l}`}
                 />

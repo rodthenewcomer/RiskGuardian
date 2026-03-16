@@ -74,14 +74,14 @@ export default function InstrumentRadar({ instruments, height = 320 }: Props) {
     return (
         <ResponsiveContainer width="100%" height={height}>
             <RadarChart data={radarData} margin={{ top: 16, right: 16, bottom: 16, left: 16 }}>
-                <PolarGrid stroke="#1a1c24" />
+                <PolarGrid stroke="#2d3748" />
                 <PolarAngleAxis
                     dataKey="subject"
-                    tick={{ fill: '#6b7280', fontSize: 9, fontFamily: FONT, fontWeight: 700 }}
+                    tick={{ fill: '#c9d1d9', fontSize: 9, fontFamily: FONT, fontWeight: 700 }}
                 />
                 <PolarRadiusAxis domain={[0, 100]} tick={false} axisLine={false} />
                 <Tooltip
-                    contentStyle={{ backgroundColor: '#0b0e14', border: '1px solid #1a1c24', fontFamily: FONT, fontSize: 11, borderRadius: 0 }}
+                    contentStyle={{ backgroundColor: '#13151a', border: '1px solid #2d3748', fontFamily: FONT, fontSize: 11, borderRadius: 0, color: '#c9d1d9' }}
                     formatter={(v: number | undefined, name: string | undefined) => v !== undefined ? [`${v.toFixed(0)}/100`, name ?? ''] : ['—', name ?? '']}
                 />
                 {instruments.slice(0, 5).map((inst, i) => (
@@ -99,7 +99,7 @@ export default function InstrumentRadar({ instruments, height = 320 }: Props) {
                     <Legend
                         iconType="circle"
                         iconSize={8}
-                        wrapperStyle={{ fontFamily: FONT, fontSize: 10, color: '#6b7280' }}
+                        wrapperStyle={{ fontFamily: FONT, fontSize: 10, color: '#c9d1d9' }}
                     />
                 )}
             </RadarChart>

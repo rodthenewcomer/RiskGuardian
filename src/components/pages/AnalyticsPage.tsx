@@ -14,6 +14,8 @@ import ComposedDailyChart, { addRollingAvg } from '@/components/charts/ComposedD
 import InstrumentRadar, { type InstrumentMetric } from '@/components/charts/InstrumentRadar';
 import PnLHistogram from '@/components/charts/PnLHistogram';
 import DayOfWeekChart, { type DayStats } from '@/components/charts/DayOfWeekChart';
+import HeatmapGrid from '@/components/charts/HeatmapGrid';
+import TradeScatterChart, { type ScatterPoint } from '@/components/charts/TradeScatterChart';
 
 export default function AnalyticsPage() {
     const { trades, account } = useAppStore();
@@ -149,6 +151,40 @@ export default function AnalyticsPage() {
         return stats;
     }, [closed]);
     const hourlyData = hourlyStats.map(s => ({ hour: `${String(s.h).padStart(2, '0')}:00`, h: s.h, pnl: s.pnl, trades: s.trades, wr: s.trades > 0 ? (s.wins / s.trades) * 100 : 0 }));
+
+    // Hour × Day-of-week heatmap data
+    const heatmapData = useMemo(() => {
+        const DOW = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+        const map: Record<string, { pnl: number; trades: number }> = {};
+        closed.forEach(t => {
+            const estDate = new Date(new Date(t.closedAt ?? t.createdAt).toLocaleString('en-US', { timeZone: 'America/New_York' }));
+            const h = estDate.getHours();
+            const day = DOW[estDate.getDay()];
+            const key = `${day}:${h}`;
+            if (!map[key]) map[key] = { pnl: 0, trades: 0 };
+            map[key].pnl += (t.pnl ?? 0);
+            map[key].trades++;
+        });
+        return Object.entries(map).map(([key, v]) => {
+            const [day, hourStr] = key.split(':');
+            return { day, hour: parseInt(hourStr), pnl: v.trades > 0 ? v.pnl / v.trades : 0, trades: v.trades };
+        });
+    }, [closed]);
+
+    // Scatter: per-trade hour vs P&L (TIME OF DAY scatter)
+    const scatterByHour = useMemo((): ScatterPoint[] => closed.map(t => {
+        const estDate = new Date(new Date(t.closedAt ?? t.createdAt).toLocaleString('en-US', { timeZone: 'America/New_York' }));
+        const h = estDate.getHours() + estDate.getMinutes() / 60;
+        const p = t.pnl ?? 0;
+        return { x: h, y: p, z: Math.max(20, Math.abs(p)), label: t.asset };
+    }), [closed]);
+
+    // Scatter: per-session start-hour vs P&L (SESSIONS scatter)
+    const sessionScatterData = useMemo((): ScatterPoint[] => sessionMetrics.map((s: any) => {
+        const estDate = new Date(new Date(s.startTime).toLocaleString('en-US', { timeZone: 'America/New_York' }));
+        const h = estDate.getHours() + estDate.getMinutes() / 60;
+        return { x: parseFloat(h.toFixed(1)), y: s.pnl, z: Math.max(20, Math.abs(s.pnl)), label: `S${sessionMetrics.indexOf(s) + 1}` };
+    }), [sessionMetrics]);
 
     // Session windows (EST)
     const SESSION_WINDOWS = [
@@ -610,7 +646,7 @@ export default function AnalyticsPage() {
                             {/* Date range pickers (compact) */}
                             <span style={{ color: '#1a1c24' }}>·</span>
                             <input type="date" className={styles.dateInput} value={dateFrom} onChange={e => setDateFrom(e.target.value)} style={{ padding: '3px 8px', fontSize: 11 }} />
-                            <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: '#4b5563' }}>to</span>
+                            <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: '#6b7280' }}>to</span>
                             <input type="date" className={styles.dateInput} value={dateTo} onChange={e => setDateTo(e.target.value)} style={{ padding: '3px 8px', fontSize: 11 }} />
                             {(dateFrom || dateTo) && (
                                 <button className={styles.dateClear} onClick={() => { setDateFrom(''); setDateTo(''); }} style={{ padding: '3px 8px', fontSize: 10 }}>✕</button>
@@ -710,7 +746,7 @@ export default function AnalyticsPage() {
                                         <div style={{ flex: 1, minWidth: 240 }}>
                                             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
                                                 <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, fontWeight: 700, color: '#e60023', letterSpacing: '0.12em', textTransform: 'uppercase', background: 'rgba(230,0,35,0.12)', border: '1px solid rgba(230,0,35,0.3)', padding: '2px 8px' }}>CRITICAL PATTERN</span>
-                                                <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#4b5563', letterSpacing: '0.08em' }}>{p.freq} DETECTED · {forensics.patterns.length} TOTAL</span>
+                                                <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#6b7280', letterSpacing: '0.08em' }}>{p.freq} DETECTED · {forensics.patterns.length} TOTAL</span>
                                             </div>
                                             <div style={{ fontFamily: 'var(--font-mono)', fontSize: 18, fontWeight: 700, color: '#fff', marginBottom: 12 }}>{p.name}</div>
                                             <div style={{ fontFamily: 'var(--font-mono)', fontSize: 12, color: '#8b949e', lineHeight: 1.7, maxWidth: 520 }}>
@@ -746,7 +782,7 @@ export default function AnalyticsPage() {
                                     <div key={i} style={{ padding: '20px 24px', borderBottom: '1px solid #1a1c24', borderRight: '1px solid #1a1c24', background: '#0d1117', display: 'flex', flexDirection: 'column', gap: 6 }}>
                                         <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#6b7280', letterSpacing: '0.1em', textTransform: 'uppercase' }}>{k.label}</span>
                                         <span style={{ fontFamily: 'var(--font-mono)', fontSize: 22, fontWeight: 700, color: k.color, lineHeight: 1, textShadow: `0 0 12px ${k.color}22` }}>{k.value}</span>
-                                        <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: '#4b5563' }}>{k.sub}</span>
+                                        <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: '#6b7280' }}>{k.sub}</span>
                                     </div>
                                 ))}
                             </div>
@@ -777,7 +813,7 @@ export default function AnalyticsPage() {
                                     </div>
                                     <div style={{ display: 'flex', gap: 4, marginTop: 8 }}>
                                         {['GROSS', 'LOSS', 'NET'].map((l, i) => (
-                                            <div key={i} style={{ flex: 1, textAlign: 'center', fontFamily: 'var(--font-mono)', fontSize: 9, color: '#4b5563', letterSpacing: '0.08em' }}>{l}</div>
+                                            <div key={i} style={{ flex: 1, textAlign: 'center', fontFamily: 'var(--font-mono)', fontSize: 9, color: '#6b7280', letterSpacing: '0.08em' }}>{l}</div>
                                         ))}
                                     </div>
                                 </div>
@@ -825,7 +861,7 @@ export default function AnalyticsPage() {
                                             <div style={{ position: 'absolute', top: 0, left: 0, height: '100%', background: 'linear-gradient(to right, #ff4757 0%, #EAB308 40%, #A6FF4D 70%)', borderRadius: 3, width: '100%', opacity: 0.3 }} />
                                             <motion.div initial={{ left: 0 }} animate={{ left: `${Math.min(95, (Math.min(profitFactor, 3) / 3) * 100)}%` }} style={{ position: 'absolute', top: -3, width: 12, height: 12, background: profitFactor >= 1.5 ? '#A6FF4D' : '#EAB308', borderRadius: '50%', transform: 'translateX(-50%)' }} />
                                         </div>
-                                        <div style={{ display: 'flex', justifyContent: 'space-between', fontFamily: 'var(--font-mono)', fontSize: 9, color: '#4b5563' }}>
+                                        <div style={{ display: 'flex', justifyContent: 'space-between', fontFamily: 'var(--font-mono)', fontSize: 9, color: '#6b7280' }}>
                                             <span>0–0.9x LOSS</span><span>1–1.4x FLAT</span><span>1.5–1.9x PLAYABLE</span><span>2x+ EDGE</span>
                                         </div>
                                     </div>
@@ -844,7 +880,7 @@ export default function AnalyticsPage() {
                                                 style={{ position: 'absolute', top: -3, width: 12, height: 12, background: expectancy >= 0 ? '#A6FF4D' : '#ff4757', borderRadius: '50%', transform: 'translateX(-50%)' }}
                                             />
                                         </div>
-                                        <div style={{ display: 'flex', justifyContent: 'space-between', fontFamily: 'var(--font-mono)', fontSize: 9, color: '#4b5563' }}>
+                                        <div style={{ display: 'flex', justifyContent: 'space-between', fontFamily: 'var(--font-mono)', fontSize: 9, color: '#6b7280' }}>
                                             <span>NEGATIVE</span><span>FLAT</span><span>POSITIVE</span><span>OPTIMAL</span>
                                         </div>
                                     </div>
@@ -901,7 +937,7 @@ export default function AnalyticsPage() {
                                             <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
                                                 <div style={{ width: 72, flexShrink: 0 }}>
                                                     <div style={{ fontFamily: 'var(--font-mono)', fontSize: 12, fontWeight: 600, color: '#c9d1d9' }}>{row.label}</div>
-                                                    <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#4b5563' }}>{row.sub}</div>
+                                                    <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#6b7280' }}>{row.sub}</div>
                                                 </div>
                                                 <div style={{ flex: 1, height: 8, background: '#1a1c24', borderRadius: 2 }}>
                                                     <motion.div initial={{ width: 0 }} animate={{ width: `${(row.dur / maxDur) * 100}%` }} style={{ height: '100%', background: row.color, borderRadius: 2, opacity: 0.85 }} />
@@ -970,14 +1006,14 @@ export default function AnalyticsPage() {
                                             </AreaChart>
                                         </ResponsiveContainer>
                                     ) : (
-                                        <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'var(--font-mono)', fontSize: 11, color: '#4b5563' }}>No trade data to plot</div>
+                                        <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'var(--font-mono)', fontSize: 11, color: '#6b7280' }}>No trade data to plot</div>
                                     )}
                                 </div>
                                 {equityCurve.length > 1 && (
                                     <div style={{ display: 'flex', gap: 24, marginTop: 12, flexWrap: 'wrap' }}>
                                         <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: '#ff4757' }}>Max drawdown: -${maxDd.toFixed(0)}</span>
                                         <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: '#A6FF4D' }}>Max run-up: +${maxRunup.toFixed(0)}</span>
-                                        <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: '#4b5563' }}>Trades: {closed.length}</span>
+                                        <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: '#6b7280' }}>Trades: {closed.length}</span>
                                         <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: netPnl >= 0 ? '#A6FF4D' : '#ff4757' }}>Final: {netPnl >= 0 ? '+' : ''}${netPnl.toFixed(0)}</span>
                                     </div>
                                 )}
@@ -1029,7 +1065,7 @@ export default function AnalyticsPage() {
                                         ))}
                                     </div>
                                     {instrumentArray.length === 0 && (
-                                        <div style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: '#4b5563' }}>No instrument data</div>
+                                        <div style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: '#6b7280' }}>No instrument data</div>
                                     )}
                                 </div>
 
@@ -1046,7 +1082,7 @@ export default function AnalyticsPage() {
                                             <div style={{ width: '100%' }}>
                                                 <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginBottom: 8 }}>
                                                     <span style={{ fontFamily: 'var(--font-mono)', fontSize: 48, fontWeight: 700, color: riskColor, lineHeight: 1 }}>{rs.toFixed(0)}</span>
-                                                    <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: '#4b5563' }}>/100</span>
+                                                    <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: '#6b7280' }}>/100</span>
                                                 </div>
                                                 <div style={{ height: 6, background: '#1a1c24', borderRadius: 3, marginBottom: 8, overflow: 'hidden' }}>
                                                     <motion.div initial={{ width: 0 }} animate={{ width: `${rs}%` }} style={{ height: '100%', background: `linear-gradient(to right, #A6FF4D, ${riskColor})`, borderRadius: 3 }} />
@@ -1056,7 +1092,7 @@ export default function AnalyticsPage() {
                                                 </div>
                                                 <div style={{ marginTop: 16, display: 'flex', gap: 4, flexWrap: 'wrap' }}>
                                                     {[{ label: '0-30', tag: 'CLEAN', active: rs <= 30 }, { label: '31-55', tag: 'MODERATE', active: rs > 30 && rs <= 55 }, { label: '56-75', tag: 'HIGH', active: rs > 55 && rs <= 75 }, { label: '76-100', tag: 'CRITICAL', active: rs > 75 }].map((z, i) => (
-                                                        <div key={i} style={{ fontFamily: 'var(--font-mono)', fontSize: 8, padding: '2px 6px', border: `1px solid ${z.active ? riskColor : '#1a1c24'}`, color: z.active ? riskColor : '#4b5563', background: z.active ? `${riskColor}11` : 'transparent' }}>
+                                                        <div key={i} style={{ fontFamily: 'var(--font-mono)', fontSize: 8, padding: '2px 6px', border: `1px solid ${z.active ? riskColor : '#1a1c24'}`, color: z.active ? riskColor : '#6b7280', background: z.active ? `${riskColor}11` : 'transparent' }}>
                                                             {z.label}<br />{z.tag}
                                                         </div>
                                                     ))}
@@ -1100,7 +1136,7 @@ export default function AnalyticsPage() {
                                         <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap' }}>
                                             <div style={{ width: 140, flexShrink: 0 }}>
                                                 <div style={{ fontFamily: 'var(--font-mono)', fontSize: 12, fontWeight: 600, color: '#c9d1d9', marginBottom: 2 }}>{row.label}</div>
-                                                <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#4b5563' }}>{row.sub}</div>
+                                                <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#6b7280' }}>{row.sub}</div>
                                             </div>
                                             <div style={{ flex: 1, height: 5, background: '#1a1c24', borderRadius: 2, minWidth: 100 }}>
                                                 <motion.div initial={{ width: 0 }} animate={{ width: `${(row.score / row.max) * 100}%` }} style={{ height: '100%', background: row.color, borderRadius: 2 }} />
@@ -1128,7 +1164,7 @@ export default function AnalyticsPage() {
                                         <thead>
                                             <tr style={{ borderBottom: '1px solid #1a1c24' }}>
                                                 {['METRIC', 'YOUR VALUE', 'MEDIAN', 'TOP 25%', 'YOUR RANK'].map((h, i) => (
-                                                    <th key={i} style={{ padding: '10px 16px', textAlign: i === 0 ? 'left' : 'right', color: '#4b5563', fontWeight: 700, letterSpacing: '0.08em', fontSize: 9, textTransform: 'uppercase' }}>{h}</th>
+                                                    <th key={i} style={{ padding: '10px 16px', textAlign: i === 0 ? 'left' : 'right', color: '#6b7280', fontWeight: 700, letterSpacing: '0.08em', fontSize: 9, textTransform: 'uppercase' }}>{h}</th>
                                                 ))}
                                             </tr>
                                         </thead>
@@ -1157,7 +1193,7 @@ export default function AnalyticsPage() {
                                         </tbody>
                                     </table>
                                 </div>
-                                <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#4b5563', marginTop: 12, fontStyle: 'italic' }}>
+                                <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#6b7280', marginTop: 12, fontStyle: 'italic' }}>
                                     Source: Probabilistic live data from 100+ retail traders on prop firm accounts · Stats update rolling 30-day
                                 </div>
                             </div>
@@ -1176,7 +1212,7 @@ export default function AnalyticsPage() {
                                                 <span style={{ fontFamily: 'var(--font-mono)', fontSize: 12, fontWeight: 700, color: '#ff4757' }}>-${Math.abs(z.pnl).toFixed(0)}</span>
                                             </div>
                                         )) : (
-                                            <div style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: '#4b5563' }}>No negative time zones detected</div>
+                                            <div style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: '#6b7280' }}>No negative time zones detected</div>
                                         )}
                                     </div>
                                 </div>
@@ -1192,7 +1228,7 @@ export default function AnalyticsPage() {
                                                 <span style={{ fontFamily: 'var(--font-mono)', fontSize: 12, fontWeight: 700, color: '#A6FF4D' }}>+${z.pnl.toFixed(0)}</span>
                                             </div>
                                         )) : (
-                                            <div style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: '#4b5563' }}>No positive time zones detected yet</div>
+                                            <div style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: '#6b7280' }}>No positive time zones detected yet</div>
                                         )}
                                     </div>
                                 </div>
@@ -1256,7 +1292,7 @@ export default function AnalyticsPage() {
                                     <div key={i} style={{ padding: '20px 24px', borderBottom: '1px solid #1a1c24', borderRight: '1px solid #1a1c24', background: '#0d1117', display: 'flex', flexDirection: 'column', gap: 6 }}>
                                         <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#6b7280', letterSpacing: '0.1em', textTransform: 'uppercase' }}>{k.label}</span>
                                         <span style={{ fontFamily: 'var(--font-mono)', fontSize: 22, fontWeight: 700, color: k.color }}>{k.value}</span>
-                                        <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: '#4b5563' }}>{k.sub}</span>
+                                        <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: '#6b7280' }}>{k.sub}</span>
                                     </div>
                                 ))}
                             </div>
@@ -1327,7 +1363,7 @@ export default function AnalyticsPage() {
                                                 <div style={{ fontFamily: 'var(--font-mono)', fontSize: 16, fontWeight: 700, color: m.pnl >= 0 ? '#A6FF4D' : '#ff4757' }}>
                                                     {m.pnl >= 0 ? '+' : ''}${Math.abs(m.pnl).toFixed(0)}
                                                 </div>
-                                                <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#4b5563', marginTop: 4 }}>
+                                                <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#6b7280', marginTop: 4 }}>
                                                     {m.trades}T · {m.wr.toFixed(0)}%WR · {m.days}d
                                                 </div>
                                                 <div style={{ marginTop: 6, height: 3, background: '#1a1c24', borderRadius: 1 }}>
@@ -1349,7 +1385,7 @@ export default function AnalyticsPage() {
                                             <thead>
                                                 <tr style={{ borderBottom: '1px solid #1a1c24' }}>
                                                     {['WEEK', 'DAYS', 'NET P&L', 'BEST DAY', 'WORST DAY', 'WIN %', 'FLAG'].map((h, i) => (
-                                                        <th key={i} style={{ padding: '10px 16px', textAlign: i === 0 ? 'left' : 'right', color: '#4b5563', fontWeight: 700, letterSpacing: '0.08em', fontSize: 9, textTransform: 'uppercase', whiteSpace: 'nowrap' }}>{h}</th>
+                                                        <th key={i} style={{ padding: '10px 16px', textAlign: i === 0 ? 'left' : 'right', color: '#6b7280', fontWeight: 700, letterSpacing: '0.08em', fontSize: 9, textTransform: 'uppercase', whiteSpace: 'nowrap' }}>{h}</th>
                                                     ))}
                                                 </tr>
                                             </thead>
@@ -1428,7 +1464,7 @@ export default function AnalyticsPage() {
                                     <div key={i} style={{ padding: '20px 24px', borderBottom: '1px solid #1a1c24', borderRight: '1px solid #1a1c24', background: '#0d1117', display: 'flex', flexDirection: 'column', gap: 6 }}>
                                         <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#6b7280', letterSpacing: '0.1em', textTransform: 'uppercase' }}>{k.label}</span>
                                         <span style={{ fontFamily: 'var(--font-mono)', fontSize: 20, fontWeight: 700, color: k.color }}>{k.value}</span>
-                                        <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: '#4b5563' }}>{k.sub}</span>
+                                        <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: '#6b7280' }}>{k.sub}</span>
                                     </div>
                                 ))}
                             </div>
@@ -1450,7 +1486,7 @@ export default function AnalyticsPage() {
                                         <ResponsiveContainer width="100%" height="100%">
                                             <BarChart data={instrumentDeep.slice(0, 8).map(i => ({ asset: i.asset, pnl: i.pnl, wr: i.winRate }))} layout="vertical" margin={{ top: 4, right: 60, bottom: 4, left: 0 }} barCategoryGap="25%">
                                                 <CartesianGrid stroke="#1a1c24" strokeDasharray="3 3" horizontal={false} />
-                                                <XAxis type="number" tick={{ fontSize: 9, fill: '#4b5563', fontFamily: 'var(--font-mono)' }} axisLine={false} tickLine={false} tickFormatter={(v: number) => `$${Math.abs(v) >= 1000 ? `${(v/1000).toFixed(1)}k` : v.toFixed(0)}`} />
+                                                <XAxis type="number" tick={{ fontSize: 9, fill: '#6b7280', fontFamily: 'var(--font-mono)' }} axisLine={false} tickLine={false} tickFormatter={(v: number) => `$${Math.abs(v) >= 1000 ? `${(v/1000).toFixed(1)}k` : v.toFixed(0)}`} />
                                                 <YAxis type="category" dataKey="asset" tick={{ fontSize: 10, fill: '#8b949e', fontFamily: 'var(--font-mono)', fontWeight: 600 }} axisLine={false} tickLine={false} width={40} />
                                                 <ReferenceLine x={0} stroke="rgba(255,255,255,0.12)" />
                                                 <Tooltip
@@ -1477,7 +1513,7 @@ export default function AnalyticsPage() {
                                         <thead>
                                             <tr style={{ borderBottom: '1px solid #1a1c24' }}>
                                                 {['INSTRUMENT', 'TRADES', 'WIN RATE', 'NET P&L', 'PROFIT FACTOR', 'AVG WIN', 'AVG LOSS', 'EXPECTANCY', 'LONG/SHORT', 'VERDICT'].map((h, i) => (
-                                                    <th key={i} style={{ padding: '10px 12px', textAlign: i === 0 ? 'left' : 'right', color: '#4b5563', fontWeight: 700, letterSpacing: '0.08em', fontSize: 9, textTransform: 'uppercase', whiteSpace: 'nowrap' }}>{h}</th>
+                                                    <th key={i} style={{ padding: '10px 12px', textAlign: i === 0 ? 'left' : 'right', color: '#6b7280', fontWeight: 700, letterSpacing: '0.08em', fontSize: 9, textTransform: 'uppercase', whiteSpace: 'nowrap' }}>{h}</th>
                                                 ))}
                                             </tr>
                                         </thead>
@@ -1492,7 +1528,7 @@ export default function AnalyticsPage() {
                                                         onMouseLeave={e => (e.currentTarget as HTMLTableRowElement).style.background = 'transparent'}>
                                                         <td style={{ padding: '12px 12px', color: '#fff', fontWeight: 700 }}>
                                                             {inst.asset}
-                                                            <span style={{ marginLeft: 6, fontFamily: 'var(--font-mono)', fontSize: 9, color: '#4b5563' }}>{expandedInstruments.has(inst.asset) ? '▲' : '▼'}</span>
+                                                            <span style={{ marginLeft: 6, fontFamily: 'var(--font-mono)', fontSize: 9, color: '#6b7280' }}>{expandedInstruments.has(inst.asset) ? '▲' : '▼'}</span>
                                                         </td>
                                                         <td style={{ padding: '12px 12px', textAlign: 'right', color: '#6b7280' }}>{inst.tradeList.length}</td>
                                                         <td style={{ padding: '12px 12px', textAlign: 'right', fontWeight: 700, color: inst.winRate >= 55 ? '#A6FF4D' : inst.winRate >= 45 ? '#EAB308' : '#ff4757' }}>{inst.winRate.toFixed(0)}%</td>
@@ -1658,7 +1694,7 @@ export default function AnalyticsPage() {
                                     <div key={i} style={{ padding: '20px 24px', borderBottom: '1px solid #1a1c24', borderRight: '1px solid #1a1c24', background: '#0d1117', display: 'flex', flexDirection: 'column', gap: 6 }}>
                                         <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#6b7280', letterSpacing: '0.1em', textTransform: 'uppercase' }}>{k.label}</span>
                                         <span style={{ fontFamily: 'var(--font-mono)', fontSize: 22, fontWeight: 700, color: k.color }}>{k.value}</span>
-                                        <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: '#4b5563' }}>{k.sub}</span>
+                                        <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: '#6b7280' }}>{k.sub}</span>
                                     </div>
                                 ))}
                             </div>
@@ -1672,12 +1708,12 @@ export default function AnalyticsPage() {
                                         <ResponsiveContainer width="100%" height="100%">
                                             <BarChart data={sessionMetrics.map((s: any, i: number) => ({ name: `S${i + 1}`, pnl: s.pnl, tag: s.tag, trades: s.trades.length }))} margin={{ top: 8, right: 8, bottom: 0, left: 0 }} barCategoryGap="25%">
                                                 <CartesianGrid stroke="#1a1c24" strokeDasharray="3 3" vertical={false} />
-                                                <XAxis dataKey="name" tick={{ fontSize: 9, fill: '#4b5563', fontFamily: 'var(--font-mono)' }} axisLine={false} tickLine={false} />
-                                                <YAxis tick={{ fontSize: 9, fill: '#4b5563', fontFamily: 'var(--font-mono)' }} axisLine={false} tickLine={false} tickFormatter={(v: number) => `$${Math.abs(v) >= 1000 ? `${(v/1000).toFixed(1)}k` : v.toFixed(0)}`} width={48} />
-                                                <ReferenceLine y={0} stroke="rgba(255,255,255,0.12)" />
+                                                <XAxis dataKey="name" tick={{ fontSize: 9, fill: '#8b949e', fontFamily: 'var(--font-mono)' }} axisLine={false} tickLine={false} />
+                                                <YAxis tick={{ fontSize: 9, fill: '#8b949e', fontFamily: 'var(--font-mono)' }} axisLine={false} tickLine={false} tickFormatter={(v: number) => `$${Math.abs(v) >= 1000 ? `${(v/1000).toFixed(1)}k` : v.toFixed(0)}`} width={48} />
+                                                <ReferenceLine y={0} stroke="rgba(255,255,255,0.2)" />
                                                 <Tooltip
-                                                    contentStyle={{ backgroundColor: '#0b0e14', border: '1px solid #1a1c24', fontFamily: 'var(--font-mono)', fontSize: 11, borderRadius: 0 }}
-                                                    cursor={{ fill: 'rgba(255,255,255,0.03)' }}
+                                                    contentStyle={{ backgroundColor: '#13151a', border: '1px solid #2d3748', fontFamily: 'var(--font-mono)', fontSize: 11, borderRadius: 0, color: '#c9d1d9' }}
+                                                    cursor={{ fill: 'rgba(255,255,255,0.04)' }}
                                                     formatter={(v: number | undefined, _n: unknown, props: { payload?: { tag: string; trades: number } }) => v !== undefined ? [`${v >= 0 ? '+' : ''}$${Math.abs(v).toFixed(2)} · ${props.payload?.trades ?? 0} trades · ${props.payload?.tag ?? ''}`, 'Session P&L'] : ['—', 'Session P&L']}
                                                     labelFormatter={(l: unknown) => `Session ${l}`}
                                                 />
@@ -1694,7 +1730,7 @@ export default function AnalyticsPage() {
 
                             {/* ── INDIVIDUAL SESSION CARDS ── */}
                             {sessionMetrics.length === 0 && (
-                                <div style={{ background: '#0d1117', border: '1px solid #1a1c24', padding: '40px', textAlign: 'center', fontFamily: 'var(--font-mono)', fontSize: 12, color: '#4b5563' }}>
+                                <div style={{ background: '#0d1117', border: '1px solid #1a1c24', padding: '40px', textAlign: 'center', fontFamily: 'var(--font-mono)', fontSize: 12, color: '#6b7280' }}>
                                     No sessions detected yet — log at least 2 trades with a 2h+ gap between them.
                                 </div>
                             )}
@@ -1716,7 +1752,7 @@ export default function AnalyticsPage() {
                                                     <div style={{ fontFamily: 'var(--font-mono)', fontSize: 14, fontWeight: 700, color: '#fff' }}>
                                                         {s.fmtDate(s.startTime)}
                                                     </div>
-                                                    <div style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: '#4b5563', marginTop: 2 }}>
+                                                    <div style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: '#6b7280', marginTop: 2 }}>
                                                         {s.fmtEstTime(s.startTime)} – {s.fmtEstTime(s.endTime)} EST · {s.durationMinutes >= 60 ? `${Math.floor(s.durationMinutes / 60)}h ${Math.floor(s.durationMinutes % 60)}m` : `${Math.floor(s.durationMinutes)}m`} duration
                                                     </div>
                                                 </div>
@@ -1727,7 +1763,7 @@ export default function AnalyticsPage() {
                                                     {seq.slice(0, 20).map((r: string, i: number) => (
                                                         <div key={i} style={{ width: 8, height: 8, borderRadius: '50%', background: r === 'W' ? '#A6FF4D' : '#ff4757', opacity: 0.85 }} />
                                                     ))}
-                                                    {seq.length > 20 && <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#4b5563' }}>+{seq.length - 20}</span>}
+                                                    {seq.length > 20 && <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#6b7280' }}>+{seq.length - 20}</span>}
                                                 </div>
                                                 <div style={{ textAlign: 'right' }}>
                                                     <div style={{ fontFamily: 'var(--font-mono)', fontSize: 20, fontWeight: 700, color: s.pnl >= 0 ? '#A6FF4D' : '#ff4757' }}>
@@ -1738,7 +1774,7 @@ export default function AnalyticsPage() {
                                                 <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, fontWeight: 700, padding: '4px 10px', border: `1px solid ${tagColor}44`, color: tagColor, background: `${tagColor}11`, letterSpacing: '0.08em' }}>
                                                     {s.tag}
                                                 </div>
-                                                <div style={{ fontFamily: 'var(--font-mono)', fontSize: 14, color: '#4b5563', userSelect: 'none' }}>{isExpanded ? '▲' : '▼'}</div>
+                                                <div style={{ fontFamily: 'var(--font-mono)', fontSize: 14, color: '#6b7280', userSelect: 'none' }}>{isExpanded ? '▲' : '▼'}</div>
                                             </div>
                                         </div>
 
@@ -1781,7 +1817,7 @@ export default function AnalyticsPage() {
                                                                             <ReferenceLine y={0} stroke="rgba(255,255,255,0.08)" />
                                                                             <Area type="monotone" dataKey="pnl" stroke={s.pnl >= 0 ? '#A6FF4D' : '#ff4757'} strokeWidth={1.5} fill={`url(#sg${idx})`} dot={false} />
                                                                             <Tooltip
-                                                                                contentStyle={{ backgroundColor: '#0b0e14', border: '1px solid #1a1c24', fontFamily: 'var(--font-mono)', fontSize: 10, borderRadius: 0 }}
+                                                                                contentStyle={{ backgroundColor: '#13151a', border: '1px solid #2d3748', fontFamily: 'var(--font-mono)', fontSize: 10, borderRadius: 0, color: '#c9d1d9' }}
                                                                                 formatter={(v: number | undefined) => v !== undefined ? [`${v >= 0 ? '+' : ''}$${Math.abs(v).toFixed(2)}`, 'Running P&L'] : ['—', 'Running P&L']}
                                                                                 labelFormatter={(l: unknown) => `Trade ${Number(l) + 1}`}
                                                                             />
@@ -1794,14 +1830,14 @@ export default function AnalyticsPage() {
                                                                     <div style={{ padding: '10px 14px', background: 'rgba(166,255,77,0.04)', border: '1px solid rgba(166,255,77,0.15)' }}>
                                                                         <div style={{ fontFamily: 'var(--font-mono)', fontSize: 8, color: '#A6FF4D', letterSpacing: '0.1em', marginBottom: 3 }}>BEST TRADE</div>
                                                                         <div style={{ fontFamily: 'var(--font-mono)', fontSize: 16, fontWeight: 700, color: '#A6FF4D' }}>+${(s.bestTrade.pnl ?? 0).toFixed(2)}</div>
-                                                                        <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#4b5563', marginTop: 2 }}>{s.bestTrade.asset} · {s.fmtEstTime(s.bestTrade.closedAt ?? s.bestTrade.createdAt)}</div>
+                                                                        <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#6b7280', marginTop: 2 }}>{s.bestTrade.asset} · {s.fmtEstTime(s.bestTrade.closedAt ?? s.bestTrade.createdAt)}</div>
                                                                     </div>
                                                                 )}
                                                                 {s.worstTrade && (
                                                                     <div style={{ padding: '10px 14px', background: 'rgba(255,71,87,0.04)', border: '1px solid rgba(255,71,87,0.15)' }}>
                                                                         <div style={{ fontFamily: 'var(--font-mono)', fontSize: 8, color: '#ff4757', letterSpacing: '0.1em', marginBottom: 3 }}>WORST TRADE</div>
                                                                         <div style={{ fontFamily: 'var(--font-mono)', fontSize: 16, fontWeight: 700, color: '#ff4757' }}>-${Math.abs(s.worstTrade.pnl ?? 0).toFixed(2)}</div>
-                                                                        <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#4b5563', marginTop: 2 }}>{s.worstTrade.asset} · {s.fmtEstTime(s.worstTrade.closedAt ?? s.worstTrade.createdAt)}</div>
+                                                                        <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#6b7280', marginTop: 2 }}>{s.worstTrade.asset} · {s.fmtEstTime(s.worstTrade.closedAt ?? s.worstTrade.createdAt)}</div>
                                                                     </div>
                                                                 )}
                                                             </div>
@@ -1862,7 +1898,7 @@ export default function AnalyticsPage() {
                                                                     <thead>
                                                                         <tr style={{ borderBottom: '1px solid #1a1c24' }}>
                                                                             {['#', 'TIME (EST)', 'ASSET', 'DIR', 'P&L', 'DURATION', 'RUNNING', 'SIGNAL'].map((h, i) => (
-                                                                                <th key={i} style={{ padding: '8px 12px', textAlign: i <= 1 ? 'left' : 'right', color: '#4b5563', fontWeight: 700, letterSpacing: '0.08em', fontSize: 9, textTransform: 'uppercase', whiteSpace: 'nowrap' }}>{h}</th>
+                                                                                <th key={i} style={{ padding: '8px 12px', textAlign: i <= 1 ? 'left' : 'right', color: '#6b7280', fontWeight: 700, letterSpacing: '0.08em', fontSize: 9, textTransform: 'uppercase', whiteSpace: 'nowrap' }}>{h}</th>
                                                                             ))}
                                                                         </tr>
                                                                     </thead>
@@ -1878,14 +1914,14 @@ export default function AnalyticsPage() {
                                                                                 <tr key={t.id} style={{ borderBottom: '1px solid rgba(26,28,36,0.6)' }}
                                                                                     onMouseEnter={e => (e.currentTarget as HTMLTableRowElement).style.background = '#0f1420'}
                                                                                     onMouseLeave={e => (e.currentTarget as HTMLTableRowElement).style.background = 'transparent'}>
-                                                                                    <td style={{ padding: '10px 12px', color: '#4b5563' }}>{ti + 1}</td>
+                                                                                    <td style={{ padding: '10px 12px', color: '#6b7280' }}>{ti + 1}</td>
                                                                                     <td style={{ padding: '10px 12px', color: '#6b7280' }}>{s.fmtEstTime(t.closedAt ?? t.createdAt)}</td>
                                                                                     <td style={{ padding: '10px 12px', textAlign: 'right', color: '#c9d1d9', fontWeight: 600 }}>{t.asset}</td>
                                                                                     <td style={{ padding: '10px 12px', textAlign: 'right', color: t.isShort ? '#38bdf8' : '#fb923c', fontSize: 9, fontWeight: 700 }}>{t.isShort ? 'SHORT' : 'LONG'}</td>
                                                                                     <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: 700, color: (t.pnl ?? 0) >= 0 ? '#A6FF4D' : '#ff4757' }}>
                                                                                         {(t.pnl ?? 0) >= 0 ? '+' : '-'}${Math.abs(t.pnl ?? 0).toFixed(2)}
                                                                                     </td>
-                                                                                    <td style={{ padding: '10px 12px', textAlign: 'right', color: '#4b5563' }}>
+                                                                                    <td style={{ padding: '10px 12px', textAlign: 'right', color: '#6b7280' }}>
                                                                                         {fmtDuration(t.durationSeconds ?? 0)}
                                                                                     </td>
                                                                                     <td style={{ padding: '10px 12px', textAlign: 'right', color: running >= 0 ? '#A6FF4D' : '#ff4757', fontWeight: 600 }}>
@@ -1948,6 +1984,21 @@ export default function AnalyticsPage() {
                                 </div>
                             )}
 
+                            {/* ── SESSION SCATTER: Start Time vs P&L ── */}
+                            {sessionScatterData.length > 1 && (
+                                <div style={{ background: '#0d1117', border: '1px solid #1a1c24', padding: '24px' }}>
+                                    <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#6b7280', letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 4 }}>SESSION SCATTER — START HOUR vs P&L</div>
+                                    <div style={{ fontFamily: 'var(--font-mono)', fontSize: 13, fontWeight: 600, color: '#c9d1d9', marginBottom: 4 }}>Does your session P&L depend on when you start? Each dot = one session.</div>
+                                    <div style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: '#8b949e', marginBottom: 12 }}>Dot size = session magnitude. Look for vertical clustering: winning start windows vs losing ones.</div>
+                                    <TradeScatterChart
+                                        data={sessionScatterData}
+                                        xLabel="Session Start Hour (EST)"
+                                        height={200}
+                                        xFormatter={(v: number) => `${String(Math.floor(v)).padStart(2,'0')}:${String(Math.round((v % 1) * 60)).padStart(2,'0')}`}
+                                    />
+                                </div>
+                            )}
+
                             {/* ── ACTIONABLE RULES ── */}
                             <div style={{ background: '#0d1117', border: '1px solid #1a1c24', padding: '24px' }}>
                                 <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#6b7280', letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 16 }}>SESSION-BASED RULES — DERIVED FROM YOUR DATA</div>
@@ -1992,7 +2043,7 @@ export default function AnalyticsPage() {
                         </motion.div>
                     )}
 
-                    {activeTab === 'TIME' && (
+                    {activeTab === 'TIME OF DAY' && (
                         <motion.div key="time" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} style={{ display: 'flex', flexDirection: 'column', gap: 20, marginBottom: 48 }}>
 
                             {/* ── HEADER ── */}
@@ -2038,7 +2089,7 @@ export default function AnalyticsPage() {
                                         <div key={i} style={{ padding: '20px 24px', borderBottom: '1px solid #1a1c24', borderRight: '1px solid #1a1c24', background: '#0d1117', display: 'flex', flexDirection: 'column', gap: 6 }}>
                                             <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#6b7280', letterSpacing: '0.1em', textTransform: 'uppercase' }}>{k.label}</span>
                                             <span style={{ fontFamily: 'var(--font-mono)', fontSize: 22, fontWeight: 700, color: k.color }}>{k.value}</span>
-                                            <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: '#4b5563' }}>{k.sub}</span>
+                                            <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: '#6b7280' }}>{k.sub}</span>
                                         </div>
                                     ));
                                 })()}
@@ -2070,12 +2121,12 @@ export default function AnalyticsPage() {
                                     <ResponsiveContainer width="100%" height="100%">
                                         <BarChart data={hourlyData} margin={{ top: 8, right: 8, bottom: 0, left: 0 }} barCategoryGap="20%">
                                             <CartesianGrid stroke="#1a1c24" strokeDasharray="3 3" vertical={false} />
-                                            <XAxis dataKey="hour" tick={{ fontSize: 9, fill: '#4b5563', fontFamily: 'var(--font-mono)' }} axisLine={false} tickLine={false} interval={1} />
-                                            <YAxis tick={{ fontSize: 9, fill: '#4b5563', fontFamily: 'var(--font-mono)' }} axisLine={false} tickLine={false} tickFormatter={(v: number) => `$${v >= 0 ? '' : ''}${Math.abs(v) >= 1000 ? `${(v/1000).toFixed(1)}k` : v.toFixed(0)}`} width={48} />
-                                            <ReferenceLine y={0} stroke="rgba(255,255,255,0.12)" strokeWidth={1} />
+                                            <XAxis dataKey="hour" tick={{ fontSize: 9, fill: '#8b949e', fontFamily: 'var(--font-mono)' }} axisLine={false} tickLine={false} interval={1} />
+                                            <YAxis tick={{ fontSize: 9, fill: '#8b949e', fontFamily: 'var(--font-mono)' }} axisLine={false} tickLine={false} tickFormatter={(v: number) => `$${v >= 0 ? '' : ''}${Math.abs(v) >= 1000 ? `${(v/1000).toFixed(1)}k` : v.toFixed(0)}`} width={48} />
+                                            <ReferenceLine y={0} stroke="rgba(255,255,255,0.2)" strokeWidth={1} />
                                             <Tooltip
-                                                contentStyle={{ backgroundColor: '#0b0e14', border: '1px solid #1a1c24', fontFamily: 'var(--font-mono)', fontSize: 11, borderRadius: 0 }}
-                                                cursor={{ fill: 'rgba(255,255,255,0.03)' }}
+                                                contentStyle={{ backgroundColor: '#13151a', border: '1px solid #2d3748', fontFamily: 'var(--font-mono)', fontSize: 11, borderRadius: 0, color: '#c9d1d9' }}
+                                                cursor={{ fill: 'rgba(255,255,255,0.04)' }}
                                                 formatter={(v: number | undefined, _name: unknown, props: { payload?: { trades: number; wr: number } }) => {
                                                     if (v === undefined) return ['—', 'P&L'];
                                                     const trades = props.payload?.trades ?? 0;
@@ -2104,12 +2155,12 @@ export default function AnalyticsPage() {
                                     <ResponsiveContainer width="100%" height="100%">
                                         <BarChart data={hourlyData.filter(d => d.trades > 0)} margin={{ top: 4, right: 8, bottom: 0, left: 0 }} barCategoryGap="25%">
                                             <CartesianGrid stroke="#1a1c24" strokeDasharray="3 3" vertical={false} />
-                                            <XAxis dataKey="hour" tick={{ fontSize: 9, fill: '#4b5563', fontFamily: 'var(--font-mono)' }} axisLine={false} tickLine={false} />
-                                            <YAxis domain={[0, 100]} tick={{ fontSize: 9, fill: '#4b5563', fontFamily: 'var(--font-mono)' }} axisLine={false} tickLine={false} tickFormatter={(v: number) => `${v}%`} width={36} />
-                                            <ReferenceLine y={50} stroke="rgba(255,255,255,0.2)" strokeDasharray="4 4" label={{ value: '50%', fill: '#4b5563', fontSize: 9, fontFamily: 'var(--font-mono)' }} />
+                                            <XAxis dataKey="hour" tick={{ fontSize: 9, fill: '#8b949e', fontFamily: 'var(--font-mono)' }} axisLine={false} tickLine={false} />
+                                            <YAxis domain={[0, 100]} tick={{ fontSize: 9, fill: '#8b949e', fontFamily: 'var(--font-mono)' }} axisLine={false} tickLine={false} tickFormatter={(v: number) => `${v}%`} width={36} />
+                                            <ReferenceLine y={50} stroke="rgba(255,255,255,0.2)" strokeDasharray="4 4" label={{ value: '50%', fill: '#8b949e', fontSize: 9, fontFamily: 'var(--font-mono)' }} />
                                             <Tooltip
-                                                contentStyle={{ backgroundColor: '#0b0e14', border: '1px solid #1a1c24', fontFamily: 'var(--font-mono)', fontSize: 11, borderRadius: 0 }}
-                                                cursor={{ fill: 'rgba(255,255,255,0.03)' }}
+                                                contentStyle={{ backgroundColor: '#13151a', border: '1px solid #2d3748', fontFamily: 'var(--font-mono)', fontSize: 11, borderRadius: 0, color: '#c9d1d9' }}
+                                                cursor={{ fill: 'rgba(255,255,255,0.04)' }}
                                                 formatter={(v: number | undefined, _n: unknown, props: { payload?: { trades: number } }) => v !== undefined ? [`${v.toFixed(1)}% win rate · ${props.payload?.trades ?? 0} trades`, 'Win Rate'] : ['—', 'Win Rate']}
                                                 labelFormatter={(l: unknown) => `Hour ${l} EST`}
                                             />
@@ -2122,6 +2173,31 @@ export default function AnalyticsPage() {
                                     </ResponsiveContainer>
                                 </div>
                             </div>
+
+                            {/* ── HEATMAP: Hour × Day-of-Week ── */}
+                            {heatmapData.length > 0 && (
+                                <div style={{ background: '#0d1117', border: '1px solid #1a1c24', padding: '24px' }}>
+                                    <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#6b7280', letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 4 }}>P&L HEATMAP — HOUR × DAY OF WEEK</div>
+                                    <div style={{ fontFamily: 'var(--font-mono)', fontSize: 13, fontWeight: 600, color: '#c9d1d9', marginBottom: 4 }}>Average P&L per cell. Green = profitable slot, red = structural loss zone.</div>
+                                    <div style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: '#8b949e', marginBottom: 16 }}>Darker cells = higher magnitude. Only hours with at least 1 trade shown.</div>
+                                    <HeatmapGrid data={heatmapData} height={200} minTrades={1} />
+                                </div>
+                            )}
+
+                            {/* ── SCATTER: Individual Trade Hour vs P&L ── */}
+                            {scatterByHour.length > 0 && (
+                                <div style={{ background: '#0d1117', border: '1px solid #1a1c24', padding: '24px' }}>
+                                    <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#6b7280', letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 4 }}>TRADE SCATTER — HOUR vs P&L</div>
+                                    <div style={{ fontFamily: 'var(--font-mono)', fontSize: 13, fontWeight: 600, color: '#c9d1d9', marginBottom: 4 }}>Each dot = one trade. Clusters reveal your time-of-day sweet spots.</div>
+                                    <div style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: '#8b949e', marginBottom: 12 }}>Dot size proportional to trade magnitude. Green = win, red = loss. Time in EST.</div>
+                                    <TradeScatterChart
+                                        data={scatterByHour}
+                                        xLabel="Hour (EST)"
+                                        height={240}
+                                        xFormatter={(v: number) => `${String(Math.floor(v)).padStart(2,'0')}:${String(Math.round((v % 1) * 60)).padStart(2,'0')}`}
+                                    />
+                                </div>
+                            )}
 
                             {/* ── SESSION WINDOW BREAKDOWN ── */}
                             <div style={{ background: '#0d1117', border: '1px solid #1a1c24', padding: '24px' }}>
@@ -2140,7 +2216,7 @@ export default function AnalyticsPage() {
                                             <div key={i} style={{ display: 'grid', gridTemplateColumns: '180px 1fr 80px 80px 60px', alignItems: 'center', gap: 16, padding: '14px 16px', background: i % 2 === 0 ? '#0d1117' : '#0b0e14', borderBottom: '1px solid #1a1c24' }}>
                                                 <div>
                                                     <div style={{ fontFamily: 'var(--font-mono)', fontSize: 10, fontWeight: 700, color: sw.color, letterSpacing: '0.06em' }}>{sw.label}</div>
-                                                    <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#4b5563', marginTop: 2 }}>{sw.range} EST</div>
+                                                    <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#6b7280', marginTop: 2 }}>{sw.range} EST</div>
                                                 </div>
                                                 <div style={{ position: 'relative', height: 6, background: '#1a1c24', borderRadius: 2 }}>
                                                     <motion.div initial={{ width: 0 }} animate={{ width: `${barW}%` }} style={{ height: '100%', background: swPnl >= 0 ? '#A6FF4D' : '#ff4757', borderRadius: 2, opacity: 0.8 }} />
@@ -2151,7 +2227,7 @@ export default function AnalyticsPage() {
                                                 <div style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: swWr >= 50 ? '#A6FF4D' : swWr >= 40 ? '#EAB308' : '#ff4757', textAlign: 'right', fontWeight: 600 }}>
                                                     {swWr.toFixed(0)}% WR
                                                 </div>
-                                                <div style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: '#4b5563', textAlign: 'right' }}>
+                                                <div style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: '#6b7280', textAlign: 'right' }}>
                                                     {swTrades}T
                                                 </div>
                                             </div>
@@ -2168,7 +2244,7 @@ export default function AnalyticsPage() {
                                         <thead>
                                             <tr style={{ borderBottom: '1px solid #1a1c24' }}>
                                                 {['HOUR (EST)', 'SESSION', 'TRADES', 'WIN RATE', 'NET P&L', 'SIGNAL'].map((h, i) => (
-                                                    <th key={i} style={{ padding: '10px 16px', textAlign: i === 0 ? 'left' : 'right', color: '#4b5563', fontWeight: 700, letterSpacing: '0.08em', fontSize: 9, textTransform: 'uppercase', whiteSpace: 'nowrap' }}>{h}</th>
+                                                    <th key={i} style={{ padding: '10px 16px', textAlign: i === 0 ? 'left' : 'right', color: '#6b7280', fontWeight: 700, letterSpacing: '0.08em', fontSize: 9, textTransform: 'uppercase', whiteSpace: 'nowrap' }}>{h}</th>
                                                 ))}
                                             </tr>
                                         </thead>
@@ -2202,7 +2278,7 @@ export default function AnalyticsPage() {
                                         </tbody>
                                     </table>
                                     {hourlyStats.filter(s => s.trades > 0).length === 0 && (
-                                        <div style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: '#4b5563', padding: '24px 16px' }}>No closed trades logged yet.</div>
+                                        <div style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: '#6b7280', padding: '24px 16px' }}>No closed trades logged yet.</div>
                                     )}
                                 </div>
                             </div>
@@ -2365,7 +2441,7 @@ export default function AnalyticsPage() {
                                 {/* Dot legend + sequence */}
                                 <div className="flex flex-col gap-3">
                                     <div className="flex items-center gap-4">
-                                        <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: '#4b5563', letterSpacing: '0.08em' }}>TRADE SEQUENCE →</span>
+                                        <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: '#6b7280', letterSpacing: '0.08em' }}>TRADE SEQUENCE →</span>
                                         <div className="flex items-center gap-1.5">
                                             <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#A6FF4D' }} />
                                             <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#A6FF4D' }}>Win</span>
@@ -2409,7 +2485,7 @@ export default function AnalyticsPage() {
                                     </p>
                                 )}
                                 {closed.length < 5 && (
-                                    <p style={{ fontFamily: 'var(--font-mono)', fontSize: 12, color: '#4b5563', lineHeight: 1.8, borderTop: '1px solid #1a1c24', paddingTop: 16 }}>
+                                    <p style={{ fontFamily: 'var(--font-mono)', fontSize: 12, color: '#6b7280', lineHeight: 1.8, borderTop: '1px solid #1a1c24', paddingTop: 16 }}>
                                         Log at least 5 trades to generate a behavioral narrative.
                                     </p>
                                 )}
@@ -2423,9 +2499,9 @@ export default function AnalyticsPage() {
                                         <table style={{ width: '100%', borderCollapse: 'collapse', fontFamily: 'var(--font-mono)' }}>
                                             <thead>
                                                 <tr style={{ background: '#0d1117', borderBottom: '1px solid #1a1c24' }}>
-                                                    <th style={{ padding: '12px 24px', textAlign: 'left', fontSize: 10, fontWeight: 700, color: '#4b5563', letterSpacing: '0.1em' }}>AFTER</th>
-                                                    <th style={{ padding: '12px 24px', textAlign: 'left', fontSize: 10, fontWeight: 700, color: '#4b5563', letterSpacing: '0.1em' }}>RECOVERY PROBABILITY</th>
-                                                    <th style={{ padding: '12px 24px', textAlign: 'left', fontSize: 10, fontWeight: 700, color: '#4b5563', letterSpacing: '0.1em' }}>AVG TRADES TO RECOVER</th>
+                                                    <th style={{ padding: '12px 24px', textAlign: 'left', fontSize: 10, fontWeight: 700, color: '#6b7280', letterSpacing: '0.1em' }}>AFTER</th>
+                                                    <th style={{ padding: '12px 24px', textAlign: 'left', fontSize: 10, fontWeight: 700, color: '#6b7280', letterSpacing: '0.1em' }}>RECOVERY PROBABILITY</th>
+                                                    <th style={{ padding: '12px 24px', textAlign: 'left', fontSize: 10, fontWeight: 700, color: '#6b7280', letterSpacing: '0.1em' }}>AVG TRADES TO RECOVER</th>
                                                 </tr>
                                             </thead>
                                             <tbody>
@@ -2485,12 +2561,12 @@ export default function AnalyticsPage() {
                                                     </div>
                                                     {/* Trigger */}
                                                     <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                                                        <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, fontWeight: 700, color: '#4b5563', letterSpacing: '0.08em', textTransform: 'uppercase' }}>Trigger</span>
+                                                        <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, fontWeight: 700, color: '#6b7280', letterSpacing: '0.08em', textTransform: 'uppercase' }}>Trigger</span>
                                                         <p style={{ fontFamily: 'var(--font-mono)', fontSize: 12, color: '#8b949e', lineHeight: 1.7, margin: 0 }}>{ps.trigger}</p>
                                                     </div>
                                                     {/* Response */}
                                                     <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                                                        <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, fontWeight: 700, color: '#4b5563', letterSpacing: '0.08em', textTransform: 'uppercase' }}>Response</span>
+                                                        <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, fontWeight: 700, color: '#6b7280', letterSpacing: '0.08em', textTransform: 'uppercase' }}>Response</span>
                                                         <p style={{ fontFamily: 'var(--font-mono)', fontSize: 12, color: '#c9d1d9', lineHeight: 1.7, margin: 0, fontWeight: 500 }}>{ps.response}</p>
                                                     </div>
                                                 </div>
@@ -2675,7 +2751,7 @@ export default function AnalyticsPage() {
                                 {prescriptions.length > 0 && (
                                     <div>
                                         <span className={styles.sectionTitle} style={{ marginBottom: 8, display: 'flex' }}>PROJECTED IMPACT IF IMPLEMENTED</span>
-                                        <p className="text-[11px] text-[#4b5563] mb-4 leading-relaxed">
+                                        <p className="text-[11px] text-[#6b7280] mb-4 leading-relaxed">
                                             Projection assumes full elimination of all flagged behavioral patterns. Actual improvement will vary — patterns are modeled independently and may overlap on shared trades.
                                         </p>
                                         <div className="flex gap-3 items-center">
@@ -2684,15 +2760,15 @@ export default function AnalyticsPage() {
                                                 <span className="text-[36px] font-black font-mono" style={{ color: netPnl >= 0 ? '#A6FF4D' : '#ff4757' }}>
                                                     {netPnl >= 0 ? '+' : '-'}${Math.abs(netPnl).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                                                 </span>
-                                                <span className="text-[11px]" style={{ color: '#4b5563' }}>{tradeCount} trades · {sessionCount} sessions</span>
+                                                <span className="text-[11px]" style={{ color: '#6b7280' }}>{tradeCount} trades · {sessionCount} sessions</span>
                                             </div>
-                                            <div className="flex items-center justify-center text-[#4b5563]" style={{ fontSize: 20 }}>→</div>
+                                            <div className="flex items-center justify-center text-[#6b7280]" style={{ fontSize: 20 }}>→</div>
                                             <div className="flex-1 bg-[#0d1117] border border-[#1a1c24] p-5 flex flex-col gap-2" style={{ borderRadius: 4 }}>
                                                 <span className="text-[9px] uppercase tracking-[0.15em] font-bold" style={{ color: '#6b7280' }}>Projected (with corrections)</span>
                                                 <span className="text-[36px] font-black font-mono" style={{ color: projectedPnl >= 0 ? '#A6FF4D' : '#ff4757' }}>
                                                     {projectedPnl >= 0 ? '+' : '-'}${Math.abs(projectedPnl).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                                                 </span>
-                                                <span className="text-[11px]" style={{ color: '#4b5563' }}>~{tradeCount} trades · Behavioral fixes applied</span>
+                                                <span className="text-[11px]" style={{ color: '#6b7280' }}>~{tradeCount} trades · Behavioral fixes applied</span>
                                             </div>
                                         </div>
                                         <div className="mt-4 pt-4 border-t border-[#1a1c24] text-center text-[12px] font-mono" style={{ color: '#6b7280' }}>
@@ -2770,17 +2846,17 @@ export default function AnalyticsPage() {
                                 {/* Trend badge */}
                                 <div className="flex items-center gap-3 px-5 py-4 border-b border-[#1a1c24]">
                                     <span className="text-[11px] font-mono font-black uppercase tracking-widest" style={{ color: trendColor }}>{trend}</span>
-                                    <span className="text-[10px] font-mono text-[#4b5563]">Last 30 days vs. prior period</span>
+                                    <span className="text-[10px] font-mono text-[#6b7280]">Last 30 days vs. prior period</span>
                                 </div>
                                 {/* Table */}
                                 <div className="overflow-x-auto">
                                     <table className="w-full text-left border-collapse">
                                         <thead>
                                             <tr className="border-b border-[#1a1c24]">
-                                                <th className="px-5 py-3 text-[9px] font-mono uppercase tracking-widest text-[#4b5563]">Metric</th>
-                                                <th className="px-5 py-3 text-[9px] font-mono uppercase tracking-widest text-[#4b5563]">All Time</th>
+                                                <th className="px-5 py-3 text-[9px] font-mono uppercase tracking-widest text-[#6b7280]">Metric</th>
+                                                <th className="px-5 py-3 text-[9px] font-mono uppercase tracking-widest text-[#6b7280]">All Time</th>
                                                 <th className="px-5 py-3 text-[9px] font-mono uppercase tracking-widest" style={{ color: '#00D4FF' }}>Last 30d</th>
-                                                <th className="px-5 py-3 text-[9px] font-mono uppercase tracking-widest text-[#4b5563]">Prior</th>
+                                                <th className="px-5 py-3 text-[9px] font-mono uppercase tracking-widest text-[#6b7280]">Prior</th>
                                             </tr>
                                         </thead>
                                         <tbody>
@@ -2795,7 +2871,7 @@ export default function AnalyticsPage() {
                                         </tbody>
                                     </table>
                                 </div>
-                                <p className="px-5 py-3 text-[10px] font-mono text-[#4b5563]">
+                                <p className="px-5 py-3 text-[10px] font-mono text-[#6b7280]">
                                     Last 30d: {r30Metrics.count} trades · Prior: {priorMetrics.count} trades
                                 </p>
                             </motion.div>

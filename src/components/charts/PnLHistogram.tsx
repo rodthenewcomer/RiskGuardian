@@ -47,20 +47,20 @@ export default function PnLHistogram({ pnlValues, buckets = 20, height = 160 }: 
                 <CartesianGrid stroke="#1a1c24" strokeDasharray="3 3" vertical={false} />
                 <XAxis
                     dataKey="label"
-                    tick={{ fontSize: 8, fill: '#4b5563', fontFamily: FONT }}
+                    tick={{ fontSize: 8, fill: '#8b949e', fontFamily: FONT }}
                     axisLine={false}
                     tickLine={false}
                     interval={Math.floor(buckets / 6)}
                 />
                 <YAxis
-                    tick={{ fontSize: 8, fill: '#4b5563', fontFamily: FONT }}
+                    tick={{ fontSize: 8, fill: '#8b949e', fontFamily: FONT }}
                     axisLine={false}
                     tickLine={false}
                     width={24}
                 />
-                <ReferenceLine x="$0" stroke="rgba(255,255,255,0.15)" />
+                <ReferenceLine x="$0" stroke="rgba(255,255,255,0.2)" />
                 <Tooltip
-                    contentStyle={{ backgroundColor: '#0b0e14', border: '1px solid #1a1c24', fontFamily: FONT, fontSize: 10, borderRadius: 0 }}
+                    contentStyle={{ backgroundColor: '#13151a', border: '1px solid #2d3748', fontFamily: FONT, fontSize: 10, borderRadius: 0, color: '#c9d1d9' }}
                     formatter={(v: number | undefined) => v !== undefined ? [`${v} trades`, 'Frequency'] : ['—', 'Frequency']}
                     labelFormatter={(l: unknown) => `Around ${l}`}
                 />

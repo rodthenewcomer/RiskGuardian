@@ -27,7 +27,9 @@ const FONT = 'var(--font-mono)';
 const DAYS_ORDER = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
 export default function DayOfWeekChart({ data, height = 160, metric = 'pnl' }: Props) {
-    const ordered = DAYS_ORDER.map(d => data.find(x => x.day === d) ?? { day: d, pnl: 0, trades: 0, wins: 0, wr: 0 }).filter(d => d.trades > 0 || metric === 'pnl');
+    const raw = DAYS_ORDER.map(d => data.find(x => x.day === d) ?? { day: d, pnl: 0, trades: 0, wins: 0, wr: 0 }).filter(d => d.trades > 0 || metric === 'pnl');
+    // Strip non-metric numeric fields to prevent Recharts rendering ghost bars for extra keys
+    const ordered = raw.map(d => ({ day: d.day, [metric]: metric === 'pnl' ? d.pnl : d.wr, _trades: d.trades, _wr: d.wr }));
 
     return (
         <ResponsiveContainer width="100%" height={height}>
@@ -35,7 +37,7 @@ export default function DayOfWeekChart({ data, height = 160, metric = 'pnl' }: P
                 <CartesianGrid stroke="#1a1c24" strokeDasharray="3 3" horizontal={false} />
                 <XAxis
                     type="number"
-                    tick={{ fontSize: 9, fill: '#4b5563', fontFamily: FONT }}
+                    tick={{ fontSize: 9, fill: '#8b949e', fontFamily: FONT }}
                     axisLine={false}
                     tickLine={false}
                     tickFormatter={(v: number) => metric === 'pnl' ? `$${Math.abs(v) >= 1000 ? `${(v / 1000).toFixed(1)}k` : v.toFixed(0)}` : `${v.toFixed(0)}%`}
@@ -43,26 +45,26 @@ export default function DayOfWeekChart({ data, height = 160, metric = 'pnl' }: P
                 <YAxis
                     type="category"
                     dataKey="day"
-                    tick={{ fontSize: 10, fill: '#8b949e', fontFamily: FONT, fontWeight: 600 }}
+                    tick={{ fontSize: 10, fill: '#c9d1d9', fontFamily: FONT, fontWeight: 600 }}
                     axisLine={false}
                     tickLine={false}
                     width={32}
                 />
-                {metric === 'pnl' && <ReferenceLine x={0} stroke="rgba(255,255,255,0.12)" />}
-                {metric === 'wr' && <ReferenceLine x={50} stroke="rgba(255,255,255,0.12)" strokeDasharray="4 2" />}
+                {metric === 'pnl' && <ReferenceLine x={0} stroke="rgba(255,255,255,0.2)" />}
+                {metric === 'wr' && <ReferenceLine x={50} stroke="rgba(255,255,255,0.2)" strokeDasharray="4 2" label={{ value: '50%', fill: '#8b949e', fontSize: 9, fontFamily: FONT }} />}
                 <Tooltip
-                    contentStyle={{ backgroundColor: '#0b0e14', border: '1px solid #1a1c24', fontFamily: FONT, fontSize: 11, borderRadius: 0 }}
-                    formatter={(v: number | undefined, _name: string | undefined, props: { payload?: DayStats }) => {
+                    contentStyle={{ backgroundColor: '#13151a', border: '1px solid #2d3748', fontFamily: FONT, fontSize: 11, borderRadius: 0, color: '#c9d1d9' }}
+                    formatter={(v: number | undefined, _name: string | undefined, props: { payload?: { _trades?: number; _wr?: number } }) => {
                         if (v === undefined) return ['—', ''];
                         const d = props.payload;
-                        if (metric === 'pnl') return [`${v >= 0 ? '+' : ''}$${Math.abs(v).toFixed(2)} · ${d?.trades ?? 0} trades · ${d?.wr.toFixed(0) ?? 0}% WR`, 'P&L'];
-                        return [`${v.toFixed(1)}% · ${d?.trades ?? 0} trades`, 'Win Rate'];
+                        if (metric === 'pnl') return [`${v >= 0 ? '+' : ''}$${Math.abs(v).toFixed(2)} · ${d?._trades ?? 0} trades · ${d?._wr?.toFixed(0) ?? 0}% WR`, 'P&L'];
+                        return [`${v.toFixed(1)}% · ${d?._trades ?? 0} trades`, 'Win Rate'];
                     }}
                     labelFormatter={(l: unknown) => `${l}`}
                 />
                 <Bar dataKey={metric} radius={[0, 2, 2, 0]}>
                     {ordered.map((d, i) => {
-                        const val = metric === 'pnl' ? d.pnl : d.wr;
+                        const val = d[metric as keyof typeof d] as number;
                         const color = metric === 'pnl'
                             ? (val >= 0 ? 'rgba(166,255,77,0.85)' : 'rgba(255,71,87,0.85)')
                             : (val >= 60 ? '#A6FF4D' : val >= 50 ? 'rgba(166,255,77,0.6)' : val >= 40 ? '#EAB308' : '#ff4757');
