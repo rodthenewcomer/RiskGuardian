@@ -1331,6 +1331,13 @@ export default function AnalyticsPage() {
                     {activeTab === 'DAILY' && (
                         <motion.div key="daily" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} style={{ display: 'flex', flexDirection: 'column', gap: 20, marginBottom: 48 }}>
 
+                            {dailyData.length === 0 ? (
+                                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: 300, gap: 12, background: '#0d1117', border: '1px solid #1a1c24', padding: 40 }}>
+                                    <div style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: '#8b949e', textAlign: 'center' }}>No closed trades yet{filterActive ? ' in this date range' : ''}.</div>
+                                    <div style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: '#4b5563', textAlign: 'center' }}>Log trades and close them to see daily P&L analysis.</div>
+                                </div>
+                            ) : (<>
+
                             {/* ── HEADER ── */}
                             <div>
                                 <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#6b7280', letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 4 }}>DAILY P&L INTELLIGENCE</div>
@@ -1547,6 +1554,8 @@ export default function AnalyticsPage() {
                                     ))}
                                 </div>
                             </div>
+
+                            </>)}
 
                         </motion.div>
                     )}
@@ -2182,6 +2191,13 @@ export default function AnalyticsPage() {
                     {activeTab === 'TIME' && (
                         <motion.div key="time" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} style={{ display: 'flex', flexDirection: 'column', gap: 20, marginBottom: 48 }}>
 
+                            {closed.length === 0 ? (
+                                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: 300, gap: 12, background: '#0d1117', border: '1px solid #1a1c24', padding: 40 }}>
+                                    <div style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: '#8b949e', textAlign: 'center' }}>No closed trades yet{filterActive ? ' in this date range' : ''}.</div>
+                                    <div style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: '#4b5563', textAlign: 'center' }}>Close trades to see time-of-day analysis.</div>
+                                </div>
+                            ) : (<>
+
                             {/* ── HEADER ── */}
                             <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
                                 <div>
@@ -2667,6 +2683,8 @@ export default function AnalyticsPage() {
                                 </div>
                             </div>
 
+                            </>)}
+
                         </motion.div>
                     )}
 
@@ -2928,6 +2946,12 @@ export default function AnalyticsPage() {
 
                     {activeTab.startsWith('PATTERNS') && (
                         <motion.div key="patterns" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} style={{ display: 'flex', flexDirection: 'column', gap: 20, marginBottom: 48 }}>
+
+                            {filterActive && (
+                                <div style={{ padding: '8px 14px', background: 'rgba(234,179,8,0.06)', border: '1px solid rgba(234,179,8,0.18)', borderLeft: '3px solid #EAB308', fontFamily: 'var(--font-mono)', fontSize: 10, color: '#EAB308', lineHeight: 1.7 }}>
+                                    Date filter active — behavioral analysis (SCORECARD, QUANT, PATTERNS) always runs on your full trade history for statistical accuracy. Only OVERVIEW, DAILY, and TIME tabs reflect the date filter.
+                                </div>
+                            )}
 
                             {/* ── HEADER ── */}
                             <div>
@@ -3310,6 +3334,12 @@ export default function AnalyticsPage() {
                         return (
                             <motion.div key="scorecard" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} style={{ display: 'flex', flexDirection: 'column', gap: 20, marginBottom: 48 }}>
 
+                                {filterActive && (
+                                    <div style={{ padding: '8px 14px', background: 'rgba(234,179,8,0.06)', border: '1px solid rgba(234,179,8,0.18)', borderLeft: '3px solid #EAB308', fontFamily: 'var(--font-mono)', fontSize: 10, color: '#EAB308', lineHeight: 1.7 }}>
+                                        Date filter active — behavioral analysis (SCORECARD, QUANT, PATTERNS) always runs on your full trade history for statistical accuracy. Only OVERVIEW, DAILY, and TIME tabs reflect the date filter.
+                                    </div>
+                                )}
+
                                 {/* ── HEADER ── */}
                                 <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
                                     <div>
@@ -3607,6 +3637,12 @@ export default function AnalyticsPage() {
 
                         return (
                             <motion.div key="quant" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} style={{ display: 'flex', flexDirection: 'column', gap: 24, marginBottom: 48 }}>
+
+                                {filterActive && (
+                                    <div style={{ padding: '8px 14px', background: 'rgba(234,179,8,0.06)', border: '1px solid rgba(234,179,8,0.18)', borderLeft: '3px solid #EAB308', fontFamily: 'var(--font-mono)', fontSize: 10, color: '#EAB308', lineHeight: 1.7 }}>
+                                        Date filter active — behavioral analysis (SCORECARD, QUANT, PATTERNS) always runs on your full trade history for statistical accuracy. Only OVERVIEW, DAILY, and TIME tabs reflect the date filter.
+                                    </div>
+                                )}
 
                                 {/* ── HEADER ── */}
                                 <div>

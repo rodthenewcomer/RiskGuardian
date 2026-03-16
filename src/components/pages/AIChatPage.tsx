@@ -114,6 +114,23 @@ export default function AIChatPage() {
         setMessages(prev => [...prev, userMsg]);
         setInput('');
         setLoading(true);
+
+        // Daily limit enforcement — block sizing queries when limit is blown
+        const sizingKeywords = /\b(stop|risk|contract|lot|position|entry|NQ|ES|MNQ|MES|CL|MCL|RTY|NKD|GC|SI|ZB|ZN|size|how many|how much|point|tick|pip)\b/i;
+        const dailyBlown = dailyLeft <= 0 && dailyLimit > 0;
+        if (dailyBlown && sizingKeywords.test(q)) {
+            const aiMsg: ChatMessage = {
+                id: crypto.randomUUID?.() || String(Date.now() + 1),
+                role: 'assistant',
+                content: `⛔ DAILY LOSS LIMIT REACHED — No new trade sizing allowed.\n\nYou have used $${todayUsed.toFixed(0)} of your $${dailyLimit.toFixed(0)} daily limit. No position sizing or entry calculations will be provided until tomorrow's session.\n\nYour only action now: close any open positions and stop trading for today. This limit exists to protect your account from catastrophic loss.\n\nI can still answer questions about your trading history, behavioral patterns, or rules — but I will not calculate size for a trade you should not be taking.`,
+                cards: [],
+                timestamp: new Date(),
+            };
+            setMessages(prev => [...prev, aiMsg]);
+            setLoading(false);
+            return;
+        }
+
         setTimeout(() => {
             const result = processNaturalLanguage(q, balance, maxRisk, todayUsed, dailyLimit, trades, account);
             const aiMsg: ChatMessage = {

@@ -56,19 +56,20 @@ export function generateForensics(trades: Trade[], accountData: any) {
         const end = trades[trades.length - 1].closedAt ?? trades[trades.length - 1].createdAt;
         const dur = (new Date(end).getTime() - new Date(start).getTime()) / 60000;
 
-        let tag: SessionGroup['tag'] = 'CLEAN';
-        if (pnl < -1000) tag = 'CRITICAL';
-        else if (trades.length > 15) tag = 'OVERTRADING';
-        else {
-            // Check for revenge within session
-            for (let i = 0; i < trades.length - 1; i++) {
-                if ((trades[i].pnl || 0) < 0) {
-                    const t1 = new Date(trades[i].closedAt ?? trades[i].createdAt).getTime();
-                    const t2 = new Date(trades[i + 1].closedAt ?? trades[i + 1].createdAt).getTime();
-                    if (t2 - t1 < 5 * 60000) { tag = 'REVENGE'; break; }
-                }
+        // Check for revenge pattern
+        let hasRevenge = false;
+        for (let i = 0; i < trades.length - 1; i++) {
+            if ((trades[i].pnl || 0) < 0) {
+                const t1 = new Date(trades[i].closedAt ?? trades[i].createdAt).getTime();
+                const t2 = new Date(trades[i + 1].closedAt ?? trades[i + 1].createdAt).getTime();
+                if (t2 - t1 < 5 * 60000) { hasRevenge = true; break; }
             }
         }
+
+        let tag: SessionGroup['tag'] = 'CLEAN';
+        if (hasRevenge) tag = 'REVENGE';                  // behavioral root cause — highest priority
+        else if (pnl < -1000) tag = 'CRITICAL';           // critical loss with no revenge detected
+        else if (trades.length > 15) tag = 'OVERTRADING';
 
         return {
             id: `session-${index}`,
