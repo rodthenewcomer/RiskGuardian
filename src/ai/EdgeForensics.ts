@@ -28,7 +28,7 @@ export interface SessionGroup {
 
 export function generateForensics(trades: Trade[], accountData: any) {
     const closed = trades.filter(t => t.outcome === 'win' || t.outcome === 'loss').sort((a, b) => new Date(a.closedAt ?? a.createdAt).getTime() - new Date(b.closedAt ?? b.createdAt).getTime());
-    const balance = accountData?.balance || 50000;
+    const balance = accountData?.startingBalance ?? accountData?.balance ?? 50000;
 
     // 1. Session Grouping (Gap > 2 hours starts new session)
     const sessions: SessionGroup[] = [];
@@ -151,25 +151,65 @@ export function generateForensics(trades: Trade[], accountData: any) {
     const wrErosion = closed.length > 0 && (wins.length / closed.length < 0.35) ? 15 : 0;
     const riskScore = closed.length === 0 ? 0 : Math.min(100, revScore + financialScore + wrErosion);
 
+    // Broader micro detection (MES, MNQ, M2K, MCL, MGC, MBT, etc.)
+    const microBroad = closed.filter(t => /^M[A-Z0-9]{1,2}$/.test(t.asset));
+    const microBroadPnl = microBroad.reduce((s, t) => s + (t.pnl ?? 0), 0);
+
     const scorecard = [
-        { metric: 'Stop Loss Discipline', grade: lossTrades.length === 0 ? 'A' : Math.max(...lossTrades.map(l => Math.abs(l.pnl ?? 0))) < balance * 0.02 ? 'A' : 'C', desc: 'Max loss per trade contained to < 2%.' },
-        { metric: 'Tilt Management', grade: revFreq === 0 ? 'A' : 'F', desc: 'Sizing increases after losses.' },
-        { metric: 'Hold Time Asymmetry', grade: avgWinDur >= avgLossDur ? 'A' : 'F', desc: 'Winners held longer than losers.' },
-        { metric: 'Expectancy Ratio', grade: wins.length === 0 || lossTrades.length === 0 ? '—' : (avgWinAmt / avgLossAmt) > 1.5 ? 'A' : 'D', desc: 'Dollar value yielded per structural risk.' },
-        { metric: 'Micro Management', grade: microPnl >= 0 ? 'A' : 'F', desc: 'Discipline in tier-1 product isolation.' },
+        // Stop Loss Discipline: graduated by max loss % of starting balance
+        { metric: 'Stop Loss Discipline', grade: (() => {
+            if (lossTrades.length === 0) return '—';
+            const maxL = Math.max(...lossTrades.map(l => Math.abs(l.pnl ?? 0)));
+            const pct = maxL / balance;
+            return pct < 0.01 ? 'A' : pct < 0.02 ? 'B' : pct < 0.04 ? 'C' : pct < 0.06 ? 'D' : 'F';
+        })(), desc: 'Max single trade loss vs starting balance. A=<1% B=1–2% C=2–4% D=4–6% F=>6%.' },
+        // Tilt Management: graduated by frequency of revenge sequences
+        { metric: 'Tilt Management', grade: (() => {
+            if (revFreq === 0) return 'A';
+            if (revFreq === 1) return 'C';
+            if (revFreq <= 3) return 'D';
+            return 'F';
+        })(), desc: 'Rapid re-entry after losses. A=none C=1 occurrence D=2–3 F=4+.' },
+        // Hold Time Asymmetry: graduated by win/loss duration ratio
+        { metric: 'Hold Time Asymmetry', grade: (() => {
+            if (avgLossDur === 0 && avgWinDur === 0) return '—';
+            if (avgLossDur === 0) return 'A';
+            const ratio = avgWinDur / avgLossDur;
+            return ratio >= 1.2 ? 'A' : ratio >= 0.9 ? 'B' : ratio >= 0.6 ? 'C' : ratio >= 0.35 ? 'D' : 'F';
+        })(), desc: 'Avg win hold ÷ avg loss hold. A≥1.2 B≥0.9 C≥0.6 D≥0.35 F<0.35.' },
+        // Expectancy Ratio: graduated, uses actual W:L dollar ratio
+        { metric: 'Expectancy Ratio', grade: (() => {
+            if (wins.length === 0 || lossTrades.length === 0) return '—';
+            const r = avgWinAmt / avgLossAmt;
+            return r >= 1.5 ? 'A' : r >= 1.2 ? 'B' : r >= 1.0 ? 'C' : r >= 0.7 ? 'D' : 'F';
+        })(), desc: 'Avg win ÷ avg loss. A≥1.5 B≥1.2 C≥1.0 D≥0.7 F<0.7.' },
+        // Micro Management: uses broader micro detection (same as display)
+        { metric: 'Micro Management', grade: (() => {
+            if (microBroad.length === 0) return '—';
+            if (microBroadPnl >= 0) return 'A';
+            const lossFraction = Math.abs(microBroadPnl) / Math.max(Math.abs(microBroad.reduce((s, t) => s + (t.pnl ?? 0), 0)), 1);
+            return lossFraction < 0.1 ? 'C' : 'F';
+        })(), desc: 'Net P&L on micro contracts (MES/MNQ/M2K/MCL etc.).' },
+        // First Hour Logic: uses entry time (createdAt), not exit time
         { metric: 'First Hour Logic', grade: (() => {
             const estHour = (iso: string) => new Date(new Date(iso).toLocaleString("en-US", {timeZone: "America/New_York"})).getHours();
-            const fh = closed.filter(t => estHour(t.closedAt ?? t.createdAt) < 10);
+            const fh = closed.filter(t => estHour(t.createdAt) < 10);
             if (fh.length === 0) return 'A';
             const wr = fh.filter(t => (t.pnl ?? 0) > 0).length / fh.length;
             const pnl = fh.reduce((s, t) => s + (t.pnl ?? 0), 0);
-            return pnl >= 0 && wr >= 0.5 ? 'A' : wr >= 0.4 ? 'B' : wr >= 0.3 ? 'C' : 'F';
-        })(), desc: 'Avoidance of open-window volatility traps.' },
-        { metric: 'Session Caps', grade: sessions.some(s => s.trades.length > 20) ? 'D' : 'A', desc: 'Ending sessions strictly when target hits.' },
+            return pnl >= 0 && wr >= 0.5 ? 'A' : wr >= 0.45 ? 'B' : wr >= 0.35 ? 'C' : 'F';
+        })(), desc: 'Trades entered before 10:00 EST (entry time). A=profitable B=break-even C=marginal F=negative.' },
+        // Session Caps: graduated by max trades in a single session
+        { metric: 'Session Caps', grade: (() => {
+            if (sessions.length === 0) return '—';
+            const maxT = Math.max(...sessions.map(s => s.trades.length));
+            return maxT <= 10 ? 'A' : maxT <= 15 ? 'B' : maxT <= 20 ? 'C' : 'D';
+        })(), desc: 'Max trades in one session. A≤10 B≤15 C≤20 D>20.' },
+        // Instrument Focus: unchanged, already graduated
         { metric: 'Instrument Focus', grade: (() => {
             const n = new Set(closed.map(t => t.asset)).size;
             return n <= 2 ? 'A' : n <= 4 ? 'B' : n <= 6 ? 'C' : 'F';
-        })(), desc: 'Avoids ticker hopping rotation.' }
+        })(), desc: 'Unique instruments traded. A≤2 B≤4 C≤6 F>6.' }
     ];
 
     let verdictMsg = "Your system is structurally sound.";

@@ -3152,8 +3152,8 @@ export default function AnalyticsPage() {
                         // Max session trades
                         const maxSessionTrades = sessionMetrics.length > 0 ? Math.max(...sessionMetrics.map((s: any) => s.trades.length)) : 0;
 
-                        // Micro contracts P&L (assets starting with M + 1 more char, e.g. MES, MNQ, MCL, M2K)
-                        const microAssets = instrumentArray.filter(i => /^M[A-Z]{1,2}$/.test(i.asset));
+                        // Micro contracts P&L (assets starting with M + 1-2 alphanumeric chars, e.g. MES, MNQ, MCL, M2K, M6A)
+                        const microAssets = instrumentArray.filter(i => /^M[A-Z0-9]{1,2}$/.test(i.asset));
                         const microPnl = microAssets.reduce((s, i) => s + i.pnl, 0);
 
                         // Instrument count
@@ -3166,14 +3166,16 @@ export default function AnalyticsPage() {
                                 actualLabel: 'MAX SINGLE TRADE LOSS',
                                 actualValue: maxLossTrade > 0 ? `-$${maxLossTrade.toFixed(0)}` : '—',
                                 actualSub: maxLossPct > 0 ? `${maxLossPct.toFixed(1)}% of starting balance` : 'No losses recorded',
-                                barPct: Math.min(100, (maxLossPct / 5) * 100),
-                                barColor: maxLossPct < 1 ? '#A6FF4D' : maxLossPct < 2 ? '#EAB308' : '#ff4757',
+                                barPct: Math.min(100, (maxLossPct / 6) * 100),
+                                barColor: maxLossPct < 1 ? '#A6FF4D' : maxLossPct < 2 ? '#00D4FF' : maxLossPct < 4 ? '#EAB308' : '#ff4757',
                                 interpretation: maxLossTrade > 0
-                                    ? `Your largest single trade loss was $${maxLossTrade.toFixed(0)} (${maxLossPct.toFixed(1)}% of your starting balance). ${maxLossPct < 2 ? 'This is within the standard 2% risk-per-trade guideline.' : 'This exceeds the 2% guideline — a single trade took an outsized bite of your capital.'}`
+                                    ? `Your largest single trade loss was $${maxLossTrade.toFixed(0)} (${maxLossPct.toFixed(1)}% of starting balance). ${maxLossPct < 1 ? 'Under 1% — tight risk control. Elite-level discipline on position sizing.' : maxLossPct < 2 ? 'Between 1–2% — within the standard guideline. Acceptable, but tighten toward 1%.' : maxLossPct < 4 ? 'Between 2–4% — above the 2% guideline. This trade took a meaningful bite of capital on a single entry.' : 'Above 4% — one trade risked a disproportionate share of your account. This must be corrected immediately.'}`
                                     : 'No loss data available yet. Log closed trades to see risk per trade analysis.',
-                                action: maxLossPct >= 2
-                                    ? `Immediately set a hard stop loss on every entry capping risk at 1% of starting balance ($${Math.round((account.startingBalance ?? 0) * 0.01)}). Your worst trade broke this rule.`
-                                    : `Good discipline — max loss within 2%. Maintain stops. If any trade exceeds $${Math.round((account.startingBalance ?? 0) * 0.015)}, review whether entry was too large.`,
+                                action: maxLossPct >= 4
+                                    ? `Hard rule: no single trade risks more than 1% of starting balance ($${Math.round((account.startingBalance ?? 0) * 0.01)}). Your worst trade was ${maxLossPct.toFixed(1)}× that limit. Pre-set stops before entry — no exceptions.`
+                                    : maxLossPct >= 2
+                                    ? `Tighten your default stop to 1% of starting balance ($${Math.round((account.startingBalance ?? 0) * 0.01)}). Your worst trade exceeded 2% — this is manageable now but a pattern would compound the damage.`
+                                    : `Good discipline — max loss within 2%. Maintain stops. If any trade exceeds $${Math.round((account.startingBalance ?? 0) * 0.015)}, review whether position size was appropriate.`,
                             },
                             {
                                 idx: 1,
@@ -3181,13 +3183,13 @@ export default function AnalyticsPage() {
                                 actualValue: `${revCount}`,
                                 actualSub: revCount > 0 ? `${revPattern?.freq} occurrences · Est. cost -$${Math.abs(revPattern?.impact ?? 0).toFixed(0)}` : 'Zero revenge sequences',
                                 barPct: Math.min(100, revCount * 25),
-                                barColor: revCount === 0 ? '#A6FF4D' : revCount <= 2 ? '#EAB308' : '#ff4757',
+                                barColor: revCount === 0 ? '#A6FF4D' : revCount === 1 ? '#EAB308' : revCount <= 3 ? '#F97316' : '#ff4757',
                                 interpretation: revCount === 0
-                                    ? 'No revenge trading patterns detected in your data. You are exiting cleanly after losses without immediate re-entry driven by emotion.'
-                                    : `${revCount} revenge sequence${revCount > 1 ? 's' : ''} detected. This is a loss → rapid re-entry cycle where emotional pressure overrides your entry criteria. Each revenge sequence compounds your loss, not your recovery.`,
+                                    ? 'No revenge trading patterns detected. You are not immediately re-entering after losses — this means your emotional regulation is working. This is one of the hardest disciplines to maintain.'
+                                    : `${revCount} revenge sequence${revCount > 1 ? 's' : ''} detected. Revenge trading is rapid re-entry within minutes of a loss, driven by the urge to recover — not by new market structure. The entry thesis after a revenge entry is nearly always the same broken thesis that caused the original loss.`,
                                 action: revCount === 0
-                                    ? 'Maintain current discipline. Set a rule now: after 3 consecutive losses in any session, step away for 30 minutes minimum.'
-                                    : `Implement a 3-loss hard stop per session immediately. After 3 losses, close the terminal for a minimum of 2 hours. This single rule eliminates your $${Math.abs(revPattern?.impact ?? 0).toFixed(0)} behavioral leakage.`,
+                                    ? 'Maintain current discipline. Rule to lock in: after any single loss, mandatory 5-minute pause before next entry. Even clean re-entries benefit from a reset window.'
+                                    : `Implement a hard cooldown after every loss: minimum 10 minutes before the next entry is allowed. Your data shows $${Math.abs(revPattern?.impact ?? 0).toFixed(0)} in identifiable revenge-trade losses. One rule eliminates that entire cost.`,
                             },
                             {
                                 idx: 2,
@@ -3195,15 +3197,19 @@ export default function AnalyticsPage() {
                                 actualValue: htRatio !== null ? `${htRatio.toFixed(2)}x` : '—',
                                 actualSub: `Winners: ${fmtDuration(avgWinDuration)} · Losers: ${fmtDuration(avgLossDuration)}`,
                                 barPct: htRatio !== null ? Math.min(100, (htRatio / 2) * 100) : 50,
-                                barColor: htRatio !== null && htRatio >= 1 ? '#A6FF4D' : htRatio !== null && htRatio >= 0.7 ? '#EAB308' : '#ff4757',
+                                barColor: htRatio === null ? '#6b7280' : htRatio >= 1.2 ? '#A6FF4D' : htRatio >= 0.9 ? '#00D4FF' : htRatio >= 0.6 ? '#EAB308' : '#ff4757',
                                 interpretation: htRatio === null
-                                    ? 'Insufficient trade history to compute hold time asymmetry. Log at least one win and one loss.'
-                                    : htRatio >= 1
-                                    ? `Winners held ${htRatio.toFixed(2)}x longer than losers — excellent asymmetry. You are letting profits run and cutting losses efficiently. This is the textbook behavior.`
-                                    : `Losers held ${(1/htRatio).toFixed(2)}x longer than winners — inverted asymmetry. You are cutting wins short and holding losses long. This is the single most common cause of negative expectancy.`,
-                                action: htRatio !== null && htRatio < 1
-                                    ? `Set a time-based kill switch: any losing trade open beyond ${fmtDuration(avgWinDuration * 1.5)} gets closed regardless of price action. Stop hoping for reversals that your data shows rarely come.`
-                                    : 'Keep letting winners breathe. If tempted to close a winner early, check your target — if it has not been reached, hold the position.',
+                                    ? 'Insufficient trade history to compute hold time asymmetry. Log at least one win and one loss with timestamps to unlock this metric.'
+                                    : htRatio >= 1.2
+                                    ? `Winners held ${htRatio.toFixed(2)}x longer than losers — strong asymmetry. You are cutting losses efficiently and letting profits run. This is the structural behavior of consistently profitable traders.`
+                                    : htRatio >= 0.9
+                                    ? `Winners held ${htRatio.toFixed(2)}x as long as losers — near-neutral asymmetry. You are close to balance but not yet running wins long enough relative to losses. A small improvement in target discipline would push this to A.`
+                                    : htRatio >= 0.6
+                                    ? `Winners held ${htRatio.toFixed(2)}x as long as losers — mild inversion. Losses linger slightly longer than wins on average, suggesting some hope-holding on losing trades.`
+                                    : `Losers held ${(1/htRatio).toFixed(2)}x longer than winners — severe inversion. You are cutting wins aggressively short while holding losses well past their natural exit. This pattern erodes edge even in high win-rate strategies.`,
+                                action: htRatio !== null && htRatio < 0.9
+                                    ? `Set a time-based kill switch: any losing trade open beyond ${fmtDuration(avgWinDuration * 1.5)} gets closed regardless of price action. Stop waiting for reversals that the data shows rarely materialize.`
+                                    : 'Keep letting winners breathe. If tempted to close a winner early, verify your target has been hit — if not, hold the position.',
                             },
                             {
                                 idx: 3,
@@ -3215,13 +3221,15 @@ export default function AnalyticsPage() {
                                 interpretation: wlRatio === 0
                                     ? 'No complete win/loss data. Log both wins and losses to compute the payoff ratio.'
                                     : wlRatio >= 1.5
-                                    ? `W:L ratio ${wlRatio.toFixed(2)}:1 is above the 1.5x benchmark — your wins are meaningfully larger than your losses. Combined with your win rate, this gives you a positive expected value per trade.`
-                                    : wlRatio >= 1
-                                    ? `W:L ratio ${wlRatio.toFixed(2)}:1 is above 1:1 but below the 1.5x optimal threshold. Slight improvement in target management would lift your edge significantly.`
-                                    : `W:L ratio ${wlRatio.toFixed(2)}:1 — losses are larger than wins on average. Even with a 60%+ win rate, a sub-1:1 ratio destroys expectancy over time.`,
+                                    ? `W:L ratio ${wlRatio.toFixed(2)}:1 — wins are meaningfully larger than losses. At your ${winRate.toFixed(0)}% win rate, your expected value per trade is +$${expectancy.toFixed(2)}. This is structural edge.`
+                                    : wlRatio >= 1.2
+                                    ? `W:L ratio ${wlRatio.toFixed(2)}:1 — above 1:1 and approaching the optimal 1.5× threshold. Expected value per trade: +$${expectancy.toFixed(2)}. Minor improvement in target discipline would push this to elite range.`
+                                    : wlRatio >= 1.0
+                                    ? `W:L ratio ${wlRatio.toFixed(2)}:1 — marginally above breakeven. Your wins and losses are nearly the same size, so your edge comes almost entirely from win rate. Any win rate regression directly erodes profitability.`
+                                    : `W:L ratio ${wlRatio.toFixed(2)}:1 — losses larger than wins on average. Your expected value per trade is ${expectancy >= 0 ? '+' : ''}$${expectancy.toFixed(2)}. ${expectancy >= 0 ? 'Positive expectancy is maintained by your win rate, but any WR dip will flip it negative.' : 'Negative expectancy — the combination of low W:L and insufficient win rate is costing you per trade on average.'}`,
                                 action: wlRatio < 1.5
-                                    ? `Your targets need to be 1.5× your stop size minimum. If avg loss is $${avgLoss.toFixed(0)}, your minimum target should be $${(avgLoss * 1.5).toFixed(0)}. Do not close winning trades before that level.`
-                                    : 'Above 1.5 — strong. Maintain discipline. Do not move targets closer when uncomfortable; let the system do its job.',
+                                    ? `Target 1.5× your average stop size minimum. If avg loss is $${avgLoss.toFixed(0)}, your minimum target should be $${(avgLoss * 1.5).toFixed(0)}. Do not close winning trades before that level.`
+                                    : 'Above 1.5 — strong. Maintain discipline. Do not move targets closer when uncomfortable; let the system work.',
                             },
                             {
                                 idx: 4,
@@ -3263,15 +3271,19 @@ export default function AnalyticsPage() {
                                 actualValue: maxSessionTrades > 0 ? `${maxSessionTrades} trades` : '—',
                                 actualSub: `Avg per session: ${avgSessionTrades.toFixed(1)} trades · ${sessionMetrics.length} sessions total`,
                                 barPct: Math.min(100, (maxSessionTrades / 25) * 100),
-                                barColor: maxSessionTrades <= 12 ? '#A6FF4D' : maxSessionTrades <= 20 ? '#EAB308' : '#ff4757',
+                                barColor: maxSessionTrades <= 10 ? '#A6FF4D' : maxSessionTrades <= 15 ? '#00D4FF' : maxSessionTrades <= 20 ? '#EAB308' : '#ff4757',
                                 interpretation: maxSessionTrades === 0
                                     ? 'No session data available yet. Log trades across multiple sessions to track session cap discipline.'
+                                    : maxSessionTrades <= 10
+                                    ? `Max session trade count is ${maxSessionTrades} — tight, selective execution. You are not overtrading. Each trade likely has a distinct structural thesis.`
                                     : maxSessionTrades <= 15
-                                    ? `Max session trade count is ${maxSessionTrades} — within healthy range. Session discipline is intact. Trade count is not overriding edge selectivity.`
-                                    : `One or more sessions exceeded ${maxSessionTrades} trades. High-frequency intra-session trading dilutes your statistical edge. Each additional trade after your edge window closes is noise trading.`,
+                                    ? `Max session trade count is ${maxSessionTrades} — within acceptable range. Edge selectivity is holding, but there is room to trim the lower-conviction setups.`
+                                    : maxSessionTrades <= 20
+                                    ? `One session reached ${maxSessionTrades} trades. This is above the optimal ceiling of 15. Beyond that, you are likely filling time or chasing missed entries rather than waiting for clean setups.`
+                                    : `One or more sessions hit ${maxSessionTrades} trades. At this volume, trade quality invariably drops — later trades in a session are statistically weaker than early ones. Each trade past 15 is diluting your edge.`,
                                 action: maxSessionTrades > 15
-                                    ? `Implement a hard session trade cap of 12 trades. Once hit, close the terminal for the session. More trades ≠ more profit — your data shows diminishing returns beyond that threshold.`
-                                    : 'Session cap discipline is good. Maintain a maximum of 12–15 trades per session. Any session urge beyond that is likely emotional, not analytical.',
+                                    ? `Set a hard session cap of 10 trades and a soft warning at 8. When you hit the cap, close the terminal. The data consistently shows edge decay above 10–12 trades per session.`
+                                    : 'Session cap discipline is solid. Keep a maximum of 10 trades as your target. Any impulse beyond that warrants a pause, not an entry.',
                             },
                             {
                                 idx: 7,
