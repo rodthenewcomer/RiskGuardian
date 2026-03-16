@@ -3480,33 +3480,510 @@ export default function AnalyticsPage() {
                     })()}
 
                     {activeTab === 'QUANT' && (() => {
+                        const QF = 'var(--font-mono)';
+                        const tradePnls = closed.map(t => t.pnl ?? 0);
+                        const nT = tradePnls.length;
+
+                        // ── Daily-level stats ──
                         const dailyPnls = dailyData.map(d => d.pnl);
-                        const n = dailyPnls.length;
-                        const meanDaily = n > 0 ? dailyPnls.reduce((s, v) => s + v, 0) / n : 0;
-                        const variance = n > 1 ? dailyPnls.reduce((s, v) => s + (v - meanDaily) ** 2, 0) / (n - 1) : 0;
-                        const stdDev = Math.sqrt(variance);
-                        const sharpe = stdDev > 0 ? (meanDaily / stdDev) * Math.sqrt(252) : 0;
-                        const downside = dailyPnls.filter(v => v < 0);
-                        const downsideVariance = downside.length > 0 ? downside.reduce((s, v) => s + v ** 2, 0) / downside.length : 0;
-                        const downsideStd = Math.sqrt(downsideVariance);
-                        const sortino = downsideStd > 0 ? (meanDaily / downsideStd) * Math.sqrt(252) : 0;
+                        const nD = dailyPnls.length;
+                        const meanD = nD > 0 ? dailyPnls.reduce((s, v) => s + v, 0) / nD : 0;
+                        const varD = nD > 1 ? dailyPnls.reduce((s, v) => s + (v - meanD) ** 2, 0) / (nD - 1) : 0;
+                        const stdD = Math.sqrt(varD);
+
+                        // ── Risk-adjusted ratios ──
+                        const sharpe = stdD > 0 ? (meanD / stdD) * Math.sqrt(252) : 0;
+                        const negD = dailyPnls.filter(v => v < 0);
+                        const downsideStd = negD.length > 0 ? Math.sqrt(negD.reduce((s, v) => s + v * v, 0) / negD.length) : 0;
+                        const sortino = downsideStd > 0 ? (meanD / downsideStd) * Math.sqrt(252) : 0;
+                        const annReturn = meanD * 252;
+                        const calmar = maxDd > 0 ? annReturn / maxDd : 0;
+                        const oGain = dailyPnls.filter(v => v > 0).reduce((s, v) => s + v, 0);
+                        const oLoss = dailyPnls.filter(v => v < 0).reduce((s, v) => s + Math.abs(v), 0);
+                        const omega = oLoss > 0 ? oGain / oLoss : oGain > 0 ? 99 : 0;
+                        const recovFactor = maxDd > 0 ? netPnl / maxDd : 0;
+                        const efficiency = (grossProfit + grossLoss) > 0 ? (Math.abs(netPnl) / (grossProfit + grossLoss)) * 100 : 0;
+
+                        // Kelly
+                        const kW = winRate / 100;
+                        const kR = wlRatio;
+                        const kellyFull = kR > 0 && kW > 0 ? kW - (1 - kW) / kR : 0;
+                        const kellyPct = Math.max(0, kellyFull * 100);
+
+                        // ── Per-trade distribution ──
+                        const meanT = nT > 0 ? tradePnls.reduce((s, v) => s + v, 0) / nT : 0;
+                        const varT = nT > 1 ? tradePnls.reduce((s, v) => s + (v - meanT) ** 2, 0) / (nT - 1) : 0;
+                        const stdT = Math.sqrt(varT);
+                        const skew = nT > 2 && stdT > 0
+                            ? (nT / ((nT - 1) * (nT - 2))) * tradePnls.reduce((s, v) => s + ((v - meanT) / stdT) ** 3, 0)
+                            : 0;
+                        const exKurt = nT > 3 && stdT > 0
+                            ? (nT * (nT + 1) / ((nT - 1) * (nT - 2) * (nT - 3))) * tradePnls.reduce((s, v) => s + ((v - meanT) / stdT) ** 4, 0)
+                              - (3 * (nT - 1) ** 2) / ((nT - 2) * (nT - 3))
+                            : 0;
+
+                        // Percentiles
+                        const sortedT = [...tradePnls].sort((a, b) => a - b);
+                        const qPct = (p: number) => {
+                            if (sortedT.length === 0) return 0;
+                            const idx = (p / 100) * (sortedT.length - 1);
+                            const lo = Math.floor(idx), hi = Math.ceil(idx);
+                            return sortedT[lo] + (sortedT[hi] - sortedT[lo]) * (idx - lo);
+                        };
+                        const [qp5, qp10, qp25, qp50, qp75, qp90, qp95] = [5, 10, 25, 50, 75, 90, 95].map(qPct);
+
+                        // VaR & CVaR (historical)
+                        const var95 = -qp5;
+                        const var99 = -qPct(1);
+                        const cvar95Trades = sortedT.filter(v => v <= qp5);
+                        const cvar95 = cvar95Trades.length > 0 ? -cvar95Trades.reduce((s, v) => s + v, 0) / cvar95Trades.length : 0;
+
+                        // T-statistic (is mean significantly > 0?)
+                        const tStat = nT > 1 && stdT > 0 ? meanT / (stdT / Math.sqrt(nT)) : 0;
+                        const tCrit = 2.0;
+                        const isSignificant = Math.abs(tStat) > tCrit;
+                        const minN4Sig = stdT > 0 && meanT > 0 ? Math.ceil((tCrit * stdT / meanT) ** 2) : 999;
+                        const ciHalf = nT > 1 ? tCrit * stdT / Math.sqrt(nT) : 0;
+
+                        // Histogram buckets
+                        const histBuckets = (() => {
+                            if (nT === 0) return [] as { label: string; center: number; count: number }[];
+                            const lo = sortedT[0], hi = sortedT[sortedT.length - 1];
+                            const numB = Math.max(8, Math.min(20, Math.ceil(Math.sqrt(nT))));
+                            const bSize = (hi - lo) / numB || 1;
+                            return Array.from({ length: numB }, (_, i) => {
+                                const start = lo + i * bSize, end = start + bSize;
+                                const center = (start + end) / 2;
+                                const cnt = tradePnls.filter(v => v >= start && (i === numB - 1 ? v <= end : v < end)).length;
+                                return { label: `${center >= 0 ? '+' : ''}${center.toFixed(0)}`, center, count: cnt };
+                            });
+                        })();
+                        const maxHistCnt = histBuckets.length > 0 ? Math.max(...histBuckets.map(b => b.count), 1) : 1;
+
+                        // Underwater equity (drawdown depth %)
+                        let ddPeak = startBal, ddBal = startBal;
+                        const underwaterData = closed.map((t, i) => {
+                            ddBal += t.pnl ?? 0;
+                            if (ddBal > ddPeak) ddPeak = ddBal;
+                            return { i: i + 1, ddPct: ddPeak > 0 ? ((ddBal - ddPeak) / ddPeak) * 100 : 0 };
+                        });
+                        const timeUW = underwaterData.filter(p => p.ddPct < 0).length;
+                        const avgDD = underwaterData.length > 0 ? underwaterData.reduce((s, p) => s + p.ddPct, 0) / underwaterData.length : 0;
+                        const maxDdPct = startBal > 0 ? (maxDd / startBal) * 100 : 0;
+
+                        // Monte Carlo (seeded, deterministic)
+                        const MC_PATHS = 500, MC_TRADES = 50;
+                        const mcResults = (() => {
+                            if (nT < 5) return null;
+                            let rng = Math.abs(Math.floor(tradePnls.reduce((s, v) => s + v * 17.3, 0))) % 100000 || 42;
+                            const rand = () => { rng = ((rng * 1664525 + 1013904223) >>> 0); return rng / 4294967296; };
+                            const finals: number[] = [];
+                            for (let p = 0; p < MC_PATHS; p++) {
+                                let sim = 0;
+                                for (let t = 0; t < MC_TRADES; t++) sim += tradePnls[Math.floor(rand() * nT)];
+                                finals.push(sim);
+                            }
+                            finals.sort((a, b) => a - b);
+                            const mcp = (pp: number) => finals[Math.min(MC_PATHS - 1, Math.floor(MC_PATHS * pp / 100))];
+                            const mcLo = finals[0], mcHi = finals[finals.length - 1];
+                            const mcRange = mcHi - mcLo;
+                            const mcBuckets = mcRange > 0 ? Array.from({ length: 14 }, (_, i) => {
+                                const start = mcLo + (i / 14) * mcRange, end = mcLo + ((i + 1) / 14) * mcRange;
+                                return { label: `${((start + end) / 2) >= 0 ? '+' : ''}${((start + end) / 2).toFixed(0)}`, center: (start + end) / 2, count: finals.filter(v => v >= start && (i === 13 ? v <= end : v < end)).length };
+                            }) : [];
+                            return {
+                                p10: mcp(10), p25: mcp(25), p50: mcp(50), p75: mcp(75), p90: mcp(90),
+                                posProb: finals.filter(v => v > 0).length / MC_PATHS * 100,
+                                ruinProb: finals.filter(v => v < -((account.startingBalance ?? 50000) * 0.10)).length / MC_PATHS * 100,
+                                buckets: mcBuckets,
+                            };
+                        })();
+
+                        // Helpers
+                        const fmtQ = (v: number) => `${v >= 0 ? '+' : ''}$${Math.abs(v) >= 1000 ? `${(v / 1000).toFixed(1)}k` : Math.abs(v).toFixed(0)}`;
+                        const rc = (v: number, good: number, ok: number) => v >= good ? '#A6FF4D' : v >= ok ? '#EAB308' : '#ff4757';
+
                         return (
-                            <motion.div key="quant" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="flex flex-col gap-6">
-                                <span className={styles.sectionTitle}>Quant Metrics</span>
-                                <div className="grid grid-cols-2 gap-4">
+                            <motion.div key="quant" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} style={{ display: 'flex', flexDirection: 'column', gap: 24, marginBottom: 48 }}>
+
+                                {/* ── HEADER ── */}
+                                <div>
+                                    <div style={{ fontFamily: QF, fontSize: 9, color: '#6b7280', letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 4 }}>QUANTITATIVE ANALYSIS ENGINE</div>
+                                    <div style={{ fontFamily: QF, fontSize: 20, fontWeight: 700, color: '#fff', marginBottom: 4 }}>Quant Performance Report</div>
+                                    <div style={{ fontFamily: QF, fontSize: 11, color: '#8b949e' }}>Institutional-grade risk analytics derived from your actual trade history. All ratios annualized. Includes distribution analysis, VaR, Monte Carlo simulation, and statistical significance testing.</div>
+                                </div>
+
+                                {nT < 5 ? (
+                                    <div style={{ padding: 40, textAlign: 'center', background: '#0d1117', border: '1px solid #1a1c24', fontFamily: QF, fontSize: 11, color: '#6b7280' }}>
+                                        Log at least 5 closed trades to unlock quant analysis.
+                                    </div>
+                                ) : (<>
+
+                                {/* ── 8-RATIO KPI GRID ── */}
+                                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', borderTop: '1px solid #1a1c24', borderLeft: '1px solid #1a1c24' }}>
                                     {[
-                                        { label: 'Sharpe Ratio', val: n >= 2 ? sharpe.toFixed(2) : '—', sub: 'Risk-adjusted return (annualized)' },
-                                        { label: 'Sortino Ratio', val: n >= 2 ? sortino.toFixed(2) : '—', sub: 'Downside deviation penalty (annualized)' },
-                                        { label: 'Calmar Ratio', val: maxDd > 0 ? ((netPnl * 12) / Math.abs(maxDd)).toFixed(2) : '—', sub: 'Return vs Maximum Drawdown' },
-                                        { label: 'Efficiency Index', val: (grossProfit + grossLoss) > 0 ? (Math.abs(netPnl) / (grossProfit + grossLoss) * 100).toFixed(1) + '%' : '—', sub: 'Capital throughput efficiency' }
-                                    ].map((q, i) => (
-                                        <div key={i} className={styles.kpiBox}>
-                                            <span className={styles.kpiLabel}>{q.label.toUpperCase()}</span>
-                                            <span className={`${styles.kpiValue} text-white`}>{q.val}</span>
-                                            <span className={styles.kpiSub}>{q.sub}</span>
+                                        { label: 'SHARPE RATIO', val: nD >= 2 ? sharpe.toFixed(2) : '—', color: rc(sharpe, 1, 0.5), formula: 'μ_d / σ_d × √252', sub: 'Risk-adj annual return' },
+                                        { label: 'SORTINO RATIO', val: nD >= 2 ? sortino.toFixed(2) : '—', color: rc(sortino, 1.5, 0.8), formula: 'μ_d / σ⁻ × √252', sub: 'Penalizes downside only' },
+                                        { label: 'CALMAR RATIO', val: maxDd > 0 && nD >= 2 ? calmar.toFixed(2) : '—', color: rc(calmar, 1, 0.3), formula: 'μ×252 / MaxDD', sub: 'Annual return / max DD' },
+                                        { label: 'OMEGA RATIO', val: nD >= 2 ? (omega >= 99 ? '∞' : omega.toFixed(2)) : '—', color: rc(omega, 2, 1), formula: '∑gains / ∑|losses|', sub: 'Total gain vs total loss' },
+                                        { label: 'RECOVERY FACTOR', val: maxDd > 0 ? recovFactor.toFixed(2) : '—', color: rc(recovFactor, 3, 1), formula: 'Net P&L / MaxDD', sub: 'How well you recover' },
+                                        { label: 'KELLY %', val: kellyFull > 0 ? `${kellyPct.toFixed(1)}%` : 'No edge', color: kellyFull > 0 ? '#A6FF4D' : '#ff4757', formula: 'W − (1−W)/R', sub: 'Optimal risk per trade' },
+                                        { label: 'PROFIT FACTOR', val: profitFactor >= 99 ? '∞' : profitFactor.toFixed(2), color: rc(profitFactor, 2, 1.2), formula: 'ΣWins / Σ|Losses|', sub: 'Gross wins / gross losses' },
+                                        { label: 'EFFICIENCY %', val: nT > 0 ? `${efficiency.toFixed(1)}%` : '—', color: rc(efficiency, 30, 10), formula: '|Net| / (W+L)', sub: 'Net vs total throughput' },
+                                    ].map((k, i) => (
+                                        <div key={i} style={{ padding: '18px 20px', borderBottom: '1px solid #1a1c24', borderRight: '1px solid #1a1c24', background: '#0d1117', display: 'flex', flexDirection: 'column', gap: 4 }}>
+                                            <span style={{ fontFamily: QF, fontSize: 8, color: '#6b7280', letterSpacing: '0.1em' }}>{k.label}</span>
+                                            <span style={{ fontFamily: QF, fontSize: 26, fontWeight: 700, color: k.color, lineHeight: 1.1 }}>{k.val}</span>
+                                            <span style={{ fontFamily: QF, fontSize: 9, color: '#8b949e' }}>{k.sub}</span>
+                                            <span style={{ fontFamily: QF, fontSize: 8, color: '#2d3748', marginTop: 2, letterSpacing: '0.04em' }}>{k.formula}</span>
                                         </div>
                                     ))}
                                 </div>
+
+                                {/* ── RATIO BENCHMARKS ── */}
+                                <div style={{ background: '#0d1117', border: '1px solid #1a1c24', padding: '20px 24px' }}>
+                                    <div style={{ fontFamily: QF, fontSize: 9, color: '#6b7280', letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 12 }}>RATIO BENCHMARK GUIDE</div>
+                                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+                                        <div style={{ fontFamily: QF, fontSize: 10, color: '#c9d1d9', lineHeight: 2 }}>
+                                            <span style={{ color: '#A6FF4D', fontWeight: 700 }}>Sharpe &gt;1.0</span> — Institutional quality. Each risk unit earns &gt;1 unit of return annually.<br/>
+                                            <span style={{ color: '#EAB308', fontWeight: 700 }}>Sharpe 0.5–1.0</span> — Acceptable. Most retail traders sit here.<br/>
+                                            <span style={{ color: '#ff4757', fontWeight: 700 }}>Sharpe &lt;0.5</span> — Volatility is outpacing return generation.<br/>
+                                            <span style={{ color: '#A6FF4D', fontWeight: 700 }}>Sortino &gt;1.5</span> — Superior downside management vs upside capture.
+                                        </div>
+                                        <div style={{ fontFamily: QF, fontSize: 10, color: '#c9d1d9', lineHeight: 2 }}>
+                                            <span style={{ color: '#A6FF4D', fontWeight: 700 }}>Omega &gt;2.0</span> — 2× more gained than lost in absolute terms. Strong edge.<br/>
+                                            <span style={{ color: '#A6FF4D', fontWeight: 700 }}>Calmar &gt;1.0</span> — Annualized return exceeds the max drawdown incurred.<br/>
+                                            <span style={{ color: '#00D4FF', fontWeight: 700 }}>Kelly</span> — Full Kelly is aggressive. Use half-Kelly ({(kellyPct * 0.5).toFixed(1)}%) for drawdown safety.<br/>
+                                            <span style={{ color: '#A6FF4D', fontWeight: 700 }}>Recovery &gt;3.0</span> — Net profit is 3× your worst drawdown. Excellent resilience.
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* ── DISTRIBUTION ANALYSIS ── */}
+                                <div style={{ background: '#0d1117', border: '1px solid #1a1c24', padding: '24px' }}>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 16, marginBottom: 16 }}>
+                                        <div>
+                                            <div style={{ fontFamily: QF, fontSize: 9, color: '#6b7280', letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 4 }}>TRADE P&L DISTRIBUTION</div>
+                                            <div style={{ fontFamily: QF, fontSize: 13, fontWeight: 700, color: '#fff' }}>Return Distribution Analysis</div>
+                                            <div style={{ fontFamily: QF, fontSize: 10, color: '#8b949e', marginTop: 2 }}>Shape of returns reveals symmetry, skew, and fat-tail risk in your trading.</div>
+                                        </div>
+                                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
+                                            {[
+                                                { label: 'MEAN TRADE', val: fmtQ(meanT), color: meanT >= 0 ? '#A6FF4D' : '#ff4757' },
+                                                { label: 'MEDIAN TRADE', val: fmtQ(qp50), color: qp50 >= 0 ? '#A6FF4D' : '#ff4757' },
+                                                { label: 'STD DEV', val: `$${stdT.toFixed(0)}`, color: '#c9d1d9' },
+                                                { label: 'SAMPLE SIZE', val: `${nT}`, color: '#c9d1d9' },
+                                            ].map((s, i) => (
+                                                <div key={i} style={{ padding: '8px 12px', background: '#0b0e14', border: '1px solid #1a1c24' }}>
+                                                    <div style={{ fontFamily: QF, fontSize: 8, color: '#6b7280', letterSpacing: '0.08em', marginBottom: 2 }}>{s.label}</div>
+                                                    <div style={{ fontFamily: QF, fontSize: 14, fontWeight: 700, color: s.color }}>{s.val}</div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+
+                                    {/* Histogram */}
+                                    <ResponsiveContainer width="100%" height={150}>
+                                        <BarChart data={histBuckets} margin={{ top: 4, right: 0, bottom: 4, left: 0 }} barCategoryGap={1}>
+                                            <XAxis dataKey="label" tick={{ fontSize: 8, fill: '#4b5563', fontFamily: QF }} axisLine={false} tickLine={false} interval={Math.floor(histBuckets.length / 5)} />
+                                            <YAxis hide />
+                                            <Tooltip contentStyle={{ backgroundColor: '#13151a', border: '1px solid #2d3748', fontFamily: QF, fontSize: 11, borderRadius: 0, color: '#c9d1d9' }} formatter={(v: any) => [v, 'Trades']} />
+                                            <ReferenceLine x={`${meanT >= 0 ? '+' : ''}${meanT.toFixed(0)}`} stroke="#EAB308" strokeDasharray="3 3" strokeWidth={1} />
+                                            <Bar dataKey="count" radius={[2, 2, 0, 0]}>
+                                                {histBuckets.map((b, idx) => {
+                                                    const intensity = 0.3 + Math.min(0.7, (b.count / maxHistCnt) * 0.7);
+                                                    return <Cell key={idx} fill={b.center >= 0 ? `rgba(166,255,77,${intensity.toFixed(2)})` : `rgba(255,71,87,${intensity.toFixed(2)})`} />;
+                                                })}
+                                            </Bar>
+                                        </BarChart>
+                                    </ResponsiveContainer>
+
+                                    {/* Skewness + Kurtosis cards */}
+                                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 1, marginTop: 12, background: '#1a1c24' }}>
+                                        {[
+                                            {
+                                                label: 'SKEWNESS',
+                                                val: skew.toFixed(2),
+                                                color: skew > 0.5 ? '#A6FF4D' : skew < -0.5 ? '#ff4757' : '#EAB308',
+                                                desc: skew > 0.5
+                                                    ? 'Right-skewed. Rare large wins pull the mean right. Favorable structure — occasional outsized winners offset frequent small losses.'
+                                                    : skew < -0.5
+                                                    ? 'Left-skewed. Fat left tail. Rare but catastrophic losses drag the mean. This is the hallmark of a short-gamma profile — lethal without hard stops.'
+                                                    : 'Near-symmetric. Wins and losses are roughly mirror-shaped. Edge is in the frequency (win rate), not the tails.',
+                                            },
+                                            {
+                                                label: 'EXCESS KURTOSIS',
+                                                val: exKurt.toFixed(2),
+                                                color: exKurt > 3 ? '#ff4757' : exKurt > 1 ? '#EAB308' : '#A6FF4D',
+                                                desc: exKurt > 3
+                                                    ? 'Highly leptokurtic. Fat tails — extreme trades (both huge wins and catastrophic losses) are far more common than a normal distribution predicts. VaR models will underestimate your real tail risk.'
+                                                    : exKurt > 1
+                                                    ? 'Mildly leptokurtic. Tail events occur slightly more often than expected. Outlier trades impact your results.'
+                                                    : 'Near-normal kurtosis. Tail events are rare and roughly as expected. Consistent execution signature.',
+                                            },
+                                            {
+                                                label: 'RIGHT TAIL (P95)',
+                                                val: `+$${qp95 >= 0 ? qp95.toFixed(0) : '—'}`,
+                                                color: '#A6FF4D',
+                                                desc: `Top 5% of your trades returned +$${qp95.toFixed(0)} or more. The larger this is relative to your median, the more your P&L depends on outlier wins.`,
+                                            },
+                                            {
+                                                label: 'LEFT TAIL (P05)',
+                                                val: `-$${Math.abs(qp5).toFixed(0)}`,
+                                                color: '#ff4757',
+                                                desc: `Bottom 5% of trades lost $${Math.abs(qp5).toFixed(0)} or more. This is your historical 95% VaR threshold. Compare to your stop loss setting to verify discipline.`,
+                                            },
+                                        ].map((s, i) => (
+                                            <div key={i} style={{ background: '#0d1117', padding: '14px 16px', display: 'flex', flexDirection: 'column', gap: 6 }}>
+                                                <span style={{ fontFamily: QF, fontSize: 8, color: '#6b7280', letterSpacing: '0.1em' }}>{s.label}</span>
+                                                <span style={{ fontFamily: QF, fontSize: 22, fontWeight: 700, color: s.color, lineHeight: 1.1 }}>{s.val}</span>
+                                                <span style={{ fontFamily: QF, fontSize: 9, color: '#8b949e', lineHeight: 1.6 }}>{s.desc}</span>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+
+                                {/* ── PERCENTILES + VAR ── */}
+                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 1, background: '#1a1c24' }}>
+                                    {/* Percentile table */}
+                                    <div style={{ background: '#0d1117', padding: '24px' }}>
+                                        <div style={{ fontFamily: QF, fontSize: 9, color: '#6b7280', letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 14 }}>PERCENTILE BREAKDOWN</div>
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+                                            {[
+                                                { p: 'P95', val: qp95, label: 'Top 5% outcome', color: '#A6FF4D' },
+                                                { p: 'P75', val: qp75, label: 'Upper quartile', color: '#A6FF4D' },
+                                                { p: 'P50', val: qp50, label: 'Median trade', color: qp50 >= 0 ? '#c9d1d9' : '#EAB308' },
+                                                { p: 'P25', val: qp25, label: 'Lower quartile', color: qp25 >= 0 ? '#EAB308' : '#ff4757' },
+                                                { p: 'P10', val: qp10, label: 'Bottom decile', color: '#ff4757' },
+                                                { p: 'P05', val: qp5,  label: 'Historical VaR 95%', color: '#ff4757' },
+                                            ].map((row, i) => (
+                                                <div key={i} style={{ display: 'grid', gridTemplateColumns: '40px 100px 1fr', alignItems: 'center', gap: 10, padding: '8px 12px', background: '#0b0e14' }}>
+                                                    <span style={{ fontFamily: QF, fontSize: 9, fontWeight: 700, color: '#6b7280' }}>{row.p}</span>
+                                                    <span style={{ fontFamily: QF, fontSize: 14, fontWeight: 700, color: row.color }}>{fmtQ(row.val)}</span>
+                                                    <span style={{ fontFamily: QF, fontSize: 9, color: '#4b5563' }}>{row.label}</span>
+                                                </div>
+                                            ))}
+                                        </div>
+                                        <div style={{ marginTop: 12, padding: '10px 12px', background: 'rgba(0,212,255,0.05)', border: '1px solid rgba(0,212,255,0.15)', borderLeft: '3px solid #00D4FF' }}>
+                                            <div style={{ fontFamily: QF, fontSize: 9, color: '#00D4FF', letterSpacing: '0.1em', marginBottom: 3 }}>INTERQUARTILE RANGE</div>
+                                            <span style={{ fontFamily: QF, fontSize: 10, color: '#c9d1d9' }}>
+                                                ${(qp75 - qp25).toFixed(0)} — middle 50% of trades fall between {fmtQ(qp25)} and {fmtQ(qp75)}. Tight IQR = consistent execution. Wide IQR = high outcome variance.
+                                            </span>
+                                        </div>
+                                    </div>
+
+                                    {/* VaR */}
+                                    <div style={{ background: '#0d1117', padding: '24px' }}>
+                                        <div style={{ fontFamily: QF, fontSize: 9, color: '#6b7280', letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 14 }}>VALUE AT RISK &amp; TAIL METRICS</div>
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                                            {[
+                                                { label: 'VaR 95% (Historical)', val: `$${var95.toFixed(0)}`, sub: 'In 95% of trades, you will not lose more than this.', color: '#EAB308' },
+                                                { label: 'VaR 99% (Historical)', val: `$${var99.toFixed(0)}`, sub: 'In 99% of trades, max single-trade loss is bounded here.', color: '#ff4757' },
+                                                { label: 'CVaR / Expected Shortfall 95%', val: `$${cvar95.toFixed(0)}`, sub: 'Average loss in the worst 5% of trades. TRUE tail cost.', color: '#ff4757' },
+                                                {
+                                                    label: 'Tail Multiplier (VaR / Avg Loss)',
+                                                    val: var95 > 0 && avgLoss > 0 ? `${(var95 / avgLoss).toFixed(1)}×` : '—',
+                                                    sub: `Tail-risk loss vs average loss. Above 3× = outlier events dominate risk.`,
+                                                    color: var95 > 0 && avgLoss > 0 ? rc(-(var95 / avgLoss - 3), 0, -1) : '#6b7280',
+                                                },
+                                            ].map((m, i) => (
+                                                <div key={i} style={{ padding: '12px 14px', background: '#0b0e14', border: '1px solid #1a1c24', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
+                                                    <div>
+                                                        <div style={{ fontFamily: QF, fontSize: 9, color: '#6b7280', letterSpacing: '0.08em', marginBottom: 3 }}>{m.label}</div>
+                                                        <div style={{ fontFamily: QF, fontSize: 9, color: '#4b5563', lineHeight: 1.5 }}>{m.sub}</div>
+                                                    </div>
+                                                    <div style={{ fontFamily: QF, fontSize: 20, fontWeight: 700, color: m.color, flexShrink: 0 }}>{m.val}</div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* ── UNDERWATER EQUITY ── */}
+                                {underwaterData.length > 1 && (
+                                    <div style={{ background: '#0d1117', border: '1px solid #1a1c24', padding: '24px' }}>
+                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 12, marginBottom: 16 }}>
+                                            <div>
+                                                <div style={{ fontFamily: QF, fontSize: 9, color: '#6b7280', letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 4 }}>UNDERWATER EQUITY</div>
+                                                <div style={{ fontFamily: QF, fontSize: 13, fontWeight: 700, color: '#fff' }}>Drawdown Depth by Trade</div>
+                                                <div style={{ fontFamily: QF, fontSize: 10, color: '#8b949e', marginTop: 2 }}>Every moment your equity is below its previous peak. Depth = % below peak at that trade.</div>
+                                            </div>
+                                            <div style={{ display: 'flex', gap: 20, flexWrap: 'wrap' }}>
+                                                {[
+                                                    { label: 'MAX DD', val: `${maxDdPct.toFixed(1)}%`, color: '#ff4757' },
+                                                    { label: 'AVG DD', val: `${avgDD.toFixed(1)}%`, color: '#EAB308' },
+                                                    { label: 'TRADES UNDERWATER', val: `${timeUW}/${underwaterData.length}`, color: '#00D4FF' },
+                                                    { label: 'RECOVERY FACTOR', val: maxDd > 0 ? recovFactor.toFixed(2) : '—', color: rc(recovFactor, 3, 1) },
+                                                ].map((s, i) => (
+                                                    <div key={i} style={{ textAlign: 'right' }}>
+                                                        <div style={{ fontFamily: QF, fontSize: 8, color: '#6b7280', letterSpacing: '0.08em' }}>{s.label}</div>
+                                                        <div style={{ fontFamily: QF, fontSize: 16, fontWeight: 700, color: s.color }}>{s.val}</div>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                        <ResponsiveContainer width="100%" height={140}>
+                                            <AreaChart data={underwaterData} margin={{ top: 4, right: 0, bottom: 0, left: 40 }}>
+                                                <defs>
+                                                    <linearGradient id="ddGrad" x1="0" y1="0" x2="0" y2="1">
+                                                        <stop offset="5%" stopColor="#ff4757" stopOpacity={0.5} />
+                                                        <stop offset="95%" stopColor="#ff4757" stopOpacity={0.05} />
+                                                    </linearGradient>
+                                                </defs>
+                                                <CartesianGrid stroke="#1a1c24" strokeDasharray="3 3" vertical={false} />
+                                                <XAxis dataKey="i" tick={{ fontSize: 8, fill: '#4b5563', fontFamily: QF }} axisLine={false} tickLine={false} label={{ value: 'Trade #', position: 'insideBottom', offset: -4, fill: '#4b5563', fontSize: 8, fontFamily: QF }} />
+                                                <YAxis tick={{ fontSize: 8, fill: '#4b5563', fontFamily: QF }} axisLine={false} tickLine={false} tickFormatter={(v: number) => `${v.toFixed(1)}%`} width={40} />
+                                                <ReferenceLine y={0} stroke="rgba(255,255,255,0.12)" strokeWidth={1} />
+                                                <Tooltip contentStyle={{ backgroundColor: '#13151a', border: '1px solid #2d3748', fontFamily: QF, fontSize: 11, borderRadius: 0, color: '#c9d1d9' }} formatter={(v: any) => [`${Number(v).toFixed(2)}%`, 'Drawdown']} labelFormatter={(v: any) => `Trade #${v}`} />
+                                                <Area type="monotone" dataKey="ddPct" stroke="#ff4757" strokeWidth={1.5} fill="url(#ddGrad)" />
+                                            </AreaChart>
+                                        </ResponsiveContainer>
+                                        <div style={{ marginTop: 12, padding: '10px 14px', background: 'rgba(255,71,87,0.05)', border: '1px solid rgba(255,71,87,0.15)', borderLeft: '3px solid #ff4757' }}>
+                                            <div style={{ fontFamily: QF, fontSize: 9, color: '#ff4757', letterSpacing: '0.1em', marginBottom: 4 }}>WHAT THIS MEANS</div>
+                                            <p style={{ fontFamily: QF, fontSize: 10, color: '#c9d1d9', lineHeight: 1.7, margin: 0 }}>
+                                                {timeUW > underwaterData.length * 0.5
+                                                    ? `${timeUW} of ${underwaterData.length} trades (${(timeUW / underwaterData.length * 100).toFixed(0)}%) occurred below peak equity — more time underwater than above. You are fighting back more than you are compounding forward. Average drawdown depth: ${avgDD.toFixed(1)}%.`
+                                                    : `${timeUW} of ${underwaterData.length} trades below peak equity (${(timeUW / underwaterData.length * 100).toFixed(0)}%). Recovery is efficient. A recovery factor of ${recovFactor.toFixed(2)} means net profit is ${recovFactor.toFixed(1)}× the max drawdown incurred.`
+                                                }
+                                            </p>
+                                        </div>
+                                    </div>
+                                )}
+
+                                {/* ── EDGE SIGNIFICANCE + PROJECTIONS ── */}
+                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 1, background: '#1a1c24' }}>
+                                    {/* T-test */}
+                                    <div style={{ background: '#0d1117', padding: '24px' }}>
+                                        <div style={{ fontFamily: QF, fontSize: 9, color: '#6b7280', letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 14 }}>STATISTICAL EDGE SIGNIFICANCE</div>
+                                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 1, background: '#1a1c24', marginBottom: 12 }}>
+                                            {[
+                                                { label: 'T-STATISTIC', val: tStat.toFixed(2), color: Math.abs(tStat) >= tCrit ? '#A6FF4D' : '#ff4757', sub: `Need |t| ≥ ${tCrit.toFixed(1)}` },
+                                                { label: 'CRITICAL VALUE', val: `±${tCrit.toFixed(1)}`, color: '#00D4FF', sub: '95% two-tailed' },
+                                                { label: 'EDGE STATUS', val: isSignificant ? 'CONFIRMED' : 'NOT SIG.', color: isSignificant ? '#A6FF4D' : '#ff4757', sub: isSignificant ? 'At 95% confidence' : 'Need more trades' },
+                                                { label: 'MIN SAMPLE', val: `${Math.min(minN4Sig, 9999)}`, color: nT >= minN4Sig ? '#A6FF4D' : '#EAB308', sub: `You have ${nT} of ${minN4Sig}` },
+                                            ].map((s, i) => (
+                                                <div key={i} style={{ background: '#0d1117', padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: 4 }}>
+                                                    <span style={{ fontFamily: QF, fontSize: 8, color: '#6b7280', letterSpacing: '0.08em' }}>{s.label}</span>
+                                                    <span style={{ fontFamily: QF, fontSize: 18, fontWeight: 700, color: s.color }}>{s.val}</span>
+                                                    <span style={{ fontFamily: QF, fontSize: 9, color: '#4b5563' }}>{s.sub}</span>
+                                                </div>
+                                            ))}
+                                        </div>
+                                        <div style={{ padding: '12px 14px', background: `rgba(${isSignificant ? '166,255,77' : '255,71,87'},0.05)`, border: `1px solid rgba(${isSignificant ? '166,255,77' : '255,71,87'},0.15)`, borderLeft: `3px solid ${isSignificant ? '#A6FF4D' : '#ff4757'}` }}>
+                                            <div style={{ fontFamily: QF, fontSize: 9, color: isSignificant ? '#A6FF4D' : '#ff4757', letterSpacing: '0.1em', marginBottom: 4 }}>
+                                                {isSignificant ? 'EDGE CONFIRMED AT 95% CONFIDENCE' : 'INSUFFICIENT STATISTICAL EVIDENCE'}
+                                            </div>
+                                            <p style={{ fontFamily: QF, fontSize: 10, color: '#c9d1d9', lineHeight: 1.7, margin: 0 }}>
+                                                {isSignificant
+                                                    ? `t = ${tStat.toFixed(2)} exceeds ±${tCrit.toFixed(1)}. Less than 5% probability your mean return of ${fmtQ(meanT)}/trade is due to random chance. The edge is statistically real.`
+                                                    : `With ${nT} trades and t = ${tStat.toFixed(2)}, the data cannot yet separate skill from variance. You need ${Math.max(0, minN4Sig - nT)} more trades (${minN4Sig} total). This does not mean no edge — it means the sample is too small to confirm it at 95%.`
+                                                }
+                                            </p>
+                                        </div>
+                                    </div>
+
+                                    {/* Projections */}
+                                    <div style={{ background: '#0d1117', padding: '24px' }}>
+                                        <div style={{ fontFamily: QF, fontSize: 9, color: '#6b7280', letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 14 }}>CONFIDENCE INTERVAL &amp; PROJECTIONS</div>
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                                            <div style={{ padding: '14px 16px', background: '#0b0e14', border: '1px solid #1a1c24' }}>
+                                                <div style={{ fontFamily: QF, fontSize: 8, color: '#6b7280', letterSpacing: '0.08em', marginBottom: 6 }}>95% CI FOR MEAN TRADE P&L</div>
+                                                <div style={{ fontFamily: QF, fontSize: 13, fontWeight: 700, color: '#00D4FF' }}>
+                                                    [{fmtQ(meanT - ciHalf)} , {fmtQ(meanT + ciHalf)}]
+                                                </div>
+                                                <div style={{ fontFamily: QF, fontSize: 9, color: '#2d3748', marginTop: 4 }}>x̄ ± t·(σ/√n) = ${meanT.toFixed(0)} ± ${ciHalf.toFixed(0)}</div>
+                                            </div>
+                                            {[
+                                                { label: 'NEXT 10 TRADES', val: fmtQ(meanT * 10), sub: `10 × ${fmtQ(meanT)} expected value`, color: meanT >= 0 ? '#A6FF4D' : '#ff4757' },
+                                                { label: 'NEXT 50 TRADES', val: fmtQ(meanT * 50), sub: `50 × ${fmtQ(meanT)} mean`, color: meanT >= 0 ? '#A6FF4D' : '#ff4757' },
+                                                { label: 'ANNUALIZED (252d)', val: fmtQ(annReturn), sub: `${nD} days sampled, extrapolated to 252`, color: annReturn >= 0 ? '#A6FF4D' : '#ff4757' },
+                                            ].map((s, i) => (
+                                                <div key={i} style={{ padding: '10px 14px', background: '#0b0e14', border: '1px solid #1a1c24', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
+                                                    <div>
+                                                        <div style={{ fontFamily: QF, fontSize: 8, color: '#6b7280', letterSpacing: '0.08em', marginBottom: 2 }}>{s.label}</div>
+                                                        <div style={{ fontFamily: QF, fontSize: 9, color: '#4b5563' }}>{s.sub}</div>
+                                                    </div>
+                                                    <div style={{ fontFamily: QF, fontSize: 18, fontWeight: 700, color: s.color }}>{s.val}</div>
+                                                </div>
+                                            ))}
+                                            <div style={{ padding: '8px 12px', background: 'rgba(234,179,8,0.05)', border: '1px solid rgba(234,179,8,0.15)', borderLeft: '3px solid #EAB308' }}>
+                                                <span style={{ fontFamily: QF, fontSize: 9, color: '#8b949e', lineHeight: 1.6 }}>Projections assume stationary statistics. Live trading introduces regime changes — never size decisions on projections alone.</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* ── MONTE CARLO ── */}
+                                {mcResults && (
+                                    <div style={{ background: '#0d1117', border: '1px solid #1a1c24', padding: '24px' }}>
+                                        <div style={{ fontFamily: QF, fontSize: 9, color: '#6b7280', letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 4 }}>MONTE CARLO SIMULATION</div>
+                                        <div style={{ fontFamily: QF, fontSize: 13, fontWeight: 700, color: '#fff', marginBottom: 4 }}>{MC_PATHS} Paths · {MC_TRADES}-Trade Horizon</div>
+                                        <div style={{ fontFamily: QF, fontSize: 10, color: '#8b949e', marginBottom: 16 }}>
+                                            Resamples your actual {nT} trade outcomes {MC_PATHS} times to simulate possible futures. Each path draws {MC_TRADES} random trades from your history. Seeded — same data always produces the same simulation.
+                                        </div>
+
+                                        {/* Scenario strip */}
+                                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 1, background: '#1a1c24', marginBottom: 16 }}>
+                                            {[
+                                                { label: 'BEAR CASE (P10)', val: fmtQ(mcResults.p10), color: mcResults.p10 >= 0 ? '#EAB308' : '#ff4757', sub: 'Worst 10% of runs' },
+                                                { label: 'CAUTIOUS (P25)', val: fmtQ(mcResults.p25), color: mcResults.p25 >= 0 ? '#EAB308' : '#ff4757', sub: 'Bottom quartile' },
+                                                { label: 'BASE CASE (P50)', val: fmtQ(mcResults.p50), color: mcResults.p50 >= 0 ? '#A6FF4D' : '#ff4757', sub: 'Median simulation' },
+                                                { label: 'OPTIMISTIC (P75)', val: fmtQ(mcResults.p75), color: '#A6FF4D', sub: 'Top quartile' },
+                                                { label: 'BULL CASE (P90)', val: fmtQ(mcResults.p90), color: '#A6FF4D', sub: 'Best 10% of runs' },
+                                            ].map((s, i) => (
+                                                <div key={i} style={{ background: '#0d1117', padding: '14px 16px', display: 'flex', flexDirection: 'column', gap: 4 }}>
+                                                    <span style={{ fontFamily: QF, fontSize: 8, color: '#6b7280', letterSpacing: '0.1em' }}>{s.label}</span>
+                                                    <span style={{ fontFamily: QF, fontSize: 18, fontWeight: 700, color: s.color }}>{s.val}</span>
+                                                    <span style={{ fontFamily: QF, fontSize: 9, color: '#4b5563' }}>{s.sub}</span>
+                                                </div>
+                                            ))}
+                                        </div>
+
+                                        {/* MC histogram */}
+                                        <ResponsiveContainer width="100%" height={140}>
+                                            <BarChart data={mcResults.buckets} margin={{ top: 4, right: 0, bottom: 4, left: 0 }} barCategoryGap={2}>
+                                                <XAxis dataKey="label" tick={{ fontSize: 8, fill: '#4b5563', fontFamily: QF }} axisLine={false} tickLine={false} interval={2} />
+                                                <YAxis hide />
+                                                <Tooltip contentStyle={{ backgroundColor: '#13151a', border: '1px solid #2d3748', fontFamily: QF, fontSize: 11, borderRadius: 0, color: '#c9d1d9' }} formatter={(v: any) => [v, 'Simulations']} labelFormatter={(v: any) => `Outcome: ${v}`} />
+                                                <ReferenceLine x="$0" stroke="rgba(255,255,255,0.2)" strokeWidth={1} />
+                                                <Bar dataKey="count" radius={[2, 2, 0, 0]}>
+                                                    {mcResults.buckets.map((b, i) => (
+                                                        <Cell key={i} fill={b.center >= 0 ? 'rgba(166,255,77,0.7)' : 'rgba(255,71,87,0.7)'} />
+                                                    ))}
+                                                </Bar>
+                                            </BarChart>
+                                        </ResponsiveContainer>
+
+                                        {/* Probability stats */}
+                                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 1, marginTop: 12, background: '#1a1c24' }}>
+                                            {[
+                                                { label: 'PROB. PROFITABLE', val: `${mcResults.posProb.toFixed(0)}%`, color: rc(mcResults.posProb, 70, 50), sub: `${mcResults.posProb.toFixed(0)}% of simulated ${MC_TRADES}-trade runs end in profit` },
+                                                { label: 'PROB. OF RUIN (>10% DD)', val: `${mcResults.ruinProb.toFixed(1)}%`, color: mcResults.ruinProb < 5 ? '#A6FF4D' : mcResults.ruinProb < 20 ? '#EAB308' : '#ff4757', sub: 'Probability of drawing down 10%+ of starting balance' },
+                                                { label: 'MEDIAN OUTCOME', val: fmtQ(mcResults.p50), color: mcResults.p50 >= 0 ? '#A6FF4D' : '#ff4757', sub: 'Half of all simulated futures beat this number after 50 trades' },
+                                            ].map((s, i) => (
+                                                <div key={i} style={{ background: '#0d1117', padding: '16px', display: 'flex', flexDirection: 'column', gap: 4 }}>
+                                                    <span style={{ fontFamily: QF, fontSize: 8, color: '#6b7280', letterSpacing: '0.1em' }}>{s.label}</span>
+                                                    <span style={{ fontFamily: QF, fontSize: 22, fontWeight: 700, color: s.color }}>{s.val}</span>
+                                                    <span style={{ fontFamily: QF, fontSize: 9, color: '#4b5563', lineHeight: 1.5 }}>{s.sub}</span>
+                                                </div>
+                                            ))}
+                                        </div>
+
+                                        <div style={{ marginTop: 12, padding: '10px 14px', background: 'rgba(0,212,255,0.04)', border: '1px solid rgba(0,212,255,0.12)', borderLeft: '3px solid #00D4FF' }}>
+                                            <div style={{ fontFamily: QF, fontSize: 9, color: '#00D4FF', letterSpacing: '0.1em', marginBottom: 4 }}>ACTION</div>
+                                            <p style={{ fontFamily: QF, fontSize: 10, color: '#8b949e', lineHeight: 1.7, margin: 0 }}>
+                                                {mcResults.posProb >= 70
+                                                    ? `${mcResults.posProb.toFixed(0)}% of ${MC_TRADES}-trade simulations end profitable. The edge is robust to variance. Execution consistency is the priority — the math is in your favor.`
+                                                    : mcResults.posProb >= 50
+                                                    ? `${mcResults.posProb.toFixed(0)}% positive probability is marginal. The edge exists but is narrow. Any degradation in win rate or R:R will flip the distribution negative. Improving your avg W:L ratio is the highest-leverage fix.`
+                                                    : `Only ${mcResults.posProb.toFixed(0)}% of futures are profitable. At current statistics, variance overwhelms edge over ${MC_TRADES} trades. Address SCORECARD failing metrics before scaling up.`
+                                                }
+                                            </p>
+                                        </div>
+                                    </div>
+                                )}
+
+                                </>)}
                             </motion.div>
                         );
                     })()}
