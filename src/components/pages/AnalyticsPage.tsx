@@ -870,11 +870,11 @@ export default function AnalyticsPage() {
                                     <div style={{ display: 'flex', gap: 32 }}>
                                         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                                             <div style={{ width: 8, height: 8, background: '#A6FF4D', borderRadius: '50%' }} />
-                                            <span style={{ fontFamily: 'var(--font-mono)', fontSize: 12, color: '#c9d1d9' }}>{wins.length} trades</span>
+                                            <span style={{ fontFamily: 'var(--font-mono)', fontSize: 12, color: '#A6FF4D' }}>{wins.length} trades</span>
                                         </div>
                                         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                                             <div style={{ width: 8, height: 8, background: '#ff4757', borderRadius: '50%' }} />
-                                            <span style={{ fontFamily: 'var(--font-mono)', fontSize: 12, color: '#c9d1d9' }}>{losses.length} trades</span>
+                                            <span style={{ fontFamily: 'var(--font-mono)', fontSize: 12, color: '#ff4757' }}>{losses.length} trades</span>
                                         </div>
                                     </div>
                                 </div>
@@ -935,8 +935,8 @@ export default function AnalyticsPage() {
                                             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
                                                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                                                     <div style={{ width: 8, height: 8, background: '#A6FF4D', borderRadius: '50%' }} />
-                                                    <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: '#8b949e' }}>Avg win</span>
-                                                    <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: '#6b7280' }}>{wins.length} winning trades</span>
+                                                    <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: '#A6FF4D' }}>Avg win</span>
+                                                    <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: '#A6FF4D', opacity: 0.65 }}>{wins.length} winning trades</span>
                                                 </div>
                                                 <span style={{ fontFamily: 'var(--font-mono)', fontSize: 14, fontWeight: 700, color: '#A6FF4D' }}>+${avgWin.toFixed(2)}</span>
                                             </div>
@@ -948,8 +948,8 @@ export default function AnalyticsPage() {
                                             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
                                                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                                                     <div style={{ width: 8, height: 8, background: '#ff4757', borderRadius: '50%' }} />
-                                                    <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: '#8b949e' }}>Avg loss</span>
-                                                    <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: '#6b7280' }}>{losses.length} losing trades</span>
+                                                    <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: '#ff4757' }}>Avg loss</span>
+                                                    <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: '#ff4757', opacity: 0.65 }}>{losses.length} losing trades</span>
                                                 </div>
                                                 <span style={{ fontFamily: 'var(--font-mono)', fontSize: 14, fontWeight: 700, color: '#ff4757' }}>-${avgLoss.toFixed(2)}</span>
                                             </div>
@@ -1099,11 +1099,11 @@ export default function AnalyticsPage() {
                                     <div style={{ display: 'flex', gap: 16, marginTop: 8, justifyContent: 'center' }}>
                                         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                                             <div style={{ width: 8, height: 8, background: '#A6FF4D', borderRadius: '50%' }} />
-                                            <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: '#c9d1d9' }}>{wins.length} trades</span>
+                                            <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: '#A6FF4D' }}>{wins.length} trades</span>
                                         </div>
                                         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                                             <div style={{ width: 8, height: 8, background: '#ff4757', borderRadius: '50%' }} />
-                                            <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: '#c9d1d9' }}>{losses.length} trades</span>
+                                            <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: '#ff4757' }}>{losses.length} trades</span>
                                         </div>
                                     </div>
                                 </div>
@@ -1369,7 +1369,7 @@ export default function AnalyticsPage() {
                                         {[{ color: '#A6FF4D', label: 'Profitable day' }, { color: '#ff4757', label: 'Loss day' }, { color: '#EAB308', label: '5d avg', dash: true }].map((l, i) => (
                                             <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                                                 <div style={{ width: 20, height: 2, background: l.color, borderTop: l.dash ? '2px dashed' : undefined, borderColor: l.color }} />
-                                                <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#c9d1d9' }}>{l.label}</span>
+                                                <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: l.color }}>{l.label}</span>
                                             </div>
                                         ))}
                                     </div>
@@ -2252,15 +2252,15 @@ export default function AnalyticsPage() {
                                             <div style={{ display: 'flex', gap: 14, alignItems: 'center' }}>
                                                 <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                                                     <div style={{ width: 10, height: 10, background: '#A6FF4D' }} />
-                                                    <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#c9d1d9' }}>Profitable hour</span>
+                                                    <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#A6FF4D' }}>Profitable hour</span>
                                                 </div>
                                                 <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                                                     <div style={{ width: 10, height: 10, background: '#ff4757' }} />
-                                                    <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#c9d1d9' }}>Loss hour</span>
+                                                    <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#ff4757' }}>Loss hour</span>
                                                 </div>
                                                 <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                                                     <div style={{ width: 10, height: 10, background: '#1a1c24', border: '1px solid #2d3748' }} />
-                                                    <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#c9d1d9' }}>No trades</span>
+                                                    <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#00D4FF' }}>No trades</span>
                                                 </div>
                                             </div>
                                         </div>
@@ -2745,13 +2745,13 @@ export default function AnalyticsPage() {
                                     <div style={{ display: 'flex', gap: 20, alignItems: 'center' }}>
                                         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                                             <div style={{ width: 12, height: 12, background: 'rgba(166,255,77,0.7)' }} />
-                                            <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#8b949e' }}>Win streak (darker = longer)</span>
+                                            <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#A6FF4D' }}>Win streak (darker = longer)</span>
                                         </div>
                                         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                                             <div style={{ width: 12, height: 12, background: 'rgba(255,71,87,0.7)' }} />
-                                            <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#8b949e' }}>Loss streak (darker = longer)</span>
+                                            <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#ff4757' }}>Loss streak (darker = longer)</span>
                                         </div>
-                                        <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#6b7280', marginLeft: 'auto' }}>{closed.length} trades · {streakRuns.length} streak runs</span>
+                                        <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#8b949e', marginLeft: 'auto' }}>{closed.length} trades · {streakRuns.length} streak runs</span>
                                     </div>
                                     {/* NLP narrative */}
                                     {worstStreakInfo && closed.length >= 5 && (
@@ -2801,11 +2801,11 @@ export default function AnalyticsPage() {
                                         <div style={{ display: 'flex', gap: 16, marginTop: 8 }}>
                                             <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                                                 <div style={{ width: 10, height: 10, background: 'rgba(166,255,77,0.8)' }} />
-                                                <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#8b949e' }}>Win streaks</span>
+                                                <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#A6FF4D' }}>Win streaks</span>
                                             </div>
                                             <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                                                 <div style={{ width: 10, height: 10, background: 'rgba(255,71,87,0.8)' }} />
-                                                <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#8b949e' }}>Loss streaks</span>
+                                                <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#ff4757' }}>Loss streaks</span>
                                             </div>
                                         </div>
                                     </div>
@@ -2993,15 +2993,15 @@ export default function AnalyticsPage() {
                                         <div style={{ display: 'flex', gap: 16, marginTop: 12 }}>
                                             <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                                                 <div style={{ width: 10, height: 10, background: '#ff4757' }} />
-                                                <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#8b949e' }}>CRITICAL</span>
+                                                <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#ff4757' }}>CRITICAL</span>
                                             </div>
                                             <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                                                 <div style={{ width: 10, height: 10, background: 'rgba(255,71,87,0.6)' }} />
-                                                <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#8b949e' }}>HIGH</span>
+                                                <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#ff4757', opacity: 0.7 }}>HIGH</span>
                                             </div>
                                             <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                                                 <div style={{ width: 10, height: 10, background: '#EAB308' }} />
-                                                <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#8b949e' }}>MODERATE</span>
+                                                <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#EAB308' }}>MODERATE</span>
                                             </div>
                                         </div>
                                     </div>
@@ -3454,11 +3454,11 @@ export default function AnalyticsPage() {
                                         { g: 'C', label: '50–74 · Marginal', c: '#EAB308' },
                                         { g: 'D', label: '20–49 · Failing', c: '#F97316' },
                                         { g: 'F', label: '<20 · Critical', c: '#ff4757' },
-                                        { g: '—', label: 'No data', c: '#6b7280' },
+                                        { g: '—', label: 'No data', c: '#00D4FF' },
                                     ].map(({ g, label, c }) => (
                                         <div key={g} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                                             <span style={{ fontFamily: 'var(--font-mono)', fontSize: 16, fontWeight: 900, color: c, lineHeight: 1 }}>{g}</span>
-                                            <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#8b949e' }}>{label}</span>
+                                            <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: c, opacity: 0.75 }}>{label}</span>
                                         </div>
                                     ))}
                                 </div>

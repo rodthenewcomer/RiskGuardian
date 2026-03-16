@@ -133,19 +133,19 @@ export default function HeatmapGrid({ data, minTrades = 0 }: Props) {
             </div>
 
             {/* Legend */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginTop: 12, fontFamily: FONT, fontSize: 9, color: '#8b949e' }}>
-                <span style={{ color: '#6b7280' }}>Avg P&amp;L · trade count per cell</span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginTop: 12, fontFamily: FONT, fontSize: 9 }}>
+                <span style={{ color: '#8b949e' }}>Avg P&amp;L · trade count per cell</span>
                 <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
                     <div style={{ width: 12, height: 12, background: 'rgba(255,71,87,0.85)' }} />
-                    <span>Loss</span>
+                    <span style={{ color: '#ff4757' }}>Loss</span>
                 </div>
                 <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
                     <div style={{ width: 12, height: 12, background: 'rgba(166,255,77,0.85)' }} />
-                    <span>Profit</span>
+                    <span style={{ color: '#A6FF4D' }}>Profit</span>
                 </div>
                 <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
                     <div style={{ width: 12, height: 12, background: 'rgba(255,255,255,0.025)', border: '1px solid #2d3748' }} />
-                    <span>No trades</span>
+                    <span style={{ color: '#00D4FF' }}>No trades</span>
                 </div>
             </div>
         </div>
