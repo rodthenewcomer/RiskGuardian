@@ -86,8 +86,11 @@ export function generateForensics(trades: Trade[], accountData: any) {
     const patterns: any[] = [];
     const wins = closed.filter(t => (t.pnl ?? 0) > 0);
     const lossTrades = closed.filter(t => (t.pnl ?? 0) < 0);
-    const avgWinDur = wins.length > 0 ? wins.reduce((s, t) => s + (t.durationSeconds ?? 1), 0) / wins.length : 1;
-    const avgLossDur = lossTrades.length > 0 ? lossTrades.reduce((s, t) => s + (t.durationSeconds ?? 1), 0) / lossTrades.length : 1;
+    // Only include trades with actual duration data to avoid skewing averages with the fallback
+    const winsWithDur = wins.filter(t => (t.durationSeconds ?? 0) > 0);
+    const lossesWithDur = lossTrades.filter(t => (t.durationSeconds ?? 0) > 0);
+    const avgWinDur = winsWithDur.length > 0 ? winsWithDur.reduce((s, t) => s + t.durationSeconds!, 0) / winsWithDur.length : 60;
+    const avgLossDur = lossesWithDur.length > 0 ? lossesWithDur.reduce((s, t) => s + t.durationSeconds!, 0) / lossesWithDur.length : 60;
     const avgWinAmt = wins.length > 0 ? wins.reduce((s, t) => s + (t.pnl ?? 0), 0) / wins.length : 1;
     const avgLossAmt = lossTrades.length > 0 ? Math.abs(lossTrades.reduce((s, t) => s + (t.pnl ?? 0), 0)) / lossTrades.length : 1;
 
@@ -123,9 +126,9 @@ export function generateForensics(trades: Trade[], accountData: any) {
         patterns.push({ name: 'Held Losers', freq: heldIdx.length, impact: imp, severity: imp < -400 || heldIdx.length > 5 ? 'CRITICAL' : 'WARNING', desc: 'Losing trades held 50%+ longer than average win.', evidence: heldIdx.slice(0, 3).map(t => `${t.asset}: Held ${Math.floor((t.durationSeconds || 0) / 60)}m vs ${Math.floor(avgWinDur / 60)}m avg win`) });
     }
 
-    // Early Exit
-    const earlyWins = wins.filter(t => (t.durationSeconds ?? 0) < avgLossDur * 0.4);
-    if (earlyWins.length > 5 && avgWinDur < avgLossDur * 0.4) {
+    // Early Exit — wins closed in under 40% of average loss duration
+    const earlyWins = wins.filter(t => (t.durationSeconds ?? 0) > 0 && t.durationSeconds! < avgLossDur * 0.4);
+    if (earlyWins.length >= 3) {
         patterns.push({ name: 'Early Exit', freq: earlyWins.length, impact: -earlyWins.length * avgLossAmt * 0.5, severity: 'WARNING', desc: 'Cutting winners before structural targets.', evidence: [`Avg Win Duration: ${Math.floor(avgWinDur / 60)}m`, `Avg Loss Duration: ${Math.floor(avgLossDur / 60)}m`] });
     }
 
@@ -172,8 +175,9 @@ export function generateForensics(trades: Trade[], accountData: any) {
         })(), desc: 'Rapid re-entry after losses. A=none C=1 occurrence D=2–3 F=4+.' },
         // Hold Time Asymmetry: graduated by win/loss duration ratio
         { metric: 'Hold Time Asymmetry', grade: (() => {
-            if (avgLossDur === 0 && avgWinDur === 0) return '—';
-            if (avgLossDur === 0) return 'A';
+            if (winsWithDur.length === 0 && lossesWithDur.length === 0) return '—';
+            if (lossesWithDur.length === 0) return 'A';
+            if (winsWithDur.length === 0) return 'F'; // all wins exited instantly, no duration data
             const ratio = avgWinDur / avgLossDur;
             return ratio >= 1.2 ? 'A' : ratio >= 0.9 ? 'B' : ratio >= 0.6 ? 'C' : ratio >= 0.35 ? 'D' : 'F';
         })(), desc: 'Avg win hold ÷ avg loss hold. A≥1.2 B≥0.9 C≥0.6 D≥0.35 F<0.35.' },
@@ -187,8 +191,10 @@ export function generateForensics(trades: Trade[], accountData: any) {
         { metric: 'Micro Management', grade: (() => {
             if (microBroad.length === 0) return '—';
             if (microBroadPnl >= 0) return 'A';
-            const lossFraction = Math.abs(microBroadPnl) / Math.max(Math.abs(microBroad.reduce((s, t) => s + (t.pnl ?? 0), 0)), 1);
-            return lossFraction < 0.1 ? 'C' : 'F';
+            // Loss fraction = |net loss| / total gross activity (wins + |losses|)
+            const microGross = microBroad.reduce((s, t) => s + Math.abs(t.pnl ?? 0), 0);
+            const lossFraction = microGross > 0 ? Math.abs(microBroadPnl) / microGross : 1;
+            return lossFraction < 0.15 ? 'C' : lossFraction < 0.4 ? 'D' : 'F';
         })(), desc: 'Net P&L on micro contracts (MES/MNQ/M2K/MCL etc.).' },
         // First Hour Logic: uses entry time (createdAt), not exit time
         { metric: 'First Hour Logic', grade: (() => {
@@ -226,7 +232,7 @@ export function generateForensics(trades: Trade[], accountData: any) {
     closed.forEach(t => {
         const estDate = new Date(new Date(t.closedAt ?? t.createdAt).toLocaleString("en-US", {timeZone: "America/New_York"}));
         const hour = estDate.getHours();
-        hourlyPnl[hour >= 24 ? 0 : hour] += (t.pnl || 0);
+        hourlyPnl[hour] += (t.pnl || 0);
     });
     const bestHour = hourlyPnl.indexOf(Math.max(...hourlyPnl));
     const worstHour = hourlyPnl.indexOf(Math.min(...hourlyPnl));

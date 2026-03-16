@@ -173,10 +173,10 @@ export function analyzeRiskGuardian(
     const actualPct = account.maxRiskPercent;
     const kellyRatio = kellyPct > 0 ? actualPct / kellyPct : 0;
     let kellyNote = '';
-    if (kellyPct === 0) {
-        kellyNote = 'Negative Kelly — your current stats suggest no edge yet. Log more trades.';
+    if (kellyFull <= 0) {
+        kellyNote = 'Negative Kelly — current win rate / R:R combination has no mathematical edge. Do not increase size until stats improve.';
     } else if (kellyRatio < 0.25) {
-        kellyNote = `You are at ${(kellyRatio * 100).toFixed(0)}% Kelly. Very conservative — you could safely increase risk to ${(kellyPct * 0.3).toFixed(2)}% per trade.`;
+        kellyNote = `You are at ${(kellyRatio * 100).toFixed(0)}% Kelly. Very conservative — you could safely size up to ${(kellyPct * 0.3).toFixed(2)}% risk per trade.`;
     } else if (kellyRatio < 0.5) {
         kellyNote = `Half-Kelly suggests ${(kellyPct * 0.5).toFixed(2)}% risk/trade. You are near optimal.`;
     } else if (kellyRatio > 1) {
@@ -355,17 +355,16 @@ export function analyzeConsistency(trades: TradeSession[]): ConsistencyAnalysis 
         try {
             const d = new Date(iso);
             if (isNaN(d.getTime())) return iso.split('T')[0] || 'unknown';
-            // Shift by -17 hours: a trade at 5 PM EST becomes midnight of next day
-            const estOffset = -5 * 60; // EST is UTC-5
-            const localMs = d.getTime() + estOffset * 60000;
-            const estDate = new Date(localMs);
-            const estHour = estDate.getUTCHours();
-            // If hour >= 17 (5 PM), it belongs to the next calendar day
+            // Convert to America/New_York (handles EST and EDT automatically)
+            const estDate = new Date(d.toLocaleString('en-US', { timeZone: 'America/New_York' }));
+            const estHour = estDate.getHours();
+            // Tradeify trading day rolls at 5 PM EST — trades at or after 17:00 belong to next day
             if (estHour >= 17) {
-                const nextDay = new Date(estDate.getTime() + 24 * 60 * 60000);
-                return nextDay.toISOString().split('T')[0];
+                const nextDay = new Date(estDate);
+                nextDay.setDate(nextDay.getDate() + 1);
+                return nextDay.toLocaleDateString('en-CA'); // 'YYYY-MM-DD' format
             }
-            return estDate.toISOString().split('T')[0];
+            return estDate.toLocaleDateString('en-CA');
         } catch {
             return iso.split('T')[0] || 'unknown';
         }
