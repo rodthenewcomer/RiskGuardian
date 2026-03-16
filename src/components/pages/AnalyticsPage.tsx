@@ -2442,171 +2442,250 @@ export default function AnalyticsPage() {
                     )}
 
                     {activeTab === 'STREAKS' && (
-                        <motion.div key="streaks" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="flex flex-col gap-8">
+                        <motion.div key="streaks" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} style={{ display: 'flex', flexDirection: 'column', gap: 20, marginBottom: 48 }}>
 
-                            {/* ── Section 1: KPI Strip ── */}
-                            <div className="flex flex-col gap-4">
-                                <span className={styles.sectionTitle}>Winning &amp; Losing Streak Analysis</span>
-                                <div className={styles.kpiGrid}>
-                                    <div className={styles.kpiBox}>
-                                        <span className={styles.kpiLabel}>Max Win Streak</span>
-                                        <span className={`${styles.kpiValue} ${styles.textGreen}`}>{forensics.maxWinStreak}</span>
-                                        <span className={styles.kpiSub}>Consecutive winning trades</span>
-                                    </div>
-                                    <div className={styles.kpiBox}>
-                                        <span className={styles.kpiLabel}>Max Loss Streak</span>
-                                        <span className={`${styles.kpiValue} ${styles.textRed}`}>{forensics.maxLossStreak}</span>
-                                        <span className={styles.kpiSub}>Consecutive losing trades</span>
-                                    </div>
-                                    <div className={styles.kpiBox}>
-                                        <span className={styles.kpiLabel}>Expectancy</span>
-                                        <span className={`${styles.kpiValue} ${expectancy >= 0 ? styles.textGreen : styles.textRed}`}>
-                                            {expectancy >= 0 ? '+' : ''}${Math.abs(expectancy).toFixed(2)}
-                                        </span>
-                                        <span className={styles.kpiSub}>Per trade average</span>
-                                    </div>
-                                    <div className={styles.kpiBox} style={{ borderRight: 'none' }}>
-                                        <span className={styles.kpiLabel}>Win Rate</span>
-                                        <span className={`${styles.kpiValue} ${winRate >= 55 ? styles.textGreen : winRate >= 45 ? styles.textYellow : styles.textRed}`}>
-                                            {winRate.toFixed(1)}%
-                                        </span>
-                                        <span className={styles.kpiSub}>{wins.length}W / {losses.length}L · see Expectancy</span>
-                                    </div>
+                            {/* ── HEADER ── */}
+                            <div>
+                                <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#6b7280', letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 4 }}>STREAK FORENSICS</div>
+                                <div style={{ fontFamily: 'var(--font-mono)', fontSize: 20, fontWeight: 700, color: '#fff', marginBottom: 4 }}>Win & Loss Streak Analysis</div>
+                                <div style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: '#8b949e' }}>
+                                    Every streak tells a story. Win streaks reveal your edge in motion. Loss streaks reveal tilt, misalignment, or structural market shifts. This page decodes both.
                                 </div>
                             </div>
 
-                            {/* ── Section 2: Trade Sequence Dots + NLP Narrative ── */}
-                            <div className={styles.fullWidthCard} style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-                                {/* Dot legend + sequence */}
-                                <div className="flex flex-col gap-3">
-                                    <div className="flex items-center gap-4">
-                                        <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: '#6b7280', letterSpacing: '0.08em' }}>TRADE SEQUENCE →</span>
-                                        <div className="flex items-center gap-1.5">
-                                            <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#A6FF4D' }} />
-                                            <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#A6FF4D' }}>Win</span>
-                                        </div>
-                                        <div className="flex items-center gap-1.5">
-                                            <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#ff4757' }} />
-                                            <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#ff4757' }}>Loss</span>
-                                        </div>
+                            {/* ── 6-KPI GRID ── */}
+                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', borderTop: '1px solid #1a1c24', borderLeft: '1px solid #1a1c24' }}>
+                                {[
+                                    { label: 'MAX WIN STREAK', value: `${forensics.maxWinStreak}`, sub: 'Consecutive winning trades', color: '#A6FF4D' },
+                                    { label: 'MAX LOSS STREAK', value: `${forensics.maxLossStreak}`, sub: 'Consecutive losing trades', color: forensics.maxLossStreak >= 4 ? '#ff4757' : forensics.maxLossStreak >= 3 ? '#EAB308' : '#c9d1d9' },
+                                    { label: 'TOTAL STREAK RUNS', value: `${streakRuns.length}`, sub: `${streakRuns.filter(r => r.type === 'W').length}W runs · ${streakRuns.filter(r => r.type === 'L').length}L runs`, color: '#c9d1d9' },
+                                    { label: 'WIN RATE', value: `${winRate.toFixed(1)}%`, sub: `${wins.length}W · ${losses.length}L`, color: winRate >= 55 ? '#A6FF4D' : winRate >= 45 ? '#EAB308' : '#ff4757' },
+                                    { label: 'EXPECTANCY', value: expectancy !== 0 ? `${expectancy >= 0 ? '+' : ''}$${Math.abs(expectancy).toFixed(2)}` : '—', sub: 'Per trade average', color: expectancy >= 0 ? '#A6FF4D' : '#ff4757' },
+                                    { label: 'WORST STREAK COST', value: worstStreakInfo ? `-$${Math.abs(worstStreakInfo.pnl).toFixed(0)}` : '—', sub: worstStreakInfo ? `${worstStreakInfo.count} losses · ${worstStreakInfo.date}` : 'No data', color: '#ff4757' },
+                                ].map((k, i) => (
+                                    <div key={i} style={{ padding: '20px 24px', borderBottom: '1px solid #1a1c24', borderRight: '1px solid #1a1c24', background: '#0d1117', display: 'flex', flexDirection: 'column', gap: 6 }}>
+                                        <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#6b7280', letterSpacing: '0.1em', textTransform: 'uppercase' }}>{k.label}</span>
+                                        <span style={{ fontFamily: 'var(--font-mono)', fontSize: 26, fontWeight: 700, color: k.color }}>{k.value}</span>
+                                        <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: '#8b949e' }}>{k.sub}</span>
                                     </div>
-                                    <div className="flex flex-wrap gap-1">
+                                ))}
+                            </div>
+
+                            {/* ── TRADE SEQUENCE VISUALIZATION ── */}
+                            {closed.length > 0 && (
+                                <div style={{ background: '#0d1117', border: '1px solid #1a1c24', padding: '24px' }}>
+                                    <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#6b7280', letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 4 }}>FULL TRADE SEQUENCE</div>
+                                    <div style={{ fontFamily: 'var(--font-mono)', fontSize: 13, fontWeight: 600, color: '#c9d1d9', marginBottom: 16 }}>
+                                        Each segment = one streak run. Width ∝ streak length. This is your behavioral fingerprint.
+                                    </div>
+                                    {/* Segment bar */}
+                                    <div style={{ display: 'flex', height: 48, width: '100%', overflow: 'hidden', gap: 1, marginBottom: 12 }}>
+                                        {streakRuns.map((run, i) => {
+                                            const pct = (run.length / closed.length) * 100;
+                                            const isWin = run.type === 'W';
+                                            return (
+                                                <div
+                                                    key={i}
+                                                    title={`${run.type === 'W' ? 'Win' : 'Loss'} streak × ${run.length} · ${run.pnl >= 0 ? '+' : ''}$${run.pnl.toFixed(0)}`}
+                                                    style={{
+                                                        flex: `0 0 ${Math.max(pct, 0.4)}%`,
+                                                        background: isWin ? `rgba(166,255,77,${0.4 + Math.min(run.length / 8, 0.55)})` : `rgba(255,71,87,${0.4 + Math.min(run.length / 8, 0.55)})`,
+                                                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                                        fontSize: run.length >= 3 ? 9 : 0,
+                                                        fontFamily: 'var(--font-mono)',
+                                                        fontWeight: 700,
+                                                        color: isWin ? '#0a1a00' : '#2a0008',
+                                                        cursor: 'default',
+                                                        transition: 'opacity 0.1s',
+                                                    }}
+                                                >
+                                                    {run.length >= 3 ? run.length : ''}
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                    {/* Individual dot row */}
+                                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 2, marginBottom: 12 }}>
                                         {forensics.streaksSequence.map((res: string, i: number) => (
-                                            <div
-                                                key={i}
-                                                title={res === 'W' ? 'Win' : 'Loss'}
-                                                style={{
-                                                    width: 12, height: 12, borderRadius: '50%', flexShrink: 0,
-                                                    background: res === 'W' ? '#A6FF4D' : '#ff4757',
-                                                    opacity: 0.85,
-                                                    boxShadow: res === 'W' ? '0 0 4px rgba(166,255,77,0.4)' : '0 0 4px rgba(255,71,87,0.4)',
-                                                }}
-                                            />
+                                            <div key={i} style={{
+                                                width: 10, height: 10, borderRadius: '50%', flexShrink: 0,
+                                                background: res === 'W' ? '#A6FF4D' : '#ff4757',
+                                                opacity: 0.8,
+                                                boxShadow: res === 'W' ? '0 0 3px rgba(166,255,77,0.5)' : '0 0 3px rgba(255,71,87,0.5)',
+                                            }} />
                                         ))}
                                     </div>
+                                    <div style={{ display: 'flex', gap: 20, alignItems: 'center' }}>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                                            <div style={{ width: 12, height: 12, background: 'rgba(166,255,77,0.7)' }} />
+                                            <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#8b949e' }}>Win streak (darker = longer)</span>
+                                        </div>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                                            <div style={{ width: 12, height: 12, background: 'rgba(255,71,87,0.7)' }} />
+                                            <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#8b949e' }}>Loss streak (darker = longer)</span>
+                                        </div>
+                                        <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#6b7280', marginLeft: 'auto' }}>{closed.length} trades · {streakRuns.length} streak runs</span>
+                                    </div>
+                                    {/* NLP narrative */}
+                                    {worstStreakInfo && closed.length >= 5 && (
+                                        <div style={{ marginTop: 20, padding: '16px 20px', background: 'rgba(255,71,87,0.04)', border: '1px solid rgba(255,71,87,0.15)', borderLeft: '3px solid #ff4757' }}>
+                                            <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#ff4757', letterSpacing: '0.1em', textTransform: 'uppercase', fontWeight: 700, marginBottom: 8 }}>WORST STREAK DECODED</div>
+                                            <p style={{ fontFamily: 'var(--font-mono)', fontSize: 12, color: '#8b949e', lineHeight: 1.8, margin: 0 }}>
+                                                <span style={{ color: '#e2e8f0', fontWeight: 600 }}>{worstStreakInfo.count} consecutive {worstStreakInfo.dominantAsset}{worstStreakInfo.isShort ? ' short' : ''} losses</span>
+                                                {' on '}
+                                                <span style={{ color: '#e2e8f0', fontWeight: 600 }}>{worstStreakInfo.date}</span>
+                                                {` from ${worstStreakInfo.startTime} to ${worstStreakInfo.endTime}, costing `}
+                                                <span style={{ color: '#ff4757', fontWeight: 700 }}>-${Math.abs(worstStreakInfo.pnl).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                                                {'.'}
+                                                {recoveryProbTable.find(r => r.n === 3) && (() => {
+                                                    const r3 = recoveryProbTable.find(r => r.n === 3)!;
+                                                    return ` After 3+ consecutive losses, your historical recovery probability is ${r3.recoveryProb !== null ? r3.recoveryProb.toFixed(0) : '—'}% — the damage compounds before you stabilize.`;
+                                                })()}
+                                                {forensics.maxLossStreak >= 4 ? ` Direction bias maintained through ${worstStreakInfo.count} market rejections — a classic tilt signature.` : ''}
+                                            </p>
+                                        </div>
+                                    )}
                                 </div>
+                            )}
 
-                                {/* NLP Narrative */}
-                                {worstStreakInfo && closed.length >= 5 && (
-                                    <p style={{ fontFamily: 'var(--font-mono)', fontSize: 12, color: '#8b949e', lineHeight: 1.8, borderTop: '1px solid #1a1c24', paddingTop: 16 }}>
-                                        {`Your worst streak: `}
-                                        <span style={{ color: '#e2e8f0', fontWeight: 600 }}>{worstStreakInfo.count} consecutive {worstStreakInfo.dominantAsset}{worstStreakInfo.isShort ? ' short' : ''} losses</span>
-                                        {` on `}
-                                        <span style={{ color: '#e2e8f0', fontWeight: 600 }}>{worstStreakInfo.date}</span>
-                                        {` from ${worstStreakInfo.startTime} to ${worstStreakInfo.endTime}, costing `}
-                                        <span style={{ color: '#ff4757', fontWeight: 700 }}>${Math.abs(worstStreakInfo.pnl).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
-                                        {`.`}
-                                        {recoveryProbTable.find(r => r.n === 3) && (() => {
-                                            const r3 = recoveryProbTable.find(r => r.n === 3)!;
-                                            return ` After 3+ consecutive losses, your recovery probability drops to ${r3.recoveryProb !== null ? r3.recoveryProb.toFixed(0) : '—'}% — meaning the damage compounds before you stabilize.`;
-                                        })()}
-                                        {forensics.maxLossStreak >= 4 ? ` You never once changed direction despite the market rejecting your thesis ${worstStreakInfo.count} times.` : ''}
-                                    </p>
-                                )}
-                                {closed.length < 5 && (
-                                    <p style={{ fontFamily: 'var(--font-mono)', fontSize: 12, color: '#6b7280', lineHeight: 1.8, borderTop: '1px solid #1a1c24', paddingTop: 16 }}>
-                                        Log at least 5 trades to generate a behavioral narrative.
-                                    </p>
-                                )}
-                            </div>
+                            {/* ── STREAK LENGTH DISTRIBUTION ── */}
+                            {streakRuns.length > 0 && (
+                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 1, background: '#1a1c24' }}>
+                                    {/* Win vs Loss streak length distribution */}
+                                    <div style={{ background: '#0d1117', border: '1px solid #1a1c24', padding: '24px' }}>
+                                        <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#6b7280', letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 4 }}>STREAK LENGTH DISTRIBUTION</div>
+                                        <div style={{ fontFamily: 'var(--font-mono)', fontSize: 12, color: '#c9d1d9', marginBottom: 16 }}>Do your losses cluster more than your wins?</div>
+                                        <div style={{ height: 200 }}>
+                                            <ResponsiveContainer width="100%" height="100%">
+                                                <BarChart data={streakLengthDist} margin={{ top: 8, right: 8, bottom: 0, left: 0 }} barCategoryGap="25%">
+                                                    <CartesianGrid stroke="#1a1c24" strokeDasharray="3 3" vertical={false} />
+                                                    <XAxis dataKey="len" tick={{ fontSize: 10, fill: '#8b949e', fontFamily: 'var(--font-mono)' }} axisLine={false} tickLine={false} label={{ value: 'Streak Length', position: 'insideBottom', offset: -4, fill: '#6b7280', fontSize: 9, fontFamily: 'var(--font-mono)' }} />
+                                                    <YAxis tick={{ fontSize: 9, fill: '#8b949e', fontFamily: 'var(--font-mono)' }} axisLine={false} tickLine={false} width={28} />
+                                                    <Tooltip
+                                                        contentStyle={{ backgroundColor: '#13151a', border: '1px solid #2d3748', fontFamily: 'var(--font-mono)', fontSize: 11, borderRadius: 0, color: '#c9d1d9' }}
+                                                        formatter={(v: number | undefined, name: string | undefined) => v !== undefined ? [`${v} streak${v !== 1 ? 's' : ''}`, name === 'wins' ? 'Win Streaks' : 'Loss Streaks'] : ['—', name ?? '']}
+                                                        labelFormatter={(l: unknown) => `Length ${l}`}
+                                                    />
+                                                    <Bar dataKey="wins" name="wins" fill="rgba(166,255,77,0.8)" radius={[2, 2, 0, 0]} />
+                                                    <Bar dataKey="losses" name="losses" fill="rgba(255,71,87,0.8)" radius={[2, 2, 0, 0]} />
+                                                </BarChart>
+                                            </ResponsiveContainer>
+                                        </div>
+                                        <div style={{ display: 'flex', gap: 16, marginTop: 8 }}>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                                                <div style={{ width: 10, height: 10, background: 'rgba(166,255,77,0.8)' }} />
+                                                <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#8b949e' }}>Win streaks</span>
+                                            </div>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                                                <div style={{ width: 10, height: 10, background: 'rgba(255,71,87,0.8)' }} />
+                                                <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#8b949e' }}>Loss streaks</span>
+                                            </div>
+                                        </div>
+                                    </div>
 
-                            {/* ── Section 3: Recovery Probability Table ── */}
-                            {recoveryProbTable.length > 0 && (
-                                <div className="flex flex-col gap-4">
-                                    <span className={styles.sectionTitle}>Recovery Probability After Consecutive Losses</span>
-                                    <div className={styles.fullWidthCard} style={{ padding: 0, overflow: 'hidden' }}>
-                                        <table style={{ width: '100%', borderCollapse: 'collapse', fontFamily: 'var(--font-mono)' }}>
-                                            <thead>
-                                                <tr style={{ background: '#0d1117', borderBottom: '1px solid #1a1c24' }}>
-                                                    <th style={{ padding: '12px 24px', textAlign: 'left', fontSize: 10, fontWeight: 700, color: '#6b7280', letterSpacing: '0.1em' }}>AFTER</th>
-                                                    <th style={{ padding: '12px 24px', textAlign: 'left', fontSize: 10, fontWeight: 700, color: '#6b7280', letterSpacing: '0.1em' }}>RECOVERY PROBABILITY</th>
-                                                    <th style={{ padding: '12px 24px', textAlign: 'left', fontSize: 10, fontWeight: 700, color: '#6b7280', letterSpacing: '0.1em' }}>AVG TRADES TO RECOVER</th>
-                                                </tr>
-                                            </thead>
-                                            <tbody>
-                                                {recoveryProbTable.map((row, i) => {
-                                                    const pct = row.recoveryProb ?? 0;
-                                                    const color = pct >= 65 ? '#A6FF4D' : pct >= 50 ? '#EAB308' : '#ff4757';
-                                                    return (
-                                                        <tr key={i} style={{ borderBottom: '1px solid #1a1c24' }}
-                                                            onMouseEnter={e => (e.currentTarget as HTMLTableRowElement).style.background = '#0d1117'}
-                                                            onMouseLeave={e => (e.currentTarget as HTMLTableRowElement).style.background = 'transparent'}
-                                                        >
-                                                            <td style={{ padding: '16px 24px', fontSize: 13, color: '#c9d1d9', fontWeight: 600 }}>
-                                                                {row.n} consecutive loss{row.n > 1 ? 'es' : ''}
-                                                            </td>
-                                                            <td style={{ padding: '16px 24px' }}>
-                                                                <span style={{ fontSize: 18, fontWeight: 800, color }}>
-                                                                    {row.recoveryProb !== null ? `${row.recoveryProb.toFixed(1)}%` : '—'}
-                                                                </span>
-                                                            </td>
-                                                            <td style={{ padding: '16px 24px', fontSize: 13, color: '#6b7280' }}>
-                                                                {row.avgTrades !== null ? `${row.avgTrades.toFixed(1)} trades` : '—'}
-                                                            </td>
-                                                        </tr>
-                                                    );
-                                                })}
-                                            </tbody>
-                                        </table>
+                                    {/* Streak impact chart */}
+                                    <div style={{ background: '#0d1117', border: '1px solid #1a1c24', padding: '24px' }}>
+                                        <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#6b7280', letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 4 }}>TOP STREAK IMPACTS</div>
+                                        <div style={{ fontFamily: 'var(--font-mono)', fontSize: 12, color: '#c9d1d9', marginBottom: 16 }}>Biggest earning & losing runs by dollar impact.</div>
+                                        <div style={{ height: 200 }}>
+                                            <ResponsiveContainer width="100%" height="100%">
+                                                <BarChart data={streakImpactData} layout="vertical" margin={{ top: 4, right: 48, bottom: 0, left: 0 }} barCategoryGap="25%">
+                                                    <CartesianGrid stroke="#1a1c24" strokeDasharray="3 3" horizontal={false} />
+                                                    <XAxis type="number" tick={{ fontSize: 9, fill: '#8b949e', fontFamily: 'var(--font-mono)' }} axisLine={false} tickLine={false} tickFormatter={(v: number) => `$${Math.abs(v) >= 1000 ? `${(v/1000).toFixed(1)}k` : v.toFixed(0)}`} />
+                                                    <YAxis type="category" dataKey="name" tick={false} axisLine={false} tickLine={false} width={4} />
+                                                    <ReferenceLine x={0} stroke="rgba(255,255,255,0.2)" />
+                                                    <Tooltip
+                                                        contentStyle={{ backgroundColor: '#13151a', border: '1px solid #2d3748', fontFamily: 'var(--font-mono)', fontSize: 11, borderRadius: 0, color: '#c9d1d9' }}
+                                                        formatter={(v: number | undefined, _n: unknown, props: { payload?: { type: string; length: number } }) => {
+                                                            if (v === undefined) return ['—', ''];
+                                                            const r = props.payload;
+                                                            return [`${v >= 0 ? '+' : ''}$${Math.abs(v).toFixed(2)} · ${r?.type === 'W' ? 'Win' : 'Loss'} ×${r?.length ?? 0}`, 'Impact'];
+                                                        }}
+                                                        labelFormatter={() => ''}
+                                                    />
+                                                    <Bar dataKey="pnl" radius={[0, 2, 2, 0]}>
+                                                        {streakImpactData.map((d, i) => (
+                                                            <Cell key={i} fill={d.pnl >= 0 ? 'rgba(166,255,77,0.85)' : 'rgba(255,71,87,0.85)'} />
+                                                        ))}
+                                                    </Bar>
+                                                </BarChart>
+                                            </ResponsiveContainer>
+                                        </div>
                                     </div>
                                 </div>
                             )}
 
-                            {/* ── Section 4: Psychological State Profile ── */}
+                            {/* ── RECOVERY PROBABILITY ── */}
+                            {recoveryProbTable.length > 0 && (
+                                <div style={{ background: '#0d1117', border: '1px solid #1a1c24', padding: '24px' }}>
+                                    <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#6b7280', letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 4 }}>RECOVERY PROBABILITY AFTER N CONSECUTIVE LOSSES</div>
+                                    <div style={{ fontFamily: 'var(--font-mono)', fontSize: 12, color: '#c9d1d9', marginBottom: 20 }}>Derived from your actual trade sequence — not theory. How likely is your next trade to be a win after a losing streak?</div>
+                                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 1, background: '#1a1c24', marginBottom: 20 }}>
+                                        {recoveryProbTable.map((row, i) => {
+                                            const pct = row.recoveryProb ?? 0;
+                                            const color = pct >= 65 ? '#A6FF4D' : pct >= 50 ? '#EAB308' : '#ff4757';
+                                            return (
+                                                <div key={i} style={{ padding: '20px 16px', background: '#0d1117', display: 'flex', flexDirection: 'column', gap: 8, alignItems: 'center', textAlign: 'center' }}>
+                                                    <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#6b7280', letterSpacing: '0.1em', textTransform: 'uppercase' }}>AFTER {row.n} LOSSES</span>
+                                                    <span style={{ fontFamily: 'var(--font-mono)', fontSize: 28, fontWeight: 700, color }}>{row.recoveryProb !== null ? `${row.recoveryProb.toFixed(0)}%` : '—'}</span>
+                                                    <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#8b949e' }}>recovery</span>
+                                                    {/* Mini progress bar */}
+                                                    <div style={{ width: '100%', height: 4, background: '#1a1c24', borderRadius: 1 }}>
+                                                        <div style={{ height: '100%', width: `${pct}%`, background: color, borderRadius: 1 }} />
+                                                    </div>
+                                                    <span style={{ fontFamily: 'var(--font-mono)', fontSize: 8, color: '#6b7280' }}>{row.instances} instance{row.instances !== 1 ? 's' : ''}</span>
+                                                    <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#8b949e' }}>{row.avgTrades !== null ? `${row.avgTrades.toFixed(1)} trades to recover` : '—'}</span>
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                    <div style={{ padding: '14px 16px', background: 'rgba(234,179,8,0.04)', border: '1px solid rgba(234,179,8,0.15)', borderLeft: '3px solid #EAB308' }}>
+                                        <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#EAB308', letterSpacing: '0.1em', textTransform: 'uppercase', fontWeight: 700, marginBottom: 6 }}>COACHING ACTION</div>
+                                        <div style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: '#8b949e', lineHeight: 1.8 }}>
+                                            {recoveryProbTable[0]?.recoveryProb !== null && recoveryProbTable[0].recoveryProb! < 60
+                                                ? `After just ${recoveryProbTable[0].n} loss, your probability of the next trade winning drops to ${recoveryProbTable[0].recoveryProb!.toFixed(0)}%. This is your primary tilt signal. Use a mandatory 5-minute break after any loss. The data is clear.`
+                                                : `Your recovery rate after 1 loss is ${recoveryProbTable[0]?.recoveryProb?.toFixed(0) ?? '—'}% — above the random 50% baseline. Good discipline. The risk is after ${recoveryProbTable[1]?.n ?? 2}+ consecutive losses where the probability drops to ${recoveryProbTable[1]?.recoveryProb?.toFixed(0) ?? '—'}%.`
+                                            }
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* ── PSYCHOLOGICAL STATE PROFILE ── */}
                             {psychStates.length > 0 && closed.length >= 5 && (
-                                <div className="flex flex-col gap-4">
-                                    <span className={styles.sectionTitle}>Psychological State Profile</span>
-                                    <div className="flex flex-col gap-3">
+                                <div style={{ background: '#0d1117', border: '1px solid #1a1c24', padding: '24px' }}>
+                                    <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#6b7280', letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 4 }}>PSYCHOLOGICAL STATE PROFILE</div>
+                                    <div style={{ fontFamily: 'var(--font-mono)', fontSize: 12, color: '#c9d1d9', marginBottom: 20 }}>Behavioral patterns extracted from your data. Each state has a documented trigger and a prescriptive response.</div>
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
                                         {psychStates.map((ps, i) => {
                                             const sevColor = ps.severity === 'CRITICAL' ? '#ff4757' : ps.severity === 'HIGH' ? '#EAB308' : '#00D4FF';
-                                            const sevBg = ps.severity === 'CRITICAL' ? 'rgba(255,71,87,0.08)' : ps.severity === 'HIGH' ? 'rgba(234,179,8,0.06)' : 'rgba(0,212,255,0.06)';
-                                            const sevBorder = ps.severity === 'CRITICAL' ? 'rgba(255,71,87,0.25)' : ps.severity === 'HIGH' ? 'rgba(234,179,8,0.2)' : 'rgba(0,212,255,0.2)';
+                                            const sevBg = ps.severity === 'CRITICAL' ? 'rgba(255,71,87,0.05)' : ps.severity === 'HIGH' ? 'rgba(234,179,8,0.04)' : 'rgba(0,212,255,0.04)';
+                                            const sevBorder = ps.severity === 'CRITICAL' ? 'rgba(255,71,87,0.2)' : ps.severity === 'HIGH' ? 'rgba(234,179,8,0.18)' : 'rgba(0,212,255,0.18)';
                                             return (
-                                                <div key={i} style={{
-                                                    background: sevBg, border: `1px solid ${sevBorder}`,
-                                                    padding: '20px 24px', display: 'flex', flexDirection: 'column', gap: 12,
-                                                }}>
-                                                    {/* Card header */}
-                                                    <div className="flex items-center gap-3">
-                                                        <span style={{ fontFamily: 'var(--font-mono)', fontSize: 13, fontWeight: 800, color: '#e2e8f0', letterSpacing: '0.04em' }}>
-                                                            {ps.title}
-                                                        </span>
-                                                        <span style={{
-                                                            fontFamily: 'var(--font-mono)', fontSize: 9, fontWeight: 700, letterSpacing: '0.08em',
-                                                            padding: '3px 8px', border: `1px solid ${sevBorder}`, color: sevColor, background: 'transparent',
-                                                        }}>
+                                                <div key={i} style={{ background: sevBg, border: `1px solid ${sevBorder}`, padding: '0', overflow: 'hidden' }}>
+                                                    {/* Header */}
+                                                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 20px', borderBottom: `1px solid ${sevBorder}`, background: `${sevColor}08` }}>
+                                                        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                                                            <div style={{ width: 3, height: 28, background: sevColor, flexShrink: 0 }} />
+                                                            <div>
+                                                                <div style={{ fontFamily: 'var(--font-mono)', fontSize: 13, fontWeight: 800, color: '#fff', letterSpacing: '0.04em' }}>{ps.title}</div>
+                                                                <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: sevColor, letterSpacing: '0.1em', textTransform: 'uppercase', marginTop: 2 }}>STATE DETECTED</div>
+                                                            </div>
+                                                        </div>
+                                                        <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, fontWeight: 700, letterSpacing: '0.1em', padding: '4px 10px', border: `1px solid ${sevColor}44`, color: sevColor, background: `${sevColor}11` }}>
                                                             {ps.severity}
                                                         </span>
                                                     </div>
-                                                    {/* Trigger */}
-                                                    <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                                                        <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, fontWeight: 700, color: '#6b7280', letterSpacing: '0.08em', textTransform: 'uppercase' }}>Trigger</span>
-                                                        <p style={{ fontFamily: 'var(--font-mono)', fontSize: 12, color: '#8b949e', lineHeight: 1.7, margin: 0 }}>{ps.trigger}</p>
-                                                    </div>
-                                                    {/* Response */}
-                                                    <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                                                        <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, fontWeight: 700, color: '#6b7280', letterSpacing: '0.08em', textTransform: 'uppercase' }}>Response</span>
-                                                        <p style={{ fontFamily: 'var(--font-mono)', fontSize: 12, color: '#c9d1d9', lineHeight: 1.7, margin: 0, fontWeight: 500 }}>{ps.response}</p>
+                                                    {/* Body */}
+                                                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 0 }}>
+                                                        <div style={{ padding: '16px 20px', borderRight: `1px solid ${sevBorder}` }}>
+                                                            <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#6b7280', letterSpacing: '0.1em', textTransform: 'uppercase', fontWeight: 700, marginBottom: 8 }}>TRIGGER</div>
+                                                            <p style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: '#8b949e', lineHeight: 1.7, margin: 0 }}>{ps.trigger}</p>
+                                                        </div>
+                                                        <div style={{ padding: '16px 20px', background: 'rgba(255,255,255,0.01)' }}>
+                                                            <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#A6FF4D', letterSpacing: '0.1em', textTransform: 'uppercase', fontWeight: 700, marginBottom: 8 }}>PRESCRIBED RESPONSE</div>
+                                                            <p style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: '#c9d1d9', lineHeight: 1.7, margin: 0 }}>{ps.response}</p>
+                                                        </div>
                                                     </div>
                                                 </div>
                                             );
@@ -2618,32 +2697,203 @@ export default function AnalyticsPage() {
                         </motion.div>
                     )}
 
-                    {activeTab === 'PATTERNS' && (
-                        <motion.div key="patterns" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="flex flex-col gap-6">
-                            <span className={styles.sectionTitle}>Behavioral Patterns</span>
-                            <div className="flex flex-col gap-4">
-                                {forensics.patterns.map((p: any, i: number) => (
-                                    <div key={i} className={styles.findingsBox + ' border-l-4'} style={{ borderLeftColor: p.severity === 'CRITICAL' ? '#e60023' : '#EAB308' }}>
-                                        <div className="flex justify-between items-start">
-                                            <div className="flex flex-col gap-1">
-                                                <span className="text-[14px] font-bold text-white uppercase tracking-wide">{p.name} · {p.freq} DETECTED</span>
-                                                <p className="text-[11px] text-[#8b949e] mt-2 leading-relaxed max-w-2xl">{p.desc}</p>
-                                                <div className="mt-4 flex flex-col gap-1">
-                                                    {p.evidence.map((ev: string, idx: number) => (
-                                                        <span key={idx} className="text-[10px] font-mono text-zinc-500 flex items-center gap-2">
-                                                            <span className="w-1 h-1 bg-zinc-700 rounded-full"></span> {ev}
-                                                        </span>
-                                                    ))}
-                                                </div>
+                    {activeTab.startsWith('PATTERNS') && (
+                        <motion.div key="patterns" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} style={{ display: 'flex', flexDirection: 'column', gap: 20, marginBottom: 48 }}>
+
+                            {/* ── HEADER ── */}
+                            <div>
+                                <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#6b7280', letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 4 }}>BEHAVIORAL FORENSICS</div>
+                                <div style={{ fontFamily: 'var(--font-mono)', fontSize: 20, fontWeight: 700, color: '#fff', marginBottom: 4 }}>Detected Behavioral Patterns</div>
+                                <div style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: '#8b949e' }}>
+                                    Machine-detected recurring behaviors in your trade sequence. Each pattern has a quantified dollar impact, a trigger condition, and a prescriptive fix.
+                                </div>
+                            </div>
+
+                            {forensics.patterns.length === 0 ? (
+                                <div style={{ background: '#0d1117', border: '1px solid #1a1c24', padding: '48px', textAlign: 'center' }}>
+                                    <div style={{ fontFamily: 'var(--font-mono)', fontSize: 22, fontWeight: 700, color: '#A6FF4D', marginBottom: 8 }}>✓ CLEAN</div>
+                                    <div style={{ fontFamily: 'var(--font-mono)', fontSize: 13, color: '#8b949e' }}>No behavioral patterns detected in your data. Log more trades for deeper analysis.</div>
+                                </div>
+                            ) : (
+                                <>
+                                    {/* ── 4-KPI GRID ── */}
+                                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', borderTop: '1px solid #1a1c24', borderLeft: '1px solid #1a1c24' }}>
+                                        {[
+                                            { label: 'PATTERNS DETECTED', value: `${forensics.patterns.length}`, sub: `${forensics.patterns.filter((p: any) => p.severity === 'CRITICAL').length} critical`, color: forensics.patterns.some((p: any) => p.severity === 'CRITICAL') ? '#ff4757' : '#EAB308' },
+                                            { label: 'TOTAL BEHAVIORAL COST', value: behavioralCost < 0 ? `-$${Math.abs(behavioralCost).toFixed(0)}` : '$0', sub: 'Avoidable losses', color: '#ff4757' },
+                                            { label: 'PROJECTED NET P&L', value: withoutToxicPatterns !== 0 ? `${withoutToxicPatterns >= 0 ? '+' : ''}$${Math.abs(withoutToxicPatterns).toFixed(0)}` : '—', sub: 'If all patterns corrected', color: withoutToxicPatterns > netPnl ? '#A6FF4D' : '#c9d1d9' },
+                                            { label: 'BEHAVIORAL EFFICIENCY', value: (grossProfit + grossLoss) > 0 ? `${(100 - (Math.abs(behavioralCost) / (grossProfit + grossLoss)) * 100).toFixed(0)}%` : '—', sub: 'Capital not lost to behavior', color: '#c9d1d9' },
+                                        ].map((k, i) => (
+                                            <div key={i} style={{ padding: '20px 24px', borderBottom: '1px solid #1a1c24', borderRight: '1px solid #1a1c24', background: '#0d1117', display: 'flex', flexDirection: 'column', gap: 6 }}>
+                                                <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#6b7280', letterSpacing: '0.1em', textTransform: 'uppercase' }}>{k.label}</span>
+                                                <span style={{ fontFamily: 'var(--font-mono)', fontSize: 26, fontWeight: 700, color: k.color }}>{k.value}</span>
+                                                <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: '#8b949e' }}>{k.sub}</span>
                                             </div>
-                                            <div className="flex flex-col items-end">
-                                                <span className="text-[10px] text-[#6b7280] uppercase">Impact</span>
-                                                <span className="text-[20px] font-black text-[#ff4757]">-${Math.abs(p.impact).toLocaleString()}</span>
+                                        ))}
+                                    </div>
+
+                                    {/* ── PATTERN IMPACT COMPARISON CHART ── */}
+                                    <div style={{ background: '#0d1117', border: '1px solid #1a1c24', padding: '24px' }}>
+                                        <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#6b7280', letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 4 }}>PATTERN COST COMPARISON</div>
+                                        <div style={{ fontFamily: 'var(--font-mono)', fontSize: 12, color: '#c9d1d9', marginBottom: 16 }}>Dollar cost of each behavioral pattern, sorted by impact. The longest bar needs your attention first.</div>
+                                        <div style={{ height: Math.max(120, forensics.patterns.length * 52) }}>
+                                            <ResponsiveContainer width="100%" height="100%">
+                                                <BarChart
+                                                    data={[...forensics.patterns].sort((a: any, b: any) => Math.abs(b.impact) - Math.abs(a.impact)).map((p: any) => ({ name: p.name, impact: Math.abs(p.impact), freq: p.freq, severity: p.severity }))}
+                                                    layout="vertical"
+                                                    margin={{ top: 4, right: 80, bottom: 0, left: 0 }}
+                                                    barCategoryGap="30%"
+                                                >
+                                                    <CartesianGrid stroke="#1a1c24" strokeDasharray="3 3" horizontal={false} />
+                                                    <XAxis type="number" tick={{ fontSize: 9, fill: '#8b949e', fontFamily: 'var(--font-mono)' }} axisLine={false} tickLine={false} tickFormatter={(v: number) => `$${v >= 1000 ? `${(v/1000).toFixed(1)}k` : v.toFixed(0)}`} />
+                                                    <YAxis type="category" dataKey="name" tick={{ fontSize: 10, fill: '#c9d1d9', fontFamily: 'var(--font-mono)', fontWeight: 600 }} axisLine={false} tickLine={false} width={140} />
+                                                    <Tooltip
+                                                        contentStyle={{ backgroundColor: '#13151a', border: '1px solid #2d3748', fontFamily: 'var(--font-mono)', fontSize: 11, borderRadius: 0, color: '#c9d1d9' }}
+                                                        formatter={(v: number | undefined, _n: unknown, props: { payload?: { freq: number; severity: string } }) => {
+                                                            if (v === undefined) return ['—', ''];
+                                                            return [`-$${v.toFixed(0)} · ${props.payload?.freq ?? 0} instances · ${props.payload?.severity ?? ''}`, 'Behavioral Cost'];
+                                                        }}
+                                                        labelFormatter={(l: unknown) => `${l}`}
+                                                    />
+                                                    <Bar dataKey="impact" radius={[0, 2, 2, 0]}>
+                                                        {[...forensics.patterns].sort((a: any, b: any) => Math.abs(b.impact) - Math.abs(a.impact)).map((p: any, i: number) => (
+                                                            <Cell key={i} fill={p.severity === 'CRITICAL' ? '#ff4757' : p.severity === 'HIGH' ? 'rgba(255,71,87,0.6)' : '#EAB308'} />
+                                                        ))}
+                                                    </Bar>
+                                                </BarChart>
+                                            </ResponsiveContainer>
+                                        </div>
+                                        <div style={{ display: 'flex', gap: 16, marginTop: 12 }}>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                                                <div style={{ width: 10, height: 10, background: '#ff4757' }} />
+                                                <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#8b949e' }}>CRITICAL</span>
+                                            </div>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                                                <div style={{ width: 10, height: 10, background: 'rgba(255,71,87,0.6)' }} />
+                                                <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#8b949e' }}>HIGH</span>
+                                            </div>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                                                <div style={{ width: 10, height: 10, background: '#EAB308' }} />
+                                                <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#8b949e' }}>MODERATE</span>
                                             </div>
                                         </div>
                                     </div>
-                                ))}
-                            </div>
+
+                                    {/* ── DEEP PATTERN CARDS ── */}
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                                        <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#6b7280', letterSpacing: '0.12em', textTransform: 'uppercase' }}>PATTERN DEEP DIVE</div>
+                                        {forensics.patterns.map((p: any, i: number) => {
+                                            const isC = p.severity === 'CRITICAL';
+                                            const sevColor = isC ? '#ff4757' : p.severity === 'HIGH' ? '#EAB308' : '#fb923c';
+                                            const sevBg = isC ? 'rgba(255,71,87,0.04)' : 'rgba(234,179,8,0.04)';
+                                            const sevBorder = isC ? 'rgba(255,71,87,0.2)' : 'rgba(234,179,8,0.18)';
+                                            const prescription = p.name === 'Revenge Trading'
+                                                ? 'After any losing trade, mandatory 5-minute break before next entry. No exceptions. Set a timer. Journal your emotional state before re-entering. Rapid re-entry within 2 minutes of a loss has a statistically lower win rate in your data.'
+                                                : p.name === 'Held Losers'
+                                                ? 'Set a hard maximum hold time on losers: if a position is down and has been open longer than your avg win hold time, close it. Time-in-trade on losers is compounding cost, not opportunity.'
+                                                : p.name === 'Spike Vulnerability'
+                                                ? 'Hard stop losses are non-negotiable on volatile instruments. No position should be held through a news/spike event without a stop. Size down or exit before known catalysts.'
+                                                : p.name === 'Early Exit'
+                                                ? 'For your next 20 winning trades, do not exit until either your stop is hit or your initial target is reached. Log the would-have-been P&L. The data will show you exactly how much you are leaving on the table.'
+                                                : p.name === 'Micro Overtrading'
+                                                ? 'Cap micro contract frequency to 3 entries per session per instrument. Overtrading micro contracts dilutes your edge and increases commission drag on already thin margins.'
+                                                : `Address the root cause of ${p.name}. Review ${p.freq} occurrence${p.freq > 1 ? 's' : ''} and identify the common trigger across all instances.`;
+                                            return (
+                                                <div key={i} style={{ background: sevBg, border: `1px solid ${sevBorder}`, overflow: 'hidden' }}>
+                                                    {/* Pattern header */}
+                                                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px 24px', borderBottom: `1px solid ${sevBorder}`, background: `${sevColor}08`, flexWrap: 'wrap', gap: 12 }}>
+                                                        <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+                                                            <div style={{ width: 3, height: 36, background: sevColor, flexShrink: 0 }} />
+                                                            <div>
+                                                                <div style={{ fontFamily: 'var(--font-mono)', fontSize: 15, fontWeight: 800, color: '#fff', letterSpacing: '0.02em' }}>{p.name}</div>
+                                                                <div style={{ display: 'flex', gap: 12, alignItems: 'center', marginTop: 4 }}>
+                                                                    <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, fontWeight: 700, padding: '2px 8px', border: `1px solid ${sevColor}44`, color: sevColor, background: `${sevColor}11`, letterSpacing: '0.1em' }}>{p.severity}</span>
+                                                                    <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: '#8b949e' }}>{p.freq} OCCURRENCE{p.freq > 1 ? 'S' : ''} DETECTED</span>
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                        <div style={{ textAlign: 'right' }}>
+                                                            <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#6b7280', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 4 }}>BEHAVIORAL COST</div>
+                                                            <div style={{ fontFamily: 'var(--font-mono)', fontSize: 26, fontWeight: 800, color: '#ff4757' }}>-${Math.abs(p.impact).toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}</div>
+                                                        </div>
+                                                    </div>
+
+                                                    {/* Description + evidence */}
+                                                    <div style={{ padding: '16px 24px', borderBottom: `1px solid ${sevBorder}` }}>
+                                                        <p style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: '#8b949e', lineHeight: 1.8, margin: '0 0 12px 0' }}>{p.desc}</p>
+                                                        {p.evidence && p.evidence.length > 0 && (
+                                                            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                                                                <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#6b7280', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 4 }}>EVIDENCE</div>
+                                                                {p.evidence.map((ev: string, idx: number) => (
+                                                                    <div key={idx} style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
+                                                                        <div style={{ width: 4, height: 4, background: sevColor, flexShrink: 0, marginTop: 5, borderRadius: '50%' }} />
+                                                                        <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: '#8b949e', lineHeight: 1.6 }}>{ev}</span>
+                                                                    </div>
+                                                                ))}
+                                                            </div>
+                                                        )}
+                                                    </div>
+
+                                                    {/* Trigger / Prescription */}
+                                                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 0 }}>
+                                                        <div style={{ padding: '16px 24px', borderRight: `1px solid ${sevBorder}` }}>
+                                                            <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#6b7280', letterSpacing: '0.1em', textTransform: 'uppercase', fontWeight: 700, marginBottom: 8 }}>TRIGGER PATTERN</div>
+                                                            <p style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: '#8b949e', lineHeight: 1.7, margin: 0 }}>
+                                                                {p.name === 'Revenge Trading' && 'Loss → rapid re-entry within minutes. Emotional pressure overrides systematic entry criteria. Confirmation bias maintained despite market rejection.'}
+                                                                {p.name === 'Held Losers' && 'Open losing position held significantly longer than average winning trades. Hope displacing risk management — waiting for a reversal that the data shows rarely comes.'}
+                                                                {p.name === 'Spike Vulnerability' && 'Rapid large loss in under 3 minutes — likely a news spike or stop-hunt event. No hard stop in place to limit damage.'}
+                                                                {p.name === 'Early Exit' && 'Winning positions closed before reaching structural target. Premature profit-taking driven by fear of reversal. Asymmetry works against you when wins are cut short.'}
+                                                                {p.name === 'Micro Overtrading' && 'Above-normal trade frequency on micro contracts within single sessions. Frequency without edge is just commission bleeding.'}
+                                                                {!['Revenge Trading','Held Losers','Spike Vulnerability','Early Exit','Micro Overtrading'].includes(p.name) && `Recurring pattern detected ${p.freq} time${p.freq > 1 ? 's' : ''} across your trade history. See evidence above for specific instances.`}
+                                                            </p>
+                                                        </div>
+                                                        <div style={{ padding: '16px 24px', background: 'rgba(166,255,77,0.02)' }}>
+                                                            <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#A6FF4D', letterSpacing: '0.1em', textTransform: 'uppercase', fontWeight: 700, marginBottom: 8 }}>PRESCRIPTION</div>
+                                                            <p style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: '#c9d1d9', lineHeight: 1.7, margin: 0 }}>{prescription}</p>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+
+                                    {/* ── BEHAVIORAL HEALTH SUMMARY ── */}
+                                    <div style={{ background: '#0d1117', border: '1px solid #1a1c24', padding: '24px' }}>
+                                        <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#6b7280', letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 16 }}>BEHAVIORAL REMEDIATION PRIORITY</div>
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                                            {[...forensics.patterns]
+                                                .sort((a: any, b: any) => Math.abs(b.impact) - Math.abs(a.impact))
+                                                .map((p: any, i: number) => {
+                                                    const maxImpact = Math.max(...forensics.patterns.map((x: any) => Math.abs(x.impact)), 1);
+                                                    const barW = (Math.abs(p.impact) / maxImpact) * 100;
+                                                    const sevColor = p.severity === 'CRITICAL' ? '#ff4757' : p.severity === 'HIGH' ? '#EAB308' : '#fb923c';
+                                                    return (
+                                                        <div key={i}>
+                                                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                                                                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                                                                    <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: '#c9d1d9', fontWeight: 700 }}>#{i + 1} {p.name}</span>
+                                                                    <span style={{ fontFamily: 'var(--font-mono)', fontSize: 8, padding: '1px 6px', border: `1px solid ${sevColor}44`, color: sevColor, background: `${sevColor}11` }}>{p.severity}</span>
+                                                                </div>
+                                                                <span style={{ fontFamily: 'var(--font-mono)', fontSize: 12, fontWeight: 700, color: '#ff4757' }}>-${Math.abs(p.impact).toFixed(0)}</span>
+                                                            </div>
+                                                            <div style={{ height: 6, background: '#1a1c24', borderRadius: 1 }}>
+                                                                <motion.div initial={{ width: 0 }} animate={{ width: `${barW}%` }} style={{ height: '100%', background: sevColor, borderRadius: 1, opacity: 0.8 }} />
+                                                            </div>
+                                                        </div>
+                                                    );
+                                                })}
+                                        </div>
+                                        <div style={{ marginTop: 20, padding: '14px 16px', background: 'rgba(166,255,77,0.03)', border: '1px solid rgba(166,255,77,0.12)', borderLeft: '3px solid #A6FF4D' }}>
+                                            <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#A6FF4D', letterSpacing: '0.1em', textTransform: 'uppercase', fontWeight: 700, marginBottom: 6 }}>FOCUS ORDER</div>
+                                            <div style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: '#8b949e', lineHeight: 1.8 }}>
+                                                Fix {forensics.patterns[0]?.name ?? 'your top pattern'} first — it costs the most. Do not attempt to address multiple patterns simultaneously. Master one rule change per 2 weeks. Sequence matters.
+                                                {behavioralCost < 0 && ` Correcting all patterns would recover approximately $${Math.abs(behavioralCost).toFixed(0)}, turning your net P&L from ${netPnl >= 0 ? '+' : ''}$${netPnl.toFixed(0)} to ${withoutToxicPatterns >= 0 ? '+' : ''}$${withoutToxicPatterns.toFixed(0)}.`}
+                                            </div>
+                                        </div>
+                                    </div>
+                                </>
+                            )}
+
                         </motion.div>
                     )}
 
