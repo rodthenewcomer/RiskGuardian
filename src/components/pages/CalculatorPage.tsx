@@ -383,7 +383,7 @@ export default function CalculatorPage() {
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, flex: 1, borderLeft: divider, paddingLeft: 12, minWidth: 0 }}>
                     <Zap size={12} color="#A6FF4D" style={{ flexShrink: 0 }} />
                     <input
-                        style={{ ...mono, flex: 1, background: 'transparent', border: 'none', outline: 'none', fontSize: 12, color: '#e2e8f0', minWidth: 0 }}
+                        style={{ ...mono, flex: 1, background: 'transparent', border: 'none', outline: 'none', fontSize: 16, color: '#e2e8f0', minWidth: 0 }}
                         placeholder={isMobile ? 'nq 21450 21400 500' : 'Quick mode: asset entry stop risk — e.g. nq 21450 21400 500 · type help for syntax'}
                         value={command}
                         onChange={e => handleCommand(e.target.value)}

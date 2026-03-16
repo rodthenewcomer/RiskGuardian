@@ -3,6 +3,7 @@
 import styles from './AnalyticsPage.module.css';
 import { useState, useMemo } from 'react';
 import { useAppStore, getTradingDay } from '@/store/appStore';
+import { useIsMobile } from '@/hooks/useIsMobile';
 import { generateForensics } from '@/ai/EdgeForensics';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -19,6 +20,7 @@ import TradeScatterChart, { type ScatterPoint } from '@/components/charts/TradeS
 
 export default function AnalyticsPage() {
     const { trades, account } = useAppStore();
+    const isMobile = useIsMobile();
     const [activeTab, setActiveTab] = useState('OVERVIEW');
     const [dateFrom, setDateFrom] = useState('');
     const [dateTo, setDateTo] = useState('');
@@ -647,8 +649,8 @@ export default function AnalyticsPage() {
                 {forensics.patterns.length > 0 && (
                     <div style={{
                         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                        padding: '10px 32px', background: 'rgba(230,0,35,0.06)',
-                        borderBottom: '1px solid rgba(230,0,35,0.2)',
+                        padding: isMobile ? '10px 14px' : '10px 32px', background: 'rgba(230,0,35,0.06)',
+                        borderBottom: '1px solid rgba(230,0,35,0.2)', flexWrap: 'wrap', gap: 8,
                     }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                             <AlertTriangle size={12} color="#e60023" />
@@ -665,9 +667,9 @@ export default function AnalyticsPage() {
                 )}
 
                 {/* Main header row */}
-                <div style={{ padding: '20px 32px 16px', display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap' }}>
+                <div style={{ padding: isMobile ? '14px 14px 12px' : '20px 32px 16px', display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap' }}>
                     <div>
-                        <h1 style={{ fontFamily: 'var(--font-mono)', fontSize: 26, fontWeight: 900, color: '#fff', letterSpacing: '-0.03em', lineHeight: 1, marginBottom: 8 }}>
+                        <h1 style={{ fontFamily: 'var(--font-mono)', fontSize: isMobile ? 18 : 26, fontWeight: 900, color: '#fff', letterSpacing: '-0.03em', lineHeight: 1, marginBottom: 8 }}>
                             Analysis{reportRange ? ` · ${reportRange.fromShort} – ${reportRange.toShort}` : ''}
                         </h1>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
@@ -806,7 +808,7 @@ export default function AnalyticsPage() {
                             })()}
 
                             {/* ── 8 KPI BOXES ── */}
-                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', borderTop: '1px solid #1a1c24', borderLeft: '1px solid #1a1c24' }}>
+                            <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'repeat(2, 1fr)' : 'repeat(4, 1fr)', borderTop: '1px solid #1a1c24', borderLeft: '1px solid #1a1c24' }}>
                                 {/* Row 1 */}
                                 {[
                                     { label: 'NET P&L (AFTER FEES)', value: `${netPnl >= 0 ? '+' : '-'}$${Math.abs(netPnl).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, color: netPnl >= 0 ? '#A6FF4D' : '#ff4757', sub: `Gross $${grossProfit.toFixed(0)} · Loss $${grossLoss.toFixed(0)}` },
@@ -818,18 +820,18 @@ export default function AnalyticsPage() {
                                     { label: 'AVG TRADE DURATION', value: fmtDuration((avgWinDuration * wins.length + avgLossDuration * losses.length) / Math.max(1, closed.length)), color: '#c9d1d9', sub: `${wins.length + losses.length} closed trades` },
                                     { label: 'W/L DOLLAR RATIO', value: wlRatio > 0 ? `${wlRatio.toFixed(2)}:1` : '—', color: wlRatio >= 1.5 ? '#A6FF4D' : wlRatio >= 1 ? '#EAB308' : '#ff4757', sub: `$${avgWin.toFixed(0)} avg win · $${avgLoss.toFixed(0)} avg loss` },
                                 ].map((k, i) => (
-                                    <div key={i} style={{ padding: '20px 24px', borderBottom: '1px solid #1a1c24', borderRight: '1px solid #1a1c24', background: '#0d1117', display: 'flex', flexDirection: 'column', gap: 6 }}>
+                                    <div key={i} style={{ padding: isMobile ? '14px 14px' : '20px 24px', borderBottom: '1px solid #1a1c24', borderRight: '1px solid #1a1c24', background: '#0d1117', display: 'flex', flexDirection: 'column', gap: 6 }}>
                                         <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#6b7280', letterSpacing: '0.1em', textTransform: 'uppercase' }}>{k.label}</span>
-                                        <span style={{ fontFamily: 'var(--font-mono)', fontSize: 22, fontWeight: 700, color: k.color, lineHeight: 1, textShadow: `0 0 12px ${k.color}22` }}>{k.value}</span>
+                                        <span style={{ fontFamily: 'var(--font-mono)', fontSize: isMobile ? 18 : 22, fontWeight: 700, color: k.color, lineHeight: 1, textShadow: `0 0 12px ${k.color}22` }}>{k.value}</span>
                                         <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: '#6b7280' }}>{k.sub}</span>
                                     </div>
                                 ))}
                             </div>
 
                             {/* ── FULL DETAILS ROW: Waterfall + Wins vs Losses ── */}
-                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 1, background: '#1a1c24' }}>
+                            <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 1, background: '#1a1c24' }}>
                                 {/* Waterfall */}
-                                <div style={{ background: '#0d1117', padding: '24px' }}>
+                                <div style={{ background: '#0d1117', padding: isMobile ? '14px' : '24px' }}>
                                     <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#6b7280', letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 4 }}>FULL DETAILS</div>
                                     <div style={{ fontFamily: 'var(--font-mono)', fontSize: 16, fontWeight: 700, color: '#fff', marginBottom: 6 }}>Gross, fees, and what actually landed</div>
                                     <div style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: '#6b7280', marginBottom: 20 }}>A waterfall is the cleanest way to show how commissions compress gross edge into net P&L.</div>
@@ -858,7 +860,7 @@ export default function AnalyticsPage() {
                                 </div>
 
                                 {/* Wins vs Losses segmented */}
-                                <div style={{ background: '#0d1117', padding: '24px' }}>
+                                <div style={{ background: '#0d1117', padding: isMobile ? '14px' : '24px' }}>
                                     <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#6b7280', letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 4 }}>TRADE OUTCOMES</div>
                                     <div style={{ fontFamily: 'var(--font-mono)', fontSize: 16, fontWeight: 700, color: '#fff', marginBottom: 6 }}>Wins versus losses</div>
                                     <div style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: '#6b7280', marginBottom: 20 }}>Segmented composition reads faster than a donut here and keeps the trade counts explicit.</div>
@@ -881,9 +883,9 @@ export default function AnalyticsPage() {
                             </div>
 
                             {/* ── TRADE VIABILITY + PAYOFF PROFILE ── */}
-                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 1, background: '#1a1c24' }}>
+                            <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 1, background: '#1a1c24' }}>
                                 {/* Profit Factor & Expectancy gauges */}
-                                <div style={{ background: '#0d1117', padding: '24px' }}>
+                                <div style={{ background: '#0d1117', padding: isMobile ? '14px' : '24px' }}>
                                     <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#6b7280', letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 4 }}>TRADE VIABILITY</div>
                                     <div style={{ fontFamily: 'var(--font-mono)', fontSize: 16, fontWeight: 700, color: '#fff', marginBottom: 6 }}>Profitability thresholds</div>
                                     <div style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: '#6b7280', marginBottom: 24 }}>Profit factor tells you whether wins outsize losses. Expectancy tells you what each trade is worth on average.</div>
@@ -926,7 +928,7 @@ export default function AnalyticsPage() {
                                 </div>
 
                                 {/* Payoff Profile */}
-                                <div style={{ background: '#0d1117', padding: '24px' }}>
+                                <div style={{ background: '#0d1117', padding: isMobile ? '14px' : '24px' }}>
                                     <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#6b7280', letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 4 }}>PAYOFF PROFILE</div>
                                     <div style={{ fontFamily: 'var(--font-mono)', fontSize: 16, fontWeight: 700, color: '#fff', marginBottom: 6 }}>Average win versus average loss</div>
                                     <div style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: '#6b7280', marginBottom: 24 }}>This is the most direct visual for your W:L dollar ratio. Traders scan the payoff gap faster than the ratio alone.</div>
@@ -962,7 +964,7 @@ export default function AnalyticsPage() {
                             </div>
 
                             {/* ── HOLD TIME ANALYSIS ── */}
-                            <div style={{ background: '#0d1117', border: '1px solid #1a1c24', padding: '24px' }}>
+                            <div style={{ background: '#0d1117', border: '1px solid #1a1c24', padding: isMobile ? '14px' : '24px' }}>
                                 <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#6b7280', letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 4 }}>MULTIPLIED EDGE</div>
                                 <div style={{ fontFamily: 'var(--font-mono)', fontSize: 16, fontWeight: 700, color: '#fff', marginBottom: 6 }}>Winners versus losers</div>
                                 <div style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: '#6b7280', marginBottom: 24 }}>Average duration alone hides the real coaching signal. The split below shows whether losers are lingering longer than winners.</div>
@@ -1018,7 +1020,7 @@ export default function AnalyticsPage() {
                             )}
 
                             {/* ── SESSION-TO-SESSION EQUITY PATH ── */}
-                            <div style={{ background: '#0d1117', border: '1px solid #1a1c24', padding: '24px' }}>
+                            <div style={{ background: '#0d1117', border: '1px solid #1a1c24', padding: isMobile ? '14px' : '24px' }}>
                                 <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#6b7280', letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 4 }}>EQUITY CURVE</div>
                                 <div style={{ fontFamily: 'var(--font-mono)', fontSize: 16, fontWeight: 700, color: '#fff', marginBottom: 6 }}>Session-to-session equity path</div>
                                 <div style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: '#6b7280', marginBottom: 20 }}>Cumulative net P&L over your trading days, with the deepest drawdown interval highlighted.</div>
@@ -1057,7 +1059,7 @@ export default function AnalyticsPage() {
                                     </div>
                                 )}
                                 {equityCurve.length > 1 && (
-                                    <div style={{ marginTop: 16, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                                    <div style={{ marginTop: 16, display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 12 }}>
                                         <div style={{ padding: '14px 16px', background: 'rgba(166,255,77,0.04)', border: '1px solid rgba(166,255,77,0.12)', borderLeft: '3px solid #A6FF4D' }}>
                                             <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#A6FF4D', letterSpacing: '0.1em', textTransform: 'uppercase', fontWeight: 700, marginBottom: 6 }}>WHAT THIS MEANS</div>
                                             <p style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: '#c9d1d9', lineHeight: 1.8, margin: 0 }}>
@@ -1081,9 +1083,9 @@ export default function AnalyticsPage() {
                             </div>
 
                             {/* ── 3-COL: Trade Outcome | P&L by Instrument | Risk Score ── */}
-                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 1, background: '#1a1c24' }}>
+                            <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr 1fr', gap: 1, background: '#1a1c24' }}>
                                 {/* Trade Outcome Pie */}
-                                <div style={{ background: '#0d1117', padding: '24px' }}>
+                                <div style={{ background: '#0d1117', padding: isMobile ? '14px' : '24px' }}>
                                     <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#6b7280', letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 4 }}>TRADE OUTCOME WIN</div>
                                     <div style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: '#8b949e', marginBottom: 16 }}>Fast read on how often this session finished green versus red</div>
                                     <div style={{ height: 120 }}>
@@ -1109,7 +1111,7 @@ export default function AnalyticsPage() {
                                 </div>
 
                                 {/* P&L by Instrument */}
-                                <div style={{ background: '#0d1117', padding: '24px' }}>
+                                <div style={{ background: '#0d1117', padding: isMobile ? '14px' : '24px' }}>
                                     <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#6b7280', letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 4 }}>P&L BY INSTRUMENT</div>
                                     <div style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: '#8b949e', marginBottom: 16 }}>Signed contribution: our share of volume. Losing instruments stay visibly negative.</div>
                                     <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
@@ -1131,7 +1133,7 @@ export default function AnalyticsPage() {
                                 </div>
 
                                 {/* Risk Score */}
-                                <div style={{ background: '#0d1117', padding: '24px', display: 'flex', flexDirection: 'column', alignItems: 'flex-start' }}>
+                                <div style={{ background: '#0d1117', padding: isMobile ? '14px' : '24px', display: 'flex', flexDirection: 'column', alignItems: 'flex-start' }}>
                                     <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#6b7280', letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 4 }}>RISK SCORE</div>
                                     <div style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: '#8b949e', marginBottom: 16 }}>Threshold-based readout designed for faster risk interpretation than a gauge.</div>
                                     {/* Linear bar risk score */}
@@ -1165,7 +1167,7 @@ export default function AnalyticsPage() {
                             </div>
 
                             {/* ── RISK SCORE BREAKDOWN ── */}
-                            <div style={{ background: '#0d1117', border: '1px solid #1a1c24', padding: '24px' }}>
+                            <div style={{ background: '#0d1117', border: '1px solid #1a1c24', padding: isMobile ? '14px' : '24px' }}>
                                 <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#6b7280', letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 4 }}>HOW THE RISK SCORE IS CALCULATED</div>
                                 <div style={{ display: 'flex', flexDirection: 'column', gap: 14, marginTop: 16 }}>
                                     {[
@@ -1218,7 +1220,7 @@ export default function AnalyticsPage() {
                             </div>
 
                             {/* ── BENCHMARK vs RETAIL FUTURES TRADERS ── */}
-                            <div style={{ background: '#0d1117', border: '1px solid #1a1c24', padding: '24px' }}>
+                            <div style={{ background: '#0d1117', border: '1px solid #1a1c24', padding: isMobile ? '14px' : '24px' }}>
                                 <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#6b7280', letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 4 }}>BENCHMARK — 100 RETAIL FUTURES TRADERS</div>
                                 <div style={{ overflowX: 'auto' }}>
                                     <table style={{ width: '100%', borderCollapse: 'collapse', fontFamily: 'var(--font-mono)', fontSize: 11, marginTop: 16 }}>
@@ -1260,8 +1262,8 @@ export default function AnalyticsPage() {
                             </div>
 
                             {/* ── DANGER ZONES + STRENGTH ZONES ── */}
-                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 1, background: '#1a1c24' }}>
-                                <div style={{ background: '#0d1117', padding: '24px' }}>
+                            <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 1, background: '#1a1c24' }}>
+                                <div style={{ background: '#0d1117', padding: isMobile ? '14px' : '24px' }}>
                                     <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
                                         <TrendingDown size={12} color="#ff4757" />
                                         <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#ff4757', letterSpacing: '0.12em', textTransform: 'uppercase', fontWeight: 700 }}>DANGER ZONES</span>
@@ -1277,7 +1279,7 @@ export default function AnalyticsPage() {
                                         )}
                                     </div>
                                 </div>
-                                <div style={{ background: '#0d1117', padding: '24px' }}>
+                                <div style={{ background: '#0d1117', padding: isMobile ? '14px' : '24px' }}>
                                     <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
                                         <TrendingUp size={12} color="#A6FF4D" />
                                         <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#A6FF4D', letterSpacing: '0.12em', textTransform: 'uppercase', fontWeight: 700 }}>STRENGTH ZONES</span>
@@ -1339,7 +1341,7 @@ export default function AnalyticsPage() {
                             </div>
 
                             {/* ── 8-KPI GRID ── */}
-                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', borderTop: '1px solid #1a1c24', borderLeft: '1px solid #1a1c24' }}>
+                            <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'repeat(2, 1fr)' : 'repeat(4, 1fr)', borderTop: '1px solid #1a1c24', borderLeft: '1px solid #1a1c24' }}>
                                 {[
                                     { label: 'BEST DAY', value: bestDay > 0 ? `+$${bestDay.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '—', sub: bestDayDate ? new Date(bestDayDate + 'T12:00:00Z').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }) : '—', color: '#A6FF4D' },
                                     { label: 'WORST DAY', value: worstDay < 0 ? `-$${Math.abs(worstDay).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '—', sub: worstDayDate ? new Date(worstDayDate + 'T12:00:00Z').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }) : '—', color: '#ff4757' },
@@ -1359,7 +1361,7 @@ export default function AnalyticsPage() {
                             </div>
 
                             {/* ── MAIN CHART: ComposedChart bar + rolling avg ── */}
-                            <div style={{ background: '#0d1117', border: '1px solid #1a1c24', padding: '24px' }}>
+                            <div style={{ background: '#0d1117', border: '1px solid #1a1c24', padding: isMobile ? '14px' : '24px' }}>
                                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16, flexWrap: 'wrap', gap: 8 }}>
                                     <div>
                                         <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#6b7280', letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 2 }}>NET P&L PER TRADING DAY</div>
@@ -1377,7 +1379,7 @@ export default function AnalyticsPage() {
                                 <ComposedDailyChart data={dailyEnriched.slice(-60)} height={280} rollingWindow={5} />
                                 {/* Interpretation */}
                                 {dailyData.length >= 3 && (
-                                    <div style={{ marginTop: 16, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                                    <div style={{ marginTop: 16, display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 12 }}>
                                         <div style={{ padding: '14px 16px', background: 'rgba(166,255,77,0.04)', border: '1px solid rgba(166,255,77,0.12)', borderLeft: '3px solid #A6FF4D' }}>
                                             <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#A6FF4D', letterSpacing: '0.1em', textTransform: 'uppercase', fontWeight: 700, marginBottom: 6 }}>WHAT THIS MEANS</div>
                                             <p style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: '#c9d1d9', lineHeight: 1.8, margin: 0 }}>
@@ -1399,11 +1401,11 @@ export default function AnalyticsPage() {
                             </div>
 
                             {/* ── 2-COL: Day of Week P&L + Day of Week Win Rate ── */}
-                            <div style={{ background: '#0d1117', border: '1px solid #1a1c24', padding: '24px' }}>
+                            <div style={{ background: '#0d1117', border: '1px solid #1a1c24', padding: isMobile ? '14px' : '24px' }}>
                                 <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#6b7280', letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 2 }}>DAY-OF-WEEK EDGE BREAKDOWN</div>
                                 <div style={{ fontFamily: 'var(--font-mono)', fontSize: 13, fontWeight: 600, color: '#c9d1d9', marginBottom: 4 }}>Net P&L and win rate per weekday — reveals calendar biases in your execution</div>
                                 <div style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: '#8b949e', marginBottom: 20 }}>Left bar = total P&L accumulated that day · Right bar = win rate percentage · A day with high P&L but low win rate means wins are large, losses frequent</div>
-                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 24 }}>
+                                <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 24 }}>
                                     <div>
                                         <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#6b7280', letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 10 }}>P&L BY WEEKDAY</div>
                                         <DayOfWeekChart data={dayOfWeekStats} metric="pnl" height={160} />
@@ -1418,7 +1420,7 @@ export default function AnalyticsPage() {
                                     const worst = [...dayOfWeekStats].sort((a, b) => a.pnl - b.pnl)[0];
                                     const trapDay = dayOfWeekStats.find(d => d.trades >= 3 && (d.wins / d.trades) * 100 < 40);
                                     return (
-                                        <div style={{ marginTop: 16, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                                        <div style={{ marginTop: 16, display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 12 }}>
                                             <div style={{ padding: '14px 16px', background: 'rgba(166,255,77,0.04)', border: '1px solid rgba(166,255,77,0.12)', borderLeft: '3px solid #A6FF4D' }}>
                                                 <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#A6FF4D', letterSpacing: '0.1em', textTransform: 'uppercase', fontWeight: 700, marginBottom: 6 }}>WHAT THIS MEANS</div>
                                                 <p style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: '#c9d1d9', lineHeight: 1.8, margin: 0 }}>
@@ -1439,7 +1441,7 @@ export default function AnalyticsPage() {
                             </div>
 
                             {/* ── P&L DISTRIBUTION HISTOGRAM ── */}
-                            <div style={{ background: '#0d1117', border: '1px solid #1a1c24', padding: '24px' }}>
+                            <div style={{ background: '#0d1117', border: '1px solid #1a1c24', padding: isMobile ? '14px' : '24px' }}>
                                 <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#6b7280', letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 4 }}>DAILY P&L DISTRIBUTION</div>
                                 <div style={{ fontFamily: 'var(--font-mono)', fontSize: 13, fontWeight: 600, color: '#c9d1d9', marginBottom: 6 }}>Frequency of each P&L range — reveals clustering, fat tails, and outlier days</div>
                                 <div style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: '#6b7280', marginBottom: 16 }}>A healthy distribution clusters tightly to the right of zero. Wide spread = high variance = unpredictable edge.</div>
@@ -1461,7 +1463,7 @@ export default function AnalyticsPage() {
 
                             {/* ── MONTHLY BREAKDOWN ── */}
                             {monthlyBreakdown.length > 0 && (
-                                <div style={{ background: '#0d1117', border: '1px solid #1a1c24', padding: '24px' }}>
+                                <div style={{ background: '#0d1117', border: '1px solid #1a1c24', padding: isMobile ? '14px' : '24px' }}>
                                     <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#6b7280', letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 4 }}>MONTHLY SUMMARY</div>
                                     <div style={{ fontFamily: 'var(--font-mono)', fontSize: 13, fontWeight: 600, color: '#c9d1d9', marginBottom: 16 }}>Net result aggregated by calendar month</div>
                                     <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
@@ -1485,7 +1487,7 @@ export default function AnalyticsPage() {
 
                             {/* ── WEEKLY BREAKDOWN TABLE ── */}
                             {weeklyBreakdown.length > 0 && (
-                                <div style={{ background: '#0d1117', border: '1px solid #1a1c24', padding: '24px' }}>
+                                <div style={{ background: '#0d1117', border: '1px solid #1a1c24', padding: isMobile ? '14px' : '24px' }}>
                                     <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#6b7280', letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 4 }}>WEEKLY PERFORMANCE BREAKDOWN</div>
                                     <div style={{ fontFamily: 'var(--font-mono)', fontSize: 13, fontWeight: 600, color: '#c9d1d9', marginBottom: 16 }}>Week-over-week P&L, best/worst day per week, and behavioral flags</div>
                                     <div style={{ overflowX: 'auto' }}>
@@ -1522,7 +1524,7 @@ export default function AnalyticsPage() {
                             )}
 
                             {/* ── ACTIONABLE RULES ── */}
-                            <div style={{ background: '#0d1117', border: '1px solid #1a1c24', padding: '24px' }}>
+                            <div style={{ background: '#0d1117', border: '1px solid #1a1c24', padding: isMobile ? '14px' : '24px' }}>
                                 <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#6b7280', letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 16 }}>DAILY RULES — DERIVED FROM YOUR DATA</div>
                                 <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
                                     {[
@@ -1562,7 +1564,7 @@ export default function AnalyticsPage() {
                             </div>
 
                             {/* ── 4-KPI STRIP ── */}
-                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', borderTop: '1px solid #1a1c24', borderLeft: '1px solid #1a1c24' }}>
+                            <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'repeat(2, 1fr)' : 'repeat(4, 1fr)', borderTop: '1px solid #1a1c24', borderLeft: '1px solid #1a1c24' }}>
                                 {[
                                     { label: 'INSTRUMENTS TRADED', value: `${instrumentDeep.length}`, sub: `${instrumentDeep.filter(i => i.pnl >= 0).length} profitable`, color: '#c9d1d9' },
                                     { label: 'BEST INSTRUMENT', value: instrumentDeep[0]?.asset ?? '—', sub: instrumentDeep[0] ? `+$${instrumentDeep[0].pnl.toFixed(0)} net` : '—', color: '#A6FF4D' },
@@ -1578,16 +1580,16 @@ export default function AnalyticsPage() {
                             </div>
 
                             {/* ── RADAR + PNL BARS ── */}
-                            <div style={{ display: 'grid', gridTemplateColumns: instrumentDeep.length >= 2 ? '1fr 1fr' : '1fr', gap: 1, background: '#1a1c24' }}>
+                            <div style={{ display: 'grid', gridTemplateColumns: instrumentDeep.length >= 2 && !isMobile ? '1fr 1fr' : '1fr', gap: 1, background: '#1a1c24' }}>
                                 {/* Radar chart */}
-                                <div style={{ background: '#0d1117', padding: '24px' }}>
+                                <div style={{ background: '#0d1117', padding: isMobile ? '14px' : '24px' }}>
                                     <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#6b7280', letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 4 }}>MULTI-METRIC RADAR</div>
                                     <div style={{ fontFamily: 'var(--font-mono)', fontSize: 13, fontWeight: 600, color: '#c9d1d9', marginBottom: 6 }}>5-axis normalized comparison — Win Rate · PF · Expectancy · W/L · Volume</div>
                                     <div style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: '#6b7280', marginBottom: 8 }}>A bar chart shows one metric. This radar shows which instrument dominates across ALL dimensions simultaneously.</div>
                                     <InstrumentRadar instruments={radarInstruments} height={280} />
                                 </div>
                                 {/* P&L diverging bars */}
-                                <div style={{ background: '#0d1117', padding: '24px' }}>
+                                <div style={{ background: '#0d1117', padding: isMobile ? '14px' : '24px' }}>
                                     <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#6b7280', letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 4 }}>NET P&L RANKING</div>
                                     <div style={{ fontFamily: 'var(--font-mono)', fontSize: 13, fontWeight: 600, color: '#c9d1d9', marginBottom: 16 }}>Signed contribution per instrument — diverging from zero</div>
                                     <div style={{ height: 280 }}>
@@ -1614,7 +1616,7 @@ export default function AnalyticsPage() {
                             </div>
 
                             {/* ── INSTRUMENT COMPARISON TABLE ── */}
-                            <div style={{ background: '#0d1117', border: '1px solid #1a1c24', padding: '24px' }}>
+                            <div style={{ background: '#0d1117', border: '1px solid #1a1c24', padding: isMobile ? '14px' : '24px' }}>
                                 <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#6b7280', letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 16 }}>FULL INSTRUMENT SCORECARD</div>
                                 <div style={{ overflowX: 'auto' }}>
                                     <table style={{ width: '100%', borderCollapse: 'collapse', fontFamily: 'var(--font-mono)', fontSize: 11 }}>
@@ -1674,7 +1676,7 @@ export default function AnalyticsPage() {
                                     </div>
                                     <div style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: 20 }}>
                                         {/* 6-metric mini grid */}
-                                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: 1, background: '#1a1c24' }}>
+                                        <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'repeat(3, 1fr)' : 'repeat(6, 1fr)', gap: 1, background: '#1a1c24' }}>
                                             {[
                                                 { label: 'BEST TRADE', value: `+$${inst.maxWin.toFixed(0)}`, color: '#A6FF4D' },
                                                 { label: 'WORST TRADE', value: `-$${inst.maxLoss.toFixed(0)}`, color: '#ff4757' },
@@ -1735,7 +1737,7 @@ export default function AnalyticsPage() {
                             ))}
 
                             {/* ── ACTIONABLE RULES ── */}
-                            <div style={{ background: '#0d1117', border: '1px solid #1a1c24', padding: '24px' }}>
+                            <div style={{ background: '#0d1117', border: '1px solid #1a1c24', padding: isMobile ? '14px' : '24px' }}>
                                 <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#6b7280', letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 16 }}>INSTRUMENT RULES — DERIVED FROM YOUR DATA</div>
                                 <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
                                     {[
@@ -1788,7 +1790,7 @@ export default function AnalyticsPage() {
                             </div>
 
                             {/* ── 8-KPI GRID ── */}
-                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', borderTop: '1px solid #1a1c24', borderLeft: '1px solid #1a1c24' }}>
+                            <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'repeat(2, 1fr)' : 'repeat(4, 1fr)', borderTop: '1px solid #1a1c24', borderLeft: '1px solid #1a1c24' }}>
                                 {[
                                     { label: 'TOTAL SESSIONS', value: `${sessionMetrics.length}`, sub: `${greenSessions} green · ${redSessions} red`, color: '#c9d1d9' },
                                     { label: 'SESSION WIN RATE', value: sessionMetrics.length > 0 ? `${((greenSessions / sessionMetrics.length) * 100).toFixed(0)}%` : '—', sub: `${greenSessions} profitable sessions`, color: greenSessions >= redSessions ? '#A6FF4D' : '#ff4757' },
@@ -1809,7 +1811,7 @@ export default function AnalyticsPage() {
 
                             {/* ── SESSION P&L OVERVIEW BAR CHART ── */}
                             {sessionMetrics.length > 0 && (
-                                <div style={{ background: '#0d1117', border: '1px solid #1a1c24', padding: '24px' }}>
+                                <div style={{ background: '#0d1117', border: '1px solid #1a1c24', padding: isMobile ? '14px' : '24px' }}>
                                     <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#6b7280', letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 4 }}>SESSION P&L WATERFALL</div>
                                     <div style={{ fontFamily: 'var(--font-mono)', fontSize: 13, fontWeight: 600, color: '#c9d1d9', marginBottom: 16 }}>Net result per session — ordered chronologically</div>
                                     <div style={{ height: 180 }}>
@@ -1839,7 +1841,7 @@ export default function AnalyticsPage() {
                                         const revSessions = sessionMetrics.filter((s: any) => s.tag === 'REVENGE');
                                         const cleanSessions = sessionMetrics.filter((s: any) => s.pnl > 0);
                                         return (
-                                            <div style={{ marginTop: 16, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                                            <div style={{ marginTop: 16, display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 12 }}>
                                                 <div style={{ padding: '14px 16px', background: 'rgba(166,255,77,0.04)', border: '1px solid rgba(166,255,77,0.12)', borderLeft: '3px solid #A6FF4D' }}>
                                                     <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#A6FF4D', letterSpacing: '0.1em', textTransform: 'uppercase', fontWeight: 700, marginBottom: 6 }}>WHAT THIS MEANS</div>
                                                     <p style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: '#c9d1d9', lineHeight: 1.8, margin: 0 }}>
@@ -1919,7 +1921,7 @@ export default function AnalyticsPage() {
                                                     <div style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: 20 }}>
 
                                                         {/* 6 mini KPIs */}
-                                                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: 1, background: '#1a1c24' }}>
+                                                        <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'repeat(3, 1fr)' : 'repeat(6, 1fr)', gap: 1, background: '#1a1c24' }}>
                                                             {[
                                                                 { label: 'TRADES', value: s.trades.length, color: '#c9d1d9' },
                                                                 { label: 'WIN RATE', value: `${sessionWr.toFixed(0)}%`, color: sessionWr >= 55 ? '#A6FF4D' : sessionWr >= 45 ? '#EAB308' : '#ff4757' },
@@ -1978,7 +1980,7 @@ export default function AnalyticsPage() {
                                                         </div>
 
                                                         {/* Win/Loss P&L bars */}
-                                                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                                                        <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 12 }}>
                                                             {[
                                                                 { label: 'GROSS PROFIT', val: s.gross, total: s.gross + s.lossAbs, color: '#A6FF4D' },
                                                                 { label: 'GROSS LOSS', val: s.lossAbs, total: s.gross + s.lossAbs, color: '#ff4757' },
@@ -2082,10 +2084,10 @@ export default function AnalyticsPage() {
 
                             {/* ── SESSION CONSISTENCY ANALYSIS ── */}
                             {sessionMetrics.length >= 3 && (
-                                <div style={{ background: '#0d1117', border: '1px solid #1a1c24', padding: '24px' }}>
+                                <div style={{ background: '#0d1117', border: '1px solid #1a1c24', padding: isMobile ? '14px' : '24px' }}>
                                     <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#6b7280', letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 4 }}>SESSION CONSISTENCY SCORE</div>
                                     <div style={{ fontFamily: 'var(--font-mono)', fontSize: 13, fontWeight: 600, color: '#c9d1d9', marginBottom: 20 }}>Consistency is more valuable than peak sessions. Variance below shows how predictable your edge is.</div>
-                                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 1, background: '#1a1c24', marginBottom: 20 }}>
+                                    <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'repeat(2, 1fr)' : 'repeat(3, 1fr)', gap: 1, background: '#1a1c24', marginBottom: 20 }}>
                                         {(() => {
                                             const pnls = sessionMetrics.map((s: any) => s.pnl);
                                             const mean = pnls.reduce((a: number, b: number) => a + b, 0) / pnls.length;
@@ -2120,7 +2122,7 @@ export default function AnalyticsPage() {
 
                             {/* ── SESSION SCATTER: Start Time vs P&L ── */}
                             {sessionScatterData.length > 1 && (
-                                <div style={{ background: '#0d1117', border: '1px solid #1a1c24', padding: '24px' }}>
+                                <div style={{ background: '#0d1117', border: '1px solid #1a1c24', padding: isMobile ? '14px' : '24px' }}>
                                     <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#6b7280', letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 4 }}>SESSION SCATTER — START HOUR vs P&L</div>
                                     <div style={{ fontFamily: 'var(--font-mono)', fontSize: 13, fontWeight: 600, color: '#c9d1d9', marginBottom: 4 }}>Does your session P&L depend on when you start? Each dot = one session.</div>
                                     <div style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: '#8b949e', marginBottom: 12 }}>Dot size = session magnitude. Look for vertical clustering: winning start windows vs losing ones.</div>
@@ -2134,7 +2136,7 @@ export default function AnalyticsPage() {
                             )}
 
                             {/* ── ACTIONABLE RULES ── */}
-                            <div style={{ background: '#0d1117', border: '1px solid #1a1c24', padding: '24px' }}>
+                            <div style={{ background: '#0d1117', border: '1px solid #1a1c24', padding: isMobile ? '14px' : '24px' }}>
                                 <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#6b7280', letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 16 }}>SESSION-BASED RULES — DERIVED FROM YOUR DATA</div>
                                 <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
                                     {[
@@ -2204,7 +2206,7 @@ export default function AnalyticsPage() {
                             </div>
 
                             {/* ── 4-KPI STRIP ── */}
-                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', borderTop: '1px solid #1a1c24', borderLeft: '1px solid #1a1c24' }}>
+                            <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'repeat(2, 1fr)' : 'repeat(4, 1fr)', borderTop: '1px solid #1a1c24', borderLeft: '1px solid #1a1c24' }}>
                                 {(() => {
                                     const bestH = hourlyStats[forensics.timeStats.bestHour];
                                     const worstH = hourlyStats[forensics.timeStats.worstHour];
@@ -2294,7 +2296,7 @@ export default function AnalyticsPage() {
                                         </div>
                                         {/* Interpretation */}
                                         {activeH.length > 0 && (
-                                            <div style={{ marginTop: 16, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                                            <div style={{ marginTop: 16, display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 12 }}>
                                                 <div style={{ padding: '14px 16px', background: 'rgba(166,255,77,0.04)', border: '1px solid rgba(166,255,77,0.12)', borderLeft: '3px solid #A6FF4D' }}>
                                                     <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#A6FF4D', letterSpacing: '0.1em', textTransform: 'uppercase', fontWeight: 700, marginBottom: 6 }}>WHAT THIS MEANS</div>
                                                     <p style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: '#c9d1d9', lineHeight: 1.8, margin: 0 }}>
@@ -2370,7 +2372,7 @@ export default function AnalyticsPage() {
                                         </div>
                                         {/* Interpretation */}
                                         {activeH.length > 0 && (
-                                            <div style={{ marginTop: 16, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                                            <div style={{ marginTop: 16, display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 12 }}>
                                                 <div style={{ padding: '14px 16px', background: 'rgba(166,255,77,0.04)', border: '1px solid rgba(166,255,77,0.12)', borderLeft: '3px solid #A6FF4D' }}>
                                                     <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#A6FF4D', letterSpacing: '0.1em', textTransform: 'uppercase', fontWeight: 700, marginBottom: 6 }}>WHAT THIS MEANS</div>
                                                     <p style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: '#c9d1d9', lineHeight: 1.8, margin: 0 }}>
@@ -2407,7 +2409,7 @@ export default function AnalyticsPage() {
                                         </div>
                                         <HeatmapGrid data={heatmapData} minTrades={1} />
                                         {/* Interpretation */}
-                                        <div style={{ marginTop: 16, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                                        <div style={{ marginTop: 16, display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 12 }}>
                                             <div style={{ padding: '14px 16px', background: 'rgba(166,255,77,0.04)', border: '1px solid rgba(166,255,77,0.12)', borderLeft: '3px solid #A6FF4D' }}>
                                                 <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#A6FF4D', letterSpacing: '0.1em', textTransform: 'uppercase', fontWeight: 700, marginBottom: 6 }}>WHAT THIS MEANS</div>
                                                 <p style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: '#c9d1d9', lineHeight: 1.8, margin: 0 }}>
@@ -2446,7 +2448,7 @@ export default function AnalyticsPage() {
                                             xFormatter={fmtT}
                                         />
                                         {/* Interpretation */}
-                                        <div style={{ marginTop: 16, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                                        <div style={{ marginTop: 16, display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 12 }}>
                                             <div style={{ padding: '14px 16px', background: 'rgba(166,255,77,0.04)', border: '1px solid rgba(166,255,77,0.12)', borderLeft: '3px solid #A6FF4D' }}>
                                                 <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#A6FF4D', letterSpacing: '0.1em', textTransform: 'uppercase', fontWeight: 700, marginBottom: 6 }}>HOW TO READ THIS</div>
                                                 <p style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: '#c9d1d9', lineHeight: 1.8, margin: 0 }}>
@@ -2466,7 +2468,7 @@ export default function AnalyticsPage() {
                             })()}
 
                             {/* ── SESSION WINDOW BREAKDOWN ── */}
-                            <div style={{ background: '#0d1117', border: '1px solid #1a1c24', padding: '24px' }}>
+                            <div style={{ background: '#0d1117', border: '1px solid #1a1c24', padding: isMobile ? '14px' : '24px' }}>
                                 <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#6b7280', letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 4 }}>SESSION WINDOW ANALYSIS</div>
                                 <div style={{ fontFamily: 'var(--font-mono)', fontSize: 13, fontWeight: 600, color: '#c9d1d9', marginBottom: 20 }}>Market structure changes across sessions. Your edge should too.</div>
                                 <div style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
@@ -2503,7 +2505,7 @@ export default function AnalyticsPage() {
                             </div>
 
                             {/* ── HOURLY DATA TABLE ── */}
-                            <div style={{ background: '#0d1117', border: '1px solid #1a1c24', padding: '24px' }}>
+                            <div style={{ background: '#0d1117', border: '1px solid #1a1c24', padding: isMobile ? '14px' : '24px' }}>
                                 <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#6b7280', letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 16 }}>FULL HOUR-BY-HOUR BREAKDOWN</div>
                                 <div style={{ overflowX: 'auto' }}>
                                     <table style={{ width: '100%', borderCollapse: 'collapse', fontFamily: 'var(--font-mono)', fontSize: 11 }}>
@@ -2550,7 +2552,7 @@ export default function AnalyticsPage() {
                             </div>
 
                             {/* ── STRENGTH + DANGER ZONE DETAILED CARDS ── */}
-                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 1, background: '#1a1c24' }}>
+                            <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 1, background: '#1a1c24' }}>
                                 {/* Strength */}
                                 <div style={{ background: 'rgba(166,255,77,0.03)', border: '1px solid rgba(166,255,77,0.12)', padding: '24px' }}>
                                     <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
@@ -2629,7 +2631,7 @@ export default function AnalyticsPage() {
                             </div>
 
                             {/* ── ACTIONABLE RULES ── */}
-                            <div style={{ background: '#0d1117', border: '1px solid #1a1c24', padding: '24px' }}>
+                            <div style={{ background: '#0d1117', border: '1px solid #1a1c24', padding: isMobile ? '14px' : '24px' }}>
                                 <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#6b7280', letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 16 }}>TIME-BASED RULES — DERIVED FROM YOUR DATA</div>
                                 <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
                                     {[
@@ -2681,7 +2683,7 @@ export default function AnalyticsPage() {
                             </div>
 
                             {/* ── 6-KPI GRID ── */}
-                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', borderTop: '1px solid #1a1c24', borderLeft: '1px solid #1a1c24' }}>
+                            <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'repeat(2, 1fr)' : 'repeat(3, 1fr)', borderTop: '1px solid #1a1c24', borderLeft: '1px solid #1a1c24' }}>
                                 {[
                                     { label: 'MAX WIN STREAK', value: `${forensics.maxWinStreak}`, sub: 'Consecutive winning trades', color: '#A6FF4D' },
                                     { label: 'MAX LOSS STREAK', value: `${forensics.maxLossStreak}`, sub: 'Consecutive losing trades', color: forensics.maxLossStreak >= 4 ? '#ff4757' : forensics.maxLossStreak >= 3 ? '#EAB308' : '#c9d1d9' },
@@ -2700,7 +2702,7 @@ export default function AnalyticsPage() {
 
                             {/* ── TRADE SEQUENCE VISUALIZATION ── */}
                             {closed.length > 0 && (
-                                <div style={{ background: '#0d1117', border: '1px solid #1a1c24', padding: '24px' }}>
+                                <div style={{ background: '#0d1117', border: '1px solid #1a1c24', padding: isMobile ? '14px' : '24px' }}>
                                     <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#6b7280', letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 4 }}>FULL TRADE SEQUENCE</div>
                                     <div style={{ fontFamily: 'var(--font-mono)', fontSize: 13, fontWeight: 600, color: '#c9d1d9', marginBottom: 16 }}>
                                         Each segment = one streak run. Width ∝ streak length. This is your behavioral fingerprint.
@@ -2777,9 +2779,9 @@ export default function AnalyticsPage() {
 
                             {/* ── STREAK LENGTH DISTRIBUTION ── */}
                             {streakRuns.length > 0 && (
-                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 1, background: '#1a1c24' }}>
+                                <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 1, background: '#1a1c24' }}>
                                     {/* Win vs Loss streak length distribution */}
-                                    <div style={{ background: '#0d1117', border: '1px solid #1a1c24', padding: '24px' }}>
+                                    <div style={{ background: '#0d1117', border: '1px solid #1a1c24', padding: isMobile ? '14px' : '24px' }}>
                                         <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#6b7280', letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 4 }}>STREAK LENGTH DISTRIBUTION</div>
                                         <div style={{ fontFamily: 'var(--font-mono)', fontSize: 12, color: '#c9d1d9', marginBottom: 16 }}>Do your losses cluster more than your wins?</div>
                                         <div style={{ height: 200 }}>
@@ -2811,7 +2813,7 @@ export default function AnalyticsPage() {
                                     </div>
 
                                     {/* Streak impact chart */}
-                                    <div style={{ background: '#0d1117', border: '1px solid #1a1c24', padding: '24px' }}>
+                                    <div style={{ background: '#0d1117', border: '1px solid #1a1c24', padding: isMobile ? '14px' : '24px' }}>
                                         <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#6b7280', letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 4 }}>TOP STREAK IMPACTS</div>
                                         <div style={{ fontFamily: 'var(--font-mono)', fontSize: 12, color: '#c9d1d9', marginBottom: 16 }}>Biggest earning & losing runs by dollar impact.</div>
                                         <div style={{ height: 200 }}>
@@ -2844,10 +2846,10 @@ export default function AnalyticsPage() {
 
                             {/* ── RECOVERY PROBABILITY ── */}
                             {recoveryProbTable.length > 0 && (
-                                <div style={{ background: '#0d1117', border: '1px solid #1a1c24', padding: '24px' }}>
+                                <div style={{ background: '#0d1117', border: '1px solid #1a1c24', padding: isMobile ? '14px' : '24px' }}>
                                     <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#6b7280', letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 4 }}>RECOVERY PROBABILITY AFTER N CONSECUTIVE LOSSES</div>
                                     <div style={{ fontFamily: 'var(--font-mono)', fontSize: 12, color: '#c9d1d9', marginBottom: 20 }}>Derived from your actual trade sequence — not theory. How likely is your next trade to be a win after a losing streak?</div>
-                                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 1, background: '#1a1c24', marginBottom: 20 }}>
+                                    <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'repeat(2, 1fr)' : 'repeat(5, 1fr)', gap: 1, background: '#1a1c24', marginBottom: 20 }}>
                                         {recoveryProbTable.map((row, i) => {
                                             const pct = row.recoveryProb ?? 0;
                                             const color = pct >= 65 ? '#A6FF4D' : pct >= 50 ? '#EAB308' : '#ff4757';
@@ -2880,7 +2882,7 @@ export default function AnalyticsPage() {
 
                             {/* ── PSYCHOLOGICAL STATE PROFILE ── */}
                             {psychStates.length > 0 && closed.length >= 5 && (
-                                <div style={{ background: '#0d1117', border: '1px solid #1a1c24', padding: '24px' }}>
+                                <div style={{ background: '#0d1117', border: '1px solid #1a1c24', padding: isMobile ? '14px' : '24px' }}>
                                     <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#6b7280', letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 4 }}>PSYCHOLOGICAL STATE PROFILE</div>
                                     <div style={{ fontFamily: 'var(--font-mono)', fontSize: 12, color: '#c9d1d9', marginBottom: 20 }}>Behavioral patterns extracted from your data. Each state has a documented trigger and a prescriptive response.</div>
                                     <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
@@ -2904,7 +2906,7 @@ export default function AnalyticsPage() {
                                                         </span>
                                                     </div>
                                                     {/* Body */}
-                                                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 0 }}>
+                                                    <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 0 }}>
                                                         <div style={{ padding: '16px 20px', borderRight: `1px solid ${sevBorder}` }}>
                                                             <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#6b7280', letterSpacing: '0.1em', textTransform: 'uppercase', fontWeight: 700, marginBottom: 8 }}>TRIGGER</div>
                                                             <p style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: '#8b949e', lineHeight: 1.7, margin: 0 }}>{ps.trigger}</p>
@@ -2944,7 +2946,7 @@ export default function AnalyticsPage() {
                             ) : (
                                 <>
                                     {/* ── 4-KPI GRID ── */}
-                                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', borderTop: '1px solid #1a1c24', borderLeft: '1px solid #1a1c24' }}>
+                                    <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'repeat(2, 1fr)' : 'repeat(4, 1fr)', borderTop: '1px solid #1a1c24', borderLeft: '1px solid #1a1c24' }}>
                                         {[
                                             { label: 'PATTERNS DETECTED', value: `${forensics.patterns.length}`, sub: `${forensics.patterns.filter((p: any) => p.severity === 'CRITICAL').length} critical`, color: forensics.patterns.some((p: any) => p.severity === 'CRITICAL') ? '#ff4757' : '#EAB308' },
                                             { label: 'TOTAL BEHAVIORAL COST', value: behavioralCost < 0 ? `-$${Math.abs(behavioralCost).toFixed(0)}` : '$0', sub: 'Avoidable losses', color: '#ff4757' },
@@ -2960,7 +2962,7 @@ export default function AnalyticsPage() {
                                     </div>
 
                                     {/* ── PATTERN IMPACT COMPARISON CHART ── */}
-                                    <div style={{ background: '#0d1117', border: '1px solid #1a1c24', padding: '24px' }}>
+                                    <div style={{ background: '#0d1117', border: '1px solid #1a1c24', padding: isMobile ? '14px' : '24px' }}>
                                         <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#6b7280', letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 4 }}>PATTERN COST COMPARISON</div>
                                         <div style={{ fontFamily: 'var(--font-mono)', fontSize: 12, color: '#c9d1d9', marginBottom: 16 }}>Dollar cost of each behavioral pattern, sorted by impact. The longest bar needs your attention first.</div>
                                         <div style={{ height: Math.max(120, forensics.patterns.length * 52) }}>
@@ -3062,7 +3064,7 @@ export default function AnalyticsPage() {
                                                     </div>
 
                                                     {/* Trigger / Prescription */}
-                                                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 0 }}>
+                                                    <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 0 }}>
                                                         <div style={{ padding: '16px 24px', borderRight: `1px solid ${sevBorder}` }}>
                                                             <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#6b7280', letterSpacing: '0.1em', textTransform: 'uppercase', fontWeight: 700, marginBottom: 8 }}>TRIGGER PATTERN</div>
                                                             <p style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: '#8b949e', lineHeight: 1.7, margin: 0 }}>
@@ -3085,7 +3087,7 @@ export default function AnalyticsPage() {
                                     </div>
 
                                     {/* ── BEHAVIORAL HEALTH SUMMARY ── */}
-                                    <div style={{ background: '#0d1117', border: '1px solid #1a1c24', padding: '24px' }}>
+                                    <div style={{ background: '#0d1117', border: '1px solid #1a1c24', padding: isMobile ? '14px' : '24px' }}>
                                         <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#6b7280', letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 16 }}>BEHAVIORAL REMEDIATION PRIORITY</div>
                                         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                                             {[...forensics.patterns]
@@ -3326,7 +3328,7 @@ export default function AnalyticsPage() {
                                 </div>
 
                                 {/* ── 4-KPI STRIP ── */}
-                                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', borderTop: '1px solid #1a1c24', borderLeft: '1px solid #1a1c24' }}>
+                                <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'repeat(2, 1fr)' : 'repeat(4, 1fr)', borderTop: '1px solid #1a1c24', borderLeft: '1px solid #1a1c24' }}>
                                     {[
                                         { label: 'COMPOSITE SCORE', value: `${compositeScore}`, sub: `Out of 100 · Grade ${compositeGrade}`, color: gradeColor(compositeGrade) },
                                         { label: 'METRICS PASSING', value: `${passing}/8`, sub: `${(passing / 8 * 100).toFixed(0)}% pass rate (A or B)`, color: passing >= 6 ? '#A6FF4D' : passing >= 4 ? '#EAB308' : '#ff4757' },
@@ -3346,7 +3348,7 @@ export default function AnalyticsPage() {
                                     <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#6b7280', letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 14 }}>ALL 8 METRICS AT A GLANCE</div>
                                     <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                                         {sc.map((s: any, i: number) => (
-                                            <div key={i} style={{ display: 'grid', gridTemplateColumns: '200px 28px 1fr 60px', alignItems: 'center', gap: 16 }}>
+                                            <div key={i} style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr 20px 1fr 50px' : '200px 28px 1fr 60px', alignItems: 'center', gap: 16 }}>
                                                 <div style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: '#c9d1d9', fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{s.metric}</div>
                                                 <div style={{ fontFamily: 'var(--font-mono)', fontSize: 14, fontWeight: 900, color: gradeColor(s.grade), textAlign: 'center' }}>{s.grade}</div>
                                                 <div style={{ height: 4, background: '#1a1c24', borderRadius: 2, overflow: 'hidden' }}>
@@ -3361,13 +3363,13 @@ export default function AnalyticsPage() {
                                 </div>
 
                                 {/* ── 8 METRIC DEEP DIVE CARDS ── */}
-                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 1, background: '#1a1c24' }}>
+                                <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 1, background: '#1a1c24' }}>
                                     {metricDetails.map((m, i) => {
                                         const s = sc[m.idx];
                                         const gc = gradeColor(s.grade);
                                         const isFailing = s.grade === 'F' || s.grade === 'D';
                                         return (
-                                            <div key={i} style={{ background: '#0d1117', padding: '24px', display: 'flex', flexDirection: 'column', gap: 14, borderLeft: `2px solid ${gc}33` }}>
+                                            <div key={i} style={{ background: '#0d1117', padding: isMobile ? '14px' : '24px', display: 'flex', flexDirection: 'column', gap: 14, borderLeft: `2px solid ${gc}33` }}>
                                                 {/* Grade + name */}
                                                 <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 }}>
                                                     <div style={{ flex: 1 }}>
@@ -3424,7 +3426,7 @@ export default function AnalyticsPage() {
                                 </div>
 
                                 {/* ── SUMMARY COACHING BLOCK ── */}
-                                <div style={{ background: '#0d1117', border: '1px solid #1a1c24', padding: '24px' }}>
+                                <div style={{ background: '#0d1117', border: '1px solid #1a1c24', padding: isMobile ? '14px' : '24px' }}>
                                     <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#6b7280', letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 16 }}>PRIORITY CORRECTION PLAN — HIGHEST IMPACT FIRST</div>
                                     {failing > 0 ? (
                                         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
@@ -3620,7 +3622,7 @@ export default function AnalyticsPage() {
                                 ) : (<>
 
                                 {/* ── 8-RATIO KPI GRID ── */}
-                                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', borderTop: '1px solid #1a1c24', borderLeft: '1px solid #1a1c24' }}>
+                                <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'repeat(2, 1fr)' : 'repeat(4, 1fr)', borderTop: '1px solid #1a1c24', borderLeft: '1px solid #1a1c24' }}>
                                     {[
                                         { label: 'SHARPE RATIO', val: nD >= 2 ? sharpe.toFixed(2) : '—', color: rc(sharpe, 1, 0.5), formula: 'μ_d / σ_d × √252', sub: 'Risk-adj annual return' },
                                         { label: 'SORTINO RATIO', val: nD >= 2 ? sortino.toFixed(2) : '—', color: rc(sortino, 1.5, 0.8), formula: 'μ_d / σ⁻ × √252', sub: 'Penalizes downside only' },
@@ -3643,7 +3645,7 @@ export default function AnalyticsPage() {
                                 {/* ── RATIO BENCHMARKS ── */}
                                 <div style={{ background: '#0d1117', border: '1px solid #1a1c24', padding: '20px 24px' }}>
                                     <div style={{ fontFamily: QF, fontSize: 9, color: '#6b7280', letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 12 }}>RATIO BENCHMARK GUIDE</div>
-                                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+                                    <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 16 }}>
                                         <div style={{ fontFamily: QF, fontSize: 10, color: '#c9d1d9', lineHeight: 2 }}>
                                             <span style={{ color: '#A6FF4D', fontWeight: 700 }}>Sharpe &gt;1.0</span> — Institutional quality. Each risk unit earns &gt;1 unit of return annually.<br/>
                                             <span style={{ color: '#EAB308', fontWeight: 700 }}>Sharpe 0.5–1.0</span> — Acceptable. Most retail traders sit here.<br/>
@@ -3660,7 +3662,7 @@ export default function AnalyticsPage() {
                                 </div>
 
                                 {/* ── PERSONALIZED RATIO READING ── */}
-                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 1, background: '#1a1c24' }}>
+                                <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 1, background: '#1a1c24' }}>
                                     <div style={{ background: '#0d1117', padding: '20px 24px' }}>
                                         <div style={{ fontFamily: QF, fontSize: 9, color: '#A6FF4D', letterSpacing: '0.12em', textTransform: 'uppercase', fontWeight: 700, marginBottom: 10 }}>WHAT YOUR RATIOS SAY</div>
                                         <p style={{ fontFamily: QF, fontSize: 10, color: '#c9d1d9', lineHeight: 1.9, margin: 0 }}>
@@ -3739,14 +3741,14 @@ export default function AnalyticsPage() {
                                 </div>
 
                                 {/* ── DISTRIBUTION ANALYSIS ── */}
-                                <div style={{ background: '#0d1117', border: '1px solid #1a1c24', padding: '24px' }}>
+                                <div style={{ background: '#0d1117', border: '1px solid #1a1c24', padding: isMobile ? '14px' : '24px' }}>
                                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 16, marginBottom: 16 }}>
                                         <div>
                                             <div style={{ fontFamily: QF, fontSize: 9, color: '#6b7280', letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 4 }}>TRADE P&L DISTRIBUTION</div>
                                             <div style={{ fontFamily: QF, fontSize: 13, fontWeight: 700, color: '#fff' }}>Return Distribution Analysis</div>
                                             <div style={{ fontFamily: QF, fontSize: 10, color: '#8b949e', marginTop: 2 }}>Shape of returns reveals symmetry, skew, and fat-tail risk in your trading.</div>
                                         </div>
-                                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
+                                        <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 6 }}>
                                             {[
                                                 { label: 'MEAN TRADE', val: fmtQ(meanT), color: meanT >= 0 ? '#A6FF4D' : '#ff4757' },
                                                 { label: 'MEDIAN TRADE', val: fmtQ(qp50), color: qp50 >= 0 ? '#A6FF4D' : '#ff4757' },
@@ -3778,7 +3780,7 @@ export default function AnalyticsPage() {
                                     </ResponsiveContainer>
 
                                     {/* Skewness + Kurtosis cards */}
-                                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 1, marginTop: 12, background: '#1a1c24' }}>
+                                    <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'repeat(2, 1fr)' : 'repeat(4, 1fr)', gap: 1, marginTop: 12, background: '#1a1c24' }}>
                                         {[
                                             {
                                                 label: 'SKEWNESS',
@@ -3823,7 +3825,7 @@ export default function AnalyticsPage() {
                                 </div>
 
                                 {/* ── DISTRIBUTION WHAT THIS MEANS + ACTION ── */}
-                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 1, background: '#1a1c24' }}>
+                                <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 1, background: '#1a1c24' }}>
                                     <div style={{ background: '#0d1117', padding: '18px 20px', borderLeft: `3px solid ${skew < -0.5 ? '#ff4757' : skew > 0.5 ? '#A6FF4D' : '#EAB308'}` }}>
                                         <div style={{ fontFamily: QF, fontSize: 9, color: skew < -0.5 ? '#ff4757' : skew > 0.5 ? '#A6FF4D' : '#EAB308', letterSpacing: '0.12em', textTransform: 'uppercase', fontWeight: 700, marginBottom: 8 }}>WHAT THIS DISTRIBUTION MEANS</div>
                                         <p style={{ fontFamily: QF, fontSize: 10, color: '#c9d1d9', lineHeight: 1.9, margin: 0 }}>
@@ -3892,9 +3894,9 @@ export default function AnalyticsPage() {
                                 </div>
 
                                 {/* ── PERCENTILES + VAR ── */}
-                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 1, background: '#1a1c24' }}>
+                                <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 1, background: '#1a1c24' }}>
                                     {/* Percentile table */}
-                                    <div style={{ background: '#0d1117', padding: '24px' }}>
+                                    <div style={{ background: '#0d1117', padding: isMobile ? '14px' : '24px' }}>
                                         <div style={{ fontFamily: QF, fontSize: 9, color: '#6b7280', letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 14 }}>PERCENTILE BREAKDOWN</div>
                                         <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
                                             {[
@@ -3905,7 +3907,7 @@ export default function AnalyticsPage() {
                                                 { p: 'P10', val: qp10, label: 'Bottom decile', color: '#ff4757' },
                                                 { p: 'P05', val: qp5,  label: 'Historical VaR 95%', color: '#ff4757' },
                                             ].map((row, i) => (
-                                                <div key={i} style={{ display: 'grid', gridTemplateColumns: '40px 100px 1fr', alignItems: 'center', gap: 10, padding: '8px 12px', background: '#0b0e14' }}>
+                                                <div key={i} style={{ display: 'grid', gridTemplateColumns: isMobile ? '30px 80px 1fr' : '40px 100px 1fr', alignItems: 'center', gap: 10, padding: '8px 12px', background: '#0b0e14' }}>
                                                     <span style={{ fontFamily: QF, fontSize: 9, fontWeight: 700, color: '#6b7280' }}>{row.p}</span>
                                                     <span style={{ fontFamily: QF, fontSize: 14, fontWeight: 700, color: row.color }}>{fmtQ(row.val)}</span>
                                                     <span style={{ fontFamily: QF, fontSize: 9, color: '#4b5563' }}>{row.label}</span>
@@ -3921,7 +3923,7 @@ export default function AnalyticsPage() {
                                     </div>
 
                                     {/* VaR */}
-                                    <div style={{ background: '#0d1117', padding: '24px' }}>
+                                    <div style={{ background: '#0d1117', padding: isMobile ? '14px' : '24px' }}>
                                         <div style={{ fontFamily: QF, fontSize: 9, color: '#6b7280', letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 14 }}>VALUE AT RISK &amp; TAIL METRICS</div>
                                         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                                             {[
@@ -3948,7 +3950,7 @@ export default function AnalyticsPage() {
                                 </div>
 
                                 {/* ── VAR EXPLANATION + ACTION ── */}
-                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 1, background: '#1a1c24' }}>
+                                <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 1, background: '#1a1c24' }}>
                                     <div style={{ background: '#0d1117', padding: '18px 20px', borderLeft: '3px solid #ff4757' }}>
                                         <div style={{ fontFamily: QF, fontSize: 9, color: '#ff4757', letterSpacing: '0.12em', textTransform: 'uppercase', fontWeight: 700, marginBottom: 8 }}>HOW TO READ YOUR VAR NUMBERS</div>
                                         <p style={{ fontFamily: QF, fontSize: 10, color: '#c9d1d9', lineHeight: 1.9, margin: 0 }}>
@@ -3995,7 +3997,7 @@ export default function AnalyticsPage() {
 
                                 {/* ── UNDERWATER EQUITY ── */}
                                 {underwaterData.length > 1 && (
-                                    <div style={{ background: '#0d1117', border: '1px solid #1a1c24', padding: '24px' }}>
+                                    <div style={{ background: '#0d1117', border: '1px solid #1a1c24', padding: isMobile ? '14px' : '24px' }}>
                                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 12, marginBottom: 16 }}>
                                             <div>
                                                 <div style={{ fontFamily: QF, fontSize: 9, color: '#6b7280', letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 4 }}>UNDERWATER EQUITY</div>
@@ -4032,7 +4034,7 @@ export default function AnalyticsPage() {
                                                 <Area type="monotone" dataKey="ddPct" stroke="#ff4757" strokeWidth={1.5} fill="url(#ddGrad)" />
                                             </AreaChart>
                                         </ResponsiveContainer>
-                                        <div style={{ marginTop: 12, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 1, background: '#1a1c24' }}>
+                                        <div style={{ marginTop: 12, display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 1, background: '#1a1c24' }}>
                                             <div style={{ padding: '12px 16px', background: '#0d1117', borderLeft: '3px solid #ff4757' }}>
                                                 <div style={{ fontFamily: QF, fontSize: 9, color: '#ff4757', letterSpacing: '0.1em', marginBottom: 6, fontWeight: 700 }}>WHAT THIS MEANS</div>
                                                 <p style={{ fontFamily: QF, fontSize: 10, color: '#c9d1d9', lineHeight: 1.8, margin: 0 }}>
@@ -4073,11 +4075,11 @@ export default function AnalyticsPage() {
                                 )}
 
                                 {/* ── EDGE SIGNIFICANCE + PROJECTIONS ── */}
-                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 1, background: '#1a1c24' }}>
+                                <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 1, background: '#1a1c24' }}>
                                     {/* T-test */}
-                                    <div style={{ background: '#0d1117', padding: '24px' }}>
+                                    <div style={{ background: '#0d1117', padding: isMobile ? '14px' : '24px' }}>
                                         <div style={{ fontFamily: QF, fontSize: 9, color: '#6b7280', letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 14 }}>STATISTICAL EDGE SIGNIFICANCE</div>
-                                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 1, background: '#1a1c24', marginBottom: 12 }}>
+                                        <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 1, background: '#1a1c24', marginBottom: 12 }}>
                                             {[
                                                 { label: 'T-STATISTIC', val: tStat.toFixed(2), color: Math.abs(tStat) >= tCrit ? '#A6FF4D' : '#ff4757', sub: `Need |t| ≥ ${tCrit.toFixed(1)}` },
                                                 { label: 'CRITICAL VALUE', val: `±${tCrit.toFixed(1)}`, color: '#00D4FF', sub: '95% two-tailed' },
@@ -4132,7 +4134,7 @@ export default function AnalyticsPage() {
                                     </div>
 
                                     {/* Projections */}
-                                    <div style={{ background: '#0d1117', padding: '24px' }}>
+                                    <div style={{ background: '#0d1117', padding: isMobile ? '14px' : '24px' }}>
                                         <div style={{ fontFamily: QF, fontSize: 9, color: '#6b7280', letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 14 }}>CONFIDENCE INTERVAL &amp; PROJECTIONS</div>
                                         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                                             <div style={{ padding: '14px 16px', background: '#0b0e14', border: '1px solid #1a1c24' }}>
@@ -4176,7 +4178,7 @@ export default function AnalyticsPage() {
 
                                 {/* ── MONTE CARLO ── */}
                                 {mcResults && (
-                                    <div style={{ background: '#0d1117', border: '1px solid #1a1c24', padding: '24px' }}>
+                                    <div style={{ background: '#0d1117', border: '1px solid #1a1c24', padding: isMobile ? '14px' : '24px' }}>
                                         <div style={{ fontFamily: QF, fontSize: 9, color: '#6b7280', letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 4 }}>MONTE CARLO SIMULATION</div>
                                         <div style={{ fontFamily: QF, fontSize: 13, fontWeight: 700, color: '#fff', marginBottom: 4 }}>{MC_PATHS} Paths · {MC_TRADES}-Trade Horizon</div>
                                         <div style={{ fontFamily: QF, fontSize: 10, color: '#8b949e', marginBottom: 16 }}>
@@ -4184,7 +4186,7 @@ export default function AnalyticsPage() {
                                         </div>
 
                                         {/* Scenario strip */}
-                                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 1, background: '#1a1c24', marginBottom: 16 }}>
+                                        <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'repeat(2, 1fr)' : 'repeat(5, 1fr)', gap: 1, background: '#1a1c24', marginBottom: 16 }}>
                                             {[
                                                 { label: 'BEAR CASE (P10)', val: fmtQ(mcResults.p10), color: mcResults.p10 >= 0 ? '#EAB308' : '#ff4757', sub: 'Worst 10% of runs' },
                                                 { label: 'CAUTIOUS (P25)', val: fmtQ(mcResults.p25), color: mcResults.p25 >= 0 ? '#EAB308' : '#ff4757', sub: 'Bottom quartile' },
@@ -4216,7 +4218,7 @@ export default function AnalyticsPage() {
                                         </ResponsiveContainer>
 
                                         {/* Probability stats */}
-                                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 1, marginTop: 12, background: '#1a1c24' }}>
+                                        <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'repeat(2, 1fr)' : 'repeat(3, 1fr)', gap: 1, marginTop: 12, background: '#1a1c24' }}>
                                             {[
                                                 { label: 'PROB. PROFITABLE', val: `${mcResults.posProb.toFixed(0)}%`, color: rc(mcResults.posProb, 70, 50), sub: `${mcResults.posProb.toFixed(0)}% of simulated ${MC_TRADES}-trade runs end in profit` },
                                                 { label: 'PROB. OF RUIN (>10% DD)', val: `${mcResults.ruinProb.toFixed(1)}%`, color: mcResults.ruinProb < 5 ? '#A6FF4D' : mcResults.ruinProb < 20 ? '#EAB308' : '#ff4757', sub: 'Probability of drawing down 10%+ of starting balance' },
@@ -4230,7 +4232,7 @@ export default function AnalyticsPage() {
                                             ))}
                                         </div>
 
-                                        <div style={{ marginTop: 12, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 1, background: '#1a1c24' }}>
+                                        <div style={{ marginTop: 12, display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 1, background: '#1a1c24' }}>
                                             <div style={{ padding: '14px 18px', background: '#0d1117', borderLeft: '3px solid #00D4FF' }}>
                                                 <div style={{ fontFamily: QF, fontSize: 9, color: '#00D4FF', letterSpacing: '0.1em', marginBottom: 6, fontWeight: 700 }}>WHAT THE SIMULATION TELLS YOU</div>
                                                 <p style={{ fontFamily: QF, fontSize: 10, color: '#c9d1d9', lineHeight: 1.8, margin: 0 }}>

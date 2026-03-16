@@ -528,7 +528,7 @@ export default function JournalPage() {
                                                 </div>
 
                                                 {/* Right: P&L + inline outcome for open + expand + delete */}
-                                                <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 1, flexWrap: 'wrap', minWidth: 200, justifyContent: 'flex-end' }}>
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: isMobile ? 6 : 10, flexShrink: 1, flexWrap: 'wrap', minWidth: isMobile ? 120 : 200, justifyContent: 'flex-end' }}>
                                                     <div 
                                                         style={{ textAlign: 'right', cursor: 'pointer', padding: '4px', borderRadius: 4 }} 
                                                         onClick={(e) => { e.stopPropagation(); setInlineOutcomeId(trade.id); }}
@@ -711,7 +711,7 @@ export default function JournalPage() {
                                                         </div>
 
                                                         {/* Journal note */}
-                                                        <div style={{ padding: '12px 16px' }}>
+                                                        <div style={{ padding: isMobile ? '10px 12px' : '12px 16px' }}>
                                                             <span style={lbl}>Trade Note</span>
                                                             <textarea
                                                                 placeholder={`What was your setup rationale?\nHow did you feel entering this trade?\nWould you take this trade again?`}
@@ -720,8 +720,8 @@ export default function JournalPage() {
                                                                 rows={3}
                                                                 style={{
                                                                     ...mono, width: '100%', background: 'transparent', border: '1px solid #1a1c24', color: '#8b949e',
-                                                                    fontSize: 12, padding: '10px 12px', resize: 'vertical', outline: 'none',
-                                                                    marginTop: 6, lineHeight: 1.6, minHeight: 72,
+                                                                    fontSize: isMobile ? 14 : 12, padding: '10px 12px', resize: 'vertical', outline: 'none',
+                                                                    marginTop: 6, lineHeight: 1.6, minHeight: 72, boxSizing: 'border-box',
                                                                     transition: 'border-color 0.15s',
                                                                 }}
                                                                 onFocus={e => (e.currentTarget.style.borderColor = '#A6FF4D')}

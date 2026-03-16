@@ -276,13 +276,13 @@ export default function AIChatPage() {
                     onKeyDown={e => e.key === 'Enter' && !e.shiftKey && handleSend()}
                     placeholder='Try: "NQ at 21450, 30 point stop, $500 risk" or "2 NQ contracts, stop 20 points — my risk?"'
                     autoComplete="off"
-                    style={{ ...mono, flex: 1, background: 'transparent', border: 'none', outline: 'none', fontSize: 12, color: '#e2e8f0', lineHeight: 1.5 }}
+                    style={{ ...mono, flex: 1, background: 'transparent', border: 'none', outline: 'none', fontSize: 16, color: '#e2e8f0', lineHeight: 1.5 }}
                 />
                 <button
                     onClick={isListening ? stopVoiceInput : startVoiceInput}
                     title={isListening ? 'Stop listening' : 'Voice input'}
                     style={{
-                        width: 34, height: 34, flexShrink: 0,
+                        width: 44, height: 44, flexShrink: 0,
                         background: isListening ? 'rgba(255,71,87,0.15)' : 'transparent',
                         border: `1px solid ${isListening ? '#ff4757' : '#1a1c24'}`,
                         cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -297,7 +297,7 @@ export default function AIChatPage() {
                 <button
                     onClick={() => handleSend()}
                     disabled={!input.trim() || loading}
-                    style={{ width: 34, height: 34, flexShrink: 0, background: input.trim() ? '#A6FF4D' : '#0d1117', border: `1px solid ${input.trim() ? '#A6FF4D' : '#1a1c24'}`, cursor: input.trim() ? 'pointer' : 'default', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.15s', boxShadow: input.trim() ? '0 0 14px rgba(166,255,77,0.22)' : 'none' }}
+                    style={{ width: 44, height: 44, flexShrink: 0, background: input.trim() ? '#A6FF4D' : '#0d1117', border: `1px solid ${input.trim() ? '#A6FF4D' : '#1a1c24'}`, cursor: input.trim() ? 'pointer' : 'default', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.15s', boxShadow: input.trim() ? '0 0 14px rgba(166,255,77,0.22)' : 'none' }}
                 >
                     <Send size={14} color={input.trim() ? '#000' : '#2d3748'} />
                 </button>

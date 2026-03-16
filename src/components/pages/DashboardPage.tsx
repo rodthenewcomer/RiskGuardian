@@ -4,6 +4,7 @@ import { useEffect, useState, useMemo, useRef } from 'react';
 import { useAppStore, getTradingDay, computeDrawdownFloor } from '@/store/appStore';
 import { generateForensics } from '@/ai/EdgeForensics';
 import { motion } from 'framer-motion';
+import { useIsMobile } from '@/hooks/useIsMobile';
 import {
     TrendingUp, TrendingDown, Activity, Calculator, Zap,
     AlertTriangle, Shield, Clock, Ban, CalendarDays,
@@ -40,6 +41,7 @@ function useCountUp(target: number, duration = 950) {
 export default function DashboardPage() {
     const [mounted, setMounted] = useState(false);
     const [hoveredTrade, setHoveredTrade] = useState<string | null>(null);
+    const isMobile = useIsMobile();
     // eslint-disable-next-line
     useEffect(() => { setMounted(true); }, []);
 
@@ -194,9 +196,9 @@ export default function DashboardPage() {
     const lbl: React.CSSProperties  = { ...mono, fontSize: 9, color: '#4b5563', letterSpacing: '0.1em', textTransform: 'uppercase' as const, display: 'block' };
     const divider = '1px solid #1a1c24';
     const card: React.CSSProperties = {
-        margin: '0 12px 8px',
+        margin: isMobile ? '0 0 8px' : '0 12px 8px',
         background: '#0c0e13',
-        borderRadius: 8,
+        borderRadius: isMobile ? 0 : 8,
         border: divider,
         overflow: 'hidden',
     };
@@ -232,7 +234,7 @@ export default function DashboardPage() {
             {/* ── 1. LIVE STATUS BAR ─────────────────────────────── */}
             <motion.div variants={fadeUp} style={{
                 display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                padding: '10px 20px', borderBottom: divider,
+                padding: isMobile ? '8px 14px' : '10px 20px', borderBottom: divider, flexWrap: 'wrap', gap: 6,
             }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                     {/* Pulsing live dot */}
@@ -262,7 +264,7 @@ export default function DashboardPage() {
             </motion.div>
 
             {/* ── 2. BALANCE HERO ────────────────────────────────── */}
-            <motion.div variants={fadeUp} style={{ padding: '24px 20px 20px', borderBottom: divider }}>
+            <motion.div variants={fadeUp} style={{ padding: isMobile ? '16px 14px' : '24px 20px 20px', borderBottom: divider }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
                     <span style={lbl}>Account Balance</span>
                     <span style={{ ...mono, fontSize: 8, padding: '2px 6px', background: 'rgba(166,255,77,0.1)', color: '#A6FF4D', borderRadius: 4, letterSpacing: '0.04em', border: '1px solid rgba(166,255,77,0.2)' }}>AUTO-COMPUTED</span>
@@ -272,7 +274,7 @@ export default function DashboardPage() {
                         key={account.balance}
                         initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }}
                         transition={{ ease: [0.16, 1, 0.3, 1], duration: 0.5 }}
-                        style={{ ...mono, fontSize: 42, fontWeight: 900, color: '#fff', letterSpacing: '-0.04em', lineHeight: 1 }}
+                        style={{ ...mono, fontSize: isMobile ? 32 : 42, fontWeight: 900, color: '#fff', letterSpacing: '-0.04em', lineHeight: 1 }}
                     >
                         ${animBalance.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                     </motion.span>
@@ -299,7 +301,7 @@ export default function DashboardPage() {
 
             {/* ── 3. STAT STRIP ──────────────────────────────────── */}
             {closedTrades.length > 0 && (
-                <motion.div variants={fadeUp} style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', borderBottom: divider }}>
+                <motion.div variants={fadeUp} style={{ display: 'grid', gridTemplateColumns: isMobile ? 'repeat(2,1fr)' : 'repeat(4,1fr)', borderBottom: divider }}>
                     {[
                         { lbl: 'NET P&L',       val: `${totalPnl >= 0 ? '+' : ''}$${Math.abs(totalPnl).toLocaleString(undefined, { maximumFractionDigits: 0 })}`, clr: pnlColor,    sub: `${wins.length}W · ${losses.length}L` },
                         { lbl: 'WIN RATE',       val: `${winRate}%`,                   clr: wrColor,     sub: `${closedTrades.length} trades` },
@@ -310,10 +312,15 @@ export default function DashboardPage() {
                             key={i}
                             initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
                             transition={{ ease: [0.16, 1, 0.3, 1], duration: 0.4, delay: 0.08 + i * 0.07 }}
-                            style={{ padding: '14px 12px', borderRight: i < 3 ? divider : 'none', display: 'flex', flexDirection: 'column', gap: 3 }}
+                            style={{
+                                padding: isMobile ? '12px 12px' : '14px 12px',
+                                borderRight: isMobile ? (i % 2 === 0 ? divider : 'none') : (i < 3 ? divider : 'none'),
+                                borderBottom: isMobile && i < 2 ? divider : 'none',
+                                display: 'flex', flexDirection: 'column', gap: 3,
+                            }}
                         >
                             <span style={lbl}>{s.lbl}</span>
-                            <span style={{ ...mono, fontSize: 18, fontWeight: 800, color: s.clr, lineHeight: 1, letterSpacing: '-0.02em' }}>{s.val}</span>
+                            <span style={{ ...mono, fontSize: isMobile ? 16 : 18, fontWeight: 800, color: s.clr, lineHeight: 1, letterSpacing: '-0.02em' }}>{s.val}</span>
                             <span style={{ ...mono, fontSize: 9, color: '#6b7280' }}>{s.sub}</span>
                         </motion.div>
                     ))}
@@ -323,7 +330,7 @@ export default function DashboardPage() {
             {/* ── 4. REVENGE ALERT ───────────────────────────────── */}
             {revengeAlert && (
                 <motion.div variants={fadeUp}
-                    style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 20px', borderBottom: '1px solid rgba(255,71,87,0.3)', background: 'rgba(255,71,87,0.06)' }}>
+                    style={{ display: 'flex', alignItems: 'flex-start', gap: 10, padding: isMobile ? '10px 14px' : '12px 20px', borderBottom: '1px solid rgba(255,71,87,0.3)', background: 'rgba(255,71,87,0.06)' }}>
                     <motion.div animate={{ opacity: [1, 0.4, 1] }} transition={{ duration: 1.2, repeat: Infinity }}>
                         <AlertTriangle size={13} color="#ff4757" />
                     </motion.div>
@@ -336,7 +343,7 @@ export default function DashboardPage() {
             {/* ── CONSISTENCY ALERT ───────────────────────────────── */}
             {totalPnl > 0 && consistencyScore > 20 && (
                 <motion.div variants={fadeUp}
-                    style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 20px', borderBottom: '1px solid rgba(234,179,8,0.3)', background: 'rgba(234,179,8,0.06)' }}>
+                    style={{ display: 'flex', alignItems: 'flex-start', gap: 10, padding: isMobile ? '10px 14px' : '12px 20px', borderBottom: '1px solid rgba(234,179,8,0.3)', background: 'rgba(234,179,8,0.06)' }}>
                     <motion.div animate={{ opacity: [1, 0.4, 1] }} transition={{ duration: 1.2, repeat: Infinity }}>
                         <AlertTriangle size={13} color="#EAB308" />
                     </motion.div>
@@ -353,7 +360,7 @@ export default function DashboardPage() {
                 return (
                     <motion.div variants={fadeUp}
                         onClick={() => setActiveTab('journal')}
-                        style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 20px', borderBottom: `1px solid ${hasAged ? 'rgba(234,179,8,0.3)' : 'rgba(0,212,255,0.3)'}`, background: hasAged ? 'rgba(234,179,8,0.06)' : 'rgba(0,212,255,0.06)', cursor: 'pointer' }}>
+                        style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: isMobile ? '10px 14px' : '12px 20px', borderBottom: `1px solid ${hasAged ? 'rgba(234,179,8,0.3)' : 'rgba(0,212,255,0.3)'}`, background: hasAged ? 'rgba(234,179,8,0.06)' : 'rgba(0,212,255,0.06)', cursor: 'pointer', flexWrap: 'wrap', gap: 8 }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                             <motion.div animate={{ opacity: [1, 0.4, 1] }} transition={{ duration: 1.2, repeat: Infinity }}>
                                 <AlertTriangle size={13} color={hasAged ? '#EAB308' : '#00D4FF'} />
@@ -372,7 +379,7 @@ export default function DashboardPage() {
 
             {weekendGapAlert && (
                 <motion.div variants={fadeUp}
-                    style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 20px', borderBottom: '1px solid rgba(234,179,8,0.3)', background: 'rgba(234,179,8,0.06)' }}>
+                    style={{ display: 'flex', alignItems: 'flex-start', gap: 10, padding: isMobile ? '10px 14px' : '12px 20px', borderBottom: '1px solid rgba(234,179,8,0.3)', background: 'rgba(234,179,8,0.06)' }}>
                     <motion.div animate={{ opacity: [1, 0.4, 1] }} transition={{ duration: 1.2, repeat: Infinity }}>
                         <AlertTriangle size={13} color="#EAB308" />
                     </motion.div>
@@ -592,7 +599,7 @@ export default function DashboardPage() {
                         <Zap size={11} color="#4b5563" />
                         <span style={lbl}>Session Intelligence</span>
                     </div>
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)' }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr 1fr' : 'repeat(3,1fr)' }}>
                         {[
                             { icon: <Clock size={14} color="#A6FF4D" />,          lbl: 'Peak Hour',     val: `${bestHour}:00`,              sub: 'highest P&L window' },
                             { icon: <TrendingUp size={14} color={streakColor} />, lbl: 'Streak',        val: `${streakCount}${streakType}`,  sub: streakType === 'W' ? 'momentum' : 'reset now' },
@@ -602,7 +609,12 @@ export default function DashboardPage() {
                                 key={i}
                                 initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
                                 transition={{ ease: [0.16, 1, 0.3, 1], duration: 0.4, delay: 0.1 + i * 0.08 }}
-                                style={{ padding: '14px', borderRight: i < 2 ? divider : 'none', display: 'flex', flexDirection: 'column', gap: 5 }}
+                                style={{
+                                padding: '14px',
+                                borderRight: isMobile ? (i % 2 === 0 ? divider : 'none') : (i < 2 ? divider : 'none'),
+                                borderBottom: isMobile && i < 2 ? divider : 'none',
+                                display: 'flex', flexDirection: 'column', gap: 5,
+                            }}
                             >
                                 {item.icon}
                                 <span style={lbl}>{item.lbl}</span>
