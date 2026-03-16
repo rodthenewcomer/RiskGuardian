@@ -7,9 +7,13 @@ import { generateForensics } from '@/ai/EdgeForensics';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
     PieChart, Pie, Cell, ResponsiveContainer, BarChart, Bar, XAxis, Tooltip, YAxis, ReferenceLine,
-    AreaChart, Area, CartesianGrid
+    AreaChart, Area, CartesianGrid, ScatterChart, Scatter, ZAxis
 } from 'recharts';
 import { Target, AlertTriangle, Download, Link2, Check, Info, TrendingUp, TrendingDown, Activity, Clock } from 'lucide-react';
+import ComposedDailyChart, { addRollingAvg } from '@/components/charts/ComposedDailyChart';
+import InstrumentRadar, { type InstrumentMetric } from '@/components/charts/InstrumentRadar';
+import PnLHistogram from '@/components/charts/PnLHistogram';
+import DayOfWeekChart, { type DayStats } from '@/components/charts/DayOfWeekChart';
 
 export default function AnalyticsPage() {
     const { trades, account } = useAppStore();
@@ -167,6 +171,65 @@ export default function AnalyticsPage() {
     });
     const instrumentArray = Object.keys(instrumentMap).map(k => ({ asset: k, ...instrumentMap[k] })).sort((a, b) => b.pnl - a.pnl);
 
+    // Deep per-instrument metrics
+    const instrumentDeep = useMemo(() => {
+        const map: Record<string, {
+            asset: string; pnl: number; wins: number; losses: number;
+            avgWin: number; avgLoss: number; profitFactor: number; expectancy: number; wlRatio: number;
+            maxWin: number; maxLoss: number; avgDuration: number;
+            longTrades: number; shortTrades: number;
+            equityCurve: { i: number; pnl: number }[];
+            tradeList: typeof closed;
+        }> = {};
+        closed.forEach(t => {
+            if (!map[t.asset]) map[t.asset] = { asset: t.asset, pnl: 0, wins: 0, losses: 0, avgWin: 0, avgLoss: 0, profitFactor: 0, expectancy: 0, wlRatio: 0, maxWin: 0, maxLoss: 0, avgDuration: 0, longTrades: 0, shortTrades: 0, equityCurve: [], tradeList: [] };
+            map[t.asset].tradeList.push(t);
+        });
+        return Object.values(map).map(inst => {
+            const iWins = inst.tradeList.filter(t => (t.pnl ?? 0) > 0);
+            const iLosses = inst.tradeList.filter(t => (t.pnl ?? 0) < 0);
+            const grossW = iWins.reduce((s, t) => s + (t.pnl ?? 0), 0);
+            const grossL = iLosses.reduce((s, t) => s + Math.abs(t.pnl ?? 0), 0);
+            const aW = iWins.length > 0 ? grossW / iWins.length : 0;
+            const aL = iLosses.length > 0 ? grossL / iLosses.length : 0;
+            const wr = inst.tradeList.length > 0 ? (iWins.length / inst.tradeList.length) * 100 : 0;
+            const pf = grossL > 0 ? grossW / grossL : grossW > 0 ? 99 : 0;
+            const exp = ((wr / 100) * aW) - ((1 - wr / 100) * aL);
+            let cum = 0;
+            const curve = inst.tradeList.map((t, i) => { cum += (t.pnl ?? 0); return { i: i + 1, pnl: cum }; });
+            return {
+                ...inst,
+                pnl: inst.tradeList.reduce((s, t) => s + (t.pnl ?? 0), 0),
+                wins: iWins.length, losses: iLosses.length,
+                avgWin: aW, avgLoss: aL,
+                profitFactor: pf, expectancy: exp,
+                wlRatio: aL > 0 ? aW / aL : 0,
+                maxWin: iWins.length > 0 ? Math.max(...iWins.map(t => t.pnl ?? 0)) : 0,
+                maxLoss: iLosses.length > 0 ? Math.max(...iLosses.map(t => Math.abs(t.pnl ?? 0))) : 0,
+                avgDuration: inst.tradeList.length > 0 ? inst.tradeList.reduce((s, t) => s + (t.durationSeconds ?? 0), 0) / inst.tradeList.length : 0,
+                longTrades: inst.tradeList.filter(t => !t.isShort).length,
+                shortTrades: inst.tradeList.filter(t => t.isShort).length,
+                winRate: wr,
+                equityCurve: curve,
+            };
+        }).sort((a, b) => b.pnl - a.pnl);
+    }, [closed]);
+
+    // Radar-ready instrument metrics (normalized)
+    const radarInstruments: InstrumentMetric[] = instrumentDeep.slice(0, 5).map(inst => ({
+        asset: inst.asset,
+        winRate: inst.winRate,
+        profitFactor: Math.min(inst.profitFactor, 5),
+        expectancy: inst.expectancy,
+        wlRatio: inst.wlRatio,
+        tradeCount: inst.tradeList.length,
+        pnl: inst.pnl,
+    }));
+
+    // Expanded state for instrument cards
+    const [expandedInstruments, setExpandedInstruments] = useState<Set<string>>(new Set());
+    const toggleInstrument = (asset: string) => setExpandedInstruments(prev => { const n = new Set(prev); n.has(asset) ? n.delete(asset) : n.add(asset); return n; });
+
     // Dailies — use closedAt with 5 PM EST rollover (Tradeify trading day convention)
     const dailyMap: Record<string, { pnl: number; count: number }> = {};
     closed.forEach(t => {
@@ -199,6 +262,66 @@ export default function AnalyticsPage() {
     const daysWithin1Std = dailyData.length > 0 && dailyVolatility > 0
         ? Math.round((dailyData.filter(d => Math.abs(d.pnl - avgDaily) <= dailyVolatility).length / dailyData.length) * 100)
         : 0;
+
+    // Daily enriched for ComposedDailyChart (adds trade count)
+    const dailyEnriched = useMemo(() => dailyData.map(d => ({ ...d, count: dailyMap[d.date]?.count ?? 0 })), [dailyData, dailyMap]);
+    const dailyWithRolling = useMemo(() => addRollingAvg(dailyEnriched, 5), [dailyEnriched]);
+
+    // Day-of-week breakdown
+    const dayOfWeekStats = useMemo((): DayStats[] => {
+        const DOW = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+        const map: Record<string, { pnl: number; trades: number; wins: number }> = {};
+        closed.forEach(t => {
+            const dt = new Date(getTradingDay(t.closedAt ?? t.createdAt) + 'T12:00:00Z');
+            const day = DOW[dt.getUTCDay()];
+            if (!map[day]) map[day] = { pnl: 0, trades: 0, wins: 0 };
+            map[day].pnl += (t.pnl ?? 0);
+            map[day].trades++;
+            if ((t.pnl ?? 0) > 0) map[day].wins++;
+        });
+        return Object.entries(map).map(([day, v]) => ({ day, pnl: v.pnl, trades: v.trades, wins: v.wins, wr: v.trades > 0 ? (v.wins / v.trades) * 100 : 0 }));
+    }, [closed]);
+
+    // Monthly breakdown
+    const monthlyBreakdown = useMemo(() => {
+        const map: Record<string, { pnl: number; trades: number; wins: number; days: Set<string> }> = {};
+        closed.forEach(t => {
+            const d = getTradingDay(t.closedAt ?? t.createdAt);
+            const ym = d.slice(0, 7);
+            if (!map[ym]) map[ym] = { pnl: 0, trades: 0, wins: 0, days: new Set() };
+            map[ym].pnl += (t.pnl ?? 0);
+            map[ym].trades++;
+            if ((t.pnl ?? 0) > 0) map[ym].wins++;
+            map[ym].days.add(d);
+        });
+        return Object.entries(map).sort(([a], [b]) => a.localeCompare(b)).map(([ym, v]) => ({
+            month: new Date(ym + '-15').toLocaleDateString('en-US', { month: 'short', year: '2-digit' }),
+            ym, pnl: v.pnl, trades: v.trades,
+            wr: v.trades > 0 ? (v.wins / v.trades) * 100 : 0,
+            days: v.days.size,
+        }));
+    }, [closed]);
+
+    // P&L values for histogram
+    const allPnlValues = useMemo(() => closed.map(t => t.pnl ?? 0), [closed]);
+
+    // Win/loss day counts
+    const greenDays = dailyData.filter(d => d.pnl > 0).length;
+    const redDays = dailyData.filter(d => d.pnl < 0).length;
+    const flatDays = dailyData.filter(d => d.pnl === 0).length;
+    const dayWinRate = dailyData.length > 0 ? (greenDays / dailyData.length) * 100 : 0;
+
+    // Longest green/red day streak
+    const longestGreenDayStreak = (() => {
+        let max = 0; let cur = 0;
+        dailyData.forEach(d => { if (d.pnl > 0) { cur++; if (cur > max) max = cur; } else cur = 0; });
+        return max;
+    })();
+    const longestRedDayStreak = (() => {
+        let max = 0; let cur = 0;
+        dailyData.forEach(d => { if (d.pnl < 0) { cur++; if (cur > max) max = cur; } else cur = 0; });
+        return max;
+    })();
 
     // Weekly breakdown — groups trading days into Mon–Sun calendar weeks
     const weeklyBreakdown = (() => {
@@ -1107,129 +1230,144 @@ export default function AnalyticsPage() {
                     )}
 
                     {activeTab === 'DAILY' && (
-                        <motion.div key="daily" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="flex flex-col gap-6">
-                            <span className={styles.sectionTitle}>
-                                Daily P&L Breakdown · {dailyData.length} Session{dailyData.length !== 1 ? 's' : ''}
-                            </span>
+                        <motion.div key="daily" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} style={{ display: 'flex', flexDirection: 'column', gap: 20, marginBottom: 48 }}>
 
-                            {/* Bar Chart with X axis dates */}
-                            <div className={styles.fullWidthCard} style={{ height: 300, paddingBottom: 20 }}>
-                                <ResponsiveContainer width="100%" height="100%">
-                                    <BarChart data={dailyData.slice(-30)} margin={{ bottom: 20 }}>
-                                        <ReferenceLine y={0} stroke="rgba(255,255,255,0.1)" />
-                                        <XAxis
-                                            dataKey="date"
-                                            tick={{ fontSize: 9, fill: '#4b5563', fontFamily: 'var(--font-mono)' }}
-                                            axisLine={false}
-                                            tickLine={false}
-                                            tickFormatter={d => {
-                                                const dt = new Date(d + 'T12:00:00Z');
-                                                return dt.toLocaleDateString('en-US', { month: '2-digit', day: '2-digit' });
-                                            }}
-                                        />
-                                        <YAxis hide />
-                                        <Tooltip
-                                            contentStyle={{ backgroundColor: '#0b0e14', border: '1px solid #1a1c24', fontFamily: 'var(--font-mono)', fontSize: 12 }}
-                                            formatter={(v: number | undefined) => v !== undefined ? [`${v >= 0 ? '+' : ''}$${Math.abs(v).toFixed(2)}`, 'P&L'] : ['—', 'P&L']}
-                                            labelFormatter={l => new Date(l + 'T12:00:00Z').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
-                                        />
-                                        <Bar dataKey="pnl" radius={[2, 2, 0, 0]}>
-                                            {dailyData.map((d, i) => <Cell key={i} fill={d.pnl >= 0 ? '#A6FF4D' : '#ff4757'} />)}
-                                        </Bar>
-                                    </BarChart>
-                                </ResponsiveContainer>
-                            </div>
-
-                            {/* 4 KPI Cards — Best Day, Worst Day, Avg Daily, Daily Volatility */}
-                            <div className={styles.kpiGrid}>
-                                <div className={styles.kpiBox}>
-                                    <span className={styles.kpiLabel}>Best Day</span>
-                                    <span className={`${styles.kpiValue} ${styles.textGreen}`}>
-                                        {bestDay > 0 ? `+$${bestDay.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '—'}
-                                    </span>
-                                    {bestDayDate && <span className={styles.kpiSub}>
-                                        {new Date(bestDayDate + 'T12:00:00Z').toLocaleDateString('en-US', { month: '2-digit', day: '2-digit' })}
-                                    </span>}
-                                </div>
-                                <div className={styles.kpiBox}>
-                                    <span className={styles.kpiLabel}>Worst Day</span>
-                                    <span className={`${styles.kpiValue} ${styles.textRed}`}>
-                                        {worstDay < 0 ? `-$${Math.abs(worstDay).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '—'}
-                                    </span>
-                                    {worstDayDate && <span className={styles.kpiSub}>
-                                        {new Date(worstDayDate + 'T12:00:00Z').toLocaleDateString('en-US', { month: '2-digit', day: '2-digit' })}
-                                    </span>}
-                                </div>
-                                <div className={styles.kpiBox}>
-                                    <span className={styles.kpiLabel}>Avg Daily P&L</span>
-                                    <span className={`${styles.kpiValue} ${avgDaily >= 0 ? styles.textGreen : styles.textRed}`}>
-                                        {avgDaily >= 0 ? '+' : ''}${avgDaily.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                                    </span>
-                                    <span className={styles.kpiSub}>
-                                        Median: {medianDaily >= 0 ? '+' : ''}${medianDaily.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                                    </span>
-                                </div>
-                                <div className={styles.kpiBox} style={{ borderRight: 'none' }}>
-                                    <span className={styles.kpiLabel}>Daily Volatility</span>
-                                    <span className={`${styles.kpiValue} ${styles.textYellow}`}>
-                                        {dailyVolatility > 0 ? `±$${dailyVolatility.toLocaleString(undefined, { maximumFractionDigits: 2 })}` : '—'}
-                                    </span>
-                                    {dailyData.length >= 2 && <span className={styles.kpiSub}>
-                                        {daysWithin1Std}% days within 1 StdDev
-                                    </span>}
+                            {/* ── HEADER ── */}
+                            <div>
+                                <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#6b7280', letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 4 }}>DAILY P&L INTELLIGENCE</div>
+                                <div style={{ fontFamily: 'var(--font-mono)', fontSize: 20, fontWeight: 700, color: '#fff', marginBottom: 4 }}>Daily Performance Breakdown</div>
+                                <div style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: '#6b7280' }}>
+                                    {dailyData.length} trading day{dailyData.length !== 1 ? 's' : ''} · bars show daily net P&L · dashed line = 5-day rolling average · day-of-week and distribution analysis below
                                 </div>
                             </div>
 
-                            {/* Weekly Performance Breakdown */}
+                            {/* ── 8-KPI GRID ── */}
+                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', borderTop: '1px solid #1a1c24', borderLeft: '1px solid #1a1c24' }}>
+                                {[
+                                    { label: 'BEST DAY', value: bestDay > 0 ? `+$${bestDay.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '—', sub: bestDayDate ? new Date(bestDayDate + 'T12:00:00Z').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }) : '—', color: '#A6FF4D' },
+                                    { label: 'WORST DAY', value: worstDay < 0 ? `-$${Math.abs(worstDay).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '—', sub: worstDayDate ? new Date(worstDayDate + 'T12:00:00Z').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }) : '—', color: '#ff4757' },
+                                    { label: 'AVG DAILY P&L', value: avgDaily !== 0 ? `${avgDaily >= 0 ? '+' : ''}$${Math.abs(avgDaily).toFixed(2)}` : '—', sub: `Median: ${medianDaily >= 0 ? '+' : ''}$${Math.abs(medianDaily).toFixed(2)}`, color: avgDaily >= 0 ? '#A6FF4D' : '#ff4757' },
+                                    { label: 'DAILY VOLATILITY', value: dailyVolatility > 0 ? `±$${dailyVolatility.toFixed(0)}` : '—', sub: `${daysWithin1Std}% days within 1σ`, color: '#EAB308' },
+                                    { label: 'GREEN DAYS', value: `${greenDays}`, sub: `${dayWinRate.toFixed(0)}% of ${dailyData.length} days`, color: '#A6FF4D' },
+                                    { label: 'RED DAYS', value: `${redDays}`, sub: `${(100 - dayWinRate).toFixed(0)}% of ${dailyData.length} days`, color: '#ff4757' },
+                                    { label: 'LONGEST GREEN STREAK', value: `${longestGreenDayStreak}d`, sub: 'Consecutive profitable days', color: '#A6FF4D' },
+                                    { label: 'LONGEST RED STREAK', value: `${longestRedDayStreak}d`, sub: 'Consecutive losing days', color: longestRedDayStreak >= 3 ? '#ff4757' : '#EAB308' },
+                                ].map((k, i) => (
+                                    <div key={i} style={{ padding: '20px 24px', borderBottom: '1px solid #1a1c24', borderRight: '1px solid #1a1c24', background: '#0d1117', display: 'flex', flexDirection: 'column', gap: 6 }}>
+                                        <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#6b7280', letterSpacing: '0.1em', textTransform: 'uppercase' }}>{k.label}</span>
+                                        <span style={{ fontFamily: 'var(--font-mono)', fontSize: 22, fontWeight: 700, color: k.color }}>{k.value}</span>
+                                        <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: '#4b5563' }}>{k.sub}</span>
+                                    </div>
+                                ))}
+                            </div>
+
+                            {/* ── MAIN CHART: ComposedChart bar + rolling avg ── */}
+                            <div style={{ background: '#0d1117', border: '1px solid #1a1c24', padding: '24px' }}>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16, flexWrap: 'wrap', gap: 8 }}>
+                                    <div>
+                                        <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#6b7280', letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 2 }}>NET P&L PER TRADING DAY</div>
+                                        <div style={{ fontFamily: 'var(--font-mono)', fontSize: 13, fontWeight: 600, color: '#c9d1d9' }}>Bars = daily P&L · Yellow dashed = 5-day rolling average</div>
+                                    </div>
+                                    <div style={{ display: 'flex', gap: 16 }}>
+                                        {[{ color: '#A6FF4D', label: 'Profitable day' }, { color: '#ff4757', label: 'Loss day' }, { color: '#EAB308', label: '5d avg', dash: true }].map((l, i) => (
+                                            <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                                                <div style={{ width: 20, height: 2, background: l.color, borderTop: l.dash ? '2px dashed' : undefined, borderColor: l.color }} />
+                                                <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#6b7280' }}>{l.label}</span>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                                <ComposedDailyChart data={dailyEnriched.slice(-60)} height={280} rollingWindow={5} />
+                            </div>
+
+                            {/* ── 2-COL: Day of Week P&L + Day of Week Win Rate ── */}
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 1, background: '#1a1c24' }}>
+                                <div style={{ background: '#0d1117', padding: '24px' }}>
+                                    <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#6b7280', letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 4 }}>P&L BY DAY OF WEEK</div>
+                                    <div style={{ fontFamily: 'var(--font-mono)', fontSize: 13, fontWeight: 600, color: '#c9d1d9', marginBottom: 16 }}>Which days of the week profit you most?</div>
+                                    <DayOfWeekChart data={dayOfWeekStats} metric="pnl" height={160} />
+                                </div>
+                                <div style={{ background: '#0d1117', padding: '24px' }}>
+                                    <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#6b7280', letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 4 }}>WIN RATE BY DAY OF WEEK</div>
+                                    <div style={{ fontFamily: 'var(--font-mono)', fontSize: 13, fontWeight: 600, color: '#c9d1d9', marginBottom: 16 }}>50% reference line — below is a structural trap</div>
+                                    <DayOfWeekChart data={dayOfWeekStats} metric="wr" height={160} />
+                                </div>
+                            </div>
+
+                            {/* ── P&L DISTRIBUTION HISTOGRAM ── */}
+                            <div style={{ background: '#0d1117', border: '1px solid #1a1c24', padding: '24px' }}>
+                                <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#6b7280', letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 4 }}>DAILY P&L DISTRIBUTION</div>
+                                <div style={{ fontFamily: 'var(--font-mono)', fontSize: 13, fontWeight: 600, color: '#c9d1d9', marginBottom: 6 }}>Frequency of each P&L range — reveals clustering, fat tails, and outlier days</div>
+                                <div style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: '#6b7280', marginBottom: 16 }}>A healthy distribution clusters tightly to the right of zero. Wide spread = high variance = unpredictable edge.</div>
+                                <PnLHistogram pnlValues={dailyData.map(d => d.pnl)} buckets={16} height={140} />
+                                <div style={{ display: 'flex', gap: 24, marginTop: 12, flexWrap: 'wrap' }}>
+                                    {[
+                                        { label: 'BEST SINGLE DAY', v: `+$${bestDay.toFixed(0)}`, c: '#A6FF4D' },
+                                        { label: 'WORST SINGLE DAY', v: `-$${Math.abs(worstDay).toFixed(0)}`, c: '#ff4757' },
+                                        { label: 'RANGE', v: `$${(bestDay - worstDay).toFixed(0)}`, c: '#EAB308' },
+                                        { label: 'STD DEV', v: `±$${dailyVolatility.toFixed(0)}`, c: '#c9d1d9' },
+                                    ].map((k, i) => (
+                                        <div key={i}>
+                                            <div style={{ fontFamily: 'var(--font-mono)', fontSize: 8, color: '#6b7280', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 2 }}>{k.label}</div>
+                                            <div style={{ fontFamily: 'var(--font-mono)', fontSize: 14, fontWeight: 700, color: k.c }}>{k.v}</div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+
+                            {/* ── MONTHLY BREAKDOWN ── */}
+                            {monthlyBreakdown.length > 0 && (
+                                <div style={{ background: '#0d1117', border: '1px solid #1a1c24', padding: '24px' }}>
+                                    <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#6b7280', letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 4 }}>MONTHLY SUMMARY</div>
+                                    <div style={{ fontFamily: 'var(--font-mono)', fontSize: 13, fontWeight: 600, color: '#c9d1d9', marginBottom: 16 }}>Net result aggregated by calendar month</div>
+                                    <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                                        {monthlyBreakdown.map((m, i) => (
+                                            <div key={i} style={{ flex: '1 1 120px', background: '#0b0e14', border: `1px solid ${m.pnl >= 0 ? 'rgba(166,255,77,0.2)' : 'rgba(255,71,87,0.2)'}`, padding: '12px 14px' }}>
+                                                <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#6b7280', letterSpacing: '0.08em', marginBottom: 4 }}>{m.month}</div>
+                                                <div style={{ fontFamily: 'var(--font-mono)', fontSize: 16, fontWeight: 700, color: m.pnl >= 0 ? '#A6FF4D' : '#ff4757' }}>
+                                                    {m.pnl >= 0 ? '+' : ''}${Math.abs(m.pnl).toFixed(0)}
+                                                </div>
+                                                <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#4b5563', marginTop: 4 }}>
+                                                    {m.trades}T · {m.wr.toFixed(0)}%WR · {m.days}d
+                                                </div>
+                                                <div style={{ marginTop: 6, height: 3, background: '#1a1c24', borderRadius: 1 }}>
+                                                    <div style={{ height: '100%', width: `${m.wr}%`, background: m.pnl >= 0 ? '#A6FF4D' : '#ff4757', borderRadius: 1, opacity: 0.7 }} />
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* ── WEEKLY BREAKDOWN TABLE ── */}
                             {weeklyBreakdown.length > 0 && (
-                                <div className="flex flex-col gap-3">
-                                    <span className={styles.sectionTitle}>Weekly Performance Breakdown</span>
-                                    <div className={styles.fullWidthCard} style={{ padding: 0, overflow: 'hidden' }}>
+                                <div style={{ background: '#0d1117', border: '1px solid #1a1c24', padding: '24px' }}>
+                                    <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#6b7280', letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 4 }}>WEEKLY PERFORMANCE BREAKDOWN</div>
+                                    <div style={{ fontFamily: 'var(--font-mono)', fontSize: 13, fontWeight: 600, color: '#c9d1d9', marginBottom: 16 }}>Week-over-week P&L, best/worst day per week, and behavioral flags</div>
+                                    <div style={{ overflowX: 'auto' }}>
                                         <table style={{ width: '100%', borderCollapse: 'collapse', fontFamily: 'var(--font-mono)', fontSize: 11 }}>
                                             <thead>
-                                                <tr style={{ borderBottom: '1px solid #1a1c24', background: '#0d1117' }}>
-                                                    {['WEEK', 'DAYS', 'NET P&L', 'BEST', 'WORST', 'WIN %', 'FLAG'].map((h, i) => (
-                                                        <th key={i} style={{ padding: '12px 16px', textAlign: i === 0 ? 'left' : 'right', color: '#4b5563', fontWeight: 700, letterSpacing: '0.08em', fontSize: 10, whiteSpace: 'nowrap' }}>
-                                                            {h}
-                                                        </th>
+                                                <tr style={{ borderBottom: '1px solid #1a1c24' }}>
+                                                    {['WEEK', 'DAYS', 'NET P&L', 'BEST DAY', 'WORST DAY', 'WIN %', 'FLAG'].map((h, i) => (
+                                                        <th key={i} style={{ padding: '10px 16px', textAlign: i === 0 ? 'left' : 'right', color: '#4b5563', fontWeight: 700, letterSpacing: '0.08em', fontSize: 9, textTransform: 'uppercase', whiteSpace: 'nowrap' }}>{h}</th>
                                                     ))}
                                                 </tr>
                                             </thead>
                                             <tbody>
                                                 {weeklyBreakdown.map((w, i) => (
-                                                    <tr key={i} style={{ borderBottom: '1px solid #1a1c24', transition: 'background 0.1s' }}
-                                                        onMouseEnter={e => (e.currentTarget as HTMLTableRowElement).style.background = '#0d1117'}
-                                                        onMouseLeave={e => (e.currentTarget as HTMLTableRowElement).style.background = 'transparent'}
-                                                    >
-                                                        <td style={{ padding: '14px 16px', color: '#c9d1d9', fontWeight: 600, whiteSpace: 'nowrap' }}>
-                                                            {w.weekStart} to {w.weekEnd}
+                                                    <tr key={i} style={{ borderBottom: '1px solid #1a1c24' }}
+                                                        onMouseEnter={e => (e.currentTarget as HTMLTableRowElement).style.background = '#0f1420'}
+                                                        onMouseLeave={e => (e.currentTarget as HTMLTableRowElement).style.background = 'transparent'}>
+                                                        <td style={{ padding: '12px 16px', color: '#c9d1d9', fontWeight: 600, whiteSpace: 'nowrap' }}>{w.weekStart} → {w.weekEnd}</td>
+                                                        <td style={{ padding: '12px 16px', textAlign: 'right', color: '#6b7280' }}>{w.numDays}</td>
+                                                        <td style={{ padding: '12px 16px', textAlign: 'right', fontWeight: 700, color: w.netPnl >= 0 ? '#A6FF4D' : '#ff4757' }}>
+                                                            {w.netPnl >= 0 ? '+' : ''}${Math.abs(w.netPnl).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                                                         </td>
-                                                        <td style={{ padding: '14px 16px', textAlign: 'right', color: '#6b7280' }}>{w.numDays}</td>
-                                                        <td style={{ padding: '14px 16px', textAlign: 'right', fontWeight: 700, color: w.netPnl >= 0 ? '#A6FF4D' : '#ff4757' }}>
-                                                            {w.netPnl >= 0 ? '+' : ''}${w.netPnl.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                                                        </td>
-                                                        <td style={{ padding: '14px 16px', textAlign: 'right', color: '#A6FF4D' }}>
-                                                            +${w.bestDayPnl.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                                                        </td>
-                                                        <td style={{ padding: '14px 16px', textAlign: 'right', color: '#ff4757' }}>
-                                                            -${Math.abs(w.worstDayPnl).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                                                        </td>
-                                                        <td style={{ padding: '14px 16px', textAlign: 'right', color: w.winRate >= 55 ? '#A6FF4D' : w.winRate >= 45 ? '#EAB308' : '#ff4757', fontWeight: 700 }}>
-                                                            {w.winRate.toFixed(1)}%
-                                                        </td>
-                                                        <td style={{ padding: '14px 16px', textAlign: 'right' }}>
-                                                            {w.flag && (
-                                                                <span style={{
-                                                                    display: 'inline-block', padding: '3px 8px',
-                                                                    fontSize: 9, fontWeight: 700, letterSpacing: '0.04em',
-                                                                    border: `1px solid ${w.flagSev === 'critical' ? 'rgba(255,71,87,0.4)' : w.flagSev === 'warning' ? 'rgba(234,179,8,0.4)' : 'rgba(166,255,77,0.3)'}`,
-                                                                    color: w.flagSev === 'critical' ? '#ff4757' : w.flagSev === 'warning' ? '#EAB308' : '#A6FF4D',
-                                                                    background: w.flagSev === 'critical' ? 'rgba(255,71,87,0.08)' : w.flagSev === 'warning' ? 'rgba(234,179,8,0.06)' : 'rgba(166,255,77,0.06)',
-                                                                    whiteSpace: 'nowrap', maxWidth: 280, overflow: 'hidden', textOverflow: 'ellipsis',
-                                                                }}>
-                                                                    {w.flag}
-                                                                </span>
-                                                            )}
+                                                        <td style={{ padding: '12px 16px', textAlign: 'right', color: '#A6FF4D' }}>+${w.bestDayPnl.toFixed(0)}</td>
+                                                        <td style={{ padding: '12px 16px', textAlign: 'right', color: '#ff4757' }}>-${Math.abs(w.worstDayPnl).toFixed(0)}</td>
+                                                        <td style={{ padding: '12px 16px', textAlign: 'right', fontWeight: 700, color: w.winRate >= 55 ? '#A6FF4D' : w.winRate >= 45 ? '#EAB308' : '#ff4757' }}>{w.winRate.toFixed(1)}%</td>
+                                                        <td style={{ padding: '12px 16px', textAlign: 'right' }}>
+                                                            {w.flag && <span style={{ fontSize: 9, fontWeight: 700, padding: '2px 7px', border: `1px solid ${w.flagSev === 'critical' ? 'rgba(255,71,87,0.4)' : w.flagSev === 'warning' ? 'rgba(234,179,8,0.4)' : 'rgba(166,255,77,0.3)'}`, color: w.flagSev === 'critical' ? '#ff4757' : w.flagSev === 'warning' ? '#EAB308' : '#A6FF4D', background: w.flagSev === 'critical' ? 'rgba(255,71,87,0.08)' : w.flagSev === 'warning' ? 'rgba(234,179,8,0.06)' : 'rgba(166,255,77,0.06)', whiteSpace: 'nowrap' }}>{w.flag}</span>}
                                                         </td>
                                                     </tr>
                                                 ))}
@@ -1238,32 +1376,258 @@ export default function AnalyticsPage() {
                                     </div>
                                 </div>
                             )}
+
+                            {/* ── ACTIONABLE RULES ── */}
+                            <div style={{ background: '#0d1117', border: '1px solid #1a1c24', padding: '24px' }}>
+                                <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#6b7280', letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 16 }}>DAILY RULES — DERIVED FROM YOUR DATA</div>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                                    {[
+                                        { rule: 'RULE 01 — DAILY LOSS LIMIT', detail: `Your worst day was -$${Math.abs(worstDay).toFixed(0)}. Set a hard daily stop at $${Math.round(Math.abs(worstDay) * 0.5)} — 50% of your worst day. Walk away when hit. A single blowout day erases multiple good days.`, icon: '⛔', color: '#ff4757' },
+                                        { rule: 'RULE 02 — TARGET & WALK RULE', detail: `Best day was +$${bestDay.toFixed(0)}. Once you hit ${(bestDay * 0.6).toFixed(0)} in a day, cut position size by half. Don't give back your edge trying to maximize a good day.`, icon: '→', color: '#A6FF4D' },
+                                        {
+                                            rule: `RULE 03 — ${dayOfWeekStats.sort((a, b) => a.pnl - b.pnl)[0]?.day ?? 'WORST DAY'} CAUTION`,
+                                            detail: `${dayOfWeekStats.sort((a, b) => a.pnl - b.pnl)[0]?.day ?? 'Your worst weekday'} is your statistically worst day. Trade reduced size or skip this day entirely until win rate exceeds 50% over 20+ samples.`,
+                                            icon: '⏸', color: '#EAB308',
+                                        },
+                                        { rule: 'RULE 04 — STREAK PROTECTION', detail: `${longestRedDayStreak >= 2 ? `Your longest red day streak was ${longestRedDayStreak} consecutive days. After 2 red days in a row, cut daily trade limit by 50% until you record a green day.` : 'No prolonged red day streaks detected. Maintain current daily discipline.'}`, icon: '✓', color: '#c9d1d9' },
+                                    ].map((r, i) => (
+                                        <div key={i} style={{ display: 'flex', gap: 16, padding: '14px 16px', background: '#0b0e14', borderLeft: `2px solid ${r.color}55` }}>
+                                            <span style={{ fontFamily: 'var(--font-mono)', fontSize: 14, color: r.color, flexShrink: 0, width: 20 }}>{r.icon}</span>
+                                            <div>
+                                                <div style={{ fontFamily: 'var(--font-mono)', fontSize: 10, fontWeight: 700, color: r.color, letterSpacing: '0.08em', marginBottom: 4 }}>{r.rule}</div>
+                                                <div style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: '#6b7280', lineHeight: 1.7 }}>{r.detail}</div>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+
                         </motion.div>
                     )}
 
                     {activeTab === 'INSTRUMENTS' && (
-                        <motion.div key="instruments" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="flex flex-col gap-6">
-                            <span className={styles.sectionTitle}>Performance by Instrument</span>
-                            <div className={styles.fullWidthCard + " flex flex-col gap-6"}>
-                                {instrumentArray.map((inst, idx) => (
-                                    <div key={inst.asset} className={styles.progressRow}>
-                                        <div className={styles.progressLabel}>{inst.asset}</div>
-                                        <div className={styles.progressBar}>
-                                            <motion.div
-                                                initial={{ width: 0 }} animate={{ width: `${Math.min(100, (Math.abs(inst.pnl) / Math.max(grossProfit, grossLoss)) * 100)}%` }}
-                                                className={styles.progressFill}
-                                                style={{ backgroundColor: inst.pnl >= 0 ? PIE_COLORS[idx % PIE_COLORS.length] : '#ff4757' }}
-                                            />
-                                        </div>
-                                        <div className={`${styles.progressAmt} ${inst.pnl >= 0 ? styles.textGreen : styles.textRed}`}>
-                                            ${Math.abs(inst.pnl).toLocaleString()}
-                                        </div>
-                                        <div className={styles.progressStats}>
-                                            {inst.wins + inst.losses} trades · {((inst.wins / (inst.wins + inst.losses)) * 100).toFixed(0)}% win
-                                        </div>
+                        <motion.div key="instruments" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} style={{ display: 'flex', flexDirection: 'column', gap: 20, marginBottom: 48 }}>
+
+                            {/* ── HEADER ── */}
+                            <div>
+                                <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#6b7280', letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 4 }}>INSTRUMENT INTELLIGENCE</div>
+                                <div style={{ fontFamily: 'var(--font-mono)', fontSize: 20, fontWeight: 700, color: '#fff', marginBottom: 4 }}>Performance by Instrument</div>
+                                <div style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: '#6b7280' }}>
+                                    {instrumentDeep.length} instrument{instrumentDeep.length !== 1 ? 's' : ''} traded · radar shows multi-dimensional strength · click any row to expand full drill-down
+                                </div>
+                            </div>
+
+                            {/* ── 4-KPI STRIP ── */}
+                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', borderTop: '1px solid #1a1c24', borderLeft: '1px solid #1a1c24' }}>
+                                {[
+                                    { label: 'INSTRUMENTS TRADED', value: `${instrumentDeep.length}`, sub: `${instrumentDeep.filter(i => i.pnl >= 0).length} profitable`, color: '#c9d1d9' },
+                                    { label: 'BEST INSTRUMENT', value: instrumentDeep[0]?.asset ?? '—', sub: instrumentDeep[0] ? `+$${instrumentDeep[0].pnl.toFixed(0)} net` : '—', color: '#A6FF4D' },
+                                    { label: 'WORST INSTRUMENT', value: instrumentDeep[instrumentDeep.length - 1]?.asset ?? '—', sub: instrumentDeep[instrumentDeep.length - 1]?.pnl < 0 ? `-$${Math.abs(instrumentDeep[instrumentDeep.length - 1].pnl).toFixed(0)} net` : '—', color: '#ff4757' },
+                                    { label: 'MOST TRADED', value: [...instrumentDeep].sort((a, b) => b.tradeList.length - a.tradeList.length)[0]?.asset ?? '—', sub: `${[...instrumentDeep].sort((a, b) => b.tradeList.length - a.tradeList.length)[0]?.tradeList.length ?? 0} trades`, color: '#c9d1d9' },
+                                ].map((k, i) => (
+                                    <div key={i} style={{ padding: '20px 24px', borderBottom: '1px solid #1a1c24', borderRight: '1px solid #1a1c24', background: '#0d1117', display: 'flex', flexDirection: 'column', gap: 6 }}>
+                                        <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#6b7280', letterSpacing: '0.1em', textTransform: 'uppercase' }}>{k.label}</span>
+                                        <span style={{ fontFamily: 'var(--font-mono)', fontSize: 20, fontWeight: 700, color: k.color }}>{k.value}</span>
+                                        <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: '#4b5563' }}>{k.sub}</span>
                                     </div>
                                 ))}
                             </div>
+
+                            {/* ── RADAR + PNL BARS ── */}
+                            <div style={{ display: 'grid', gridTemplateColumns: instrumentDeep.length >= 2 ? '1fr 1fr' : '1fr', gap: 1, background: '#1a1c24' }}>
+                                {/* Radar chart */}
+                                <div style={{ background: '#0d1117', padding: '24px' }}>
+                                    <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#6b7280', letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 4 }}>MULTI-METRIC RADAR</div>
+                                    <div style={{ fontFamily: 'var(--font-mono)', fontSize: 13, fontWeight: 600, color: '#c9d1d9', marginBottom: 6 }}>5-axis normalized comparison — Win Rate · PF · Expectancy · W/L · Volume</div>
+                                    <div style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: '#6b7280', marginBottom: 8 }}>A bar chart shows one metric. This radar shows which instrument dominates across ALL dimensions simultaneously.</div>
+                                    <InstrumentRadar instruments={radarInstruments} height={280} />
+                                </div>
+                                {/* P&L diverging bars */}
+                                <div style={{ background: '#0d1117', padding: '24px' }}>
+                                    <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#6b7280', letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 4 }}>NET P&L RANKING</div>
+                                    <div style={{ fontFamily: 'var(--font-mono)', fontSize: 13, fontWeight: 600, color: '#c9d1d9', marginBottom: 16 }}>Signed contribution per instrument — diverging from zero</div>
+                                    <div style={{ height: 280 }}>
+                                        <ResponsiveContainer width="100%" height="100%">
+                                            <BarChart data={instrumentDeep.slice(0, 8).map(i => ({ asset: i.asset, pnl: i.pnl, wr: i.winRate }))} layout="vertical" margin={{ top: 4, right: 60, bottom: 4, left: 0 }} barCategoryGap="25%">
+                                                <CartesianGrid stroke="#1a1c24" strokeDasharray="3 3" horizontal={false} />
+                                                <XAxis type="number" tick={{ fontSize: 9, fill: '#4b5563', fontFamily: 'var(--font-mono)' }} axisLine={false} tickLine={false} tickFormatter={(v: number) => `$${Math.abs(v) >= 1000 ? `${(v/1000).toFixed(1)}k` : v.toFixed(0)}`} />
+                                                <YAxis type="category" dataKey="asset" tick={{ fontSize: 10, fill: '#8b949e', fontFamily: 'var(--font-mono)', fontWeight: 600 }} axisLine={false} tickLine={false} width={40} />
+                                                <ReferenceLine x={0} stroke="rgba(255,255,255,0.12)" />
+                                                <Tooltip
+                                                    contentStyle={{ backgroundColor: '#0b0e14', border: '1px solid #1a1c24', fontFamily: 'var(--font-mono)', fontSize: 11, borderRadius: 0 }}
+                                                    cursor={{ fill: 'rgba(255,255,255,0.03)' }}
+                                                    formatter={(v: number | undefined, _n: unknown, props: { payload?: { wr: number } }) => v !== undefined ? [`${v >= 0 ? '+' : ''}$${Math.abs(v).toFixed(2)} · ${props.payload?.wr.toFixed(0) ?? 0}% WR`, 'P&L'] : ['—', 'P&L']}
+                                                />
+                                                <Bar dataKey="pnl" radius={[0, 2, 2, 0]}>
+                                                    {instrumentDeep.slice(0, 8).map((inst, i) => (
+                                                        <Cell key={i} fill={inst.pnl >= 0 ? 'rgba(166,255,77,0.85)' : 'rgba(255,71,87,0.85)'} />
+                                                    ))}
+                                                </Bar>
+                                            </BarChart>
+                                        </ResponsiveContainer>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* ── INSTRUMENT COMPARISON TABLE ── */}
+                            <div style={{ background: '#0d1117', border: '1px solid #1a1c24', padding: '24px' }}>
+                                <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#6b7280', letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 16 }}>FULL INSTRUMENT SCORECARD</div>
+                                <div style={{ overflowX: 'auto' }}>
+                                    <table style={{ width: '100%', borderCollapse: 'collapse', fontFamily: 'var(--font-mono)', fontSize: 11 }}>
+                                        <thead>
+                                            <tr style={{ borderBottom: '1px solid #1a1c24' }}>
+                                                {['INSTRUMENT', 'TRADES', 'WIN RATE', 'NET P&L', 'PROFIT FACTOR', 'AVG WIN', 'AVG LOSS', 'EXPECTANCY', 'LONG/SHORT', 'VERDICT'].map((h, i) => (
+                                                    <th key={i} style={{ padding: '10px 12px', textAlign: i === 0 ? 'left' : 'right', color: '#4b5563', fontWeight: 700, letterSpacing: '0.08em', fontSize: 9, textTransform: 'uppercase', whiteSpace: 'nowrap' }}>{h}</th>
+                                                ))}
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {instrumentDeep.map((inst, i) => {
+                                                const verdict = inst.pnl > 0 && inst.winRate >= 55 && inst.profitFactor >= 1.5 ? 'EDGE' : inst.pnl > 0 && inst.winRate >= 45 ? 'PLAYABLE' : inst.pnl > 0 ? 'MARGINAL' : inst.winRate >= 50 ? 'MIXED' : 'CUT';
+                                                const vColor = verdict === 'EDGE' ? '#A6FF4D' : verdict === 'PLAYABLE' ? 'rgba(166,255,77,0.6)' : verdict === 'MARGINAL' ? '#EAB308' : verdict === 'MIXED' ? '#fb923c' : '#ff4757';
+                                                return (
+                                                    <tr key={inst.asset} style={{ borderBottom: '1px solid #1a1c24', cursor: 'pointer' }}
+                                                        onClick={() => toggleInstrument(inst.asset)}
+                                                        onMouseEnter={e => (e.currentTarget as HTMLTableRowElement).style.background = '#0f1420'}
+                                                        onMouseLeave={e => (e.currentTarget as HTMLTableRowElement).style.background = 'transparent'}>
+                                                        <td style={{ padding: '12px 12px', color: '#fff', fontWeight: 700 }}>
+                                                            {inst.asset}
+                                                            <span style={{ marginLeft: 6, fontFamily: 'var(--font-mono)', fontSize: 9, color: '#4b5563' }}>{expandedInstruments.has(inst.asset) ? '▲' : '▼'}</span>
+                                                        </td>
+                                                        <td style={{ padding: '12px 12px', textAlign: 'right', color: '#6b7280' }}>{inst.tradeList.length}</td>
+                                                        <td style={{ padding: '12px 12px', textAlign: 'right', fontWeight: 700, color: inst.winRate >= 55 ? '#A6FF4D' : inst.winRate >= 45 ? '#EAB308' : '#ff4757' }}>{inst.winRate.toFixed(0)}%</td>
+                                                        <td style={{ padding: '12px 12px', textAlign: 'right', fontWeight: 700, color: inst.pnl >= 0 ? '#A6FF4D' : '#ff4757' }}>
+                                                            {inst.pnl >= 0 ? '+' : '-'}${Math.abs(inst.pnl).toFixed(2)}
+                                                        </td>
+                                                        <td style={{ padding: '12px 12px', textAlign: 'right', color: inst.profitFactor >= 1.5 ? '#A6FF4D' : inst.profitFactor >= 1 ? '#EAB308' : '#ff4757' }}>
+                                                            {inst.profitFactor === 99 ? '∞' : inst.profitFactor.toFixed(2)}
+                                                        </td>
+                                                        <td style={{ padding: '12px 12px', textAlign: 'right', color: '#A6FF4D' }}>+${inst.avgWin.toFixed(0)}</td>
+                                                        <td style={{ padding: '12px 12px', textAlign: 'right', color: '#ff4757' }}>-${inst.avgLoss.toFixed(0)}</td>
+                                                        <td style={{ padding: '12px 12px', textAlign: 'right', color: inst.expectancy >= 0 ? '#A6FF4D' : '#ff4757' }}>
+                                                            {inst.expectancy >= 0 ? '+' : ''}${inst.expectancy.toFixed(2)}
+                                                        </td>
+                                                        <td style={{ padding: '12px 12px', textAlign: 'right', color: '#6b7280', fontSize: 10 }}>
+                                                            <span style={{ color: '#fb923c' }}>{inst.longTrades}L</span> / <span style={{ color: '#38bdf8' }}>{inst.shortTrades}S</span>
+                                                        </td>
+                                                        <td style={{ padding: '12px 12px', textAlign: 'right' }}>
+                                                            <span style={{ fontSize: 9, fontWeight: 700, padding: '2px 7px', border: `1px solid ${vColor}44`, color: vColor, background: `${vColor}11`, letterSpacing: '0.06em' }}>{verdict}</span>
+                                                        </td>
+                                                    </tr>
+                                                );
+                                            })}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+
+                            {/* ── EXPANDED INSTRUMENT DRILL-DOWN ── */}
+                            {instrumentDeep.filter(inst => expandedInstruments.has(inst.asset)).map((inst, idx) => (
+                                <div key={inst.asset} style={{ background: '#0d1117', border: '1px solid rgba(166,255,77,0.15)', overflow: 'hidden' }}>
+                                    <div style={{ padding: '16px 24px', background: '#0b0e14', borderBottom: '1px solid #1a1c24', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
+                                        <div style={{ fontFamily: 'var(--font-mono)', fontSize: 16, fontWeight: 700, color: '#fff' }}>{inst.asset} — Deep Dive</div>
+                                        <button onClick={() => toggleInstrument(inst.asset)} style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: '#6b7280', background: 'none', border: '1px solid #1a1c24', padding: '4px 10px', cursor: 'pointer' }}>COLLAPSE ▲</button>
+                                    </div>
+                                    <div style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: 20 }}>
+                                        {/* 6-metric mini grid */}
+                                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: 1, background: '#1a1c24' }}>
+                                            {[
+                                                { label: 'BEST TRADE', value: `+$${inst.maxWin.toFixed(0)}`, color: '#A6FF4D' },
+                                                { label: 'WORST TRADE', value: `-$${inst.maxLoss.toFixed(0)}`, color: '#ff4757' },
+                                                { label: 'AVG DURATION', value: fmtDuration(inst.avgDuration), color: '#c9d1d9' },
+                                                { label: 'LONG TRADES', value: `${inst.longTrades}`, color: '#fb923c' },
+                                                { label: 'SHORT TRADES', value: `${inst.shortTrades}`, color: '#38bdf8' },
+                                                { label: 'W/L RATIO', value: inst.wlRatio > 0 ? `${inst.wlRatio.toFixed(2)}:1` : '—', color: inst.wlRatio >= 1.5 ? '#A6FF4D' : inst.wlRatio >= 1 ? '#EAB308' : '#ff4757' },
+                                            ].map((k, i) => (
+                                                <div key={i} style={{ padding: '12px 14px', background: '#0d1117', display: 'flex', flexDirection: 'column', gap: 4 }}>
+                                                    <span style={{ fontFamily: 'var(--font-mono)', fontSize: 8, color: '#6b7280', letterSpacing: '0.1em', textTransform: 'uppercase' }}>{k.label}</span>
+                                                    <span style={{ fontFamily: 'var(--font-mono)', fontSize: 15, fontWeight: 700, color: k.color }}>{k.value}</span>
+                                                </div>
+                                            ))}
+                                        </div>
+
+                                        {/* Equity curve for this instrument */}
+                                        <div>
+                                            <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#6b7280', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 8 }}>INSTRUMENT EQUITY CURVE</div>
+                                            <div style={{ height: 100, background: '#0b0e14', padding: '8px 0' }}>
+                                                <ResponsiveContainer width="100%" height="100%">
+                                                    <AreaChart data={inst.equityCurve} margin={{ top: 4, right: 4, bottom: 0, left: 0 }}>
+                                                        <defs>
+                                                            <linearGradient id={`ig${idx}`} x1="0" y1="0" x2="0" y2="1">
+                                                                <stop offset="5%" stopColor={inst.pnl >= 0 ? '#A6FF4D' : '#ff4757'} stopOpacity={0.2} />
+                                                                <stop offset="95%" stopColor={inst.pnl >= 0 ? '#A6FF4D' : '#ff4757'} stopOpacity={0} />
+                                                            </linearGradient>
+                                                        </defs>
+                                                        <ReferenceLine y={0} stroke="rgba(255,255,255,0.08)" />
+                                                        <Area type="monotone" dataKey="pnl" stroke={inst.pnl >= 0 ? '#A6FF4D' : '#ff4757'} strokeWidth={1.5} fill={`url(#ig${idx})`} dot={false} />
+                                                        <Tooltip contentStyle={{ backgroundColor: '#0b0e14', border: '1px solid #1a1c24', fontFamily: 'var(--font-mono)', fontSize: 10, borderRadius: 0 }} formatter={(v: number | undefined) => v !== undefined ? [`${v >= 0 ? '+' : ''}$${Math.abs(v).toFixed(2)}`, 'Running P&L'] : ['—', 'Running P&L']} labelFormatter={(l: unknown) => `Trade ${l}`} />
+                                                    </AreaChart>
+                                                </ResponsiveContainer>
+                                            </div>
+                                        </div>
+
+                                        {/* P&L distribution for this instrument */}
+                                        <div>
+                                            <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#6b7280', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 8 }}>TRADE P&L DISTRIBUTION — {inst.asset}</div>
+                                            <PnLHistogram pnlValues={inst.tradeList.map(t => t.pnl ?? 0)} buckets={12} height={100} />
+                                        </div>
+
+                                        {/* Coaching */}
+                                        <div style={{ background: 'rgba(166,255,77,0.03)', border: '1px solid rgba(166,255,77,0.12)', padding: '14px 16px' }}>
+                                            <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#A6FF4D', letterSpacing: '0.1em', textTransform: 'uppercase', fontWeight: 700, marginBottom: 6 }}>COACHING ACTION — {inst.asset}</div>
+                                            <div style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: '#8b949e', lineHeight: 1.8 }}>
+                                                {inst.pnl > 0 && inst.winRate >= 55 && inst.profitFactor >= 1.5
+                                                    ? `→ ${inst.asset} is your strongest instrument across all metrics (${inst.winRate.toFixed(0)}% WR, ${inst.profitFactor.toFixed(2)} PF). Allocate your highest conviction sizing here. Consider adding to your session plan specifically when ${inst.asset} is in structure.`
+                                                    : inst.pnl > 0 && inst.winRate >= 45
+                                                    ? `→ ${inst.asset} is playable but not optimal — ${inst.winRate.toFixed(0)}% WR and ${inst.profitFactor.toFixed(2)} PF show edge that needs refinement. Focus on entry precision before increasing size.`
+                                                    : inst.pnl < 0
+                                                    ? `→ ${inst.asset} is a net loss instrument (-$${Math.abs(inst.pnl).toFixed(0)}). Remove it from your active trade list immediately. Your capital deployed here would have been better used in your profitable instruments.`
+                                                    : `→ ${inst.asset} shows mixed results. Do not increase size until WR exceeds 50% over 20+ trades and expectancy is consistently positive.`
+                                                }
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            ))}
+
+                            {/* ── ACTIONABLE RULES ── */}
+                            <div style={{ background: '#0d1117', border: '1px solid #1a1c24', padding: '24px' }}>
+                                <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#6b7280', letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 16 }}>INSTRUMENT RULES — DERIVED FROM YOUR DATA</div>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                                    {[
+                                        {
+                                            rule: `RULE 01 — FOCUS ON YOUR EDGE`,
+                                            detail: `${instrumentDeep[0]?.asset ?? 'Your best instrument'} is your highest-edge instrument. Minimum 60% of session allocation should go here until you demonstrate consistent edge in other instruments.`,
+                                            icon: '→', color: '#A6FF4D',
+                                        },
+                                        {
+                                            rule: `RULE 02 — CUT DEAD INSTRUMENTS`,
+                                            detail: `${instrumentDeep.filter(i => i.pnl < 0).map(i => i.asset).join(', ') || 'None'} ${instrumentDeep.filter(i => i.pnl < 0).length > 0 ? 'are net negative — remove from your active list until you identify why these are failing.' : '— all instruments are currently profitable.'}`,
+                                            icon: '⛔', color: '#ff4757',
+                                            show: instrumentDeep.filter(i => i.pnl < 0).length > 0,
+                                        },
+                                        {
+                                            rule: `RULE 03 — DIRECTION DISCIPLINE`,
+                                            detail: `Check your long vs short split per instrument. Direction bias (e.g., always longing a downtrending asset) is a silent P&L killer. Match direction to market structure, not habit.`,
+                                            icon: '⏸', color: '#EAB308',
+                                        },
+                                        {
+                                            rule: `RULE 04 — INSTRUMENT FOCUS CAP`,
+                                            detail: `You're trading ${instrumentDeep.length} instrument${instrumentDeep.length > 1 ? 's' : ''}. ${instrumentDeep.length > 3 ? `Consider reducing to your top 2-3 for the next 30 days. More instruments = more context switching = diluted edge.` : 'Current instrument count is within optimal range for focused execution.'}`,
+                                            icon: '✓', color: '#c9d1d9',
+                                        },
+                                    ].filter(r => (r as any).show !== false).map((r, i) => (
+                                        <div key={i} style={{ display: 'flex', gap: 16, padding: '14px 16px', background: '#0b0e14', borderLeft: `2px solid ${r.color}55` }}>
+                                            <span style={{ fontFamily: 'var(--font-mono)', fontSize: 14, color: r.color, flexShrink: 0, width: 20 }}>{r.icon}</span>
+                                            <div>
+                                                <div style={{ fontFamily: 'var(--font-mono)', fontSize: 10, fontWeight: 700, color: r.color, letterSpacing: '0.08em', marginBottom: 4 }}>{r.rule}</div>
+                                                <div style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: '#6b7280', lineHeight: 1.7 }}>{r.detail}</div>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+
                         </motion.div>
                     )}
 
