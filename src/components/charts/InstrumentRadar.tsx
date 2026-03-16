@@ -41,7 +41,7 @@ function normalize(val: number, min: number, max: number): number {
 
 export default function InstrumentRadar({ instruments, height = 320 }: Props) {
     if (instruments.length === 0) {
-        return <div style={{ height, display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: FONT, fontSize: 11, color: '#4b5563' }}>No instrument data</div>;
+        return <div style={{ height, display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: FONT, fontSize: 11, color: '#6b7280' }}>No instrument data</div>;
     }
 
     const minPF = Math.min(...instruments.map(i => i.profitFactor));

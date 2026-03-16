@@ -552,6 +552,45 @@ export default function AnalyticsPage() {
         return states;
     })();
 
+    // Streak runs: consecutive sequences of W or L
+    const streakRuns = useMemo(() => {
+        const seq = closed.map(t => (t.pnl ?? 0) >= 0 ? 'W' : 'L');
+        const runs: { type: 'W' | 'L'; length: number; pnl: number; startIdx: number }[] = [];
+        let i = 0;
+        while (i < seq.length) {
+            let j = i;
+            while (j < seq.length && seq[j] === seq[i]) j++;
+            const run = closed.slice(i, j);
+            runs.push({ type: seq[i] as 'W' | 'L', length: j - i, pnl: run.reduce((s, t) => s + (t.pnl ?? 0), 0), startIdx: i });
+            i = j;
+        }
+        return runs;
+    }, [closed]);
+
+    // Streak length distribution — grouped bar data
+    const streakLengthDist = useMemo(() => {
+        const MAX = 6;
+        const wc = Array(MAX + 1).fill(0);
+        const lc = Array(MAX + 1).fill(0);
+        streakRuns.forEach(r => {
+            const b = Math.min(r.length, MAX);
+            if (r.type === 'W') wc[b]++; else lc[b]++;
+        });
+        return Array.from({ length: MAX }, (_, i) => ({
+            len: i + 1 < MAX ? `${i + 1}` : `${MAX}+`,
+            wins: wc[i + 1],
+            losses: lc[i + 1],
+        }));
+    }, [streakRuns]);
+
+    // Streak P&L impact — how much each run earned/lost (top 10 by abs)
+    const streakImpactData = useMemo(() =>
+        [...streakRuns]
+            .sort((a, b) => Math.abs(b.pnl) - Math.abs(a.pnl))
+            .slice(0, 10)
+            .map((r, i) => ({ name: `${r.type}${r.length}·${i}`, type: r.type, length: r.length, pnl: r.pnl })),
+        [streakRuns]);
+
     // Hold time by outcome
     const avgWinDuration = wins.length > 0
         ? wins.reduce((s, t) => s + (t.durationSeconds ?? 0), 0) / wins.length : 0;
@@ -2043,7 +2082,7 @@ export default function AnalyticsPage() {
                         </motion.div>
                     )}
 
-                    {activeTab === 'TIME OF DAY' && (
+                    {activeTab === 'TIME' && (
                         <motion.div key="time" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} style={{ display: 'flex', flexDirection: 'column', gap: 20, marginBottom: 48 }}>
 
                             {/* ── HEADER ── */}
