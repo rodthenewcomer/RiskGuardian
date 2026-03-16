@@ -6,9 +6,10 @@ import { useAppStore, getTradingDay } from '@/store/appStore';
 import { generateForensics } from '@/ai/EdgeForensics';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-    PieChart, Pie, Cell, ResponsiveContainer, BarChart, Bar, XAxis, Tooltip, YAxis, ReferenceLine
+    PieChart, Pie, Cell, ResponsiveContainer, BarChart, Bar, XAxis, Tooltip, YAxis, ReferenceLine,
+    AreaChart, Area, CartesianGrid
 } from 'recharts';
-import { Target, AlertTriangle, Download, Link2, Check, Info } from 'lucide-react';
+import { Target, AlertTriangle, Download, Link2, Check, Info, TrendingUp, TrendingDown, Activity, Clock } from 'lucide-react';
 
 export default function AnalyticsPage() {
     const { trades, account } = useAppStore();
@@ -326,6 +327,52 @@ export default function AnalyticsPage() {
         return states;
     })();
 
+    // Hold time by outcome
+    const avgWinDuration = wins.length > 0
+        ? wins.reduce((s, t) => s + (t.durationSeconds ?? 0), 0) / wins.length : 0;
+    const avgLossDuration = losses.length > 0
+        ? losses.reduce((s, t) => s + (t.durationSeconds ?? 0), 0) / losses.length : 0;
+    const fmtDuration = (s: number) => {
+        if (s <= 0) return '—';
+        const m = Math.floor(s / 60); const sec = Math.floor(s % 60);
+        return m > 0 ? `${m}m ${sec}s` : `${sec}s`;
+    };
+
+    // Equity curve (cumulative P&L per trade)
+    const equityCurve = useMemo(() => {
+        let cum = 0;
+        return closed.map((t, i) => {
+            cum += (t.pnl ?? 0);
+            const day = getTradingDay(t.closedAt ?? t.createdAt);
+            return { i: i + 1, pnl: cum, date: day };
+        });
+    }, [closed]);
+
+    // Behavioral cost = sum of negative pattern impacts
+    const behavioralCost = forensics.patterns.reduce((s: number, p: any) => s + Math.min(0, p.impact ?? 0), 0);
+    const withoutToxicPatterns = netPnl - behavioralCost; // would have earned MORE without
+
+    // Risk score components (recomputed for display)
+    const revScore = Math.min(60, forensics.patterns.filter((p: any) => p.name === 'Revenge Trading').length > 0
+        ? forensics.patterns.find((p: any) => p.name === 'Revenge Trading').freq * 20 : 0);
+    const financialScore = Math.abs(behavioralCost) > (account.startingBalance ?? 50000) * 0.05 ? 25 : 0;
+    const wrErosion = closed.length > 0 && winRate < 35 ? 15 : 0;
+
+    // Danger / strength zones by time of day
+    const dangerZones = forensics.timeStats.hourlyPnl
+        .map((pnl: number, h: number) => ({ h, pnl }))
+        .filter((x: { h: number; pnl: number }) => x.pnl < 0)
+        .sort((a: { h: number; pnl: number }, b: { h: number; pnl: number }) => a.pnl - b.pnl)
+        .slice(0, 4);
+    const strengthZones = forensics.timeStats.hourlyPnl
+        .map((pnl: number, h: number) => ({ h, pnl }))
+        .filter((x: { h: number; pnl: number }) => x.pnl > 0)
+        .sort((a: { h: number; pnl: number }, b: { h: number; pnl: number }) => b.pnl - a.pnl)
+        .slice(0, 4);
+
+    // Instrument pnl for horizontal bars
+    const maxAbsInstPnl = instrumentArray.length > 0 ? Math.max(...instrumentArray.map(i => Math.abs(i.pnl))) : 1;
+
     const PIE_COLORS = ['#A6FF4D', '#00D4FF', '#EAB308', '#ff4757', '#fb923c'];
 
     return (
@@ -449,96 +496,546 @@ export default function AnalyticsPage() {
             <div className={styles.content}>
                 <AnimatePresence mode="wait">
                     {activeTab === 'OVERVIEW' && (
-                        <motion.div key="overview" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="flex flex-col gap-6 mb-12">
+                        <motion.div key="overview" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} style={{ display: 'flex', flexDirection: 'column', gap: 20, marginBottom: 48 }}>
+
+                            {/* ── RISK ALERT BAR ── */}
                             {forensics.patterns.length > 0 && (
-                                <div className="bg-[#1a0f14] border border-[#e60023] p-4 text-[#e60023] font-mono text-[11px] uppercase tracking-widest flex items-center justify-between">
-                                    <div className="flex items-center gap-3">
-                                        <AlertTriangle size={14} />
-                                        <span>RISK ALERT — {forensics.patterns.length} CRITICAL BEHAVIORAL PATTERNS DETECTED</span>
+                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 16px', background: 'rgba(230,0,35,0.06)', border: '1px solid rgba(230,0,35,0.25)', borderLeft: '3px solid #e60023' }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                                        <AlertTriangle size={13} color="#e60023" />
+                                        <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, fontWeight: 700, color: '#e60023', letterSpacing: '0.08em', textTransform: 'uppercase' }}>
+                                            RISK ALERT — {forensics.patterns.length} CRITICAL BEHAVIORAL PATTERN{forensics.patterns.length > 1 ? 'S' : ''} DETECTED IN YOUR DATA. CLICK TO INVESTIGATE.
+                                        </span>
                                     </div>
-                                    <span className="cursor-pointer underline underline-offset-4" onClick={() => setActiveTab('PATTERNS')}>EXPLORE &rarr;</span>
+                                    <button onClick={() => setActiveTab('PATTERNS')} style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: '#e60023', background: 'none', border: 'none', cursor: 'pointer', letterSpacing: '0.06em', textDecoration: 'underline', whiteSpace: 'nowrap' }}>
+                                        SEE ALL PATTERNS →
+                                    </button>
                                 </div>
                             )}
 
-                            <div className={styles.kpiGrid}>
-                                <div className={styles.kpiBox}>
-                                    <span className={styles.kpiLabel}>NET P&L (AFTER FEES)</span>
-                                    <span className={`${styles.kpiValue} ${netPnl >= 0 ? styles.textGreen : styles.textRed}`}>
-                                        {netPnl >= 0 ? '+' : '-'}${Math.abs(netPnl).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                                    </span>
-                                    <span className={styles.kpiSub}>Gross ${grossProfit.toLocaleString()} · Fees est.</span>
+                            {/* ── CRITICAL PATTERN CALLOUT (top pattern) ── */}
+                            {forensics.patterns.length > 0 && (() => {
+                                const p = forensics.patterns[0];
+                                return (
+                                    <div style={{ background: '#0d1117', border: '1px solid #1a1c24', borderLeft: '3px solid #e60023', padding: '20px 24px', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 24, flexWrap: 'wrap' }}>
+                                        <div style={{ flex: 1, minWidth: 240 }}>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+                                                <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, fontWeight: 700, color: '#e60023', letterSpacing: '0.12em', textTransform: 'uppercase', background: 'rgba(230,0,35,0.12)', border: '1px solid rgba(230,0,35,0.3)', padding: '2px 8px' }}>CRITICAL PATTERN</span>
+                                                <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#4b5563', letterSpacing: '0.08em' }}>{p.freq} DETECTED · {forensics.patterns.length} TOTAL</span>
+                                            </div>
+                                            <div style={{ fontFamily: 'var(--font-mono)', fontSize: 18, fontWeight: 700, color: '#fff', marginBottom: 12 }}>{p.name}</div>
+                                            <div style={{ fontFamily: 'var(--font-mono)', fontSize: 12, color: '#8b949e', lineHeight: 1.7, maxWidth: 520 }}>
+                                                {p.desc}{p.evidence?.[0] ? ` ${p.evidence[0]}.` : ''}
+                                            </div>
+                                        </div>
+                                        <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                                            <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#6b7280', letterSpacing: '0.1em', marginBottom: 4, textTransform: 'uppercase' }}>ESTIMATED COST</div>
+                                            <div style={{ fontFamily: 'var(--font-mono)', fontSize: 28, fontWeight: 700, color: '#ff4757' }}>
+                                                -${Math.abs(p.impact ?? 0).toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+                                            </div>
+                                            <button onClick={() => setActiveTab('PATTERNS')} style={{ marginTop: 10, fontFamily: 'var(--font-mono)', fontSize: 9, color: '#6b7280', background: 'none', border: 'none', cursor: 'pointer', letterSpacing: '0.08em', textDecoration: 'underline' }}>
+                                                SEE ALL PATTERNS →
+                                            </button>
+                                        </div>
+                                    </div>
+                                );
+                            })()}
+
+                            {/* ── 8 KPI BOXES ── */}
+                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', borderTop: '1px solid #1a1c24', borderLeft: '1px solid #1a1c24' }}>
+                                {/* Row 1 */}
+                                {[
+                                    { label: 'NET P&L (AFTER FEES)', value: `${netPnl >= 0 ? '+' : '-'}$${Math.abs(netPnl).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, color: netPnl >= 0 ? '#A6FF4D' : '#ff4757', sub: `Gross $${grossProfit.toFixed(0)} · Loss $${grossLoss.toFixed(0)}` },
+                                    { label: 'WIN RATE', value: `${winRate.toFixed(1)}%`, color: winRate >= 50 ? '#A6FF4D' : '#EAB308', sub: `${wins.length}W / ${losses.length}L of ${closed.length} trades` },
+                                    { label: 'PROFIT FACTOR', value: profitFactor === 99 ? '∞' : profitFactor.toFixed(2), color: profitFactor >= 2 ? '#A6FF4D' : profitFactor >= 1.2 ? '#EAB308' : '#ff4757', sub: `Won $${grossProfit.toFixed(0)} / Lost $${grossLoss.toFixed(0)}` },
+                                    { label: 'EXPECTANCY / TRADE', value: `${expectancy >= 0 ? '+' : ''}$${expectancy.toFixed(2)}`, color: expectancy >= 0 ? '#A6FF4D' : '#ff4757', sub: `Avg W $${avgWin.toFixed(0)} · Avg L $${avgLoss.toFixed(0)}` },
+                                    { label: 'MAX DRAWDOWN', value: maxDd > 0 ? `-$${maxDd.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '—', color: '#ff4757', sub: 'Peak to trough' },
+                                    { label: 'MAX RUN-UP', value: maxRunup > 0 ? `+$${maxRunup.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '—', color: '#A6FF4D', sub: 'Trough to peak' },
+                                    { label: 'AVG TRADE DURATION', value: fmtDuration((avgWinDuration * wins.length + avgLossDuration * losses.length) / Math.max(1, closed.length)), color: '#c9d1d9', sub: `${wins.length + losses.length} closed trades` },
+                                    { label: 'W/L DOLLAR RATIO', value: wlRatio > 0 ? `${wlRatio.toFixed(2)}:1` : '—', color: wlRatio >= 1.5 ? '#A6FF4D' : wlRatio >= 1 ? '#EAB308' : '#ff4757', sub: `$${avgWin.toFixed(0)} avg win · $${avgLoss.toFixed(0)} avg loss` },
+                                ].map((k, i) => (
+                                    <div key={i} style={{ padding: '20px 24px', borderBottom: '1px solid #1a1c24', borderRight: '1px solid #1a1c24', background: '#0d1117', display: 'flex', flexDirection: 'column', gap: 6 }}>
+                                        <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#6b7280', letterSpacing: '0.1em', textTransform: 'uppercase' }}>{k.label}</span>
+                                        <span style={{ fontFamily: 'var(--font-mono)', fontSize: 22, fontWeight: 700, color: k.color, lineHeight: 1, textShadow: `0 0 12px ${k.color}22` }}>{k.value}</span>
+                                        <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: '#4b5563' }}>{k.sub}</span>
+                                    </div>
+                                ))}
+                            </div>
+
+                            {/* ── FULL DETAILS ROW: Waterfall + Wins vs Losses ── */}
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 1, background: '#1a1c24' }}>
+                                {/* Waterfall */}
+                                <div style={{ background: '#0d1117', padding: '24px' }}>
+                                    <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#6b7280', letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 4 }}>FULL DETAILS</div>
+                                    <div style={{ fontFamily: 'var(--font-mono)', fontSize: 16, fontWeight: 700, color: '#fff', marginBottom: 6 }}>Gross, fees, and what actually landed</div>
+                                    <div style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: '#6b7280', marginBottom: 20 }}>A waterfall is the cleanest way to show how commissions compress gross edge into net P&L.</div>
+                                    {/* SVG Waterfall */}
+                                    <div style={{ display: 'flex', alignItems: 'flex-end', gap: 4, height: 100, padding: '0 8px', position: 'relative' }}>
+                                        {[
+                                            { label: 'GROSS', val: grossProfit, color: '#A6FF4D' },
+                                            { label: 'LOSS', val: -grossLoss, color: '#ff4757' },
+                                            { label: 'NET', val: netPnl, color: netPnl >= 0 ? '#A6FF4D' : '#ff4757' },
+                                        ].map((bar, i) => {
+                                            const maxV = Math.max(grossProfit, grossLoss, Math.abs(netPnl), 1);
+                                            const h = Math.max(4, (Math.abs(bar.val) / maxV) * 80);
+                                            return (
+                                                <div key={i} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8, justifyContent: 'flex-end', height: '100%' }}>
+                                                    <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, fontWeight: 700, color: bar.color }}>{bar.val >= 0 ? '+' : ''}${bar.val.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                                                    <motion.div initial={{ height: 0 }} animate={{ height: h }} style={{ width: '60%', background: bar.color, opacity: 0.85, borderRadius: 2 }} />
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                    <div style={{ display: 'flex', gap: 4, marginTop: 8 }}>
+                                        {['GROSS', 'LOSS', 'NET'].map((l, i) => (
+                                            <div key={i} style={{ flex: 1, textAlign: 'center', fontFamily: 'var(--font-mono)', fontSize: 9, color: '#4b5563', letterSpacing: '0.08em' }}>{l}</div>
+                                        ))}
+                                    </div>
                                 </div>
-                                <div className={styles.kpiBox}>
-                                    <span className={styles.kpiLabel}>WIN RATE</span>
-                                    <span className={`${styles.kpiValue} ${winRate >= 50 ? styles.textGreen : styles.textYellow}`}>{winRate.toFixed(1)}%</span>
-                                    <span className={styles.kpiSub}>{wins.length}W / {losses.length}L of {closed.length} trades</span>
-                                </div>
-                                <div className={styles.kpiBox}>
-                                    <span className={styles.kpiLabel}>PROFIT FACTOR</span>
-                                    <span className={`${styles.kpiValue} ${profitFactor >= 2 ? styles.textGreen : styles.textYellow}`}>{profitFactor.toFixed(2)}</span>
-                                    <span className={styles.kpiSub}>Won ${grossProfit.toFixed(0)} / Lost ${grossLoss.toFixed(0)}</span>
-                                </div>
-                                <div className={styles.kpiBox} style={{ borderRight: 'none' }}>
-                                    <span className={styles.kpiLabel}>EXPECTANCY</span>
-                                    <span className={styles.kpiValue}>{expectancy >= 0 ? '+' : '-'}${Math.abs(expectancy).toFixed(2)}</span>
-                                    <span className={styles.kpiSub}>Avg W ${avgWin.toFixed(0)} · Avg L ${avgLoss.toFixed(0)}</span>
+
+                                {/* Wins vs Losses segmented */}
+                                <div style={{ background: '#0d1117', padding: '24px' }}>
+                                    <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#6b7280', letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 4 }}>TRADE OUTCOMES</div>
+                                    <div style={{ fontFamily: 'var(--font-mono)', fontSize: 16, fontWeight: 700, color: '#fff', marginBottom: 6 }}>Wins versus losses</div>
+                                    <div style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: '#6b7280', marginBottom: 20 }}>Segmented composition reads faster than a donut here and keeps the trade counts explicit.</div>
+                                    <div style={{ height: 12, background: '#1a1c24', borderRadius: 2, overflow: 'hidden', marginBottom: 16 }}>
+                                        {closed.length > 0 && (
+                                            <motion.div initial={{ width: 0 }} animate={{ width: `${winRate}%` }} style={{ height: '100%', background: '#A6FF4D', borderRadius: '2px 0 0 2px' }} />
+                                        )}
+                                    </div>
+                                    <div style={{ display: 'flex', gap: 32 }}>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                            <div style={{ width: 8, height: 8, background: '#A6FF4D', borderRadius: '50%' }} />
+                                            <span style={{ fontFamily: 'var(--font-mono)', fontSize: 12, color: '#c9d1d9' }}>{wins.length} trades</span>
+                                        </div>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                            <div style={{ width: 8, height: 8, background: '#ff4757', borderRadius: '50%' }} />
+                                            <span style={{ fontFamily: 'var(--font-mono)', fontSize: 12, color: '#c9d1d9' }}>{losses.length} trades</span>
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
 
-                            <div className={styles.chartRow}>
-                                <div className={styles.chartCard} style={{ height: 220 }}>
-                                    <span className={styles.chartCardTitle}>TRADE OUTCOMES</span>
-                                    <ResponsiveContainer width="100%" height="80%">
-                                        <PieChart>
-                                            <Pie data={[{ n: 'W', v: wins.length }, { n: 'L', v: losses.length }]} innerRadius={40} outerRadius={60} dataKey="v" stroke="none">
-                                                <Cell fill="#A6FF4D" />
-                                                <Cell fill="#ff4757" />
-                                            </Pie>
-                                        </PieChart>
-                                    </ResponsiveContainer>
-                                    <div className="flex gap-4 justify-center mt-[-10px] text-[10px] font-mono text-[#6b7280]">
-                                        <span>WINS: {wins.length}</span>
-                                        <span>LOSSES: {losses.length}</span>
+                            {/* ── TRADE VIABILITY + PAYOFF PROFILE ── */}
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 1, background: '#1a1c24' }}>
+                                {/* Profit Factor & Expectancy gauges */}
+                                <div style={{ background: '#0d1117', padding: '24px' }}>
+                                    <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#6b7280', letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 4 }}>TRADE VIABILITY</div>
+                                    <div style={{ fontFamily: 'var(--font-mono)', fontSize: 16, fontWeight: 700, color: '#fff', marginBottom: 6 }}>Profitability thresholds</div>
+                                    <div style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: '#6b7280', marginBottom: 24 }}>Profit factor tells you whether wins outsize losses. Expectancy tells you what each trade is worth on average.</div>
+
+                                    {/* PF slider */}
+                                    <div style={{ marginBottom: 24 }}>
+                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 6 }}>
+                                            <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#6b7280', letterSpacing: '0.1em', textTransform: 'uppercase' }}>PROFIT FACTOR</span>
+                                        </div>
+                                        <div style={{ fontFamily: 'var(--font-mono)', fontSize: 28, fontWeight: 700, color: profitFactor >= 1.5 ? '#A6FF4D' : profitFactor >= 1 ? '#EAB308' : '#ff4757', marginBottom: 10 }}>
+                                            {profitFactor === 99 ? '∞' : `${profitFactor.toFixed(2)}x`}
+                                        </div>
+                                        <div style={{ position: 'relative', height: 6, background: '#1a1c24', borderRadius: 3, marginBottom: 8 }}>
+                                            <div style={{ position: 'absolute', top: 0, left: 0, height: '100%', background: 'linear-gradient(to right, #ff4757 0%, #EAB308 40%, #A6FF4D 70%)', borderRadius: 3, width: '100%', opacity: 0.3 }} />
+                                            <motion.div initial={{ left: 0 }} animate={{ left: `${Math.min(95, (Math.min(profitFactor, 3) / 3) * 100)}%` }} style={{ position: 'absolute', top: -3, width: 12, height: 12, background: profitFactor >= 1.5 ? '#A6FF4D' : '#EAB308', borderRadius: '50%', transform: 'translateX(-50%)' }} />
+                                        </div>
+                                        <div style={{ display: 'flex', justifyContent: 'space-between', fontFamily: 'var(--font-mono)', fontSize: 9, color: '#4b5563' }}>
+                                            <span>0–0.9x LOSS</span><span>1–1.4x FLAT</span><span>1.5–1.9x PLAYABLE</span><span>2x+ EDGE</span>
+                                        </div>
+                                    </div>
+
+                                    {/* Expectancy slider */}
+                                    <div>
+                                        <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#6b7280', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 6 }}>EXPECTANCY / TRADE</div>
+                                        <div style={{ fontFamily: 'var(--font-mono)', fontSize: 24, fontWeight: 700, color: expectancy >= 0 ? '#A6FF4D' : '#ff4757', marginBottom: 10 }}>
+                                            {expectancy >= 0 ? '+' : ''}${expectancy.toFixed(2)}
+                                        </div>
+                                        <div style={{ position: 'relative', height: 6, background: '#1a1c24', borderRadius: 3, marginBottom: 8 }}>
+                                            <div style={{ position: 'absolute', top: 0, left: 0, height: '100%', background: 'linear-gradient(to right, #ff4757 0%, #EAB308 40%, #A6FF4D 70%)', borderRadius: 3, width: '100%', opacity: 0.3 }} />
+                                            <motion.div
+                                                initial={{ left: '50%' }}
+                                                animate={{ left: `${Math.min(95, Math.max(5, 50 + (expectancy / Math.max(avgWin, 1)) * 40))}%` }}
+                                                style={{ position: 'absolute', top: -3, width: 12, height: 12, background: expectancy >= 0 ? '#A6FF4D' : '#ff4757', borderRadius: '50%', transform: 'translateX(-50%)' }}
+                                            />
+                                        </div>
+                                        <div style={{ display: 'flex', justifyContent: 'space-between', fontFamily: 'var(--font-mono)', fontSize: 9, color: '#4b5563' }}>
+                                            <span>NEGATIVE</span><span>FLAT</span><span>POSITIVE</span><span>OPTIMAL</span>
+                                        </div>
                                     </div>
                                 </div>
 
-                                <div className={styles.chartCard} style={{ height: 220 }}>
-                                    <span className={styles.chartCardTitle}>RISK SCORE</span>
-                                    <div className="relative w-full h-full flex items-center justify-center flex-col mt-4">
-                                        {(() => {
-                                            const rs = forensics.riskScore;
-                                            if (closed.length === 0) return (
-                                                <>
-                                                    <svg width="100" height="60" viewBox="0 0 100 60">
-                                                        <path d="M 10 50 A 40 40 0 0 1 90 50" fill="none" stroke="#1a1c24" strokeWidth="8" strokeLinecap="round" />
-                                                    </svg>
-                                                    <span className="text-2xl font-bold font-sans mt-[-20px] text-[#4b5563]">—</span>
-                                                    <span className="text-[9px] uppercase tracking-widest mt-4 text-[#4b5563]">NO DATA</span>
-                                                </>
-                                            );
-                                            const riskColor = rs > 75 ? '#ff4757' : rs > 30 ? '#EAB308' : '#A6FF4D';
-                                            const riskLabel = rs > 75 ? 'CRITICAL RISK' : rs > 30 ? 'ELEVATED RISK' : 'HEALTHY RISK';
-                                            return (<>
-                                                <svg width="100" height="60" viewBox="0 0 100 60">
-                                                    <path d="M 10 50 A 40 40 0 0 1 90 50" fill="none" stroke={riskColor} strokeWidth="8" strokeLinecap="round" />
-                                                </svg>
-                                                <span className="text-2xl font-bold font-sans mt-[-20px]" style={{ color: riskColor }}>{rs.toFixed(0)}</span>
-                                                <span className="text-[9px] uppercase tracking-widest mt-4" style={{ color: riskColor }}>{riskLabel}</span>
-                                            </>);
-                                        })()}
+                                {/* Payoff Profile */}
+                                <div style={{ background: '#0d1117', padding: '24px' }}>
+                                    <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#6b7280', letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 4 }}>PAYOFF PROFILE</div>
+                                    <div style={{ fontFamily: 'var(--font-mono)', fontSize: 16, fontWeight: 700, color: '#fff', marginBottom: 6 }}>Average win versus average loss</div>
+                                    <div style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: '#6b7280', marginBottom: 24 }}>This is the most direct visual for your W:L dollar ratio. Traders scan the payoff gap faster than the ratio alone.</div>
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                                        <div>
+                                            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                                    <div style={{ width: 8, height: 8, background: '#A6FF4D', borderRadius: '50%' }} />
+                                                    <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: '#8b949e' }}>Avg win</span>
+                                                    <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: '#6b7280' }}>{wins.length} winning trades</span>
+                                                </div>
+                                                <span style={{ fontFamily: 'var(--font-mono)', fontSize: 14, fontWeight: 700, color: '#A6FF4D' }}>+${avgWin.toFixed(2)}</span>
+                                            </div>
+                                            <div style={{ height: 10, background: '#1a1c24', borderRadius: 2 }}>
+                                                <motion.div initial={{ width: 0 }} animate={{ width: `${avgLoss > 0 ? Math.min(100, (avgWin / Math.max(avgWin, avgLoss)) * 100) : 100}%` }} style={{ height: '100%', background: '#A6FF4D', borderRadius: 2 }} />
+                                            </div>
+                                        </div>
+                                        <div>
+                                            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                                    <div style={{ width: 8, height: 8, background: '#ff4757', borderRadius: '50%' }} />
+                                                    <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: '#8b949e' }}>Avg loss</span>
+                                                    <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: '#6b7280' }}>{losses.length} losing trades</span>
+                                                </div>
+                                                <span style={{ fontFamily: 'var(--font-mono)', fontSize: 14, fontWeight: 700, color: '#ff4757' }}>-${avgLoss.toFixed(2)}</span>
+                                            </div>
+                                            <div style={{ height: 10, background: '#1a1c24', borderRadius: 2 }}>
+                                                <motion.div initial={{ width: 0 }} animate={{ width: `${avgWin > 0 ? Math.min(100, (avgLoss / Math.max(avgWin, avgLoss)) * 100) : 100}%` }} style={{ height: '100%', background: '#ff4757', borderRadius: 2 }} />
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* ── HOLD TIME ANALYSIS ── */}
+                            <div style={{ background: '#0d1117', border: '1px solid #1a1c24', padding: '24px' }}>
+                                <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#6b7280', letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 4 }}>MULTIPLIED EDGE</div>
+                                <div style={{ fontFamily: 'var(--font-mono)', fontSize: 16, fontWeight: 700, color: '#fff', marginBottom: 6 }}>Winners versus losers</div>
+                                <div style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: '#6b7280', marginBottom: 24 }}>Average duration alone hides the real coaching signal. The split below shows whether losers are lingering longer than winners.</div>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                                    {[
+                                        { label: 'Winners', sub: 'Average hold time', dur: avgWinDuration, color: '#A6FF4D' },
+                                        { label: 'Losers', sub: 'Average hold time', dur: avgLossDuration, color: '#ff4757' },
+                                    ].map((row, i) => {
+                                        const maxDur = Math.max(avgWinDuration, avgLossDuration, 1);
+                                        return (
+                                            <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+                                                <div style={{ width: 72, flexShrink: 0 }}>
+                                                    <div style={{ fontFamily: 'var(--font-mono)', fontSize: 12, fontWeight: 600, color: '#c9d1d9' }}>{row.label}</div>
+                                                    <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#4b5563' }}>{row.sub}</div>
+                                                </div>
+                                                <div style={{ flex: 1, height: 8, background: '#1a1c24', borderRadius: 2 }}>
+                                                    <motion.div initial={{ width: 0 }} animate={{ width: `${(row.dur / maxDur) * 100}%` }} style={{ height: '100%', background: row.color, borderRadius: 2, opacity: 0.85 }} />
+                                                </div>
+                                                <div style={{ fontFamily: 'var(--font-mono)', fontSize: 13, fontWeight: 700, color: row.color, width: 72, textAlign: 'right' }}>
+                                                    {fmtDuration(row.dur)}
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                                {avgLossDuration > avgWinDuration && avgLossDuration > 0 && (
+                                    <div style={{ marginTop: 16, fontFamily: 'var(--font-mono)', fontSize: 11, color: '#ff4757', fontWeight: 600 }}>
+                                        Losers lasting {(avgLossDuration / Math.max(avgWinDuration, 1)).toFixed(1)}x longer than winners.
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* ── BEHAVIORAL COST ── */}
+                            {behavioralCost < 0 && (
+                                <div style={{ background: '#0d1117', border: '1px solid #1a1c24', padding: '20px 24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 16 }}>
+                                    <div>
+                                        <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#6b7280', letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 4 }}>ESTIMATED TOTAL BEHAVIORAL COST — THIS SESSION</div>
+                                        <div style={{ fontFamily: 'var(--font-mono)', fontSize: 28, fontWeight: 700, color: '#ff4757' }}>
+                                            -${Math.abs(behavioralCost).toLocaleString(undefined, { minimumFractionDigits: 0 })}
+                                        </div>
+                                        <div style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: '#6b7280', marginTop: 4 }}>
+                                            Across {forensics.patterns.length} detected patterns · {Math.abs(behavioralCost / Math.max(grossProfit, 1) * 100).toFixed(1)}% of gross profits
+                                        </div>
+                                    </div>
+                                    <div style={{ textAlign: 'right' }}>
+                                        <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#6b7280', letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 4 }}>WITHOUT TOXIC PATTERNS</div>
+                                        <div style={{ fontFamily: 'var(--font-mono)', fontSize: 28, fontWeight: 700, color: '#A6FF4D' }}>
+                                            +${withoutToxicPatterns.toLocaleString(undefined, { minimumFractionDigits: 0 })}
+                                        </div>
+                                        <div style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: '#6b7280', marginTop: 4 }}>potential</div>
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* ── SESSION-TO-SESSION EQUITY PATH ── */}
+                            <div style={{ background: '#0d1117', border: '1px solid #1a1c24', padding: '24px' }}>
+                                <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#6b7280', letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 4 }}>EQUITY CURVE</div>
+                                <div style={{ fontFamily: 'var(--font-mono)', fontSize: 16, fontWeight: 700, color: '#fff', marginBottom: 6 }}>Session-to-session equity path</div>
+                                <div style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: '#6b7280', marginBottom: 20 }}>Cumulative net P&L over your trading days, with the deepest drawdown interval highlighted.</div>
+                                <div style={{ height: 180 }}>
+                                    {equityCurve.length > 1 ? (
+                                        <ResponsiveContainer width="100%" height="100%">
+                                            <AreaChart data={equityCurve} margin={{ top: 8, right: 8, bottom: 0, left: 0 }}>
+                                                <defs>
+                                                    <linearGradient id="eqGrad" x1="0" y1="0" x2="0" y2="1">
+                                                        <stop offset="5%" stopColor={netPnl >= 0 ? '#A6FF4D' : '#ff4757'} stopOpacity={0.25} />
+                                                        <stop offset="95%" stopColor={netPnl >= 0 ? '#A6FF4D' : '#ff4757'} stopOpacity={0} />
+                                                    </linearGradient>
+                                                </defs>
+                                                <CartesianGrid stroke="#1a1c24" strokeDasharray="3 3" vertical={false} />
+                                                <XAxis dataKey="i" hide />
+                                                <YAxis hide />
+                                                <ReferenceLine y={0} stroke="rgba(255,255,255,0.08)" />
+                                                <Tooltip
+                                                    contentStyle={{ backgroundColor: '#0b0e14', border: '1px solid #1a1c24', fontFamily: 'var(--font-mono)', fontSize: 11 }}
+                                                    formatter={(v: number | undefined) => v !== undefined ? [`${v >= 0 ? '+' : ''}$${Math.abs(v).toFixed(2)}`, 'Cumulative P&L'] : ['—', 'Cumulative P&L']}
+                                                    labelFormatter={(l: unknown) => `Trade #${l}`}
+                                                />
+                                                <Area type="monotone" dataKey="pnl" stroke={netPnl >= 0 ? '#A6FF4D' : '#ff4757'} strokeWidth={2} fill="url(#eqGrad)" dot={false} activeDot={{ r: 4, fill: netPnl >= 0 ? '#A6FF4D' : '#ff4757' }} />
+                                            </AreaChart>
+                                        </ResponsiveContainer>
+                                    ) : (
+                                        <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'var(--font-mono)', fontSize: 11, color: '#4b5563' }}>No trade data to plot</div>
+                                    )}
+                                </div>
+                                {equityCurve.length > 1 && (
+                                    <div style={{ display: 'flex', gap: 24, marginTop: 12, flexWrap: 'wrap' }}>
+                                        <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: '#ff4757' }}>Max drawdown: -${maxDd.toFixed(0)}</span>
+                                        <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: '#A6FF4D' }}>Max run-up: +${maxRunup.toFixed(0)}</span>
+                                        <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: '#4b5563' }}>Trades: {closed.length}</span>
+                                        <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: netPnl >= 0 ? '#A6FF4D' : '#ff4757' }}>Final: {netPnl >= 0 ? '+' : ''}${netPnl.toFixed(0)}</span>
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* ── 3-COL: Trade Outcome | P&L by Instrument | Risk Score ── */}
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 1, background: '#1a1c24' }}>
+                                {/* Trade Outcome Pie */}
+                                <div style={{ background: '#0d1117', padding: '24px' }}>
+                                    <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#6b7280', letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 4 }}>TRADE OUTCOME WIN</div>
+                                    <div style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: '#8b949e', marginBottom: 16 }}>Fast read on how often this session finished green versus red</div>
+                                    <div style={{ height: 120 }}>
+                                        <ResponsiveContainer width="100%" height="100%">
+                                            <PieChart>
+                                                <Pie data={[{ n: 'W', v: wins.length }, { n: 'L', v: losses.length }]} innerRadius={30} outerRadius={50} dataKey="v" stroke="none" startAngle={90} endAngle={-270}>
+                                                    <Cell fill="#A6FF4D" />
+                                                    <Cell fill="#ff4757" />
+                                                </Pie>
+                                            </PieChart>
+                                        </ResponsiveContainer>
+                                    </div>
+                                    <div style={{ display: 'flex', gap: 16, marginTop: 8, justifyContent: 'center' }}>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                                            <div style={{ width: 8, height: 8, background: '#A6FF4D', borderRadius: '50%' }} />
+                                            <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: '#c9d1d9' }}>{wins.length} trades</span>
+                                        </div>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                                            <div style={{ width: 8, height: 8, background: '#ff4757', borderRadius: '50%' }} />
+                                            <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: '#c9d1d9' }}>{losses.length} trades</span>
+                                        </div>
                                     </div>
                                 </div>
 
-                                <div className={styles.chartCard} style={{ height: 220 }}>
-                                    <span className={styles.chartCardTitle}>P&L BY ASSET</span>
-                                    <ResponsiveContainer width="100%" height="80%">
-                                        <PieChart>
-                                            <Pie data={instrumentArray.slice(0, 5)} innerRadius={20} outerRadius={60} dataKey="pnl" stroke="none">
-                                                {instrumentArray.map((_, i) => <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />)}
-                                            </Pie>
-                                        </PieChart>
-                                    </ResponsiveContainer>
+                                {/* P&L by Instrument */}
+                                <div style={{ background: '#0d1117', padding: '24px' }}>
+                                    <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#6b7280', letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 4 }}>P&L BY INSTRUMENT</div>
+                                    <div style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: '#8b949e', marginBottom: 16 }}>Signed contribution: our share of volume. Losing instruments stay visibly negative.</div>
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                                        {instrumentArray.slice(0, 5).map((inst, i) => (
+                                            <div key={inst.asset} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                                <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: '#6b7280', width: 36, flexShrink: 0 }}>{inst.asset.slice(0, 4)}</span>
+                                                <div style={{ flex: 1, height: 6, background: '#1a1c24', borderRadius: 2 }}>
+                                                    <motion.div initial={{ width: 0 }} animate={{ width: `${(Math.abs(inst.pnl) / maxAbsInstPnl) * 100}%` }} style={{ height: '100%', background: inst.pnl >= 0 ? PIE_COLORS[i % PIE_COLORS.length] : '#ff4757', borderRadius: 2 }} />
+                                                </div>
+                                                <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, fontWeight: 700, color: inst.pnl >= 0 ? '#A6FF4D' : '#ff4757', width: 60, textAlign: 'right' }}>
+                                                    {inst.pnl >= 0 ? '+' : '-'}${Math.abs(inst.pnl).toFixed(0)}
+                                                </span>
+                                            </div>
+                                        ))}
+                                    </div>
+                                    {instrumentArray.length === 0 && (
+                                        <div style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: '#4b5563' }}>No instrument data</div>
+                                    )}
                                 </div>
+
+                                {/* Risk Score */}
+                                <div style={{ background: '#0d1117', padding: '24px', display: 'flex', flexDirection: 'column', alignItems: 'flex-start' }}>
+                                    <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#6b7280', letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 4 }}>RISK SCORE</div>
+                                    <div style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: '#8b949e', marginBottom: 16 }}>Threshold-based readout designed for faster risk interpretation than a gauge.</div>
+                                    {/* Linear bar risk score */}
+                                    {(() => {
+                                        const rs = forensics.riskScore;
+                                        const riskColor = rs > 75 ? '#ff4757' : rs > 50 ? '#F97316' : rs > 30 ? '#EAB308' : '#A6FF4D';
+                                        const riskLabel = rs > 75 ? 'CRITICAL' : rs > 50 ? 'HIGH' : rs > 30 ? 'ELEVATED' : 'HEALTHY';
+                                        return (
+                                            <div style={{ width: '100%' }}>
+                                                <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginBottom: 8 }}>
+                                                    <span style={{ fontFamily: 'var(--font-mono)', fontSize: 48, fontWeight: 700, color: riskColor, lineHeight: 1 }}>{rs.toFixed(0)}</span>
+                                                    <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: '#4b5563' }}>/100</span>
+                                                </div>
+                                                <div style={{ height: 6, background: '#1a1c24', borderRadius: 3, marginBottom: 8, overflow: 'hidden' }}>
+                                                    <motion.div initial={{ width: 0 }} animate={{ width: `${rs}%` }} style={{ height: '100%', background: `linear-gradient(to right, #A6FF4D, ${riskColor})`, borderRadius: 3 }} />
+                                                </div>
+                                                <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, letterSpacing: '0.1em', color: riskColor, fontWeight: 700, border: `1px solid ${riskColor}33`, background: `${riskColor}11`, padding: '3px 8px', display: 'inline-block' }}>
+                                                    {riskLabel} RISK
+                                                </div>
+                                                <div style={{ marginTop: 16, display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+                                                    {[{ label: '0-30', tag: 'CLEAN', active: rs <= 30 }, { label: '31-55', tag: 'MODERATE', active: rs > 30 && rs <= 55 }, { label: '56-75', tag: 'HIGH', active: rs > 55 && rs <= 75 }, { label: '76-100', tag: 'CRITICAL', active: rs > 75 }].map((z, i) => (
+                                                        <div key={i} style={{ fontFamily: 'var(--font-mono)', fontSize: 8, padding: '2px 6px', border: `1px solid ${z.active ? riskColor : '#1a1c24'}`, color: z.active ? riskColor : '#4b5563', background: z.active ? `${riskColor}11` : 'transparent' }}>
+                                                            {z.label}<br />{z.tag}
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        );
+                                    })()}
+                                </div>
+                            </div>
+
+                            {/* ── RISK SCORE BREAKDOWN ── */}
+                            <div style={{ background: '#0d1117', border: '1px solid #1a1c24', padding: '24px' }}>
+                                <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#6b7280', letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 4 }}>HOW THE RISK SCORE IS CALCULATED</div>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: 14, marginTop: 16 }}>
+                                    {[
+                                        {
+                                            label: 'Behavior Patterns',
+                                            score: revScore,
+                                            max: 60,
+                                            color: revScore > 40 ? '#ff4757' : revScore > 20 ? '#EAB308' : '#A6FF4D',
+                                            desc: `+${revScore > 0 ? revScore : 0} if critical · +${revScore > 20 ? Math.floor(revScore / 2) : 0} warning · +${0} info`,
+                                            sub: `Max: 60 pts`,
+                                        },
+                                        {
+                                            label: 'Financial Damage',
+                                            score: financialScore,
+                                            max: 25,
+                                            color: financialScore > 15 ? '#ff4757' : financialScore > 0 ? '#EAB308' : '#A6FF4D',
+                                            desc: `+${financialScore > 15 ? financialScore : 0} if losses >5% of gross · +${financialScore > 5 && financialScore <= 15 ? financialScore : 0} if 1–5% · +0 if <1%`,
+                                            sub: `Max: 25 pts`,
+                                        },
+                                        {
+                                            label: 'Win Rate Erosion',
+                                            score: wrErosion,
+                                            max: 15,
+                                            color: wrErosion > 10 ? '#ff4757' : wrErosion > 0 ? '#EAB308' : '#A6FF4D',
+                                            desc: `+${wrErosion > 10 ? wrErosion : 0} if win rate <30% & negative expectancy · +${wrErosion > 0 && wrErosion <= 10 ? wrErosion : 0} if 30–35% negative`,
+                                            sub: `Max: 15 pts`,
+                                        },
+                                    ].map((row, i) => (
+                                        <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap' }}>
+                                            <div style={{ width: 140, flexShrink: 0 }}>
+                                                <div style={{ fontFamily: 'var(--font-mono)', fontSize: 12, fontWeight: 600, color: '#c9d1d9', marginBottom: 2 }}>{row.label}</div>
+                                                <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#4b5563' }}>{row.sub}</div>
+                                            </div>
+                                            <div style={{ flex: 1, height: 5, background: '#1a1c24', borderRadius: 2, minWidth: 100 }}>
+                                                <motion.div initial={{ width: 0 }} animate={{ width: `${(row.score / row.max) * 100}%` }} style={{ height: '100%', background: row.color, borderRadius: 2 }} />
+                                            </div>
+                                            <div style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: '#6b7280', flex: 1, minWidth: 180 }}>{row.desc}</div>
+                                            <div style={{ fontFamily: 'var(--font-mono)', fontSize: 14, fontWeight: 700, color: row.color, width: 32, textAlign: 'right' }}>+{row.score}</div>
+                                        </div>
+                                    ))}
+                                </div>
+                                <div style={{ display: 'flex', gap: 4, marginTop: 20 }}>
+                                    {[{ r: '0-30', l: 'LOW', c: '#A6FF4D' }, { r: '31-55', l: 'MODERATE', c: '#EAB308' }, { r: '56-75', l: 'HIGH', c: '#F97316' }, { r: '76-100', l: 'CRITICAL', c: '#ff4757', active: forensics.riskScore > 75 }].map((z, i) => (
+                                        <div key={i} style={{ fontFamily: 'var(--font-mono)', fontSize: 9, padding: '4px 10px', border: `1px solid ${z.c}44`, color: z.c, background: z.active ? `${z.c}15` : 'transparent' }}>{z.r}<br />{z.l}</div>
+                                    ))}
+                                    <div style={{ marginLeft: 'auto', fontFamily: 'var(--font-mono)', fontSize: 9, padding: '4px 12px', border: '2px solid #EAB308', color: '#EAB308', background: 'rgba(234,179,8,0.08)' }}>
+                                        YOUR SCORE: {forensics.riskScore.toFixed(0)} / 100
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* ── BENCHMARK vs RETAIL FUTURES TRADERS ── */}
+                            <div style={{ background: '#0d1117', border: '1px solid #1a1c24', padding: '24px' }}>
+                                <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#6b7280', letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 4 }}>BENCHMARK — 100 RETAIL FUTURES TRADERS</div>
+                                <div style={{ overflowX: 'auto' }}>
+                                    <table style={{ width: '100%', borderCollapse: 'collapse', fontFamily: 'var(--font-mono)', fontSize: 11, marginTop: 16 }}>
+                                        <thead>
+                                            <tr style={{ borderBottom: '1px solid #1a1c24' }}>
+                                                {['METRIC', 'YOUR VALUE', 'MEDIAN', 'TOP 25%', 'YOUR RANK'].map((h, i) => (
+                                                    <th key={i} style={{ padding: '10px 16px', textAlign: i === 0 ? 'left' : 'right', color: '#4b5563', fontWeight: 700, letterSpacing: '0.08em', fontSize: 9, textTransform: 'uppercase' }}>{h}</th>
+                                                ))}
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {[
+                                                { metric: 'Win Rate', yours: `${winRate.toFixed(1)}%`, median: '42%', top25: '55%', rank: winRate >= 55 ? 'Top 25% (76+)' : winRate >= 42 ? 'Above Avg (51+)' : 'Below Avg', rankColor: winRate >= 55 ? '#A6FF4D' : winRate >= 42 ? '#EAB308' : '#ff4757' },
+                                                { metric: 'Profit Factor', yours: profitFactor === 99 ? '∞' : profitFactor.toFixed(2), median: '1.21', top25: '1.90', rank: profitFactor >= 1.9 ? 'Above Avg (81+)' : profitFactor >= 1.2 ? 'Above Avg (61+)' : 'Below Avg (38%)', rankColor: profitFactor >= 1.9 ? '#A6FF4D' : profitFactor >= 1.2 ? '#EAB308' : '#ff4757' },
+                                                { metric: 'Expectancy / Trade ($)', yours: `${expectancy >= 0 ? '+' : ''}$${expectancy.toFixed(2)}`, median: '$4', top25: '$75', rank: expectancy >= 75 ? 'Above Avg (79+)' : expectancy >= 4 ? 'Above Avg (56+)' : 'Below Avg', rankColor: expectancy >= 75 ? '#A6FF4D' : expectancy >= 4 ? '#EAB308' : '#ff4757' },
+                                                { metric: 'Max Drawdown ($)', yours: `-$${maxDd.toFixed(0)}`, median: '$1390', top25: '$160', rank: maxDd <= 160 ? 'Top 25% (78+)' : maxDd <= 1390 ? 'Above Avg (39+)' : 'Below Avg', rankColor: maxDd <= 160 ? '#A6FF4D' : maxDd <= 1390 ? '#EAB308' : '#ff4757' },
+                                                { metric: 'Behavioral Risk Score', yours: `${forensics.riskScore.toFixed(0)}`, median: '58', top25: '26', rank: forensics.riskScore <= 26 ? 'Top 25% (>75)' : forensics.riskScore <= 58 ? 'Above Avg (>50)' : 'Below 25% (35th)', rankColor: forensics.riskScore <= 26 ? '#A6FF4D' : forensics.riskScore <= 58 ? '#EAB308' : '#ff4757' },
+                                            ].map((row, i) => (
+                                                <tr key={i} style={{ borderBottom: '1px solid #1a1c24' }}
+                                                    onMouseEnter={e => (e.currentTarget as HTMLTableRowElement).style.background = '#0d1117cc'}
+                                                    onMouseLeave={e => (e.currentTarget as HTMLTableRowElement).style.background = 'transparent'}>
+                                                    <td style={{ padding: '14px 16px', color: '#c9d1d9', fontWeight: 600 }}>{row.metric}</td>
+                                                    <td style={{ padding: '14px 16px', textAlign: 'right', fontWeight: 700, color: '#fff' }}>{row.yours}</td>
+                                                    <td style={{ padding: '14px 16px', textAlign: 'right', color: '#6b7280' }}>{row.median}</td>
+                                                    <td style={{ padding: '14px 16px', textAlign: 'right', color: '#6b7280' }}>{row.top25}</td>
+                                                    <td style={{ padding: '14px 16px', textAlign: 'right' }}>
+                                                        <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, fontWeight: 700, padding: '3px 8px', border: `1px solid ${row.rankColor}44`, color: row.rankColor, background: `${row.rankColor}11` }}>
+                                                            {row.rank}
+                                                        </span>
+                                                    </td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                </div>
+                                <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#4b5563', marginTop: 12, fontStyle: 'italic' }}>
+                                    Source: Probabilistic live data from 100+ retail traders on prop firm accounts · Stats update rolling 30-day
+                                </div>
+                            </div>
+
+                            {/* ── DANGER ZONES + STRENGTH ZONES ── */}
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 1, background: '#1a1c24' }}>
+                                <div style={{ background: '#0d1117', padding: '24px' }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
+                                        <TrendingDown size={12} color="#ff4757" />
+                                        <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#ff4757', letterSpacing: '0.12em', textTransform: 'uppercase', fontWeight: 700 }}>DANGER ZONES</span>
+                                    </div>
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                                        {dangerZones.length > 0 ? dangerZones.map((z: { h: number; pnl: number }, i: number) => (
+                                            <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 12px', background: 'rgba(255,71,87,0.05)', border: '1px solid rgba(255,71,87,0.15)' }}>
+                                                <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: '#8b949e' }}>{`${String(z.h).padStart(2, '0')}:00–${String(z.h + 1).padStart(2, '0')}:00`} EST</span>
+                                                <span style={{ fontFamily: 'var(--font-mono)', fontSize: 12, fontWeight: 700, color: '#ff4757' }}>-${Math.abs(z.pnl).toFixed(0)}</span>
+                                            </div>
+                                        )) : (
+                                            <div style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: '#4b5563' }}>No negative time zones detected</div>
+                                        )}
+                                    </div>
+                                </div>
+                                <div style={{ background: '#0d1117', padding: '24px' }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
+                                        <TrendingUp size={12} color="#A6FF4D" />
+                                        <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#A6FF4D', letterSpacing: '0.12em', textTransform: 'uppercase', fontWeight: 700 }}>STRENGTH ZONES</span>
+                                    </div>
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                                        {strengthZones.length > 0 ? strengthZones.map((z: { h: number; pnl: number }, i: number) => (
+                                            <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 12px', background: 'rgba(166,255,77,0.04)', border: '1px solid rgba(166,255,77,0.15)' }}>
+                                                <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: '#8b949e' }}>{`${String(z.h).padStart(2, '0')}:00–${String(z.h + 1).padStart(2, '0')}:00`} EST</span>
+                                                <span style={{ fontFamily: 'var(--font-mono)', fontSize: 12, fontWeight: 700, color: '#A6FF4D' }}>+${z.pnl.toFixed(0)}</span>
+                                            </div>
+                                        )) : (
+                                            <div style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: '#4b5563' }}>No positive time zones detected yet</div>
+                                        )}
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* ── SESSION SCORE ── */}
+                            {forensics.verdict && (
+                                <div style={{ background: 'rgba(166,255,77,0.04)', border: '1px solid rgba(166,255,77,0.15)', padding: '14px 20px', display: 'flex', alignItems: 'center', gap: 12 }}>
+                                    <Activity size={13} color="#A6FF4D" />
+                                    <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: '#A6FF4D', fontWeight: 600 }}>SESSION SCORE</span>
+                                    <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: '#8b949e' }}>{forensics.verdict.message} {forensics.verdict.action}</span>
+                                </div>
+                            )}
+
+                            {/* ── CHALLENGE BANNER ── */}
+                            <div style={{ background: '#0d1117', border: '1px solid rgba(166,255,77,0.2)', padding: '16px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                                    <div style={{ width: 32, height: 32, background: 'rgba(166,255,77,0.1)', border: '1px solid rgba(166,255,77,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: 2, flexShrink: 0 }}>
+                                        <Target size={14} color="#A6FF4D" />
+                                    </div>
+                                    <div>
+                                        <div style={{ fontFamily: 'var(--font-mono)', fontSize: 13, fontWeight: 700, color: '#A6FF4D' }}>
+                                            Your {winRate.toFixed(0)}% edge — Challenge your group to beat it.
+                                        </div>
+                                        <div style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: '#6b7280', marginTop: 2 }}>
+                                            Share your data and let your crew compete. Link opens your full report.
+                                        </div>
+                                    </div>
+                                </div>
+                                <button onClick={handleCopyLink} style={{ fontFamily: 'var(--font-mono)', fontSize: 11, fontWeight: 700, letterSpacing: '0.08em', padding: '10px 20px', background: '#A6FF4D', color: '#000', border: 'none', cursor: 'pointer', flexShrink: 0 }}>
+                                    {copied ? '✓ COPIED' : '⬡ COPY CHALLENGE'}
+                                </button>
                             </div>
                         </motion.div>
                     )}
