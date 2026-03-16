@@ -3659,6 +3659,85 @@ export default function AnalyticsPage() {
                                     </div>
                                 </div>
 
+                                {/* ── PERSONALIZED RATIO READING ── */}
+                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 1, background: '#1a1c24' }}>
+                                    <div style={{ background: '#0d1117', padding: '20px 24px' }}>
+                                        <div style={{ fontFamily: QF, fontSize: 9, color: '#A6FF4D', letterSpacing: '0.12em', textTransform: 'uppercase', fontWeight: 700, marginBottom: 10 }}>WHAT YOUR RATIOS SAY</div>
+                                        <p style={{ fontFamily: QF, fontSize: 10, color: '#c9d1d9', lineHeight: 1.9, margin: 0 }}>
+                                            {nD >= 2 ? (
+                                                sharpe >= 1
+                                                    ? `Sharpe ${sharpe.toFixed(2)} — your risk-adjusted returns are institutional-grade. For every $1 of daily volatility you absorb, you earn $${sharpe.toFixed(2)} annualized. This places you in the top tier of systematic traders.`
+                                                    : sharpe >= 0.5
+                                                    ? `Sharpe ${sharpe.toFixed(2)} — acceptable but improvable. You earn $${sharpe.toFixed(2)} annualized for every $1 of daily volatility. The gap to the 1.0 threshold means your losing days are disproportionately large relative to your winning days.`
+                                                    : `Sharpe ${sharpe.toFixed(2)} — your volatility is outpacing your return generation. You are taking on significant daily swings without capturing enough of them as net profit. This is the primary drag on your risk-adjusted performance.`
+                                            ) : 'Need at least 2 trading days to compute Sharpe.'}{' '}
+                                            {nD >= 2 && sortino > sharpe * 1.2
+                                                ? `Sortino ${sortino.toFixed(2)} beats Sharpe — your upside is cleaner than your downside. Losing days are not as bad as total volatility suggests. Good asymmetry.`
+                                                : nD >= 2 && sortino < sharpe
+                                                ? `Sortino ${sortino.toFixed(2)} below Sharpe — losing days are more volatile than winning days. Your downside is disproportionate. Tighter stop discipline would lift both ratios.`
+                                                : ''}{' '}
+                                            {profitFactor >= 2
+                                                ? `Profit factor ${profitFactor.toFixed(2)} is strong — for every $1 lost you recover $${profitFactor.toFixed(2)}. This provides significant buffer against losing streaks.`
+                                                : profitFactor >= 1.2
+                                                ? `Profit factor ${profitFactor.toFixed(2)} is above 1 — the system is net positive but the margin is thin. A bad week of variance can make it feel like it has stopped working.`
+                                                : profitFactor > 0
+                                                ? `Profit factor ${profitFactor.toFixed(2)} — gross losses nearly equal gross wins. This is a brittle system that depends heavily on win rate staying high.`
+                                                : ''}
+                                        </p>
+                                    </div>
+                                    <div style={{ background: '#0d1117', padding: '20px 24px' }}>
+                                        <div style={{ fontFamily: QF, fontSize: 9, color: '#EAB308', letterSpacing: '0.12em', textTransform: 'uppercase', fontWeight: 700, marginBottom: 10 }}>ACTION — IMPROVE YOUR RATIOS</div>
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                                            {[
+                                                {
+                                                    cond: nD >= 2 && sharpe < 1,
+                                                    icon: '▸',
+                                                    text: `Sharpe < 1: the fastest path to improvement is reducing losing day magnitude, not adding winning days. One -${fmtQ(-avgLoss * 2)} outlier day costs more Sharpe than three +${fmtQ(avgWin)} days can recover.`,
+                                                },
+                                                {
+                                                    cond: nD >= 2 && sortino < 1.2,
+                                                    icon: '▸',
+                                                    text: `Sortino ${sortino.toFixed(2)}: implement a daily loss ceiling of $${(Math.abs(avgLoss) * 3).toFixed(0)}. Any day that hits that ceiling is over. This directly compresses downside deviation, which is the denominator of Sortino.`,
+                                                },
+                                                {
+                                                    cond: kellyFull > 0 && (account.maxRiskPercent / kellyPct) > 1,
+                                                    icon: '⚠',
+                                                    text: `You are sizing above full Kelly (${account.maxRiskPercent}% vs ${kellyPct.toFixed(1)}% Kelly). This mathematically maximizes drawdown risk over time. Reduce to half-Kelly: ${(kellyPct * 0.5).toFixed(1)}% per trade.`,
+                                                },
+                                                {
+                                                    cond: kellyFull > 0 && (account.maxRiskPercent / kellyPct) < 0.25,
+                                                    icon: '▸',
+                                                    text: `You are trading at ${(account.maxRiskPercent / kellyPct * 100).toFixed(0)}% of Kelly. Your edge justifies ${(kellyPct * 0.5).toFixed(1)}% risk per trade (half-Kelly). Gradual size increase could improve absolute returns without material ruin risk.`,
+                                                },
+                                                {
+                                                    cond: recovFactor > 0 && recovFactor < 1,
+                                                    icon: '⚠',
+                                                    text: `Recovery factor ${recovFactor.toFixed(2)} — net profit is less than your max drawdown. You lost more at the worst point than you've earned overall. The drawdown event was structurally damaging.`,
+                                                },
+                                                {
+                                                    cond: efficiency < 15,
+                                                    icon: '▸',
+                                                    text: `Efficiency ${efficiency.toFixed(1)}%: most of your gross throughput cancels out. $${(grossProfit + grossLoss).toFixed(0)} gross activity produced only $${Math.abs(netPnl).toFixed(0)} net. Fewer, higher-conviction trades would lift this ratio significantly.`,
+                                                },
+                                            ].filter(a => a.cond).slice(0, 4).map((a, i) => (
+                                                <div key={i} style={{ display: 'flex', gap: 8, alignItems: 'flex-start' }}>
+                                                    <span style={{ fontFamily: QF, fontSize: 10, color: '#EAB308', flexShrink: 0, marginTop: 1 }}>{a.icon}</span>
+                                                    <p style={{ fontFamily: QF, fontSize: 10, color: '#8b949e', lineHeight: 1.7, margin: 0 }}>{a.text}</p>
+                                                </div>
+                                            ))}
+                                            {[
+                                                nD >= 2 && sharpe >= 1,
+                                                nD >= 2 && sortino >= 1.2,
+                                                kellyFull > 0 && (account.maxRiskPercent / kellyPct) >= 0.25 && (account.maxRiskPercent / kellyPct) <= 1,
+                                                recovFactor >= 1,
+                                                efficiency >= 15,
+                                            ].every(Boolean) && (
+                                                <p style={{ fontFamily: QF, fontSize: 10, color: '#A6FF4D', lineHeight: 1.7, margin: 0 }}>All major ratio thresholds passing. Focus on increasing trade sample to validate statistical significance of your edge.</p>
+                                            )}
+                                        </div>
+                                    </div>
+                                </div>
+
                                 {/* ── DISTRIBUTION ANALYSIS ── */}
                                 <div style={{ background: '#0d1117', border: '1px solid #1a1c24', padding: '24px' }}>
                                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 16, marginBottom: 16 }}>
@@ -3743,6 +3822,75 @@ export default function AnalyticsPage() {
                                     </div>
                                 </div>
 
+                                {/* ── DISTRIBUTION WHAT THIS MEANS + ACTION ── */}
+                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 1, background: '#1a1c24' }}>
+                                    <div style={{ background: '#0d1117', padding: '18px 20px', borderLeft: `3px solid ${skew < -0.5 ? '#ff4757' : skew > 0.5 ? '#A6FF4D' : '#EAB308'}` }}>
+                                        <div style={{ fontFamily: QF, fontSize: 9, color: skew < -0.5 ? '#ff4757' : skew > 0.5 ? '#A6FF4D' : '#EAB308', letterSpacing: '0.12em', textTransform: 'uppercase', fontWeight: 700, marginBottom: 8 }}>WHAT THIS DISTRIBUTION MEANS</div>
+                                        <p style={{ fontFamily: QF, fontSize: 10, color: '#c9d1d9', lineHeight: 1.9, margin: 0 }}>
+                                            {skew > 0.5 && exKurt <= 1
+                                                ? `Right-skewed, thin-tailed distribution — the best profile for a retail trader. You have more small losses than small wins, but your wins are meaningfully larger. Positive skew means a few exceptional trades are carrying the P&L. This profile can sustain a sub-50% win rate and still be profitable.`
+                                                : skew > 0.5 && exKurt > 1
+                                                ? `Right-skewed but fat-tailed — you have large wins (good) but also occasional large losses (bad). The fat tails mean your P&L is lumpy. Two or three outlier losses in a row could erase weeks of steady gains. The distribution structure is positive but fragile.`
+                                                : skew < -0.5 && exKurt > 1
+                                                ? `Left-skewed with fat tails — the worst distribution profile. You have small, frequent wins but rare catastrophic losses. This is the pattern of a trader who doesn't use hard stops. The losses are hidden in the tail but they will eventually compound into account-level damage.`
+                                                : skew < -0.5
+                                                ? `Left-skewed distribution — frequent small wins masking infrequent large losses. Your mean ($${meanT.toFixed(0)}/trade) is being dragged left by outlier losing trades. The median (${fmtQ(qp50)}) is likely better than the mean, which confirms the tail structure. This profile needs hard stop enforcement.`
+                                                : exKurt > 3
+                                                ? `Symmetric but highly fat-tailed — your trades cluster near zero with occasional explosive outcomes in both directions. Normal VaR models will significantly underestimate your true tail risk. The ${cvar95Trades.length} trades in your worst 5% averaged -$${cvar95.toFixed(0)}, which is the real risk number to size against.`
+                                                : `Near-symmetric distribution with ${exKurt > 1 ? 'mild' : 'normal'} kurtosis — consistent, controlled execution. Wins and losses are similarly shaped. Your edge comes primarily from win rate (${winRate.toFixed(0)}%) rather than tail outcomes. This is the most scalable distribution profile.`
+                                            }{' '}
+                                            {meanT > qp50
+                                                ? ` Mean (${fmtQ(meanT)}) > Median (${fmtQ(qp50)}): a few large wins are pulling your average up. The typical trade is actually smaller than it looks.`
+                                                : meanT < qp50
+                                                ? ` Mean (${fmtQ(meanT)}) < Median (${fmtQ(qp50)}): a few large losses are pulling your average down. Most of your trades perform better than the mean implies.`
+                                                : ''}
+                                        </p>
+                                    </div>
+                                    <div style={{ background: '#0d1117', padding: '18px 20px', borderLeft: '3px solid #EAB308' }}>
+                                        <div style={{ fontFamily: QF, fontSize: 9, color: '#EAB308', letterSpacing: '0.12em', textTransform: 'uppercase', fontWeight: 700, marginBottom: 8 }}>ACTION — FIX YOUR DISTRIBUTION SHAPE</div>
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                                            {skew < -0.3 && (
+                                                <div style={{ display: 'flex', gap: 8 }}>
+                                                    <span style={{ color: '#ff4757', fontFamily: QF, fontSize: 10, flexShrink: 0 }}>▸</span>
+                                                    <p style={{ fontFamily: QF, fontSize: 10, color: '#8b949e', lineHeight: 1.7, margin: 0 }}>
+                                                        Left-skew fix: your largest loss ({fmtQ(qp5)}) is {Math.abs(qp5 / meanT).toFixed(1)}× your mean trade. Hard stops set at 2× your average loss (${(avgLoss * 2).toFixed(0)}) would cap left-tail events and shift skew right over time.
+                                                    </p>
+                                                </div>
+                                            )}
+                                            {exKurt > 2 && (
+                                                <div style={{ display: 'flex', gap: 8 }}>
+                                                    <span style={{ color: '#ff4757', fontFamily: QF, fontSize: 10, flexShrink: 0 }}>▸</span>
+                                                    <p style={{ fontFamily: QF, fontSize: 10, color: '#8b949e', lineHeight: 1.7, margin: 0 }}>
+                                                        Fat-tail correction: excess kurtosis {exKurt.toFixed(1)} means outlier trades occur {(exKurt / 3 * 100).toFixed(0)}% more often than normal. Your VaR 99% (${var99.toFixed(0)}) is the real stop size to plan for — not your average loss (${avgLoss.toFixed(0)}).
+                                                    </p>
+                                                </div>
+                                            )}
+                                            {qp50 < 0 && (
+                                                <div style={{ display: 'flex', gap: 8 }}>
+                                                    <span style={{ color: '#ff4757', fontFamily: QF, fontSize: 10, flexShrink: 0 }}>▸</span>
+                                                    <p style={{ fontFamily: QF, fontSize: 10, color: '#8b949e', lineHeight: 1.7, margin: 0 }}>
+                                                        Median trade is negative ({fmtQ(qp50)}): more than half your trades lose money. Profitability depends entirely on your top-end winners. This is a high-fragility setup — one bad week without outlier wins turns everything negative.
+                                                    </p>
+                                                </div>
+                                            )}
+                                            {skew > 0.3 && exKurt <= 1 && (
+                                                <div style={{ display: 'flex', gap: 8 }}>
+                                                    <span style={{ color: '#A6FF4D', fontFamily: QF, fontSize: 10, flexShrink: 0 }}>✓</span>
+                                                    <p style={{ fontFamily: QF, fontSize: 10, color: '#8b949e', lineHeight: 1.7, margin: 0 }}>
+                                                        Distribution shape is healthy. Protect your right tail: do not exit P95 trades early. Those {fmtQ(qp95)}+ winners are structurally important — they are what makes your mean higher than your median.
+                                                    </p>
+                                                </div>
+                                            )}
+                                            <div style={{ display: 'flex', gap: 8 }}>
+                                                <span style={{ color: '#00D4FF', fontFamily: QF, fontSize: 10, flexShrink: 0 }}>▸</span>
+                                                <p style={{ fontFamily: QF, fontSize: 10, color: '#8b949e', lineHeight: 1.7, margin: 0 }}>
+                                                    IQR is ${(qp75 - qp25).toFixed(0)} ({fmtQ(qp25)} to {fmtQ(qp75)}). {(qp75 - qp25) > avgWin * 2 ? `Wide spread — execution variance is high. Standardizing entry and exit rules would compress this range and improve consistency.` : `Tight spread — execution is consistent. The middle 50% of your trades are predictable. Scale position size here, not on your outliers.`}
+                                                </p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
                                 {/* ── PERCENTILES + VAR ── */}
                                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 1, background: '#1a1c24' }}>
                                     {/* Percentile table */}
@@ -3799,6 +3947,52 @@ export default function AnalyticsPage() {
                                     </div>
                                 </div>
 
+                                {/* ── VAR EXPLANATION + ACTION ── */}
+                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 1, background: '#1a1c24' }}>
+                                    <div style={{ background: '#0d1117', padding: '18px 20px', borderLeft: '3px solid #ff4757' }}>
+                                        <div style={{ fontFamily: QF, fontSize: 9, color: '#ff4757', letterSpacing: '0.12em', textTransform: 'uppercase', fontWeight: 700, marginBottom: 8 }}>HOW TO READ YOUR VAR NUMBERS</div>
+                                        <p style={{ fontFamily: QF, fontSize: 10, color: '#c9d1d9', lineHeight: 1.9, margin: 0 }}>
+                                            VaR 95% (${var95.toFixed(0)}) means: on your worst trading day (statistically 1 in 20 trades), you should expect to lose around this amount. It is not a ceiling — it is the threshold where tail events begin.{' '}
+                                            CVaR ${cvar95.toFixed(0)} is the number that actually matters for risk management: it is the average loss across your {cvar95Trades.length} worst trades — the ones that fell past VaR. Banks and prop firms size their buffers against CVaR, not VaR.{' '}
+                                            {cvar95 > var95 * 1.5
+                                                ? `Your CVaR (${cvar95.toFixed(0)}) is ${(cvar95 / var95).toFixed(1)}× your VaR (${var95.toFixed(0)}). This gap reveals fat-tail behavior — when your worst trades happen, they are significantly larger than your VaR threshold predicted. Your true tail exposure is ${fmtQ(-cvar95)}, not ${fmtQ(-var95)}.`
+                                                : `Your CVaR (${cvar95.toFixed(0)}) is close to VaR (${var95.toFixed(0)}) — tail losses are consistent in size, not explosive. This is the healthier VaR profile: tails are bounded and predictable.`
+                                            }
+                                        </p>
+                                    </div>
+                                    <div style={{ background: '#0d1117', padding: '18px 20px', borderLeft: '3px solid #EAB308' }}>
+                                        <div style={{ fontFamily: QF, fontSize: 9, color: '#EAB308', letterSpacing: '0.12em', textTransform: 'uppercase', fontWeight: 700, marginBottom: 8 }}>ACTION — USE VAR IN YOUR SIZING</div>
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                                            <div style={{ display: 'flex', gap: 8 }}>
+                                                <span style={{ color: '#EAB308', fontFamily: QF, fontSize: 10, flexShrink: 0 }}>▸</span>
+                                                <p style={{ fontFamily: QF, fontSize: 10, color: '#8b949e', lineHeight: 1.7, margin: 0 }}>
+                                                    Daily loss limit recommendation: set your session stop at 2× VaR 95% = ${(var95 * 2).toFixed(0)}. This allows for two standard tail trades before you are forced to stop. Going past this level indicates something is wrong with execution, not just variance.
+                                                </p>
+                                            </div>
+                                            <div style={{ display: 'flex', gap: 8 }}>
+                                                <span style={{ color: '#EAB308', fontFamily: QF, fontSize: 10, flexShrink: 0 }}>▸</span>
+                                                <p style={{ fontFamily: QF, fontSize: 10, color: '#8b949e', lineHeight: 1.7, margin: 0 }}>
+                                                    Size against CVaR, not average loss: your average loss (${avgLoss.toFixed(0)}) understates real exposure. Any trade you size at {avgLoss > 0 ? `1% of account must survive a CVaR event of $${cvar95.toFixed(0)} without blowing the daily limit.` : 'scale must account for tail behavior.'}
+                                                </p>
+                                            </div>
+                                            {var99 > (account.dailyLossLimit ?? 0) * 0.8 && (account.dailyLossLimit ?? 0) > 0 && (
+                                                <div style={{ display: 'flex', gap: 8 }}>
+                                                    <span style={{ color: '#ff4757', fontFamily: QF, fontSize: 10, flexShrink: 0 }}>⚠</span>
+                                                    <p style={{ fontFamily: QF, fontSize: 10, color: '#8b949e', lineHeight: 1.7, margin: 0 }}>
+                                                        VaR 99% (${var99.toFixed(0)}) is above 80% of your daily loss limit (${ (account.dailyLossLimit ?? 0).toFixed(0)}). A single 1-in-100 tail trade could blow your daily limit in one hit. Consider reducing position size or widening your limit if the current size is appropriate.
+                                                    </p>
+                                                </div>
+                                            )}
+                                            <div style={{ display: 'flex', gap: 8 }}>
+                                                <span style={{ color: '#00D4FF', fontFamily: QF, fontSize: 10, flexShrink: 0 }}>▸</span>
+                                                <p style={{ fontFamily: QF, fontSize: 10, color: '#8b949e', lineHeight: 1.7, margin: 0 }}>
+                                                    Tail multiplier {var95 > 0 && avgLoss > 0 ? `${(var95 / avgLoss).toFixed(1)}×` : '—'}: {var95 > 0 && avgLoss > 0 && var95 / avgLoss > 3 ? `above 3× — outlier events dominate your risk. Review the ${cvar95Trades.length} worst trades to find a common pattern (time of day, asset, session type). Once identified, eliminate that setup.` : `below 3× — tail risk is proportional to typical risk. No single outlier category is dominating your losses.`}
+                                                </p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
                                 {/* ── UNDERWATER EQUITY ── */}
                                 {underwaterData.length > 1 && (
                                     <div style={{ background: '#0d1117', border: '1px solid #1a1c24', padding: '24px' }}>
@@ -3838,14 +4032,42 @@ export default function AnalyticsPage() {
                                                 <Area type="monotone" dataKey="ddPct" stroke="#ff4757" strokeWidth={1.5} fill="url(#ddGrad)" />
                                             </AreaChart>
                                         </ResponsiveContainer>
-                                        <div style={{ marginTop: 12, padding: '10px 14px', background: 'rgba(255,71,87,0.05)', border: '1px solid rgba(255,71,87,0.15)', borderLeft: '3px solid #ff4757' }}>
-                                            <div style={{ fontFamily: QF, fontSize: 9, color: '#ff4757', letterSpacing: '0.1em', marginBottom: 4 }}>WHAT THIS MEANS</div>
-                                            <p style={{ fontFamily: QF, fontSize: 10, color: '#c9d1d9', lineHeight: 1.7, margin: 0 }}>
-                                                {timeUW > underwaterData.length * 0.5
-                                                    ? `${timeUW} of ${underwaterData.length} trades (${(timeUW / underwaterData.length * 100).toFixed(0)}%) occurred below peak equity — more time underwater than above. You are fighting back more than you are compounding forward. Average drawdown depth: ${avgDD.toFixed(1)}%.`
-                                                    : `${timeUW} of ${underwaterData.length} trades below peak equity (${(timeUW / underwaterData.length * 100).toFixed(0)}%). Recovery is efficient. A recovery factor of ${recovFactor.toFixed(2)} means net profit is ${recovFactor.toFixed(1)}× the max drawdown incurred.`
-                                                }
-                                            </p>
+                                        <div style={{ marginTop: 12, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 1, background: '#1a1c24' }}>
+                                            <div style={{ padding: '12px 16px', background: '#0d1117', borderLeft: '3px solid #ff4757' }}>
+                                                <div style={{ fontFamily: QF, fontSize: 9, color: '#ff4757', letterSpacing: '0.1em', marginBottom: 6, fontWeight: 700 }}>WHAT THIS MEANS</div>
+                                                <p style={{ fontFamily: QF, fontSize: 10, color: '#c9d1d9', lineHeight: 1.8, margin: 0 }}>
+                                                    {timeUW > underwaterData.length * 0.5
+                                                        ? `${timeUW} of ${underwaterData.length} trades (${(timeUW / underwaterData.length * 100).toFixed(0)}%) occurred below peak equity. More time underwater than above water means you are spending more energy recovering ground than compounding it. The average drawdown depth of ${Math.abs(avgDD).toFixed(1)}% compounds psychologically — extended underwater periods are when emotional decisions peak.`
+                                                        : `${timeUW} of ${underwaterData.length} trades occurred below peak equity (${(timeUW / underwaterData.length * 100).toFixed(0)}%). Recovery is efficient — you are spending more time at or above peak than below it. A recovery factor of ${recovFactor.toFixed(2)} confirms net profit is ${recovFactor.toFixed(1)}× the max drawdown incurred. This is the profile of a well-managed account.`
+                                                    }
+                                                    {maxDdPct > 10 && ` Max drawdown of ${maxDdPct.toFixed(1)}% from starting balance is a structural data point: it tells you the worst losing sequence your current approach has produced. Size your position so a repeat of that sequence does not threaten the account.`}
+                                                </p>
+                                            </div>
+                                            <div style={{ padding: '12px 16px', background: '#0d1117', borderLeft: '3px solid #EAB308' }}>
+                                                <div style={{ fontFamily: QF, fontSize: 9, color: '#EAB308', letterSpacing: '0.1em', marginBottom: 6, fontWeight: 700 }}>ACTION</div>
+                                                <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
+                                                    {timeUW > underwaterData.length * 0.5 && (
+                                                        <p style={{ fontFamily: QF, fontSize: 10, color: '#8b949e', lineHeight: 1.7, margin: 0 }}>
+                                                            More than half your trades are underwater. Stop targeting new highs aggressively — tighten stops and reduce size until you string together 10 consecutive non-losing trades. Reframe the goal from profit to capital preservation.
+                                                        </p>
+                                                    )}
+                                                    {maxDdPct > 5 && (
+                                                        <p style={{ fontFamily: QF, fontSize: 10, color: '#8b949e', lineHeight: 1.7, margin: 0 }}>
+                                                            Max drawdown of {maxDdPct.toFixed(1)}%: identify the specific session or date cluster that caused this. Check the SESSIONS tab for that period. If it was one outlier session, implement a session-level loss cap of ${(Math.abs(netPnl) * 0.05).toFixed(0)} to prevent recurrence.
+                                                        </p>
+                                                    )}
+                                                    {recovFactor > 0 && recovFactor < 2 && (
+                                                        <p style={{ fontFamily: QF, fontSize: 10, color: '#8b949e', lineHeight: 1.7, margin: 0 }}>
+                                                            Recovery factor {recovFactor.toFixed(2)}: to reach 3.0 (professional benchmark), you need net P&L of ${(maxDd * 3).toFixed(0)} at your current max drawdown, or you need to reduce max drawdown to ${(netPnl / 3).toFixed(0)}. The second path is always faster.
+                                                        </p>
+                                                    )}
+                                                    {recovFactor >= 3 && (
+                                                        <p style={{ fontFamily: QF, fontSize: 10, color: '#A6FF4D', lineHeight: 1.7, margin: 0 }}>
+                                                            Recovery factor {recovFactor.toFixed(2)} exceeds the 3.0 benchmark. Drawdown management is working. Maintain the same stop discipline — this metric will degrade if you loosen exits.
+                                                        </p>
+                                                    )}
+                                                </div>
+                                            </div>
                                         </div>
                                     </div>
                                 )}
@@ -3880,6 +4102,33 @@ export default function AnalyticsPage() {
                                                 }
                                             </p>
                                         </div>
+                                        <div style={{ padding: '12px 14px', background: 'rgba(234,179,8,0.04)', border: '1px solid rgba(234,179,8,0.12)', borderLeft: '3px solid #EAB308' }}>
+                                            <div style={{ fontFamily: QF, fontSize: 9, color: '#EAB308', letterSpacing: '0.1em', marginBottom: 6, fontWeight: 700 }}>ACTION</div>
+                                            {isSignificant ? (
+                                                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                                                    <p style={{ fontFamily: QF, fontSize: 10, color: '#8b949e', lineHeight: 1.7, margin: 0 }}>
+                                                        Edge is confirmed — now protect it. The three things that destroy a confirmed edge: (1) changing the setup definition after a losing streak, (2) skipping trades selectively after losses, (3) overtrading on win streaks. All three introduce selection bias that invalidates the statistical sample.
+                                                    </p>
+                                                    <p style={{ fontFamily: QF, fontSize: 10, color: '#8b949e', lineHeight: 1.7, margin: 0 }}>
+                                                        At {nT} trades with t = {tStat.toFixed(2)}, you have statistical confidence. The next milestone is t ≥ 3.0 (99% confidence), which requires either more trades or a larger mean. You are currently at {((tStat / 3) * 100).toFixed(0)}% of the way there.
+                                                    </p>
+                                                </div>
+                                            ) : (
+                                                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                                                    <p style={{ fontFamily: QF, fontSize: 10, color: '#8b949e', lineHeight: 1.7, margin: 0 }}>
+                                                        While building sample: do not change your approach. Every strategy modification resets the clock. You need {Math.max(0, minN4Sig - nT)} more trades at the same setup to reach significance. Changing variables now makes all existing data unreliable.
+                                                    </p>
+                                                    <p style={{ fontFamily: QF, fontSize: 10, color: '#8b949e', lineHeight: 1.7, margin: 0 }}>
+                                                        During this accumulation phase: trade minimum size. The goal is data, not profit. Once t ≥ {tCrit.toFixed(1)} is confirmed at full sample ({minN4Sig} trades), then scale up. Scaling before significance confirmation is the primary cause of new-account blowups.
+                                                    </p>
+                                                    {meanT > 0 && (
+                                                        <p style={{ fontFamily: QF, fontSize: 10, color: '#8b949e', lineHeight: 1.7, margin: 0 }}>
+                                                            Current signal-to-noise: t = {tStat.toFixed(2)} out of {tCrit.toFixed(1)} needed. You are {((tStat / tCrit) * 100).toFixed(0)}% of the way there by t-stat alone. Each new trade adds √(n+1)/√n to the denominator — the accumulation accelerates non-linearly as n grows.
+                                                        </p>
+                                                    )}
+                                                </div>
+                                            )}
+                                        </div>
                                     </div>
 
                                     {/* Projections */}
@@ -3906,8 +4155,20 @@ export default function AnalyticsPage() {
                                                     <div style={{ fontFamily: QF, fontSize: 18, fontWeight: 700, color: s.color }}>{s.val}</div>
                                                 </div>
                                             ))}
+                                            <div style={{ padding: '10px 14px', background: 'rgba(0,212,255,0.04)', border: '1px solid rgba(0,212,255,0.12)', borderLeft: '3px solid #00D4FF' }}>
+                                                <div style={{ fontFamily: QF, fontSize: 9, color: '#00D4FF', letterSpacing: '0.1em', marginBottom: 5, fontWeight: 700 }}>HOW TO USE THE CI</div>
+                                                <p style={{ fontFamily: QF, fontSize: 10, color: '#8b949e', lineHeight: 1.7, margin: 0 }}>
+                                                    The 95% CI [{fmtQ(meanT - ciHalf)}, {fmtQ(meanT + ciHalf)}] means: if you ran your entire trade history again under the same conditions, the true mean would fall inside this range 95% of the time.{' '}
+                                                    {(meanT - ciHalf) > 0
+                                                        ? `The lower CI bound is positive (${fmtQ(meanT - ciHalf)}): even in a pessimistic scenario, the expected mean trade is profitable. This is the strongest form of edge evidence — the entire confidence interval is above zero.`
+                                                        : (meanT + ciHalf) > 0 && meanT > 0
+                                                        ? `The CI straddles zero (${fmtQ(meanT - ciHalf)} to ${fmtQ(meanT + ciHalf)}): the edge is real on average but the confidence interval includes negative territory. A bad run of variance could make the period look like a losing strategy. This is the "more data needed" signal.`
+                                                        : `CI includes negative territory — the data does not yet rule out a negative mean. Keep trading minimum size until the lower CI bound clears zero.`
+                                                    }
+                                                </p>
+                                            </div>
                                             <div style={{ padding: '8px 12px', background: 'rgba(234,179,8,0.05)', border: '1px solid rgba(234,179,8,0.15)', borderLeft: '3px solid #EAB308' }}>
-                                                <span style={{ fontFamily: QF, fontSize: 9, color: '#8b949e', lineHeight: 1.6 }}>Projections assume stationary statistics. Live trading introduces regime changes — never size decisions on projections alone.</span>
+                                                <span style={{ fontFamily: QF, fontSize: 9, color: '#8b949e', lineHeight: 1.6 }}>Projections assume stationary statistics. Live trading introduces regime changes — never base sizing decisions on projections alone.</span>
                                             </div>
                                         </div>
                                     </div>
@@ -3969,16 +4230,47 @@ export default function AnalyticsPage() {
                                             ))}
                                         </div>
 
-                                        <div style={{ marginTop: 12, padding: '10px 14px', background: 'rgba(0,212,255,0.04)', border: '1px solid rgba(0,212,255,0.12)', borderLeft: '3px solid #00D4FF' }}>
-                                            <div style={{ fontFamily: QF, fontSize: 9, color: '#00D4FF', letterSpacing: '0.1em', marginBottom: 4 }}>ACTION</div>
-                                            <p style={{ fontFamily: QF, fontSize: 10, color: '#8b949e', lineHeight: 1.7, margin: 0 }}>
-                                                {mcResults.posProb >= 70
-                                                    ? `${mcResults.posProb.toFixed(0)}% of ${MC_TRADES}-trade simulations end profitable. The edge is robust to variance. Execution consistency is the priority — the math is in your favor.`
-                                                    : mcResults.posProb >= 50
-                                                    ? `${mcResults.posProb.toFixed(0)}% positive probability is marginal. The edge exists but is narrow. Any degradation in win rate or R:R will flip the distribution negative. Improving your avg W:L ratio is the highest-leverage fix.`
-                                                    : `Only ${mcResults.posProb.toFixed(0)}% of futures are profitable. At current statistics, variance overwhelms edge over ${MC_TRADES} trades. Address SCORECARD failing metrics before scaling up.`
-                                                }
-                                            </p>
+                                        <div style={{ marginTop: 12, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 1, background: '#1a1c24' }}>
+                                            <div style={{ padding: '14px 18px', background: '#0d1117', borderLeft: '3px solid #00D4FF' }}>
+                                                <div style={{ fontFamily: QF, fontSize: 9, color: '#00D4FF', letterSpacing: '0.1em', marginBottom: 6, fontWeight: 700 }}>WHAT THE SIMULATION TELLS YOU</div>
+                                                <p style={{ fontFamily: QF, fontSize: 10, color: '#c9d1d9', lineHeight: 1.8, margin: 0 }}>
+                                                    Monte Carlo does not predict the future — it shows the distribution of futures your current stats can produce. The width of the distribution (Bear {fmtQ(mcResults.p10)} to Bull {fmtQ(mcResults.p90)}) is your variance cone. A wide cone means high volatility of outcomes; a tight cone means predictable compounding.{' '}
+                                                    {(mcResults.p90 - mcResults.p10) > Math.abs(meanT) * MC_TRADES * 0.5
+                                                        ? `Your cone is wide: P90 (${fmtQ(mcResults.p90)}) is ${((mcResults.p90 - mcResults.p10) / Math.abs(meanT * MC_TRADES) * 100).toFixed(0)}% wider than the expected value range. Outcome variance is high — you will experience significant runs in both directions before mean-reverting to the trend.`
+                                                        : `Your cone is relatively tight — outcomes cluster near the base case (${fmtQ(mcResults.p50)}). This signals consistent execution: variance is not overwhelming edge over ${MC_TRADES} trades.`
+                                                    }{' '}
+                                                    {mcResults.ruinProb > 0
+                                                        ? `Ruin probability of ${mcResults.ruinProb.toFixed(1)}% means approximately ${Math.round(mcResults.ruinProb * MC_PATHS / 100)} of the ${MC_PATHS} simulated futures hit a 10%+ drawdown. ${mcResults.ruinProb > 10 ? 'This is material — the risk of a damaging sequence is real at current stats.' : 'This is low — the risk of a catastrophic sequence is minimal at current stats.'}`
+                                                        : ''
+                                                    }
+                                                </p>
+                                            </div>
+                                            <div style={{ padding: '14px 18px', background: '#0d1117', borderLeft: '3px solid #EAB308' }}>
+                                                <div style={{ fontFamily: QF, fontSize: 9, color: '#EAB308', letterSpacing: '0.1em', marginBottom: 6, fontWeight: 700 }}>ACTION</div>
+                                                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                                                    {mcResults.posProb >= 70 ? (
+                                                        <p style={{ fontFamily: QF, fontSize: 10, color: '#8b949e', lineHeight: 1.7, margin: 0 }}>
+                                                            {mcResults.posProb.toFixed(0)}% of futures are profitable. The edge is robust to variance at {MC_TRADES}-trade horizon. Your job is execution consistency, not strategy changes. Protect the edge by never overriding your stop and never skipping setups after losses.
+                                                        </p>
+                                                    ) : mcResults.posProb >= 50 ? (
+                                                        <p style={{ fontFamily: QF, fontSize: 10, color: '#8b949e', lineHeight: 1.7, margin: 0 }}>
+                                                            {mcResults.posProb.toFixed(0)}% positive probability is marginal. The difference between 50% and 70% is a W:L ratio improvement of approximately {((wlRatio * 1.3 - wlRatio)).toFixed(2)}. Concretely: if your average win is currently ${avgWin.toFixed(0)}, extending winners by ${(avgWin * 0.3).toFixed(0)} would push this probability above 70%.
+                                                        </p>
+                                                    ) : (
+                                                        <p style={{ fontFamily: QF, fontSize: 10, color: '#8b949e', lineHeight: 1.7, margin: 0 }}>
+                                                            Only {mcResults.posProb.toFixed(0)}% of futures are profitable. Before increasing size or frequency, address win rate (currently {winRate.toFixed(0)}%) and W:L ratio (currently {wlRatio.toFixed(2)}). The Monte Carlo math shows the current stats are not yet reliable at {MC_TRADES}-trade scale.
+                                                        </p>
+                                                    )}
+                                                    {mcResults.ruinProb > 5 && (
+                                                        <p style={{ fontFamily: QF, fontSize: 10, color: '#8b949e', lineHeight: 1.7, margin: 0 }}>
+                                                            Ruin risk {mcResults.ruinProb.toFixed(1)}% is above the 5% safety threshold. Reduce position size by {Math.min(50, Math.round(mcResults.ruinProb * 3))}% until ruin probability drops below 5%. Ruin in a simulation is survivable; ruin on a prop account is not.
+                                                        </p>
+                                                    )}
+                                                    <p style={{ fontFamily: QF, fontSize: 10, color: '#8b949e', lineHeight: 1.7, margin: 0 }}>
+                                                        Base case projection after {MC_TRADES} trades: {fmtQ(mcResults.p50)}. At your average session pace ({avgSessionTrades.toFixed(0)} trades/session), that is approximately {sessionMetrics.length > 0 ? `${(MC_TRADES / avgSessionTrades).toFixed(0)} sessions` : `${MC_TRADES} trades`} from now.
+                                                    </p>
+                                                </div>
+                                            </div>
                                         </div>
                                     </div>
                                 )}
