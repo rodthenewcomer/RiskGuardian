@@ -3124,24 +3124,348 @@ export default function AnalyticsPage() {
                         </motion.div>
                     )}
 
-                    {activeTab === 'SCORECARD' && (
-                        <motion.div key="scorecard" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="flex flex-col gap-6">
-                            <span className={styles.sectionTitle}>Execution Scorecard</span>
-                            <div className="grid grid-cols-2 gap-4">
-                                {forensics.scorecard.map((s: any, i: number) => (
-                                    <div key={i} className={styles.kpiBox + ' flex-row items-center gap-6'}>
-                                        <div className={`text-[42px] font-black ${s.grade === 'A' ? styles.textGreen : s.grade === 'B' ? 'text-[#00D4FF]' : s.grade === 'C' ? styles.textYellow : s.grade === '—' ? 'text-[#6b7280]' : styles.textRed}`}>
-                                            {s.grade}
-                                        </div>
-                                        <div className="flex flex-col">
-                                            <span className="text-[12px] font-bold text-white uppercase tracking-widest">{s.metric}</span>
-                                            <span className="text-[10px] text-[#6b7280] uppercase mt-1">{s.desc}</span>
+                    {activeTab === 'SCORECARD' && (() => {
+                        // ── Pre-compute all enriched scorecard values ──
+                        const sc = forensics.scorecard; // [{metric, grade, desc}]
+                        const gradeColor = (g: string) => g === 'A' ? '#A6FF4D' : g === 'B' ? '#00D4FF' : g === 'C' ? '#EAB308' : g === '—' ? '#6b7280' : '#ff4757';
+                        const gradeScore = (g: string) => g === 'A' ? 100 : g === 'B' ? 75 : g === 'C' ? 50 : g === '—' ? 50 : 20;
+                        const compositeScore = sc.length > 0 ? Math.round(sc.reduce((s: number, x: any) => s + gradeScore(x.grade), 0) / sc.length) : 0;
+                        const compositeGrade = compositeScore >= 90 ? 'A' : compositeScore >= 75 ? 'B' : compositeScore >= 55 ? 'C' : compositeScore >= 35 ? 'D' : 'F';
+                        const passing = sc.filter((x: any) => x.grade === 'A' || x.grade === 'B').length;
+                        const failing = sc.filter((x: any) => x.grade === 'F' || x.grade === 'D').length;
+
+                        // Max single-trade loss
+                        const maxLossTrade = losses.length > 0 ? Math.max(...losses.map(t => Math.abs(t.pnl ?? 0))) : 0;
+                        const maxLossPct = (account.startingBalance ?? 0) > 0 ? (maxLossTrade / (account.startingBalance ?? 1)) * 100 : 0;
+
+                        // Revenge trading
+                        const revPattern = forensics.patterns.find((p: any) => p.name === 'Revenge Trading');
+                        const revCount = revPattern?.freq ?? 0;
+
+                        // Hold time ratio
+                        const htRatio = avgLossDuration > 0 ? avgWinDuration / avgLossDuration : null;
+
+                        // First hour EST trades
+                        const firstHourStats = hourlyStats.slice(0, 10).reduce((acc, h) => ({ pnl: acc.pnl + h.pnl, trades: acc.trades + h.trades, wins: acc.wins + h.wins }), { pnl: 0, trades: 0, wins: 0 });
+                        const firstHourWR = firstHourStats.trades > 0 ? (firstHourStats.wins / firstHourStats.trades) * 100 : 0;
+
+                        // Max session trades
+                        const maxSessionTrades = sessionMetrics.length > 0 ? Math.max(...sessionMetrics.map((s: any) => s.trades.length)) : 0;
+
+                        // Micro contracts P&L (assets starting with M + 1 more char, e.g. MES, MNQ, MCL, M2K)
+                        const microAssets = instrumentArray.filter(i => /^M[A-Z]{1,2}$/.test(i.asset));
+                        const microPnl = microAssets.reduce((s, i) => s + i.pnl, 0);
+
+                        // Instrument count
+                        const instCount = instrumentArray.length;
+
+                        // Per-metric enriched data
+                        const metricDetails = [
+                            {
+                                idx: 0,
+                                actualLabel: 'MAX SINGLE TRADE LOSS',
+                                actualValue: maxLossTrade > 0 ? `-$${maxLossTrade.toFixed(0)}` : '—',
+                                actualSub: maxLossPct > 0 ? `${maxLossPct.toFixed(1)}% of starting balance` : 'No losses recorded',
+                                barPct: Math.min(100, (maxLossPct / 5) * 100),
+                                barColor: maxLossPct < 1 ? '#A6FF4D' : maxLossPct < 2 ? '#EAB308' : '#ff4757',
+                                interpretation: maxLossTrade > 0
+                                    ? `Your largest single trade loss was $${maxLossTrade.toFixed(0)} (${maxLossPct.toFixed(1)}% of your starting balance). ${maxLossPct < 2 ? 'This is within the standard 2% risk-per-trade guideline.' : 'This exceeds the 2% guideline — a single trade took an outsized bite of your capital.'}`
+                                    : 'No loss data available yet. Log closed trades to see risk per trade analysis.',
+                                action: maxLossPct >= 2
+                                    ? `Immediately set a hard stop loss on every entry capping risk at 1% of starting balance ($${Math.round((account.startingBalance ?? 0) * 0.01)}). Your worst trade broke this rule.`
+                                    : `Good discipline — max loss within 2%. Maintain stops. If any trade exceeds $${Math.round((account.startingBalance ?? 0) * 0.015)}, review whether entry was too large.`,
+                            },
+                            {
+                                idx: 1,
+                                actualLabel: 'REVENGE SEQUENCES DETECTED',
+                                actualValue: `${revCount}`,
+                                actualSub: revCount > 0 ? `${revPattern?.freq} occurrences · Est. cost -$${Math.abs(revPattern?.impact ?? 0).toFixed(0)}` : 'Zero revenge sequences',
+                                barPct: Math.min(100, revCount * 25),
+                                barColor: revCount === 0 ? '#A6FF4D' : revCount <= 2 ? '#EAB308' : '#ff4757',
+                                interpretation: revCount === 0
+                                    ? 'No revenge trading patterns detected in your data. You are exiting cleanly after losses without immediate re-entry driven by emotion.'
+                                    : `${revCount} revenge sequence${revCount > 1 ? 's' : ''} detected. This is a loss → rapid re-entry cycle where emotional pressure overrides your entry criteria. Each revenge sequence compounds your loss, not your recovery.`,
+                                action: revCount === 0
+                                    ? 'Maintain current discipline. Set a rule now: after 3 consecutive losses in any session, step away for 30 minutes minimum.'
+                                    : `Implement a 3-loss hard stop per session immediately. After 3 losses, close the terminal for a minimum of 2 hours. This single rule eliminates your $${Math.abs(revPattern?.impact ?? 0).toFixed(0)} behavioral leakage.`,
+                            },
+                            {
+                                idx: 2,
+                                actualLabel: 'WIN/LOSS HOLD RATIO',
+                                actualValue: htRatio !== null ? `${htRatio.toFixed(2)}x` : '—',
+                                actualSub: `Winners: ${fmtDuration(avgWinDuration)} · Losers: ${fmtDuration(avgLossDuration)}`,
+                                barPct: htRatio !== null ? Math.min(100, (htRatio / 2) * 100) : 50,
+                                barColor: htRatio !== null && htRatio >= 1 ? '#A6FF4D' : htRatio !== null && htRatio >= 0.7 ? '#EAB308' : '#ff4757',
+                                interpretation: htRatio === null
+                                    ? 'Insufficient trade history to compute hold time asymmetry. Log at least one win and one loss.'
+                                    : htRatio >= 1
+                                    ? `Winners held ${htRatio.toFixed(2)}x longer than losers — excellent asymmetry. You are letting profits run and cutting losses efficiently. This is the textbook behavior.`
+                                    : `Losers held ${(1/htRatio).toFixed(2)}x longer than winners — inverted asymmetry. You are cutting wins short and holding losses long. This is the single most common cause of negative expectancy.`,
+                                action: htRatio !== null && htRatio < 1
+                                    ? `Set a time-based kill switch: any losing trade open beyond ${fmtDuration(avgWinDuration * 1.5)} gets closed regardless of price action. Stop hoping for reversals that your data shows rarely come.`
+                                    : 'Keep letting winners breathe. If tempted to close a winner early, check your target — if it has not been reached, hold the position.',
+                            },
+                            {
+                                idx: 3,
+                                actualLabel: 'AVG WIN / AVG LOSS RATIO',
+                                actualValue: wlRatio > 0 ? `${wlRatio.toFixed(2)}:1` : '—',
+                                actualSub: `Avg win $${avgWin.toFixed(0)} · Avg loss $${avgLoss.toFixed(0)}`,
+                                barPct: Math.min(100, (wlRatio / 3) * 100),
+                                barColor: wlRatio >= 1.5 ? '#A6FF4D' : wlRatio >= 1 ? '#EAB308' : '#ff4757',
+                                interpretation: wlRatio === 0
+                                    ? 'No complete win/loss data. Log both wins and losses to compute the payoff ratio.'
+                                    : wlRatio >= 1.5
+                                    ? `W:L ratio ${wlRatio.toFixed(2)}:1 is above the 1.5x benchmark — your wins are meaningfully larger than your losses. Combined with your win rate, this gives you a positive expected value per trade.`
+                                    : wlRatio >= 1
+                                    ? `W:L ratio ${wlRatio.toFixed(2)}:1 is above 1:1 but below the 1.5x optimal threshold. Slight improvement in target management would lift your edge significantly.`
+                                    : `W:L ratio ${wlRatio.toFixed(2)}:1 — losses are larger than wins on average. Even with a 60%+ win rate, a sub-1:1 ratio destroys expectancy over time.`,
+                                action: wlRatio < 1.5
+                                    ? `Your targets need to be 1.5× your stop size minimum. If avg loss is $${avgLoss.toFixed(0)}, your minimum target should be $${(avgLoss * 1.5).toFixed(0)}. Do not close winning trades before that level.`
+                                    : 'Above 1.5 — strong. Maintain discipline. Do not move targets closer when uncomfortable; let the system do its job.',
+                            },
+                            {
+                                idx: 4,
+                                actualLabel: microAssets.length > 0 ? 'MICRO CONTRACT NET P&L' : 'MICRO CONTRACTS',
+                                actualValue: microAssets.length > 0 ? `${microPnl >= 0 ? '+' : ''}$${microPnl.toFixed(0)}` : '—',
+                                actualSub: microAssets.length > 0 ? `${microAssets.length} micro instrument${microAssets.length !== 1 ? 's' : ''} traded` : 'No micro contracts detected',
+                                barPct: microAssets.length === 0 ? 100 : Math.min(100, (Math.abs(microPnl) / Math.max(Math.abs(netPnl), 1)) * 100),
+                                barColor: microAssets.length === 0 || microPnl >= 0 ? '#A6FF4D' : '#ff4757',
+                                interpretation: microAssets.length === 0
+                                    ? 'No micro contracts detected in your trade history. This metric monitors whether smaller-size practice trades are costing you through commission bleed.'
+                                    : microPnl >= 0
+                                    ? `Micro contracts are net profitable (+$${microPnl.toFixed(0)}). Your smaller-size trades are contributing positively to your edge — they are being used appropriately.`
+                                    : `Micro contracts have a net loss of $${Math.abs(microPnl).toFixed(0)}. Micro sizing should reduce risk, not add a separate loss center. These trades are bleeding commissions without edge.`,
+                                action: microPnl < 0 && microAssets.length > 0
+                                    ? `Immediately apply the same entry criteria to micro trades as full-size trades. Do not use micro contracts for "feeling out" the market — every trade needs an edge thesis.`
+                                    : 'Micro management is clean. Continue applying full entry discipline to micro-size trades — no different rules for smaller contracts.',
+                            },
+                            {
+                                idx: 5,
+                                actualLabel: 'FIRST-HOUR TRADES (PRE-10AM)',
+                                actualValue: firstHourStats.trades > 0 ? `${firstHourStats.trades}T · ${firstHourWR.toFixed(0)}% WR` : 'None',
+                                actualSub: firstHourStats.trades > 0 ? `Net P&L: ${firstHourStats.pnl >= 0 ? '+' : ''}$${firstHourStats.pnl.toFixed(0)} before 10:00 EST` : 'No trades logged before 10:00 EST',
+                                barPct: firstHourStats.trades === 0 ? 100 : Math.min(100, firstHourWR),
+                                barColor: firstHourWR >= 50 && firstHourStats.pnl >= 0 ? '#A6FF4D' : firstHourWR >= 40 ? '#EAB308' : '#ff4757',
+                                interpretation: firstHourStats.trades === 0
+                                    ? 'No first-hour trades detected. The open is the most volatile and spread-widest period — avoiding it is a valid edge strategy.'
+                                    : firstHourWR >= 50 && firstHourStats.pnl >= 0
+                                    ? `First hour performance is positive (${firstHourWR.toFixed(0)}% WR, +$${firstHourStats.pnl.toFixed(0)}). You have an edge in the open window — this is unusual and worth protecting.`
+                                    : `First hour win rate is ${firstHourWR.toFixed(0)}% with ${firstHourStats.pnl >= 0 ? '+' : ''}$${firstHourStats.pnl.toFixed(0)} net. The open window has the highest spread costs and news-spike risk. Below 50% WR here is structural, not random.`,
+                                action: firstHourStats.trades > 0 && (firstHourWR < 50 || firstHourStats.pnl < 0)
+                                    ? `Consider a soft ban on trades before 10:00 EST — or require a 15-minute observation period after open before entering. Your first-hour data does not justify full-size participation.`
+                                    : firstHourStats.trades > 0
+                                    ? 'First hour is profitable — protect it. Use full standard size in this window. If WR ever drops below 50% over 20+ samples, re-evaluate.'
+                                    : 'Good instinct avoiding the open. Re-evaluate once you have 20+ data points if market conditions change.',
+                            },
+                            {
+                                idx: 6,
+                                actualLabel: 'MAX TRADES IN ONE SESSION',
+                                actualValue: maxSessionTrades > 0 ? `${maxSessionTrades} trades` : '—',
+                                actualSub: `Avg per session: ${avgSessionTrades.toFixed(1)} trades · ${sessionMetrics.length} sessions total`,
+                                barPct: Math.min(100, (maxSessionTrades / 25) * 100),
+                                barColor: maxSessionTrades <= 12 ? '#A6FF4D' : maxSessionTrades <= 20 ? '#EAB308' : '#ff4757',
+                                interpretation: maxSessionTrades === 0
+                                    ? 'No session data available yet. Log trades across multiple sessions to track session cap discipline.'
+                                    : maxSessionTrades <= 15
+                                    ? `Max session trade count is ${maxSessionTrades} — within healthy range. Session discipline is intact. Trade count is not overriding edge selectivity.`
+                                    : `One or more sessions exceeded ${maxSessionTrades} trades. High-frequency intra-session trading dilutes your statistical edge. Each additional trade after your edge window closes is noise trading.`,
+                                action: maxSessionTrades > 15
+                                    ? `Implement a hard session trade cap of 12 trades. Once hit, close the terminal for the session. More trades ≠ more profit — your data shows diminishing returns beyond that threshold.`
+                                    : 'Session cap discipline is good. Maintain a maximum of 12–15 trades per session. Any session urge beyond that is likely emotional, not analytical.',
+                            },
+                            {
+                                idx: 7,
+                                actualLabel: 'INSTRUMENTS TRADED',
+                                actualValue: `${instCount}`,
+                                actualSub: instCount > 0 ? instrumentArray.slice(0, 4).map(i => i.asset).join(' · ') + (instCount > 4 ? ` +${instCount - 4} more` : '') : 'No trades logged',
+                                barPct: Math.min(100, Math.max(0, 100 - ((instCount - 1) / 5) * 100)),
+                                barColor: instCount <= 2 ? '#A6FF4D' : instCount <= 4 ? '#EAB308' : '#ff4757',
+                                interpretation: instCount === 0
+                                    ? 'No instrument data yet.'
+                                    : instCount <= 2
+                                    ? `You trade ${instCount} instrument${instCount !== 1 ? 's' : ''} — excellent focus. Deep knowledge of a single instrument is your edge. You know its spread, its behavior, its patterns.`
+                                    : instCount <= 4
+                                    ? `${instCount} instruments traded. This is manageable but approaching the spread-too-thin threshold. Each instrument requires separate behavioral understanding.`
+                                    : `${instCount} instruments traded. Ticker hopping is diluting your edge. Proficiency requires repetition — switching instruments resets your read of the tape.`,
+                                action: instCount > 3
+                                    ? `Select your top 2 instruments by P&L and win rate (currently: ${instrumentArray.slice(0, 2).map(i => i.asset).join(', ')}) and trade exclusively those for 30 sessions. Re-evaluate diversification only after edge is confirmed in both.`
+                                    : `Focus maintained. Do not add new instruments until current ones have 50+ trade samples each.`,
+                            },
+                        ];
+
+                        return (
+                            <motion.div key="scorecard" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} style={{ display: 'flex', flexDirection: 'column', gap: 20, marginBottom: 48 }}>
+
+                                {/* ── HEADER ── */}
+                                <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
+                                    <div>
+                                        <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#6b7280', letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 4 }}>EXECUTION QUALITY AUDIT</div>
+                                        <div style={{ fontFamily: 'var(--font-mono)', fontSize: 20, fontWeight: 700, color: '#fff', marginBottom: 4 }}>Execution Scorecard</div>
+                                        <div style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: '#8b949e' }}>
+                                            8 behavioral execution metrics graded A–F from your actual trade data. This is not opinion — it is derived directly from timestamps, P&L, and pattern sequences.
                                         </div>
                                     </div>
-                                ))}
-                            </div>
-                        </motion.div>
-                    )}
+                                    {/* Composite grade callout */}
+                                    <div style={{ background: '#0d1117', border: `1px solid ${gradeColor(compositeGrade)}44`, padding: '16px 24px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, minWidth: 120 }}>
+                                        <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#6b7280', letterSpacing: '0.1em', textTransform: 'uppercase' }}>OVERALL GRADE</div>
+                                        <div style={{ fontFamily: 'var(--font-mono)', fontSize: 52, fontWeight: 900, color: gradeColor(compositeGrade), lineHeight: 1, textShadow: `0 0 24px ${gradeColor(compositeGrade)}44` }}>{compositeGrade}</div>
+                                        <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: gradeColor(compositeGrade), letterSpacing: '0.08em' }}>{compositeScore}/100</div>
+                                    </div>
+                                </div>
+
+                                {/* ── 4-KPI STRIP ── */}
+                                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', borderTop: '1px solid #1a1c24', borderLeft: '1px solid #1a1c24' }}>
+                                    {[
+                                        { label: 'COMPOSITE SCORE', value: `${compositeScore}`, sub: `Out of 100 · Grade ${compositeGrade}`, color: gradeColor(compositeGrade) },
+                                        { label: 'METRICS PASSING', value: `${passing}/8`, sub: `${(passing / 8 * 100).toFixed(0)}% pass rate (A or B)`, color: passing >= 6 ? '#A6FF4D' : passing >= 4 ? '#EAB308' : '#ff4757' },
+                                        { label: 'FAILING METRICS', value: `${failing}`, sub: failing === 0 ? 'No critical issues' : `${failing} need immediate attention`, color: failing === 0 ? '#A6FF4D' : failing <= 2 ? '#EAB308' : '#ff4757' },
+                                        { label: 'BEHAVIORAL RISK', value: `${forensics.riskScore.toFixed(0)}/100`, sub: forensics.riskScore > 60 ? 'CRITICAL — address immediately' : forensics.riskScore > 35 ? 'Elevated — monitor closely' : 'Healthy', color: forensics.riskScore > 60 ? '#ff4757' : forensics.riskScore > 35 ? '#EAB308' : '#A6FF4D' },
+                                    ].map((k, i) => (
+                                        <div key={i} style={{ padding: '20px 24px', borderBottom: '1px solid #1a1c24', borderRight: '1px solid #1a1c24', background: '#0d1117', display: 'flex', flexDirection: 'column', gap: 6 }}>
+                                            <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#6b7280', letterSpacing: '0.1em', textTransform: 'uppercase' }}>{k.label}</span>
+                                            <span style={{ fontFamily: 'var(--font-mono)', fontSize: 22, fontWeight: 700, color: k.color }}>{k.value}</span>
+                                            <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: '#8b949e' }}>{k.sub}</span>
+                                        </div>
+                                    ))}
+                                </div>
+
+                                {/* ── SCORE OVERVIEW BAR ── */}
+                                <div style={{ background: '#0d1117', border: '1px solid #1a1c24', padding: '20px 24px' }}>
+                                    <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#6b7280', letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 14 }}>ALL 8 METRICS AT A GLANCE</div>
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                                        {sc.map((s: any, i: number) => (
+                                            <div key={i} style={{ display: 'grid', gridTemplateColumns: '200px 28px 1fr 60px', alignItems: 'center', gap: 16 }}>
+                                                <div style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: '#c9d1d9', fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{s.metric}</div>
+                                                <div style={{ fontFamily: 'var(--font-mono)', fontSize: 14, fontWeight: 900, color: gradeColor(s.grade), textAlign: 'center' }}>{s.grade}</div>
+                                                <div style={{ height: 4, background: '#1a1c24', borderRadius: 2, overflow: 'hidden' }}>
+                                                    <motion.div initial={{ width: 0 }} animate={{ width: `${gradeScore(s.grade)}%` }} transition={{ delay: i * 0.05 }} style={{ height: '100%', background: gradeColor(s.grade), borderRadius: 2 }} />
+                                                </div>
+                                                <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#6b7280', textAlign: 'right', whiteSpace: 'nowrap' }}>
+                                                    {s.grade === 'A' ? 'PASSING' : s.grade === 'B' ? 'GOOD' : s.grade === 'C' ? 'MARGINAL' : s.grade === '—' ? 'NO DATA' : 'FAILING'}
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+
+                                {/* ── 8 METRIC DEEP DIVE CARDS ── */}
+                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 1, background: '#1a1c24' }}>
+                                    {metricDetails.map((m, i) => {
+                                        const s = sc[m.idx];
+                                        const gc = gradeColor(s.grade);
+                                        const isFailing = s.grade === 'F' || s.grade === 'D';
+                                        return (
+                                            <div key={i} style={{ background: '#0d1117', padding: '24px', display: 'flex', flexDirection: 'column', gap: 14, borderLeft: `2px solid ${gc}33` }}>
+                                                {/* Grade + name */}
+                                                <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 }}>
+                                                    <div style={{ flex: 1 }}>
+                                                        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4 }}>
+                                                            <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#6b7280' }}>METRIC {i + 1} OF 8</span>
+                                                            <span style={{ fontFamily: 'var(--font-mono)', fontSize: 8, fontWeight: 700, padding: '1px 6px', border: `1px solid ${gc}44`, color: gc, background: `${gc}11`, letterSpacing: '0.1em' }}>
+                                                                {s.grade === 'A' ? 'PASSING' : s.grade === 'B' ? 'GOOD' : s.grade === 'C' ? 'MARGINAL' : s.grade === '—' ? 'NO DATA' : 'FAILING'}
+                                                            </span>
+                                                        </div>
+                                                        <div style={{ fontFamily: 'var(--font-mono)', fontSize: 15, fontWeight: 700, color: '#fff' }}>{s.metric}</div>
+                                                        <div style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: '#8b949e', marginTop: 3, lineHeight: 1.5 }}>{s.desc}</div>
+                                                    </div>
+                                                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', flexShrink: 0 }}>
+                                                        <div style={{ fontFamily: 'var(--font-mono)', fontSize: 48, fontWeight: 900, color: gc, lineHeight: 1, textShadow: `0 0 20px ${gc}33` }}>{s.grade}</div>
+                                                    </div>
+                                                </div>
+
+                                                {/* Actual value */}
+                                                <div style={{ background: '#0b0e14', border: '1px solid #1a1c24', padding: '12px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                                    <div>
+                                                        <div style={{ fontFamily: 'var(--font-mono)', fontSize: 8, color: '#6b7280', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 3 }}>{m.actualLabel}</div>
+                                                        <div style={{ fontFamily: 'var(--font-mono)', fontSize: 18, fontWeight: 700, color: gc }}>{m.actualValue}</div>
+                                                    </div>
+                                                    <div style={{ textAlign: 'right' }}>
+                                                        <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#6b7280', lineHeight: 1.6 }}>{m.actualSub}</div>
+                                                    </div>
+                                                </div>
+
+                                                {/* Score bar */}
+                                                <div>
+                                                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+                                                        <span style={{ fontFamily: 'var(--font-mono)', fontSize: 8, color: '#6b7280', letterSpacing: '0.08em' }}>SCORE</span>
+                                                        <span style={{ fontFamily: 'var(--font-mono)', fontSize: 8, color: gc, fontWeight: 700 }}>{gradeScore(s.grade)}/100</span>
+                                                    </div>
+                                                    <div style={{ height: 4, background: '#1a1c24', borderRadius: 2, overflow: 'hidden' }}>
+                                                        <motion.div initial={{ width: 0 }} animate={{ width: `${gradeScore(s.grade)}%` }} transition={{ delay: i * 0.06, duration: 0.5 }} style={{ height: '100%', background: gc, borderRadius: 2 }} />
+                                                    </div>
+                                                </div>
+
+                                                {/* Interpretation + Action */}
+                                                <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: 8 }}>
+                                                    <div style={{ padding: '12px 14px', background: `rgba(${isFailing ? '255,71,87' : '166,255,77'},0.04)`, border: `1px solid rgba(${isFailing ? '255,71,87' : '166,255,77'},0.12)`, borderLeft: `3px solid ${isFailing ? '#ff4757' : '#A6FF4D'}` }}>
+                                                        <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: isFailing ? '#ff4757' : '#A6FF4D', letterSpacing: '0.1em', textTransform: 'uppercase', fontWeight: 700, marginBottom: 5 }}>WHAT THIS MEANS</div>
+                                                        <p style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: '#c9d1d9', lineHeight: 1.8, margin: 0 }}>{m.interpretation}</p>
+                                                    </div>
+                                                    <div style={{ padding: '12px 14px', background: 'rgba(234,179,8,0.04)', border: '1px solid rgba(234,179,8,0.12)', borderLeft: '3px solid #EAB308' }}>
+                                                        <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#EAB308', letterSpacing: '0.1em', textTransform: 'uppercase', fontWeight: 700, marginBottom: 5 }}>ACTION</div>
+                                                        <p style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: '#8b949e', lineHeight: 1.8, margin: 0 }}>{m.action}</p>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+
+                                {/* ── SUMMARY COACHING BLOCK ── */}
+                                <div style={{ background: '#0d1117', border: '1px solid #1a1c24', padding: '24px' }}>
+                                    <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#6b7280', letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 16 }}>PRIORITY CORRECTION PLAN — HIGHEST IMPACT FIRST</div>
+                                    {failing > 0 ? (
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                                            {sc.filter((s: any) => s.grade === 'F' || s.grade === 'D').map((s: any, i: number) => {
+                                                const gc = gradeColor(s.grade);
+                                                const det = metricDetails.find(m => sc[m.idx] === s);
+                                                return (
+                                                    <div key={i} style={{ display: 'flex', gap: 16, padding: '14px 16px', background: '#0b0e14', borderLeft: `3px solid ${gc}` }}>
+                                                        <div style={{ fontFamily: 'var(--font-mono)', fontSize: 28, fontWeight: 900, color: gc, opacity: 0.3, lineHeight: 1, flexShrink: 0, width: 32 }}>{String(i + 1).padStart(2, '0')}</div>
+                                                        <div>
+                                                            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 6 }}>
+                                                                <span style={{ fontFamily: 'var(--font-mono)', fontSize: 13, fontWeight: 700, color: '#fff' }}>{s.metric}</span>
+                                                                <span style={{ fontFamily: 'var(--font-mono)', fontSize: 8, fontWeight: 700, padding: '1px 6px', border: `1px solid ${gc}44`, color: gc, background: `${gc}11` }}>GRADE {s.grade}</span>
+                                                            </div>
+                                                            <p style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: '#8b949e', lineHeight: 1.7, margin: 0 }}>
+                                                                {det?.action ?? s.desc}
+                                                            </p>
+                                                        </div>
+                                                    </div>
+                                                );
+                                            })}
+                                        </div>
+                                    ) : (
+                                        <div style={{ padding: '20px', background: 'rgba(166,255,77,0.04)', border: '1px solid rgba(166,255,77,0.15)', borderLeft: '3px solid #A6FF4D' }}>
+                                            <div style={{ fontFamily: 'var(--font-mono)', fontSize: 13, fontWeight: 700, color: '#A6FF4D', marginBottom: 6 }}>All metrics passing — elite execution discipline.</div>
+                                            <p style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: '#8b949e', lineHeight: 1.7, margin: 0 }}>
+                                                Zero failing grades means your behavioral foundations are solid. Focus on incremental improvement: review C-grade metrics and target one area per month. Consistency compounds faster than breakthroughs.
+                                            </p>
+                                        </div>
+                                    )}
+                                </div>
+
+                                {/* ── GRADE LEGEND ── */}
+                                <div style={{ background: '#0d1117', border: '1px solid #1a1c24', padding: '16px 24px', display: 'flex', gap: 24, flexWrap: 'wrap', alignItems: 'center' }}>
+                                    <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#6b7280', letterSpacing: '0.1em', textTransform: 'uppercase' }}>GRADE SCALE</span>
+                                    {[
+                                        { g: 'A', label: '≥90 · Passing', c: '#A6FF4D' },
+                                        { g: 'B', label: '75–89 · Good', c: '#00D4FF' },
+                                        { g: 'C', label: '50–74 · Marginal', c: '#EAB308' },
+                                        { g: 'D', label: '20–49 · Failing', c: '#F97316' },
+                                        { g: 'F', label: '<20 · Critical', c: '#ff4757' },
+                                        { g: '—', label: 'No data', c: '#6b7280' },
+                                    ].map(({ g, label, c }) => (
+                                        <div key={g} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                            <span style={{ fontFamily: 'var(--font-mono)', fontSize: 16, fontWeight: 900, color: c, lineHeight: 1 }}>{g}</span>
+                                            <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#8b949e' }}>{label}</span>
+                                        </div>
+                                    ))}
+                                </div>
+
+                            </motion.div>
+                        );
+                    })()}
 
                     {activeTab === 'QUANT' && (() => {
                         const dailyPnls = dailyData.map(d => d.pnl);
