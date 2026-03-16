@@ -89,6 +89,49 @@ export default function AnalyticsPage() {
         if (runup > maxRunup) maxRunup = runup;
     });
 
+    // ── Enriched session metrics ──
+    const sessionMetrics = useMemo(() => forensics.sessions.map((s: any) => {
+        const sWins = s.trades.filter((t: any) => (t.pnl ?? 0) > 0);
+        const sLosses = s.trades.filter((t: any) => (t.pnl ?? 0) < 0);
+        const sAvgWin = sWins.length > 0 ? sWins.reduce((acc: number, t: any) => acc + (t.pnl ?? 0), 0) / sWins.length : 0;
+        const sAvgLoss = sLosses.length > 0 ? Math.abs(sLosses.reduce((acc: number, t: any) => acc + (t.pnl ?? 0), 0)) / sLosses.length : 0;
+        const bestTrade = s.trades.reduce((best: any, t: any) => (t.pnl ?? 0) > (best?.pnl ?? -Infinity) ? t : best, null);
+        const worstTrade = s.trades.reduce((worst: any, t: any) => (t.pnl ?? 0) < (worst?.pnl ?? Infinity) ? t : worst, null);
+        // Max consecutive losses in session
+        let maxConsecLoss = 0; let currLoss = 0;
+        s.trades.forEach((t: any) => { if ((t.pnl ?? 0) < 0) { currLoss++; if (currLoss > maxConsecLoss) maxConsecLoss = currLoss; } else currLoss = 0; });
+        // Cumulative P&L within session
+        let cum = 0;
+        const cumPnl = s.trades.map((t: any) => { cum += (t.pnl ?? 0); return { pnl: cum }; });
+        // Profit factor
+        const gross = sWins.reduce((a: number, t: any) => a + (t.pnl ?? 0), 0);
+        const lossAbs = sLosses.reduce((a: number, t: any) => a + Math.abs(t.pnl ?? 0), 0);
+        const pf = lossAbs > 0 ? gross / lossAbs : gross > 0 ? 99 : 0;
+        // Start/end time EST
+        const fmtEstTime = (iso: string) => new Date(new Date(iso).toLocaleString('en-US', { timeZone: 'America/New_York' })).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false });
+        const fmtDate = (iso: string) => new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+        // Behavioral observation
+        let obs = '';
+        if (s.tag === 'REVENGE') obs = `Rapid re-entry detected after a loss. Emotional execution cost $${Math.abs(sLosses.reduce((a: number, t: any) => a + (t.pnl ?? 0), 0)).toFixed(0)} in avoidable exposure.`;
+        else if (s.tag === 'CRITICAL') obs = `Session P&L exceeded critical loss threshold. Decision quality degraded significantly toward end of session.`;
+        else if (s.tag === 'OVERTRADING') obs = `${s.trades.length} trades in one session is beyond optimal. Trade count dilutes your statistical edge.`;
+        else if (s.pnl > 0 && sWins.length / s.trades.length >= 0.6) obs = `Clean execution. Win rate and profit factor both within elite range for this session.`;
+        else obs = `Mixed session. P&L directionally positive but execution consistency has room to improve.`;
+        return { ...s, sAvgWin, sAvgLoss, bestTrade, worstTrade, maxConsecLoss, cumPnl, pf, fmtEstTime, fmtDate, gross, lossAbs };
+    }), [forensics.sessions]);
+
+    // Session-level aggregate KPIs
+    const greenSessions = sessionMetrics.filter((s: any) => s.pnl > 0).length;
+    const redSessions = sessionMetrics.filter((s: any) => s.pnl <= 0).length;
+    const avgSessionPnl = sessionMetrics.length > 0 ? sessionMetrics.reduce((a: number, s: any) => a + s.pnl, 0) / sessionMetrics.length : 0;
+    const avgSessionTrades = sessionMetrics.length > 0 ? sessionMetrics.reduce((a: number, s: any) => a + s.trades.length, 0) / sessionMetrics.length : 0;
+    const bestSession = sessionMetrics.length > 0 ? sessionMetrics.reduce((b: any, s: any) => s.pnl > b.pnl ? s : b, sessionMetrics[0]) : null;
+    const worstSession = sessionMetrics.length > 0 ? sessionMetrics.reduce((b: any, s: any) => s.pnl < b.pnl ? s : b, sessionMetrics[0]) : null;
+
+    // Per-session expanded state
+    const [expandedSessions, setExpandedSessions] = useState<Set<string>>(new Set());
+    const toggleSession = (id: string) => setExpandedSessions(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n; });
+
     // Per-hour granular stats (EST)
     const hourlyStats = useMemo(() => {
         const stats = Array.from({ length: 24 }, (_, h) => ({ h, pnl: 0, trades: 0, wins: 0 }));
@@ -1225,52 +1268,363 @@ export default function AnalyticsPage() {
                     )}
 
                     {activeTab === 'SESSIONS' && (
-                        <motion.div key="sessions" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="flex flex-col gap-6">
-                            <div className="flex flex-col gap-1">
-                                <span className={styles.sectionTitle}>Session Forensics</span>
-                                <span className="text-[10px] font-mono text-[#8b949e]">
-                                    Sessions are automatically detected when there is a gap of 2+ hours between closed trades.
-                                </span>
+                        <motion.div key="sessions" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} style={{ display: 'flex', flexDirection: 'column', gap: 20, marginBottom: 48 }}>
+
+                            {/* ── HEADER ── */}
+                            <div>
+                                <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#6b7280', letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 4 }}>SESSION FORENSICS</div>
+                                <div style={{ fontFamily: 'var(--font-mono)', fontSize: 20, fontWeight: 700, color: '#fff', marginBottom: 4 }}>Trading Session Analysis</div>
+                                <div style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: '#6b7280' }}>
+                                    Sessions auto-detected from 2h+ inactivity gaps. Each session is independently profiled for behavioral quality, edge consistency, and coaching signal.
+                                </div>
                             </div>
-                            <div className="flex flex-col gap-4">
-                                {forensics.sessions.map((s: any) => (
-                                    <div key={s.id} className={styles.fullWidthCard + ' flex flex-col gap-4'}>
-                                        <div className="flex justify-between items-center bg-[#13151A] -mx-6 -mt-6 px-6 py-4 border-b border-[#1a1c24]">
-                                            <span className="text-[#c9d1d9] font-bold text-[14px]">{new Date(s.startTime).toLocaleDateString()} Session</span>
-                                            <div className="flex items-center gap-6">
-                                                <span className={`${s.pnl >= 0 ? styles.textGreen : styles.textRed} font-bold`}>
-                                                    {s.pnl >= 0 ? '+' : '-'}${Math.abs(s.pnl).toLocaleString()}
-                                                </span>
-                                                <span className={`${styles.flagTag} ${s.tag === 'CLEAN' ? styles.flagClean : styles.flagCritical}`}>
-                                                    {s.tag}
-                                                </span>
-                                            </div>
-                                        </div>
-                                        <table className="w-full text-left text-[11px] font-mono mt-2">
-                                            <thead>
-                                                <tr className="text-[#4b5563] border-b border-[#1a1c24]">
-                                                    <th className="py-2">TIME</th>
-                                                    <th className="py-2">ASSET</th>
-                                                    <th className="py-2">P&L</th>
-                                                    <th className="py-2">DURATION</th>
-                                                </tr>
-                                            </thead>
-                                            <tbody>
-                                                {s.trades.map((t: any) => (
-                                                    <tr key={t.id} className="border-b border-[#1a1c24]/50">
-                                                        <td className="py-2 opacity-50">{new Date(t.closedAt ?? t.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</td>
-                                                        <td className="py-2">{t.asset}</td>
-                                                        <td className={`py-2 ${t.pnl >= 0 ? styles.textGreen : styles.textRed}`}>
-                                                            ${Math.abs(t.pnl || 0).toFixed(0)}
-                                                        </td>
-                                                        <td className="py-2 opacity-50">{Math.floor((t.durationSeconds || 0) / 60)}m</td>
-                                                    </tr>
-                                                ))}
-                                            </tbody>
-                                        </table>
+
+                            {/* ── 8-KPI GRID ── */}
+                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', borderTop: '1px solid #1a1c24', borderLeft: '1px solid #1a1c24' }}>
+                                {[
+                                    { label: 'TOTAL SESSIONS', value: `${sessionMetrics.length}`, sub: `${greenSessions} green · ${redSessions} red`, color: '#c9d1d9' },
+                                    { label: 'SESSION WIN RATE', value: sessionMetrics.length > 0 ? `${((greenSessions / sessionMetrics.length) * 100).toFixed(0)}%` : '—', sub: `${greenSessions} profitable sessions`, color: greenSessions >= redSessions ? '#A6FF4D' : '#ff4757' },
+                                    { label: 'AVG SESSION P&L', value: avgSessionPnl !== 0 ? `${avgSessionPnl >= 0 ? '+' : ''}$${avgSessionPnl.toFixed(0)}` : '—', sub: 'Per session average', color: avgSessionPnl >= 0 ? '#A6FF4D' : '#ff4757' },
+                                    { label: 'AVG TRADES / SESSION', value: avgSessionTrades > 0 ? avgSessionTrades.toFixed(1) : '—', sub: avgSessionTrades > 15 ? 'Overtrading risk' : 'Within normal range', color: avgSessionTrades > 15 ? '#ff4757' : '#c9d1d9' },
+                                    { label: 'BEST SESSION', value: bestSession ? `+$${bestSession.pnl.toFixed(0)}` : '—', sub: bestSession ? bestSession.fmtDate(bestSession.startTime) : '—', color: '#A6FF4D' },
+                                    { label: 'WORST SESSION', value: worstSession && worstSession.pnl < 0 ? `-$${Math.abs(worstSession.pnl).toFixed(0)}` : '—', sub: worstSession ? worstSession.fmtDate(worstSession.startTime) : '—', color: '#ff4757' },
+                                    { label: 'CRITICAL SESSIONS', value: `${sessionMetrics.filter((s: any) => s.tag === 'CRITICAL').length}`, sub: 'Loss > $1,000 threshold', color: sessionMetrics.filter((s: any) => s.tag === 'CRITICAL').length > 0 ? '#ff4757' : '#A6FF4D' },
+                                    { label: 'REVENGE SESSIONS', value: `${sessionMetrics.filter((s: any) => s.tag === 'REVENGE').length}`, sub: 'Rapid re-entry after loss', color: sessionMetrics.filter((s: any) => s.tag === 'REVENGE').length > 0 ? '#EAB308' : '#A6FF4D' },
+                                ].map((k, i) => (
+                                    <div key={i} style={{ padding: '20px 24px', borderBottom: '1px solid #1a1c24', borderRight: '1px solid #1a1c24', background: '#0d1117', display: 'flex', flexDirection: 'column', gap: 6 }}>
+                                        <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#6b7280', letterSpacing: '0.1em', textTransform: 'uppercase' }}>{k.label}</span>
+                                        <span style={{ fontFamily: 'var(--font-mono)', fontSize: 22, fontWeight: 700, color: k.color }}>{k.value}</span>
+                                        <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: '#4b5563' }}>{k.sub}</span>
                                     </div>
                                 ))}
                             </div>
+
+                            {/* ── SESSION P&L OVERVIEW BAR CHART ── */}
+                            {sessionMetrics.length > 0 && (
+                                <div style={{ background: '#0d1117', border: '1px solid #1a1c24', padding: '24px' }}>
+                                    <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#6b7280', letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 4 }}>SESSION P&L WATERFALL</div>
+                                    <div style={{ fontFamily: 'var(--font-mono)', fontSize: 13, fontWeight: 600, color: '#c9d1d9', marginBottom: 16 }}>Net result per session — ordered chronologically</div>
+                                    <div style={{ height: 180 }}>
+                                        <ResponsiveContainer width="100%" height="100%">
+                                            <BarChart data={sessionMetrics.map((s: any, i: number) => ({ name: `S${i + 1}`, pnl: s.pnl, tag: s.tag, trades: s.trades.length }))} margin={{ top: 8, right: 8, bottom: 0, left: 0 }} barCategoryGap="25%">
+                                                <CartesianGrid stroke="#1a1c24" strokeDasharray="3 3" vertical={false} />
+                                                <XAxis dataKey="name" tick={{ fontSize: 9, fill: '#4b5563', fontFamily: 'var(--font-mono)' }} axisLine={false} tickLine={false} />
+                                                <YAxis tick={{ fontSize: 9, fill: '#4b5563', fontFamily: 'var(--font-mono)' }} axisLine={false} tickLine={false} tickFormatter={(v: number) => `$${Math.abs(v) >= 1000 ? `${(v/1000).toFixed(1)}k` : v.toFixed(0)}`} width={48} />
+                                                <ReferenceLine y={0} stroke="rgba(255,255,255,0.12)" />
+                                                <Tooltip
+                                                    contentStyle={{ backgroundColor: '#0b0e14', border: '1px solid #1a1c24', fontFamily: 'var(--font-mono)', fontSize: 11, borderRadius: 0 }}
+                                                    cursor={{ fill: 'rgba(255,255,255,0.03)' }}
+                                                    formatter={(v: number | undefined, _n: unknown, props: { payload?: { tag: string; trades: number } }) => v !== undefined ? [`${v >= 0 ? '+' : ''}$${Math.abs(v).toFixed(2)} · ${props.payload?.trades ?? 0} trades · ${props.payload?.tag ?? ''}`, 'Session P&L'] : ['—', 'Session P&L']}
+                                                    labelFormatter={(l: unknown) => `Session ${l}`}
+                                                />
+                                                <Bar dataKey="pnl" radius={[2, 2, 0, 0]}>
+                                                    {sessionMetrics.map((s: any, i: number) => (
+                                                        <Cell key={i} fill={s.pnl >= 0 ? (s.tag === 'CLEAN' ? '#A6FF4D' : 'rgba(166,255,77,0.6)') : (s.tag === 'CRITICAL' ? '#ff4757' : 'rgba(255,71,87,0.7)')} />
+                                                    ))}
+                                                </Bar>
+                                            </BarChart>
+                                        </ResponsiveContainer>
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* ── INDIVIDUAL SESSION CARDS ── */}
+                            {sessionMetrics.length === 0 && (
+                                <div style={{ background: '#0d1117', border: '1px solid #1a1c24', padding: '40px', textAlign: 'center', fontFamily: 'var(--font-mono)', fontSize: 12, color: '#4b5563' }}>
+                                    No sessions detected yet — log at least 2 trades with a 2h+ gap between them.
+                                </div>
+                            )}
+                            {sessionMetrics.map((s: any, idx: number) => {
+                                const tagColor = s.tag === 'CLEAN' ? '#A6FF4D' : s.tag === 'CRITICAL' ? '#ff4757' : s.tag === 'REVENGE' ? '#EAB308' : s.tag === 'OVERTRADING' ? '#F97316' : '#38bdf8';
+                                const isExpanded = expandedSessions.has(s.id);
+                                const seq = s.trades.map((t: any) => (t.pnl ?? 0) >= 0 ? 'W' : 'L');
+                                const sessionWr = s.trades.length > 0 ? (s.trades.filter((t: any) => (t.pnl ?? 0) > 0).length / s.trades.length) * 100 : 0;
+                                return (
+                                    <div key={s.id} style={{ background: '#0d1117', border: `1px solid ${s.pnl >= 0 ? '#1a1c24' : 'rgba(255,71,87,0.15)'}`, overflow: 'hidden' }}>
+                                        {/* Session header — always visible */}
+                                        <div
+                                            onClick={() => toggleSession(s.id)}
+                                            style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px 24px', cursor: 'pointer', borderBottom: isExpanded ? '1px solid #1a1c24' : 'none', background: '#0b0e14', gap: 16, flexWrap: 'wrap' }}
+                                        >
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+                                                <div>
+                                                    <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#6b7280', letterSpacing: '0.1em', marginBottom: 2 }}>SESSION {idx + 1} OF {sessionMetrics.length}</div>
+                                                    <div style={{ fontFamily: 'var(--font-mono)', fontSize: 14, fontWeight: 700, color: '#fff' }}>
+                                                        {s.fmtDate(s.startTime)}
+                                                    </div>
+                                                    <div style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: '#4b5563', marginTop: 2 }}>
+                                                        {s.fmtEstTime(s.startTime)} – {s.fmtEstTime(s.endTime)} EST · {s.durationMinutes >= 60 ? `${Math.floor(s.durationMinutes / 60)}h ${Math.floor(s.durationMinutes % 60)}m` : `${Math.floor(s.durationMinutes)}m`} duration
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: 20, flexWrap: 'wrap' }}>
+                                                {/* Mini sequence dots */}
+                                                <div style={{ display: 'flex', gap: 3, alignItems: 'center' }}>
+                                                    {seq.slice(0, 20).map((r: string, i: number) => (
+                                                        <div key={i} style={{ width: 8, height: 8, borderRadius: '50%', background: r === 'W' ? '#A6FF4D' : '#ff4757', opacity: 0.85 }} />
+                                                    ))}
+                                                    {seq.length > 20 && <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#4b5563' }}>+{seq.length - 20}</span>}
+                                                </div>
+                                                <div style={{ textAlign: 'right' }}>
+                                                    <div style={{ fontFamily: 'var(--font-mono)', fontSize: 20, fontWeight: 700, color: s.pnl >= 0 ? '#A6FF4D' : '#ff4757' }}>
+                                                        {s.pnl >= 0 ? '+' : '-'}${Math.abs(s.pnl).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                                    </div>
+                                                    <div style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: '#6b7280', marginTop: 2 }}>{s.trades.length} trades · {sessionWr.toFixed(0)}% WR</div>
+                                                </div>
+                                                <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, fontWeight: 700, padding: '4px 10px', border: `1px solid ${tagColor}44`, color: tagColor, background: `${tagColor}11`, letterSpacing: '0.08em' }}>
+                                                    {s.tag}
+                                                </div>
+                                                <div style={{ fontFamily: 'var(--font-mono)', fontSize: 14, color: '#4b5563', userSelect: 'none' }}>{isExpanded ? '▲' : '▼'}</div>
+                                            </div>
+                                        </div>
+
+                                        {/* Expanded detail */}
+                                        <AnimatePresence>
+                                            {isExpanded && (
+                                                <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} style={{ overflow: 'hidden' }}>
+                                                    <div style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: 20 }}>
+
+                                                        {/* 6 mini KPIs */}
+                                                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: 1, background: '#1a1c24' }}>
+                                                            {[
+                                                                { label: 'TRADES', value: s.trades.length, color: '#c9d1d9' },
+                                                                { label: 'WIN RATE', value: `${sessionWr.toFixed(0)}%`, color: sessionWr >= 55 ? '#A6FF4D' : sessionWr >= 45 ? '#EAB308' : '#ff4757' },
+                                                                { label: 'PROFIT FACTOR', value: s.pf === 99 ? '∞' : s.pf.toFixed(2), color: s.pf >= 1.5 ? '#A6FF4D' : s.pf >= 1 ? '#EAB308' : '#ff4757' },
+                                                                { label: 'AVG WIN', value: s.sAvgWin > 0 ? `+$${s.sAvgWin.toFixed(0)}` : '—', color: '#A6FF4D' },
+                                                                { label: 'AVG LOSS', value: s.sAvgLoss > 0 ? `-$${s.sAvgLoss.toFixed(0)}` : '—', color: '#ff4757' },
+                                                                { label: 'MAX CONSEC LOSS', value: s.maxConsecLoss > 0 ? `${s.maxConsecLoss}` : '0', color: s.maxConsecLoss >= 3 ? '#ff4757' : s.maxConsecLoss >= 2 ? '#EAB308' : '#A6FF4D' },
+                                                            ].map((k, i) => (
+                                                                <div key={i} style={{ padding: '12px 16px', background: '#0d1117', display: 'flex', flexDirection: 'column', gap: 4 }}>
+                                                                    <span style={{ fontFamily: 'var(--font-mono)', fontSize: 8, color: '#6b7280', letterSpacing: '0.1em', textTransform: 'uppercase' }}>{k.label}</span>
+                                                                    <span style={{ fontFamily: 'var(--font-mono)', fontSize: 16, fontWeight: 700, color: k.color }}>{k.value}</span>
+                                                                </div>
+                                                            ))}
+                                                        </div>
+
+                                                        {/* Session mini equity curve + best/worst trade */}
+                                                        <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: 20, alignItems: 'start', flexWrap: 'wrap' }}>
+                                                            <div>
+                                                                <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#6b7280', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 8 }}>INTRA-SESSION EQUITY PATH</div>
+                                                                <div style={{ height: 80 }}>
+                                                                    <ResponsiveContainer width="100%" height="100%">
+                                                                        <AreaChart data={s.cumPnl} margin={{ top: 4, right: 4, bottom: 0, left: 0 }}>
+                                                                            <defs>
+                                                                                <linearGradient id={`sg${idx}`} x1="0" y1="0" x2="0" y2="1">
+                                                                                    <stop offset="5%" stopColor={s.pnl >= 0 ? '#A6FF4D' : '#ff4757'} stopOpacity={0.2} />
+                                                                                    <stop offset="95%" stopColor={s.pnl >= 0 ? '#A6FF4D' : '#ff4757'} stopOpacity={0} />
+                                                                                </linearGradient>
+                                                                            </defs>
+                                                                            <ReferenceLine y={0} stroke="rgba(255,255,255,0.08)" />
+                                                                            <Area type="monotone" dataKey="pnl" stroke={s.pnl >= 0 ? '#A6FF4D' : '#ff4757'} strokeWidth={1.5} fill={`url(#sg${idx})`} dot={false} />
+                                                                            <Tooltip
+                                                                                contentStyle={{ backgroundColor: '#0b0e14', border: '1px solid #1a1c24', fontFamily: 'var(--font-mono)', fontSize: 10, borderRadius: 0 }}
+                                                                                formatter={(v: number | undefined) => v !== undefined ? [`${v >= 0 ? '+' : ''}$${Math.abs(v).toFixed(2)}`, 'Running P&L'] : ['—', 'Running P&L']}
+                                                                                labelFormatter={(l: unknown) => `Trade ${Number(l) + 1}`}
+                                                                            />
+                                                                        </AreaChart>
+                                                                    </ResponsiveContainer>
+                                                                </div>
+                                                            </div>
+                                                            <div style={{ display: 'flex', flexDirection: 'column', gap: 8, minWidth: 160 }}>
+                                                                {s.bestTrade && (
+                                                                    <div style={{ padding: '10px 14px', background: 'rgba(166,255,77,0.04)', border: '1px solid rgba(166,255,77,0.15)' }}>
+                                                                        <div style={{ fontFamily: 'var(--font-mono)', fontSize: 8, color: '#A6FF4D', letterSpacing: '0.1em', marginBottom: 3 }}>BEST TRADE</div>
+                                                                        <div style={{ fontFamily: 'var(--font-mono)', fontSize: 16, fontWeight: 700, color: '#A6FF4D' }}>+${(s.bestTrade.pnl ?? 0).toFixed(2)}</div>
+                                                                        <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#4b5563', marginTop: 2 }}>{s.bestTrade.asset} · {s.fmtEstTime(s.bestTrade.closedAt ?? s.bestTrade.createdAt)}</div>
+                                                                    </div>
+                                                                )}
+                                                                {s.worstTrade && (
+                                                                    <div style={{ padding: '10px 14px', background: 'rgba(255,71,87,0.04)', border: '1px solid rgba(255,71,87,0.15)' }}>
+                                                                        <div style={{ fontFamily: 'var(--font-mono)', fontSize: 8, color: '#ff4757', letterSpacing: '0.1em', marginBottom: 3 }}>WORST TRADE</div>
+                                                                        <div style={{ fontFamily: 'var(--font-mono)', fontSize: 16, fontWeight: 700, color: '#ff4757' }}>-${Math.abs(s.worstTrade.pnl ?? 0).toFixed(2)}</div>
+                                                                        <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#4b5563', marginTop: 2 }}>{s.worstTrade.asset} · {s.fmtEstTime(s.worstTrade.closedAt ?? s.worstTrade.createdAt)}</div>
+                                                                    </div>
+                                                                )}
+                                                            </div>
+                                                        </div>
+
+                                                        {/* Win/Loss P&L bars */}
+                                                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                                                            {[
+                                                                { label: 'GROSS PROFIT', val: s.gross, total: s.gross + s.lossAbs, color: '#A6FF4D' },
+                                                                { label: 'GROSS LOSS', val: s.lossAbs, total: s.gross + s.lossAbs, color: '#ff4757' },
+                                                            ].map((bar, i) => (
+                                                                <div key={i}>
+                                                                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+                                                                        <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.08em' }}>{bar.label}</span>
+                                                                        <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, fontWeight: 700, color: bar.color }}>{i === 0 ? '+' : '-'}${bar.val.toFixed(0)}</span>
+                                                                    </div>
+                                                                    <div style={{ height: 5, background: '#1a1c24', borderRadius: 2 }}>
+                                                                        <motion.div initial={{ width: 0 }} animate={{ width: `${bar.total > 0 ? (bar.val / bar.total) * 100 : 0}%` }} style={{ height: '100%', background: bar.color, borderRadius: 2, opacity: 0.8 }} />
+                                                                    </div>
+                                                                </div>
+                                                            ))}
+                                                        </div>
+
+                                                        {/* Behavioral observation */}
+                                                        <div style={{ background: `${tagColor}08`, border: `1px solid ${tagColor}22`, padding: '14px 16px', display: 'flex', gap: 12 }}>
+                                                            <div style={{ width: 3, background: tagColor, flexShrink: 0, borderRadius: 2 }} />
+                                                            <div>
+                                                                <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: tagColor, letterSpacing: '0.1em', textTransform: 'uppercase', fontWeight: 700, marginBottom: 4 }}>BEHAVIORAL OBSERVATION</div>
+                                                                <div style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: '#8b949e', lineHeight: 1.7 }}>
+                                                                    {s.tag === 'REVENGE' && `Rapid re-entry detected after a loss. Emotional execution cost $${s.sAvgLoss.toFixed(0)} in avoidable exposure per trade. Pattern: loss → immediate re-entry without structural reset.`}
+                                                                    {s.tag === 'CRITICAL' && `Session P&L hit critical loss threshold (-$${Math.abs(s.pnl).toFixed(0)}). Decision quality degraded toward end of session. ${s.maxConsecLoss >= 3 ? `${s.maxConsecLoss} consecutive losses indicate tilt mode was active.` : ''}`}
+                                                                    {s.tag === 'OVERTRADING' && `${s.trades.length} trades in a single session is above your statistical optimal. Above ~12 trades, execution quality dilutes and each additional trade carries diminishing edge.`}
+                                                                    {s.tag === 'CLEAN' && s.pnl > 0 && `Clean execution session. Win rate ${sessionWr.toFixed(0)}% and profit factor ${s.pf === 99 ? '∞' : s.pf.toFixed(2)} are within elite range. This is the template to replicate.`}
+                                                                    {s.tag === 'SIZING UP' && `Position sizing increase detected after prior losses — a classic tilt signal. Emotional sizing costs more than the extra exposure: it costs decision quality.`}
+                                                                    {s.tag === 'CLEAN' && s.pnl <= 0 && `Structurally clean session despite a net loss. Losses appear to be part of normal variance rather than behavioral breakdown. Acceptable outcome.`}
+                                                                </div>
+                                                            </div>
+                                                        </div>
+
+                                                        {/* Coaching action */}
+                                                        <div style={{ background: 'rgba(166,255,77,0.03)', border: '1px solid rgba(166,255,77,0.12)', padding: '14px 16px' }}>
+                                                            <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#A6FF4D', letterSpacing: '0.1em', textTransform: 'uppercase', fontWeight: 700, marginBottom: 6 }}>COACHING ACTION</div>
+                                                            <div style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: '#8b949e', lineHeight: 1.8 }}>
+                                                                {s.tag === 'REVENGE' && `→ After any losing trade, mandatory 5-min break before next entry. Journal the feeling before the next trade. Re-entry within 2min of a loss is statistically proven to be a losing behavior in your data.`}
+                                                                {s.tag === 'CRITICAL' && `→ Implement a session hard-stop at -$${Math.round(Math.abs(s.pnl) * 0.5)} (50% of this session's damage). Walk away. The data shows continued trading after a critical threshold deepens the loss every time.`}
+                                                                {s.tag === 'OVERTRADING' && `→ Cap sessions at ${Math.max(6, Math.floor(avgSessionTrades))} trades. Quality over quantity — your edge per trade drops sharply after this threshold.`}
+                                                                {s.tag === 'CLEAN' && s.pnl > 0 && `→ This is your reference session. Before every trading day, review the start time (${s.fmtEstTime(s.startTime)} EST), the trade count (${s.trades.length}), and the mindset that produced a ${sessionWr.toFixed(0)}% WR. Replicate the conditions.`}
+                                                                {s.tag === 'SIZING UP' && `→ Lock position size at a fixed unit per session. Do not adjust size during the session. Review sizing only once a week based on equity curve trend, not within-session emotion.`}
+                                                                {s.tag === 'CLEAN' && s.pnl <= 0 && `→ No action needed for this session's behavioral profile. Accept the loss as variance, not failure. Continue systematic execution.`}
+                                                            </div>
+                                                        </div>
+
+                                                        {/* Full trade table */}
+                                                        <div>
+                                                            <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#6b7280', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 10 }}>TRADE LOG — THIS SESSION</div>
+                                                            <div style={{ overflowX: 'auto' }}>
+                                                                <table style={{ width: '100%', borderCollapse: 'collapse', fontFamily: 'var(--font-mono)', fontSize: 11 }}>
+                                                                    <thead>
+                                                                        <tr style={{ borderBottom: '1px solid #1a1c24' }}>
+                                                                            {['#', 'TIME (EST)', 'ASSET', 'DIR', 'P&L', 'DURATION', 'RUNNING', 'SIGNAL'].map((h, i) => (
+                                                                                <th key={i} style={{ padding: '8px 12px', textAlign: i <= 1 ? 'left' : 'right', color: '#4b5563', fontWeight: 700, letterSpacing: '0.08em', fontSize: 9, textTransform: 'uppercase', whiteSpace: 'nowrap' }}>{h}</th>
+                                                                            ))}
+                                                                        </tr>
+                                                                    </thead>
+                                                                    <tbody>
+                                                                        {s.trades.map((t: any, ti: number) => {
+                                                                            const running = s.cumPnl[ti]?.pnl ?? 0;
+                                                                            const prevTrade = ti > 0 ? s.trades[ti - 1] : null;
+                                                                            const timeSincePrev = prevTrade ? (new Date(t.closedAt ?? t.createdAt).getTime() - new Date(prevTrade.closedAt ?? prevTrade.createdAt).getTime()) / 1000 : null;
+                                                                            const isRevenge = prevTrade && (prevTrade.pnl ?? 0) < 0 && timeSincePrev !== null && timeSincePrev < 300;
+                                                                            const flag = isRevenge ? 'REVENGE' : (t.pnl ?? 0) >= 0 ? '' : (t.durationSeconds ?? 0) > 1800 ? 'HELD LONG' : '';
+                                                                            const flagColor = flag === 'REVENGE' ? '#ff4757' : flag === 'HELD LONG' ? '#EAB308' : '#A6FF4D';
+                                                                            return (
+                                                                                <tr key={t.id} style={{ borderBottom: '1px solid rgba(26,28,36,0.6)' }}
+                                                                                    onMouseEnter={e => (e.currentTarget as HTMLTableRowElement).style.background = '#0f1420'}
+                                                                                    onMouseLeave={e => (e.currentTarget as HTMLTableRowElement).style.background = 'transparent'}>
+                                                                                    <td style={{ padding: '10px 12px', color: '#4b5563' }}>{ti + 1}</td>
+                                                                                    <td style={{ padding: '10px 12px', color: '#6b7280' }}>{s.fmtEstTime(t.closedAt ?? t.createdAt)}</td>
+                                                                                    <td style={{ padding: '10px 12px', textAlign: 'right', color: '#c9d1d9', fontWeight: 600 }}>{t.asset}</td>
+                                                                                    <td style={{ padding: '10px 12px', textAlign: 'right', color: t.isShort ? '#38bdf8' : '#fb923c', fontSize: 9, fontWeight: 700 }}>{t.isShort ? 'SHORT' : 'LONG'}</td>
+                                                                                    <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: 700, color: (t.pnl ?? 0) >= 0 ? '#A6FF4D' : '#ff4757' }}>
+                                                                                        {(t.pnl ?? 0) >= 0 ? '+' : '-'}${Math.abs(t.pnl ?? 0).toFixed(2)}
+                                                                                    </td>
+                                                                                    <td style={{ padding: '10px 12px', textAlign: 'right', color: '#4b5563' }}>
+                                                                                        {fmtDuration(t.durationSeconds ?? 0)}
+                                                                                    </td>
+                                                                                    <td style={{ padding: '10px 12px', textAlign: 'right', color: running >= 0 ? '#A6FF4D' : '#ff4757', fontWeight: 600 }}>
+                                                                                        {running >= 0 ? '+' : ''}${running.toFixed(0)}
+                                                                                    </td>
+                                                                                    <td style={{ padding: '10px 12px', textAlign: 'right' }}>
+                                                                                        {flag && <span style={{ fontSize: 8, fontWeight: 700, padding: '2px 6px', border: `1px solid ${flagColor}44`, color: flagColor, background: `${flagColor}11`, letterSpacing: '0.06em' }}>{flag}</span>}
+                                                                                    </td>
+                                                                                </tr>
+                                                                            );
+                                                                        })}
+                                                                    </tbody>
+                                                                </table>
+                                                            </div>
+                                                        </div>
+
+                                                    </div>
+                                                </motion.div>
+                                            )}
+                                        </AnimatePresence>
+                                    </div>
+                                );
+                            })}
+
+                            {/* ── SESSION CONSISTENCY ANALYSIS ── */}
+                            {sessionMetrics.length >= 3 && (
+                                <div style={{ background: '#0d1117', border: '1px solid #1a1c24', padding: '24px' }}>
+                                    <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#6b7280', letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 4 }}>SESSION CONSISTENCY SCORE</div>
+                                    <div style={{ fontFamily: 'var(--font-mono)', fontSize: 13, fontWeight: 600, color: '#c9d1d9', marginBottom: 20 }}>Consistency is more valuable than peak sessions. Variance below shows how predictable your edge is.</div>
+                                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 1, background: '#1a1c24', marginBottom: 20 }}>
+                                        {(() => {
+                                            const pnls = sessionMetrics.map((s: any) => s.pnl);
+                                            const mean = pnls.reduce((a: number, b: number) => a + b, 0) / pnls.length;
+                                            const variance = pnls.reduce((a: number, b: number) => a + Math.pow(b - mean, 2), 0) / pnls.length;
+                                            const stdDev = Math.sqrt(variance);
+                                            const consistency = stdDev > 0 ? Math.max(0, 100 - Math.min(100, (stdDev / Math.max(Math.abs(mean), 1)) * 50)) : 100;
+                                            return [
+                                                { label: 'CONSISTENCY SCORE', value: `${consistency.toFixed(0)}/100`, color: consistency >= 70 ? '#A6FF4D' : consistency >= 50 ? '#EAB308' : '#ff4757' },
+                                                { label: 'STD DEV P&L', value: `±$${stdDev.toFixed(0)}`, color: '#c9d1d9' },
+                                                { label: 'SESSIONS WITHIN 1σ', value: `${pnls.filter((p: number) => Math.abs(p - mean) <= stdDev).length}/${pnls.length}`, color: '#c9d1d9' },
+                                            ].map((k, i) => (
+                                                <div key={i} style={{ padding: '16px 20px', background: '#0d1117', display: 'flex', flexDirection: 'column', gap: 4 }}>
+                                                    <span style={{ fontFamily: 'var(--font-mono)', fontSize: 8, color: '#6b7280', letterSpacing: '0.1em', textTransform: 'uppercase' }}>{k.label}</span>
+                                                    <span style={{ fontFamily: 'var(--font-mono)', fontSize: 20, fontWeight: 700, color: k.color }}>{k.value}</span>
+                                                </div>
+                                            ));
+                                        })()}
+                                    </div>
+                                    {/* Session P&L scatter dots */}
+                                    <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#6b7280', letterSpacing: '0.08em', marginBottom: 8 }}>SESSION P&L DISTRIBUTION</div>
+                                    <div style={{ display: 'flex', gap: 3, flexWrap: 'wrap', alignItems: 'flex-end' }}>
+                                        {sessionMetrics.map((s: any, i: number) => {
+                                            const maxAbs = Math.max(...sessionMetrics.map((x: any) => Math.abs(x.pnl)), 1);
+                                            const h = Math.max(4, (Math.abs(s.pnl) / maxAbs) * 48);
+                                            return (
+                                                <div key={i} title={`Session ${i+1}: ${s.pnl >= 0 ? '+' : ''}$${s.pnl.toFixed(0)}`} style={{ width: 12, height: h, background: s.pnl >= 0 ? '#A6FF4D' : '#ff4757', opacity: 0.8, borderRadius: 1, cursor: 'default' }} />
+                                            );
+                                        })}
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* ── ACTIONABLE RULES ── */}
+                            <div style={{ background: '#0d1117', border: '1px solid #1a1c24', padding: '24px' }}>
+                                <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#6b7280', letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 16 }}>SESSION-BASED RULES — DERIVED FROM YOUR DATA</div>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                                    {[
+                                        {
+                                            rule: 'RULE 01 — SESSION DAILY LOSS LIMIT',
+                                            detail: `Your worst session lost $${worstSession && worstSession.pnl < 0 ? Math.abs(worstSession.pnl).toFixed(0) : 'N/A'}. Set a hard daily loss limit at 50% of that figure. When hit, session ends — no exceptions.`,
+                                            icon: '⛔', color: '#ff4757',
+                                            show: worstSession && worstSession.pnl < -100,
+                                        },
+                                        {
+                                            rule: `RULE 02 — TRADE COUNT CAP`,
+                                            detail: `Average session has ${avgSessionTrades.toFixed(1)} trades. Cap at ${Math.max(8, Math.ceil(avgSessionTrades * 1.3))} trades per session. Every trade beyond your optimal count has a statistically lower win rate.`,
+                                            icon: '→', color: '#EAB308',
+                                            show: true,
+                                        },
+                                        {
+                                            rule: 'RULE 03 — REVENGE PROTOCOL',
+                                            detail: `${sessionMetrics.filter((s: any) => s.tag === 'REVENGE').length} session${sessionMetrics.filter((s: any) => s.tag === 'REVENGE').length !== 1 ? 's' : ''} flagged for revenge behavior. After any loss, minimum 5-minute break. Log your emotional state before re-entry.`,
+                                            icon: '⏸', color: '#EAB308',
+                                            show: sessionMetrics.filter((s: any) => s.tag === 'REVENGE').length > 0,
+                                        },
+                                        {
+                                            rule: 'RULE 04 — REPLICATE BEST SESSION',
+                                            detail: bestSession ? `Best session: $${bestSession.pnl.toFixed(0)} on ${bestSession.fmtDate(bestSession.startTime)} — ${bestSession.trades.length} trades, started at ${bestSession.fmtEstTime(bestSession.startTime)} EST. Identify what was different that day and systemize it.` : 'Log more sessions to identify your best session pattern.',
+                                            icon: '✓', color: '#A6FF4D',
+                                            show: true,
+                                        },
+                                    ].filter((r: any) => r.show).map((r, i) => (
+                                        <div key={i} style={{ display: 'flex', gap: 16, padding: '14px 16px', background: '#0b0e14', borderLeft: `2px solid ${r.color}55` }}>
+                                            <span style={{ fontFamily: 'var(--font-mono)', fontSize: 14, color: r.color, flexShrink: 0, width: 20 }}>{r.icon}</span>
+                                            <div>
+                                                <div style={{ fontFamily: 'var(--font-mono)', fontSize: 10, fontWeight: 700, color: r.color, letterSpacing: '0.08em', marginBottom: 4 }}>{r.rule}</div>
+                                                <div style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: '#6b7280', lineHeight: 1.7 }}>{r.detail}</div>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+
                         </motion.div>
                     )}
 
