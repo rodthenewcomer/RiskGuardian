@@ -89,7 +89,30 @@ export default function AnalyticsPage() {
         if (runup > maxRunup) maxRunup = runup;
     });
 
-    const hourlyData = forensics.timeStats.hourlyPnl.map((pnl, h) => ({ hour: `${h}:00`, pnl }));
+    // Per-hour granular stats (EST)
+    const hourlyStats = useMemo(() => {
+        const stats = Array.from({ length: 24 }, (_, h) => ({ h, pnl: 0, trades: 0, wins: 0 }));
+        closed.forEach(t => {
+            const estDate = new Date(new Date(t.closedAt ?? t.createdAt).toLocaleString('en-US', { timeZone: 'America/New_York' }));
+            const h = estDate.getHours();
+            stats[h].pnl += (t.pnl ?? 0);
+            stats[h].trades++;
+            if ((t.pnl ?? 0) > 0) stats[h].wins++;
+        });
+        return stats;
+    }, [closed]);
+    const hourlyData = hourlyStats.map(s => ({ hour: `${String(s.h).padStart(2, '0')}:00`, h: s.h, pnl: s.pnl, trades: s.trades, wr: s.trades > 0 ? (s.wins / s.trades) * 100 : 0 }));
+
+    // Session windows (EST)
+    const SESSION_WINDOWS = [
+        { label: 'FUTURES PRE-MARKET', range: '00:00–06:00', hours: [0,1,2,3,4,5], color: '#38bdf8' },
+        { label: 'FUTURES OPEN', range: '06:00–09:30', hours: [6,7,8,9], color: '#fb923c' },
+        { label: 'NYSE OPEN', range: '09:30–11:00', hours: [9,10], color: '#A6FF4D' },
+        { label: 'LUNCH GRIND', range: '11:00–14:00', hours: [11,12,13], color: '#EAB308' },
+        { label: 'NY AFTERNOON', range: '14:00–16:00', hours: [14,15], color: '#A6FF4D' },
+        { label: 'AFTER HOURS', range: '16:00–20:00', hours: [16,17,18,19], color: '#8b5cf6' },
+        { label: 'EVENING', range: '20:00–23:59', hours: [20,21,22,23], color: '#6b7280' },
+    ];
 
     // Instruments
     const instrumentMap: Record<string, { wins: number; losses: number; pnl: number }> = {};
@@ -1252,36 +1275,336 @@ export default function AnalyticsPage() {
                     )}
 
                     {activeTab === 'TIME' && (
-                        <motion.div key="time" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="flex flex-col gap-6">
-                            <span className={styles.sectionTitle}>24-Hour Edge Map</span>
-                            <div className={styles.fullWidthCard} style={{ height: 320 }}>
-                                <ResponsiveContainer width="100%" height="100%">
-                                    <BarChart data={hourlyData}>
-                                        <XAxis dataKey="hour" tick={{ fontSize: 10, fill: '#4b5563' }} axisLine={false} tickLine={false} />
-                                        <YAxis hide />
-                                        <Tooltip contentStyle={{ backgroundColor: '#0d1117', border: '1px solid #1a1c24' }} />
-                                        <Bar dataKey="pnl">
-                                            {hourlyData.map((d, i) => <Cell key={i} fill={d.pnl >= 0 ? '#A6FF4D' : '#ff4757'} />)}
-                                        </Bar>
-                                    </BarChart>
-                                </ResponsiveContainer>
-                            </div>
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                                <div className="bg-[#0f1a14] border border-[#A6FF4D]/20 p-4 rounded flex justify-between items-center">
-                                    <div className="flex flex-col">
-                                        <span className="text-[9px] uppercase text-[#A6FF4D] font-bold">Strength Zone</span>
-                                        <span className="text-[18px] font-bold text-white">{forensics.timeStats.bestHour}:00 - {forensics.timeStats.bestHour + 1}:00</span>
+                        <motion.div key="time" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} style={{ display: 'flex', flexDirection: 'column', gap: 20, marginBottom: 48 }}>
+
+                            {/* ── HEADER ── */}
+                            <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
+                                <div>
+                                    <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#6b7280', letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 4 }}>TIME OF DAY INTELLIGENCE</div>
+                                    <div style={{ fontFamily: 'var(--font-mono)', fontSize: 20, fontWeight: 700, color: '#fff', marginBottom: 4 }}>24-Hour Edge Map</div>
+                                    <div style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: '#6b7280' }}>
+                                        Every hour mapped by net P&L, win rate, and trade density — in EST. Your edge is not uniform across the clock.
                                     </div>
-                                    <Target className="text-[#A6FF4D] opacity-50" size={24} />
                                 </div>
-                                <div className="bg-[#1a0f12] border border-[#ff4757]/20 p-4 rounded flex justify-between items-center">
-                                    <div className="flex flex-col">
-                                        <span className="text-[9px] uppercase text-[#ff4757] font-bold">Danger Zone</span>
-                                        <span className="text-[18px] font-bold text-white">{forensics.timeStats.worstHour}:00 - {forensics.timeStats.worstHour + 1}:00</span>
-                                    </div>
-                                    <AlertTriangle className="text-[#ff4757] opacity-50" size={24} />
+                                <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+                                    {[
+                                        { label: 'BEST HOUR', value: `${String(forensics.timeStats.bestHour).padStart(2,'0')}:00`, color: '#A6FF4D' },
+                                        { label: 'WORST HOUR', value: `${String(forensics.timeStats.worstHour).padStart(2,'0')}:00`, color: '#ff4757' },
+                                        { label: 'ACTIVE HOURS', value: `${hourlyStats.filter(s => s.trades > 0).length}/24`, color: '#c9d1d9' },
+                                    ].map((k, i) => (
+                                        <div key={i} style={{ background: '#0d1117', border: '1px solid #1a1c24', padding: '10px 16px', minWidth: 100 }}>
+                                            <div style={{ fontFamily: 'var(--font-mono)', fontSize: 8, color: '#6b7280', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 4 }}>{k.label}</div>
+                                            <div style={{ fontFamily: 'var(--font-mono)', fontSize: 18, fontWeight: 700, color: k.color }}>{k.value}</div>
+                                        </div>
+                                    ))}
                                 </div>
                             </div>
+
+                            {/* ── 4-KPI STRIP ── */}
+                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', borderTop: '1px solid #1a1c24', borderLeft: '1px solid #1a1c24' }}>
+                                {(() => {
+                                    const bestH = hourlyStats[forensics.timeStats.bestHour];
+                                    const worstH = hourlyStats[forensics.timeStats.worstHour];
+                                    const activeH = hourlyStats.filter(s => s.trades > 0);
+                                    const bestSession = SESSION_WINDOWS.map(sw => ({
+                                        ...sw,
+                                        pnl: sw.hours.reduce((s, h) => s + hourlyStats[h].pnl, 0),
+                                        trades: sw.hours.reduce((s, h) => s + hourlyStats[h].trades, 0),
+                                    })).sort((a, b) => b.pnl - a.pnl)[0];
+                                    return [
+                                        { label: 'BEST HOUR P&L', value: bestH ? `+$${bestH.pnl.toFixed(0)}` : '—', sub: `${String(forensics.timeStats.bestHour).padStart(2,'0')}:00 EST · ${bestH?.trades ?? 0} trades`, color: '#A6FF4D' },
+                                        { label: 'WORST HOUR P&L', value: worstH ? `-$${Math.abs(worstH.pnl).toFixed(0)}` : '—', sub: `${String(forensics.timeStats.worstHour).padStart(2,'0')}:00 EST · ${worstH?.trades ?? 0} trades`, color: '#ff4757' },
+                                        { label: 'PEAK SESSION', value: bestSession?.pnl > 0 ? `+$${bestSession.pnl.toFixed(0)}` : '—', sub: bestSession ? `${bestSession.label} · ${bestSession.trades} trades` : '—', color: '#A6FF4D' },
+                                        { label: 'DEAD ZONE', value: activeH.length > 0 ? `${24 - activeH.length}h inactive` : '—', sub: `${activeH.length} hours with trades`, color: '#6b7280' },
+                                    ].map((k, i) => (
+                                        <div key={i} style={{ padding: '20px 24px', borderBottom: '1px solid #1a1c24', borderRight: '1px solid #1a1c24', background: '#0d1117', display: 'flex', flexDirection: 'column', gap: 6 }}>
+                                            <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#6b7280', letterSpacing: '0.1em', textTransform: 'uppercase' }}>{k.label}</span>
+                                            <span style={{ fontFamily: 'var(--font-mono)', fontSize: 22, fontWeight: 700, color: k.color }}>{k.value}</span>
+                                            <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: '#4b5563' }}>{k.sub}</span>
+                                        </div>
+                                    ));
+                                })()}
+                            </div>
+
+                            {/* ── MAIN 24H BAR CHART ── */}
+                            <div style={{ background: '#0d1117', border: '1px solid #1a1c24', padding: '24px 24px 16px' }}>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20, flexWrap: 'wrap', gap: 8 }}>
+                                    <div>
+                                        <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#6b7280', letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 2 }}>P&L BY HOUR (EST)</div>
+                                        <div style={{ fontFamily: 'var(--font-mono)', fontSize: 13, fontWeight: 600, color: '#c9d1d9' }}>Bar height = net P&L · Color intensity = trade density</div>
+                                    </div>
+                                    <div style={{ display: 'flex', gap: 16 }}>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                                            <div style={{ width: 10, height: 10, background: '#A6FF4D' }} />
+                                            <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#6b7280' }}>Profitable hour</span>
+                                        </div>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                                            <div style={{ width: 10, height: 10, background: '#ff4757' }} />
+                                            <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#6b7280' }}>Loss hour</span>
+                                        </div>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                                            <div style={{ width: 10, height: 10, background: '#1a1c24', border: '1px solid #2d3748' }} />
+                                            <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#6b7280' }}>No trades</span>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div style={{ height: 260 }}>
+                                    <ResponsiveContainer width="100%" height="100%">
+                                        <BarChart data={hourlyData} margin={{ top: 8, right: 8, bottom: 0, left: 0 }} barCategoryGap="20%">
+                                            <CartesianGrid stroke="#1a1c24" strokeDasharray="3 3" vertical={false} />
+                                            <XAxis dataKey="hour" tick={{ fontSize: 9, fill: '#4b5563', fontFamily: 'var(--font-mono)' }} axisLine={false} tickLine={false} interval={1} />
+                                            <YAxis tick={{ fontSize: 9, fill: '#4b5563', fontFamily: 'var(--font-mono)' }} axisLine={false} tickLine={false} tickFormatter={(v: number) => `$${v >= 0 ? '' : ''}${Math.abs(v) >= 1000 ? `${(v/1000).toFixed(1)}k` : v.toFixed(0)}`} width={48} />
+                                            <ReferenceLine y={0} stroke="rgba(255,255,255,0.12)" strokeWidth={1} />
+                                            <Tooltip
+                                                contentStyle={{ backgroundColor: '#0b0e14', border: '1px solid #1a1c24', fontFamily: 'var(--font-mono)', fontSize: 11, borderRadius: 0 }}
+                                                cursor={{ fill: 'rgba(255,255,255,0.03)' }}
+                                                formatter={(v: number | undefined, _name: unknown, props: { payload?: { trades: number; wr: number } }) => {
+                                                    if (v === undefined) return ['—', 'P&L'];
+                                                    const trades = props.payload?.trades ?? 0;
+                                                    const wr = props.payload?.wr ?? 0;
+                                                    return [`${v >= 0 ? '+' : ''}$${Math.abs(v).toFixed(2)} · ${trades} trades · ${wr.toFixed(0)}% WR`, 'P&L'];
+                                                }}
+                                                labelFormatter={(l: unknown) => `Hour ${l} EST`}
+                                            />
+                                            <Bar dataKey="pnl" radius={[2, 2, 0, 0]}>
+                                                {hourlyData.map((d, i) => {
+                                                    const maxPnl = Math.max(...hourlyData.map(x => Math.abs(x.pnl)), 1);
+                                                    const intensity = Math.max(0.35, Math.min(1, Math.abs(d.pnl) / maxPnl));
+                                                    return <Cell key={i} fill={d.trades === 0 ? '#1a1c24' : d.pnl >= 0 ? `rgba(166,255,77,${intensity})` : `rgba(255,71,87,${intensity})`} />;
+                                                })}
+                                            </Bar>
+                                        </BarChart>
+                                    </ResponsiveContainer>
+                                </div>
+                            </div>
+
+                            {/* ── WIN RATE BY HOUR ── */}
+                            <div style={{ background: '#0d1117', border: '1px solid #1a1c24', padding: '24px 24px 16px' }}>
+                                <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#6b7280', letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 4 }}>WIN RATE BY HOUR</div>
+                                <div style={{ fontFamily: 'var(--font-mono)', fontSize: 13, fontWeight: 600, color: '#c9d1d9', marginBottom: 16 }}>Hours above 50% are structurally playable — below 50% are statistical traps.</div>
+                                <div style={{ height: 160 }}>
+                                    <ResponsiveContainer width="100%" height="100%">
+                                        <BarChart data={hourlyData.filter(d => d.trades > 0)} margin={{ top: 4, right: 8, bottom: 0, left: 0 }} barCategoryGap="25%">
+                                            <CartesianGrid stroke="#1a1c24" strokeDasharray="3 3" vertical={false} />
+                                            <XAxis dataKey="hour" tick={{ fontSize: 9, fill: '#4b5563', fontFamily: 'var(--font-mono)' }} axisLine={false} tickLine={false} />
+                                            <YAxis domain={[0, 100]} tick={{ fontSize: 9, fill: '#4b5563', fontFamily: 'var(--font-mono)' }} axisLine={false} tickLine={false} tickFormatter={(v: number) => `${v}%`} width={36} />
+                                            <ReferenceLine y={50} stroke="rgba(255,255,255,0.2)" strokeDasharray="4 4" label={{ value: '50%', fill: '#4b5563', fontSize: 9, fontFamily: 'var(--font-mono)' }} />
+                                            <Tooltip
+                                                contentStyle={{ backgroundColor: '#0b0e14', border: '1px solid #1a1c24', fontFamily: 'var(--font-mono)', fontSize: 11, borderRadius: 0 }}
+                                                cursor={{ fill: 'rgba(255,255,255,0.03)' }}
+                                                formatter={(v: number | undefined, _n: unknown, props: { payload?: { trades: number } }) => v !== undefined ? [`${v.toFixed(1)}% win rate · ${props.payload?.trades ?? 0} trades`, 'Win Rate'] : ['—', 'Win Rate']}
+                                                labelFormatter={(l: unknown) => `Hour ${l} EST`}
+                                            />
+                                            <Bar dataKey="wr" radius={[2, 2, 0, 0]}>
+                                                {hourlyData.filter(d => d.trades > 0).map((d, i) => (
+                                                    <Cell key={i} fill={d.wr >= 60 ? '#A6FF4D' : d.wr >= 50 ? 'rgba(166,255,77,0.5)' : d.wr >= 40 ? '#EAB308' : '#ff4757'} />
+                                                ))}
+                                            </Bar>
+                                        </BarChart>
+                                    </ResponsiveContainer>
+                                </div>
+                            </div>
+
+                            {/* ── SESSION WINDOW BREAKDOWN ── */}
+                            <div style={{ background: '#0d1117', border: '1px solid #1a1c24', padding: '24px' }}>
+                                <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#6b7280', letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 4 }}>SESSION WINDOW ANALYSIS</div>
+                                <div style={{ fontFamily: 'var(--font-mono)', fontSize: 13, fontWeight: 600, color: '#c9d1d9', marginBottom: 20 }}>Market structure changes across sessions. Your edge should too.</div>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                                    {SESSION_WINDOWS.map((sw, i) => {
+                                        const swPnl = sw.hours.reduce((s, h) => s + hourlyStats[h].pnl, 0);
+                                        const swTrades = sw.hours.reduce((s, h) => s + hourlyStats[h].trades, 0);
+                                        const swWins = sw.hours.reduce((s, h) => s + hourlyStats[h].wins, 0);
+                                        const swWr = swTrades > 0 ? (swWins / swTrades) * 100 : 0;
+                                        const maxSwPnl = Math.max(...SESSION_WINDOWS.map(s2 => Math.abs(s2.hours.reduce((acc, h) => acc + hourlyStats[h].pnl, 0))), 1);
+                                        const barW = Math.min(100, (Math.abs(swPnl) / maxSwPnl) * 100);
+                                        if (swTrades === 0) return null;
+                                        return (
+                                            <div key={i} style={{ display: 'grid', gridTemplateColumns: '180px 1fr 80px 80px 60px', alignItems: 'center', gap: 16, padding: '14px 16px', background: i % 2 === 0 ? '#0d1117' : '#0b0e14', borderBottom: '1px solid #1a1c24' }}>
+                                                <div>
+                                                    <div style={{ fontFamily: 'var(--font-mono)', fontSize: 10, fontWeight: 700, color: sw.color, letterSpacing: '0.06em' }}>{sw.label}</div>
+                                                    <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#4b5563', marginTop: 2 }}>{sw.range} EST</div>
+                                                </div>
+                                                <div style={{ position: 'relative', height: 6, background: '#1a1c24', borderRadius: 2 }}>
+                                                    <motion.div initial={{ width: 0 }} animate={{ width: `${barW}%` }} style={{ height: '100%', background: swPnl >= 0 ? '#A6FF4D' : '#ff4757', borderRadius: 2, opacity: 0.8 }} />
+                                                </div>
+                                                <div style={{ fontFamily: 'var(--font-mono)', fontSize: 12, fontWeight: 700, color: swPnl >= 0 ? '#A6FF4D' : '#ff4757', textAlign: 'right' }}>
+                                                    {swPnl >= 0 ? '+' : '-'}${Math.abs(swPnl).toFixed(0)}
+                                                </div>
+                                                <div style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: swWr >= 50 ? '#A6FF4D' : swWr >= 40 ? '#EAB308' : '#ff4757', textAlign: 'right', fontWeight: 600 }}>
+                                                    {swWr.toFixed(0)}% WR
+                                                </div>
+                                                <div style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: '#4b5563', textAlign: 'right' }}>
+                                                    {swTrades}T
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+
+                            {/* ── HOURLY DATA TABLE ── */}
+                            <div style={{ background: '#0d1117', border: '1px solid #1a1c24', padding: '24px' }}>
+                                <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#6b7280', letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 16 }}>FULL HOUR-BY-HOUR BREAKDOWN</div>
+                                <div style={{ overflowX: 'auto' }}>
+                                    <table style={{ width: '100%', borderCollapse: 'collapse', fontFamily: 'var(--font-mono)', fontSize: 11 }}>
+                                        <thead>
+                                            <tr style={{ borderBottom: '1px solid #1a1c24' }}>
+                                                {['HOUR (EST)', 'SESSION', 'TRADES', 'WIN RATE', 'NET P&L', 'SIGNAL'].map((h, i) => (
+                                                    <th key={i} style={{ padding: '10px 16px', textAlign: i === 0 ? 'left' : 'right', color: '#4b5563', fontWeight: 700, letterSpacing: '0.08em', fontSize: 9, textTransform: 'uppercase', whiteSpace: 'nowrap' }}>{h}</th>
+                                                ))}
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {hourlyStats.filter(s => s.trades > 0).map((s, i) => {
+                                                const session = SESSION_WINDOWS.find(sw => sw.hours.includes(s.h));
+                                                const wr = (s.wins / s.trades) * 100;
+                                                const signal = s.pnl > 0 && wr >= 60 ? 'STRONG EDGE' : s.pnl > 0 && wr >= 50 ? 'PLAYABLE' : s.pnl > 0 && wr < 50 ? 'MARGINAL' : wr >= 50 ? 'MIXED' : 'AVOID';
+                                                const sigColor = signal === 'STRONG EDGE' ? '#A6FF4D' : signal === 'PLAYABLE' ? 'rgba(166,255,77,0.6)' : signal === 'MARGINAL' ? '#EAB308' : signal === 'MIXED' ? '#fb923c' : '#ff4757';
+                                                return (
+                                                    <tr key={i} style={{ borderBottom: '1px solid #1a1c24' }}
+                                                        onMouseEnter={e => (e.currentTarget as HTMLTableRowElement).style.background = '#0f1420'}
+                                                        onMouseLeave={e => (e.currentTarget as HTMLTableRowElement).style.background = 'transparent'}>
+                                                        <td style={{ padding: '12px 16px', color: '#c9d1d9', fontWeight: 700 }}>
+                                                            {String(s.h).padStart(2,'0')}:00 – {String(s.h+1).padStart(2,'0')}:00
+                                                            {s.h === forensics.timeStats.bestHour && <span style={{ marginLeft: 8, fontSize: 8, color: '#A6FF4D', border: '1px solid rgba(166,255,77,0.3)', padding: '1px 5px' }}>BEST</span>}
+                                                            {s.h === forensics.timeStats.worstHour && <span style={{ marginLeft: 8, fontSize: 8, color: '#ff4757', border: '1px solid rgba(255,71,87,0.3)', padding: '1px 5px' }}>WORST</span>}
+                                                        </td>
+                                                        <td style={{ padding: '12px 16px', textAlign: 'right', color: session?.color ?? '#6b7280', fontSize: 9, letterSpacing: '0.06em' }}>{session?.label ?? '—'}</td>
+                                                        <td style={{ padding: '12px 16px', textAlign: 'right', color: '#6b7280' }}>{s.trades}</td>
+                                                        <td style={{ padding: '12px 16px', textAlign: 'right', fontWeight: 600, color: wr >= 55 ? '#A6FF4D' : wr >= 45 ? '#EAB308' : '#ff4757' }}>{wr.toFixed(0)}%</td>
+                                                        <td style={{ padding: '12px 16px', textAlign: 'right', fontWeight: 700, color: s.pnl >= 0 ? '#A6FF4D' : '#ff4757' }}>
+                                                            {s.pnl >= 0 ? '+' : '-'}${Math.abs(s.pnl).toFixed(2)}
+                                                        </td>
+                                                        <td style={{ padding: '12px 16px', textAlign: 'right' }}>
+                                                            <span style={{ fontSize: 9, fontWeight: 700, padding: '2px 7px', border: `1px solid ${sigColor}44`, color: sigColor, background: `${sigColor}11`, letterSpacing: '0.06em' }}>{signal}</span>
+                                                        </td>
+                                                    </tr>
+                                                );
+                                            })}
+                                        </tbody>
+                                    </table>
+                                    {hourlyStats.filter(s => s.trades > 0).length === 0 && (
+                                        <div style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: '#4b5563', padding: '24px 16px' }}>No closed trades logged yet.</div>
+                                    )}
+                                </div>
+                            </div>
+
+                            {/* ── STRENGTH + DANGER ZONE DETAILED CARDS ── */}
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 1, background: '#1a1c24' }}>
+                                {/* Strength */}
+                                <div style={{ background: 'rgba(166,255,77,0.03)', border: '1px solid rgba(166,255,77,0.12)', padding: '24px' }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+                                        <TrendingUp size={13} color="#A6FF4D" />
+                                        <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#A6FF4D', letterSpacing: '0.12em', textTransform: 'uppercase', fontWeight: 700 }}>STRENGTH ZONE</span>
+                                    </div>
+                                    <div style={{ fontFamily: 'var(--font-mono)', fontSize: 28, fontWeight: 700, color: '#fff', marginBottom: 4 }}>
+                                        {String(forensics.timeStats.bestHour).padStart(2,'0')}:00 – {String(forensics.timeStats.bestHour + 1).padStart(2,'0')}:00 <span style={{ fontSize: 11, color: '#6b7280', fontWeight: 400 }}>EST</span>
+                                    </div>
+                                    <div style={{ fontFamily: 'var(--font-mono)', fontSize: 22, fontWeight: 700, color: '#A6FF4D', marginBottom: 12 }}>
+                                        +${hourlyStats[forensics.timeStats.bestHour]?.pnl.toFixed(0) ?? '0'}
+                                    </div>
+                                    <div style={{ display: 'flex', gap: 20, marginBottom: 16 }}>
+                                        <div>
+                                            <div style={{ fontFamily: 'var(--font-mono)', fontSize: 8, color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 2 }}>TRADES</div>
+                                            <div style={{ fontFamily: 'var(--font-mono)', fontSize: 14, fontWeight: 600, color: '#c9d1d9' }}>{hourlyStats[forensics.timeStats.bestHour]?.trades ?? 0}</div>
+                                        </div>
+                                        <div>
+                                            <div style={{ fontFamily: 'var(--font-mono)', fontSize: 8, color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 2 }}>WIN RATE</div>
+                                            <div style={{ fontFamily: 'var(--font-mono)', fontSize: 14, fontWeight: 600, color: '#A6FF4D' }}>
+                                                {hourlyStats[forensics.timeStats.bestHour]?.trades > 0 ? ((hourlyStats[forensics.timeStats.bestHour].wins / hourlyStats[forensics.timeStats.bestHour].trades) * 100).toFixed(0) : 0}%
+                                            </div>
+                                        </div>
+                                        <div>
+                                            <div style={{ fontFamily: 'var(--font-mono)', fontSize: 8, color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 2 }}>SESSION</div>
+                                            <div style={{ fontFamily: 'var(--font-mono)', fontSize: 11, fontWeight: 600, color: SESSION_WINDOWS.find(sw => sw.hours.includes(forensics.timeStats.bestHour))?.color ?? '#6b7280' }}>
+                                                {SESSION_WINDOWS.find(sw => sw.hours.includes(forensics.timeStats.bestHour))?.label ?? '—'}
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div style={{ background: 'rgba(166,255,77,0.06)', border: '1px solid rgba(166,255,77,0.15)', padding: '12px 14px' }}>
+                                        <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#A6FF4D', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 4, fontWeight: 700 }}>COACHING ACTION</div>
+                                        <div style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: '#8b949e', lineHeight: 1.7 }}>
+                                            Protect this window. Arrive flat — no carry-forward losses from earlier sessions. Use larger conviction sizing only during this hour. This is where your statistical edge lives.
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* Danger */}
+                                <div style={{ background: 'rgba(255,71,87,0.03)', border: '1px solid rgba(255,71,87,0.12)', padding: '24px' }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+                                        <AlertTriangle size={13} color="#ff4757" />
+                                        <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#ff4757', letterSpacing: '0.12em', textTransform: 'uppercase', fontWeight: 700 }}>DANGER ZONE</span>
+                                    </div>
+                                    <div style={{ fontFamily: 'var(--font-mono)', fontSize: 28, fontWeight: 700, color: '#fff', marginBottom: 4 }}>
+                                        {String(forensics.timeStats.worstHour).padStart(2,'0')}:00 – {String(forensics.timeStats.worstHour + 1).padStart(2,'0')}:00 <span style={{ fontSize: 11, color: '#6b7280', fontWeight: 400 }}>EST</span>
+                                    </div>
+                                    <div style={{ fontFamily: 'var(--font-mono)', fontSize: 22, fontWeight: 700, color: '#ff4757', marginBottom: 12 }}>
+                                        -${Math.abs(hourlyStats[forensics.timeStats.worstHour]?.pnl ?? 0).toFixed(0)}
+                                    </div>
+                                    <div style={{ display: 'flex', gap: 20, marginBottom: 16 }}>
+                                        <div>
+                                            <div style={{ fontFamily: 'var(--font-mono)', fontSize: 8, color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 2 }}>TRADES</div>
+                                            <div style={{ fontFamily: 'var(--font-mono)', fontSize: 14, fontWeight: 600, color: '#c9d1d9' }}>{hourlyStats[forensics.timeStats.worstHour]?.trades ?? 0}</div>
+                                        </div>
+                                        <div>
+                                            <div style={{ fontFamily: 'var(--font-mono)', fontSize: 8, color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 2 }}>WIN RATE</div>
+                                            <div style={{ fontFamily: 'var(--font-mono)', fontSize: 14, fontWeight: 600, color: '#ff4757' }}>
+                                                {hourlyStats[forensics.timeStats.worstHour]?.trades > 0 ? ((hourlyStats[forensics.timeStats.worstHour].wins / hourlyStats[forensics.timeStats.worstHour].trades) * 100).toFixed(0) : 0}%
+                                            </div>
+                                        </div>
+                                        <div>
+                                            <div style={{ fontFamily: 'var(--font-mono)', fontSize: 8, color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 2 }}>SESSION</div>
+                                            <div style={{ fontFamily: 'var(--font-mono)', fontSize: 11, fontWeight: 600, color: SESSION_WINDOWS.find(sw => sw.hours.includes(forensics.timeStats.worstHour))?.color ?? '#6b7280' }}>
+                                                {SESSION_WINDOWS.find(sw => sw.hours.includes(forensics.timeStats.worstHour))?.label ?? '—'}
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div style={{ background: 'rgba(255,71,87,0.06)', border: '1px solid rgba(255,71,87,0.15)', padding: '12px 14px' }}>
+                                        <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#ff4757', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 4, fontWeight: 700 }}>COACHING ACTION</div>
+                                        <div style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: '#8b949e', lineHeight: 1.7 }}>
+                                            Hard rule: no new positions opened during this window until win rate exceeds 50% over 20+ trades. This hour is costing you real money — the data is clear.
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* ── ACTIONABLE RULES ── */}
+                            <div style={{ background: '#0d1117', border: '1px solid #1a1c24', padding: '24px' }}>
+                                <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#6b7280', letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 16 }}>TIME-BASED RULES — DERIVED FROM YOUR DATA</div>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                                    {[
+                                        {
+                                            rule: `RULE 01 — BEST HOUR PRIORITY`,
+                                            detail: `Focus maximum position sizing and highest conviction setups between ${String(forensics.timeStats.bestHour).padStart(2,'0')}:00–${String(forensics.timeStats.bestHour+1).padStart(2,'0')}:00 EST. This is your statistically proven peak edge window.`,
+                                            icon: '→', color: '#A6FF4D',
+                                        },
+                                        {
+                                            rule: `RULE 02 — DANGER HOUR BLOCK`,
+                                            detail: `Implement a soft trading ban at ${String(forensics.timeStats.worstHour).padStart(2,'0')}:00 EST. If a setup appears, reduce size by 50% and require double confirmation before entry.`,
+                                            icon: '⛔', color: '#ff4757',
+                                        },
+                                        {
+                                            rule: `RULE 03 — SESSION TRANSITION PAUSE`,
+                                            detail: `Add a 5-minute no-trade buffer at every session boundary (06:00, 09:30, 11:00, 14:00, 16:00 EST). Market microstructure shifts — your edge does too.`,
+                                            icon: '⏸', color: '#EAB308',
+                                        },
+                                        {
+                                            rule: `RULE 04 — DEAD HOUR DISCIPLINE`,
+                                            detail: `${24 - hourlyStats.filter(s => s.trades > 0).length} hours show zero activity — preserve this discipline. Do not expand your active hours until your current window win rate exceeds 55% over 30+ trades.`,
+                                            icon: '✓', color: '#6b7280',
+                                        },
+                                    ].map((r, i) => (
+                                        <div key={i} style={{ display: 'flex', gap: 16, padding: '14px 16px', background: '#0b0e14', borderLeft: `2px solid ${r.color}55` }}>
+                                            <span style={{ fontFamily: 'var(--font-mono)', fontSize: 14, color: r.color, flexShrink: 0, width: 20 }}>{r.icon}</span>
+                                            <div>
+                                                <div style={{ fontFamily: 'var(--font-mono)', fontSize: 10, fontWeight: 700, color: r.color, letterSpacing: '0.08em', marginBottom: 4 }}>{r.rule}</div>
+                                                <div style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: '#6b7280', lineHeight: 1.7 }}>{r.detail}</div>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+
                         </motion.div>
                     )}
 
