@@ -47,6 +47,7 @@ export interface TradeSession {
     isShort?: boolean;
     note?: string;  // Manual journal note
     durationSeconds?: number;
+    tags?: string[];
 }
 
 export interface AccountSettings {
@@ -106,6 +107,11 @@ interface AppState {
     /** ISO timestamp of last successful DXTrade sync */
     dxtradeLastSync: string | null;
 
+    /** UI language — defaults to 'en' */
+    language: 'en' | 'fr';
+    /** Hour (0-23) EST at which the trading day rolls over — defaults to 17 */
+    tradingDayRollHour: number;
+
     // Actions
     completeOnboarding: () => void;
     resetOnboarding: () => void;
@@ -115,6 +121,7 @@ interface AppState {
     deleteTrade: (id: string) => void;
     updateTradeOutcome: (id: string, outcome: 'win' | 'loss' | 'open') => void;
     updateTradeNote: (id: string, note: string) => void;
+    updateTradeTags: (id: string, tags: string[]) => void;
     setActiveTab: (tab: AppState['activeTab']) => void;
     getTodayRiskUsed: () => number;
     getDailyRiskRemaining: () => number;
@@ -122,6 +129,8 @@ interface AppState {
     resetTodaySession: () => void;
     setDXTradeConfig: (config: DXTradeConfig | null) => void;
     setDXTradeLastSync: (time: string) => void;
+    setLanguage: (lang: 'en' | 'fr') => void;
+    setTradingDayRollHour: (hour: number) => void;
     /**
      * Auto-compute balance, highestBalance, and dailyLossLimit from trade history.
      * Called automatically after setTrades / addTrade / deleteTrade.
@@ -154,15 +163,15 @@ export const getESTFull = () => {
 /**
  * Returns the Tradeify "trading day" (YYYY-MM-DD) for a given ISO timestamp.
  *
- * Tradeify settles at 5 PM EST: a trade closed at or after 17:00 EST belongs
- * to the NEXT calendar day (the day that started at 5 PM).
+ * Tradeify settles at rollHour EST (default 17 / 5 PM): a trade closed at or
+ * after rollHour EST belongs to the NEXT calendar day.
  *
- * Examples:
+ * Examples (rollHour = 17):
  *   Feb 28 08:26 PM EST  →  trading day = Mar 1
  *   Mar  6 09:00 AM EST  →  trading day = Mar 6
  *   Mar  6 05:00 PM EST  →  trading day = Mar 7
  */
-export function getTradingDay(isoDatetime: string): string {
+export function getTradingDay(isoDatetime: string, rollHour = 17): string {
     const d = new Date(isoDatetime);
     const parts = new Intl.DateTimeFormat('en-US', {
         timeZone: 'America/New_York',
@@ -176,7 +185,7 @@ export function getTradingDay(isoDatetime: string): string {
     const get = (type: string) => parts.find(p => p.type === type)?.value ?? '0';
     const hour = parseInt(get('hour'), 10);
 
-    if (hour >= 17) {
+    if (hour >= rollHour) {
         // Roll forward one calendar day (use noon UTC on that date to avoid DST edge cases)
         const year  = parseInt(get('year'),  10);
         const month = parseInt(get('month'), 10) - 1; // 0-indexed
@@ -212,6 +221,8 @@ export const useAppStore = create<AppState>()(
             activeTab: 'dashboard',
             dxtradeConfig: null,
             dxtradeLastSync: null,
+            language: 'en',
+            tradingDayRollHour: 17,
 
             completeOnboarding: () => set({ hasOnboarded: true }),
 
@@ -223,6 +234,8 @@ export const useAppStore = create<AppState>()(
                 activeTab: 'dashboard',
                 dxtradeConfig: null,
                 dxtradeLastSync: null,
+                language: 'en',
+                tradingDayRollHour: 17,
             }),
 
             setDXTradeConfig: (config) => set({ dxtradeConfig: config }),
@@ -256,7 +269,16 @@ export const useAppStore = create<AppState>()(
                     trades: s.trades.map((t) => (t.id === id ? { ...t, note } : t)),
                 })),
 
+            updateTradeTags: (id, tags) =>
+                set((s) => ({
+                    trades: s.trades.map((t) => (t.id === id ? { ...t, tags } : t)),
+                })),
+
             setActiveTab: (tab) => set({ activeTab: tab }),
+
+            setLanguage: (lang) => set({ language: lang }),
+
+            setTradingDayRollHour: (hour) => set({ tradingDayRollHour: hour }),
 
             getTodayRiskUsed: () => {
                 const state = get();
@@ -355,6 +377,8 @@ export const useAppStore = create<AppState>()(
                 dailySessions: s.dailySessions.slice(-30),
                 dxtradeConfig: s.dxtradeConfig,
                 dxtradeLastSync: s.dxtradeLastSync,
+                language: s.language,
+                tradingDayRollHour: s.tradingDayRollHour,
             }),
         }
     )

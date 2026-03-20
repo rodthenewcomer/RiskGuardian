@@ -11,11 +11,12 @@ export default function Header() {
     // eslint-disable-next-line
     useEffect(() => { setMounted(true); }, []);
 
-    const { account, getTodayRiskUsed } = useAppStore();
+    const { account, getTodayRiskUsed, language, setLanguage } = useAppStore();
     const used = mounted ? getTodayRiskUsed() : 0;
     const guardPct = mounted ? Math.min(100, (used / account.dailyLossLimit) * 100) : 0;
     const isWarning = mounted && guardPct >= 60;
     const isDanger = mounted && guardPct >= 90;
+    const lang = language ?? 'en';
 
     return (
         <header className={styles.header}>
@@ -32,7 +33,7 @@ export default function Header() {
 
                 {/* Balance pill */}
                 <div className={styles.balancePill}>
-                    <span className={styles.balanceLabel}>Balance</span>
+                    <span className={styles.balanceLabel}>{lang === 'fr' ? 'Solde' : 'Balance'}</span>
                     <motion.span
                         key={mounted ? account.balance : 0}
                         className={styles.balanceValue}
@@ -47,8 +48,20 @@ export default function Header() {
                     </motion.span>
                 </div>
 
+                {/* FR / EN language switcher */}
+                <button
+                    className={styles.langToggle}
+                    onClick={() => setLanguage(lang === 'en' ? 'fr' : 'en')}
+                    aria-label="Switch language"
+                    title={lang === 'en' ? 'Passer en français' : 'Switch to English'}
+                >
+                    <span className={lang === 'en' ? styles.langActive : styles.langInactive}>EN</span>
+                    <span className={styles.langSep}>|</span>
+                    <span className={lang === 'fr' ? styles.langActive : styles.langInactive}>FR</span>
+                </button>
+
                 {/* Notification bell */}
-                <button className="btn btn--icon" aria-label="Notifications">
+                <button className="btn btn--icon" aria-label={lang === 'fr' ? 'Notifications' : 'Notifications'}>
                     <Bell size={18} />
                     {mounted && isDanger && <span className={styles.notifDot} />}
                 </button>

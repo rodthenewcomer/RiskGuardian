@@ -11,6 +11,7 @@ import {
     ArrowRight, ChevronRight,
 } from 'lucide-react';
 import PnLChart from '@/components/analytics/PnLChart';
+import { useTranslation } from '@/i18n/useTranslation';
 
 const fadeUp = { hidden: { opacity: 0, y: 14 }, show: { opacity: 1, y: 0, transition: { ease: [0.16, 1, 0.3, 1] as const, duration: 0.45 } } };
 const stagger = { hidden: {}, show: { transition: { staggerChildren: 0.08 } } };
@@ -42,6 +43,10 @@ export default function DashboardPage() {
     const [mounted, setMounted] = useState(false);
     const [hoveredTrade, setHoveredTrade] = useState<string | null>(null);
     const isMobile = useIsMobile();
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const { t } = useTranslation();
+    const { language } = useAppStore();
+    const lang = language ?? 'en';
     // eslint-disable-next-line
     useEffect(() => { setMounted(true); }, []);
 
@@ -136,6 +141,41 @@ export default function DashboardPage() {
         return { streakCount: count, streakType: lastIsWin ? 'W' as const : 'L' as const };
     }, [closedTrades]);
 
+    // ── Milestone detection ────────────────────────────────────
+    const milestone = useMemo(() => {
+        if (!mounted || closedTrades.length === 0) return null;
+        const n = closedTrades.length;
+        const prevN = n - 1;
+        // Only show milestone on exact counts
+        if (n === 1) return lang === 'fr' ? '🎯 Premier trade enregistré !' : '🎯 First Trade Logged!';
+        if (n === 10 && prevN < 10) return lang === 'fr' ? '🔟 10 trades — bon départ !' : '🔟 10 Trades Milestone!';
+        if (n === 50 && prevN < 50) return lang === 'fr' ? '📊 50 trades — pro du journal !' : '📊 50 Trades — Journaling Pro!';
+        if (n === 100 && prevN < 100) return lang === 'fr' ? '🏆 100 trades — vétéran !' : '🏆 100 Trades — Veteran!';
+        if (streakType === 'W' && streakCount === 5) return lang === 'fr' ? '⚡ Série gagnante de 5 !' : '⚡ 5-Trade Win Streak!';
+        if (streakType === 'W' && streakCount === 10) return lang === 'fr' ? '🔥 Série gagnante de 10 !' : '🔥 10-Trade Win Streak!';
+        // "You've improved" moment — this week better than last week
+        if (n >= 10) {
+            const now = new Date();
+            const oneWeekAgo = new Date(now.getTime() - 7 * 24 * 3600 * 1000);
+            const twoWeeksAgo = new Date(now.getTime() - 14 * 24 * 3600 * 1000);
+            const thisWeekPnl = closedTrades
+                .filter(t => new Date(t.closedAt ?? t.createdAt) >= oneWeekAgo)
+                .reduce((s, t) => s + (t.pnl ?? 0), 0);
+            const lastWeekPnl = closedTrades
+                .filter(t => {
+                    const d = new Date(t.closedAt ?? t.createdAt);
+                    return d >= twoWeeksAgo && d < oneWeekAgo;
+                })
+                .reduce((s, t) => s + (t.pnl ?? 0), 0);
+            if (thisWeekPnl > 0 && lastWeekPnl < 0) {
+                return lang === 'fr'
+                    ? `📈 Cette semaine meilleure que la dernière (+$${thisWeekPnl.toFixed(0)})`
+                    : `📈 This week better than last (+$${thisWeekPnl.toFixed(0)})`;
+            }
+        }
+        return null;
+    }, [mounted, closedTrades, streakCount, streakType, lang]);
+
     // ── Session intelligence (forensics) ──────────────────────
     const forensics = useMemo(() => generateForensics(trades, account), [trades, account]);
     const bestHour  = forensics.timeStats.bestHour;
@@ -212,15 +252,15 @@ export default function DashboardPage() {
             >
                 <motion.div variants={fadeUp}>
                     <Shield size={42} style={{ color: '#4b5563', marginBottom: 16 }} />
-                    <h2 style={{ fontSize: 24, fontWeight: 800, color: '#e2e8f0', marginBottom: 8 }}>Account Not Setup</h2>
+                    <h2 style={{ fontSize: 24, fontWeight: 800, color: '#e2e8f0', marginBottom: 8 }}>{lang === 'fr' ? 'Compte non configuré' : 'Account Not Setup'}</h2>
                     <p style={{ ...mono, fontSize: 13, color: '#8b949e', marginBottom: 24, maxWidth: 300 }}>
-                        Complete setup in Settings to see your live dashboard — add your starting balance and prop firm rules.
+                        {lang === 'fr' ? 'Configurez votre compte dans les Paramètres pour voir le tableau de bord.' : 'Complete setup in Settings to see your live dashboard.'}
                     </p>
                     <button
                         onClick={() => setActiveTab('settings')}
                         style={{ padding: '12px 24px', background: '#A6FF4D', color: '#000', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em' }}
                     >
-                        Go to Settings
+                        {lang === 'fr' ? 'Aller aux Paramètres' : 'Go to Settings'}
                     </button>
                 </motion.div>
             </motion.div>
@@ -231,6 +271,28 @@ export default function DashboardPage() {
         <motion.div variants={stagger} initial="hidden" animate="show"
             style={{ display: 'flex', flexDirection: 'column', background: '#090909', minHeight: '100vh' }}
         >
+            {/* ── MILESTONE BANNER ── */}
+            {milestone && (
+                <motion.div
+                    initial={{ opacity: 0, y: -20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -20 }}
+                    style={{
+                        background: 'rgba(166,255,77,0.08)',
+                        border: '1px solid rgba(166,255,77,0.3)',
+                        borderLeft: '3px solid #A6FF4D',
+                        padding: '10px 16px',
+                        fontFamily: 'var(--font-mono)',
+                        fontSize: 12,
+                        fontWeight: 700,
+                        color: '#A6FF4D',
+                        letterSpacing: '0.04em',
+                    }}
+                >
+                    {milestone}
+                </motion.div>
+            )}
+
             {/* ── 1. LIVE STATUS BAR ─────────────────────────────── */}
             <motion.div variants={fadeUp} style={{
                 display: 'flex', alignItems: 'center', justifyContent: 'space-between',
@@ -327,6 +389,44 @@ export default function DashboardPage() {
                 </motion.div>
             )}
 
+            {/* ── STREAK WIDGET ── */}
+            {mounted && closedTrades.length >= 2 && (
+                <motion.div variants={fadeUp} style={{
+                    ...card,
+                    padding: isMobile ? '12px 14px' : '14px 20px',
+                    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                    gap: 12,
+                }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                        <div style={{
+                            width: 32, height: 32,
+                            background: streakType === 'W' ? 'rgba(166,255,77,0.12)' : 'rgba(255,71,87,0.12)',
+                            border: `1px solid ${streakType === 'W' ? 'rgba(166,255,77,0.3)' : 'rgba(255,71,87,0.3)'}`,
+                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            fontSize: 16,
+                        }}>
+                            {streakType === 'W' ? '↑' : '↓'}
+                        </div>
+                        <div>
+                            <div style={{ ...lbl, marginBottom: 2 }}>
+                                {lang === 'fr' ? 'SÉRIE EN COURS' : 'CURRENT STREAK'}
+                            </div>
+                            <div style={{ ...mono, fontSize: 15, fontWeight: 700, color: streakColor }}>
+                                {streakCount} {streakType === 'W' ? (lang === 'fr' ? 'GAINS' : 'WINS') : (lang === 'fr' ? 'PERTES' : 'LOSSES')}
+                            </div>
+                        </div>
+                    </div>
+                    <div style={{ textAlign: 'right' }}>
+                        <div style={{ ...lbl, marginBottom: 2 }}>
+                            {lang === 'fr' ? 'TAUX DE RÉUSSITE' : 'WIN RATE'}
+                        </div>
+                        <div style={{ ...mono, fontSize: 15, fontWeight: 700, color: wrColor }}>
+                            {winRate}%
+                        </div>
+                    </div>
+                </motion.div>
+            )}
+
             {/* ── 4. REVENGE ALERT ───────────────────────────────── */}
             {revengeAlert && (
                 <motion.div variants={fadeUp}
@@ -367,8 +467,12 @@ export default function DashboardPage() {
                             </motion.div>
                             <span style={{ ...mono, fontSize: 11, color: hasAged ? '#EAB308' : '#00D4FF', fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase' }}>
                                 {hasAged
-                                    ? `⚠ ${agedTrades.length} trade${agedTrades.length > 1 ? 's' : ''} have been open for 4h+ — log your outcome`
-                                    : `${openTrades.length} OPEN TRADE${openTrades.length > 1 ? 'S' : ''} — Log outcome to unlock analysis.`
+                                    ? lang === 'fr'
+                                        ? `⚠ ${agedTrades.length} trade${agedTrades.length > 1 ? 's' : ''} ouvert${agedTrades.length > 1 ? 's' : ''} depuis 4h+ — enregistrez votre résultat`
+                                        : `⚠ ${agedTrades.length} trade${agedTrades.length > 1 ? 's' : ''} have been open for 4h+ — log your outcome`
+                                    : lang === 'fr'
+                                        ? `${openTrades.length} TRADE${openTrades.length > 1 ? 'S' : ''} OUVERT${openTrades.length > 1 ? 'S' : ''} — Enregistrez le résultat pour débloquer l'analyse.`
+                                        : `${openTrades.length} OPEN TRADE${openTrades.length > 1 ? 'S' : ''} — Log outcome to unlock analysis.`
                                 }
                             </span>
                         </div>
@@ -384,7 +488,9 @@ export default function DashboardPage() {
                         <AlertTriangle size={13} color="#EAB308" />
                     </motion.div>
                     <span style={{ ...mono, fontSize: 11, color: '#EAB308', fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase' }}>
-                        WEEKEND GAP RISK — Open crypto position over weekend. Wider spreads and liquidity gaps on Sunday open.
+                        {lang === 'fr'
+                            ? 'RISQUE GAP WEEKEND — Position crypto ouverte ce weekend. Spreads élargis et gaps de liquidité à l\'ouverture dimanche.'
+                            : 'WEEKEND GAP RISK — Open crypto position over weekend. Wider spreads and liquidity gaps on Sunday open.'}
                     </span>
                 </motion.div>
             )}
@@ -414,9 +520,9 @@ export default function DashboardPage() {
                 </div>
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', padding: '14px 16px' }}>
                     {[
-                        { lbl: 'USED',      val: `$${animUsed.toFixed(0)}`,           clr: used > 0 ? '#ff4757' : '#4b5563' },
-                        { lbl: 'REMAINING', val: `$${animRemaining.toFixed(0)}`,       clr: remaining === 0 ? '#ff4757' : '#A6FF4D' },
-                        { lbl: 'SAFE NEXT', val: `$${animSafeNext.toFixed(0)}`,        clr: '#A6FF4D' },
+                        { lbl: lang === 'fr' ? 'UTILISÉ' : 'USED',           val: `$${animUsed.toFixed(0)}`,      clr: used > 0 ? '#ff4757' : '#4b5563' },
+                        { lbl: lang === 'fr' ? 'RESTANT' : 'REMAINING',     val: `$${animRemaining.toFixed(0)}`, clr: remaining === 0 ? '#ff4757' : '#A6FF4D' },
+                        { lbl: lang === 'fr' ? 'RISQUE MAX SUIVANT' : 'SAFE NEXT', val: `$${animSafeNext.toFixed(0)}`, clr: '#A6FF4D' },
                     ].map((s, i) => (
                         <motion.div
                             key={i}
@@ -719,10 +825,10 @@ export default function DashboardPage() {
             {recentTrades.length > 0 ? (
                 <motion.div variants={fadeUp} style={card}>
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', borderBottom: divider }}>
-                        <span style={lbl}>Recent Trades</span>
+                        <span style={lbl}>{lang === 'fr' ? 'TRADES RÉCENTS' : 'RECENT TRADES'}</span>
                         <button onClick={() => setActiveTab('journal')}
                             style={{ background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4, ...mono, fontSize: 10, color: '#A6FF4D', letterSpacing: '0.06em', textTransform: 'uppercase', padding: 0 }}>
-                            View All <ChevronRight size={11} />
+                            {lang === 'fr' ? 'VOIR TOUT' : 'VIEW ALL'} <ChevronRight size={11} />
                         </button>
                     </div>
                     <motion.div variants={tradeListStagger} initial="hidden" animate="show">
@@ -775,10 +881,12 @@ export default function DashboardPage() {
             ) : (
                 <motion.div variants={fadeUp} style={{ padding: '48px 20px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, textAlign: 'center' }}>
                     <span style={{ fontSize: 32 }}>📊</span>
-                    <span style={{ fontSize: 15, fontWeight: 800, color: '#e2e8f0', marginTop: 8 }}>No trades logged yet</span>
-                    <span style={{ fontSize: 12, color: '#6b7280', maxWidth: 260, lineHeight: 1.6 }}>Open the Risk Engine, calculate your size, and log your first trade.</span>
+                    <span style={{ fontSize: 15, fontWeight: 800, color: '#e2e8f0', marginTop: 8 }}>{lang === 'fr' ? 'Aucun trade pour l\'instant' : 'No trades yet'}</span>
+                    <span style={{ fontSize: 12, color: '#6b7280', maxWidth: 260, lineHeight: 1.6 }}>
+                        {lang === 'fr' ? 'Ouvrez le Moteur de Risque, calculez votre taille et enregistrez votre premier trade.' : 'Open the Risk Engine, calculate your size, and log your first trade.'}
+                    </span>
                     <button onClick={() => setActiveTab('terminal')} className="btn btn--primary" style={{ marginTop: 16, display: 'inline-flex', alignItems: 'center', gap: 8 }}>
-                        <Calculator size={14} /> Open Risk Engine
+                        <Calculator size={14} /> {lang === 'fr' ? 'Enregistrer un trade' : 'Log a Trade'}
                     </button>
                 </motion.div>
             )}

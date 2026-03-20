@@ -17,6 +17,7 @@ import {
 } from 'lucide-react';
 import styles from './BridgePage.module.css';
 import { useAppStore } from '@/store/appStore';
+import { useTranslation } from '@/i18n/useTranslation';
 import { dxGetPositions, dxGetMetrics, type DXMetrics } from '@/lib/dxtradeSync';
 import type { TradeSession } from '@/store/appStore';
 
@@ -55,6 +56,9 @@ function elapsed(isoTime: string): string {
 
 export default function BridgePage() {
     const { dxtradeConfig, account, trades, setDXTradeConfig } = useAppStore();
+    const { t } = useTranslation();
+    const { language } = useAppStore();
+    const lang = language ?? 'en';
 
     // ── Live monitor state ─────────────────────────────────────────
     const [positions, setPositions] = useState<TradeSession[]>([]);
@@ -163,19 +167,19 @@ export default function BridgePage() {
             {tokenExpiredBanner === 'reconnecting' && (
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 20px', background: 'rgba(234,179,8,0.08)', borderBottom: '1px solid rgba(234,179,8,0.3)' }}>
                     <AlertTriangle size={13} color="#EAB308" />
-                    <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: '#EAB308', fontWeight: 700, letterSpacing: '0.06em' }}>Session expired — reconnecting…</span>
+                    <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: '#EAB308', fontWeight: 700, letterSpacing: '0.06em' }}>{lang === 'fr' ? 'Session expirée — reconnexion…' : 'Session expired — reconnecting…'}</span>
                 </div>
             )}
             {tokenExpiredBanner === 'failed' && (
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, padding: '10px 20px', background: 'rgba(255,71,87,0.06)', borderBottom: '1px solid rgba(255,71,87,0.3)' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                         <AlertTriangle size={13} color="#ff4757" />
-                        <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: '#ff4757', fontWeight: 700, letterSpacing: '0.06em' }}>Session expired. Please reconnect.</span>
+                        <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: '#ff4757', fontWeight: 700, letterSpacing: '0.06em' }}>{lang === 'fr' ? 'Session expirée. Veuillez vous reconnecter.' : 'Session expired. Please reconnect.'}</span>
                     </div>
                     <button
                         onClick={() => { setTokenExpiredBanner(null); setDXTradeConfig(null); useAppStore.getState().setActiveTab('settings'); }}
                         style={{ fontFamily: 'var(--font-mono)', fontSize: 10, fontWeight: 700, padding: '5px 12px', background: 'rgba(255,71,87,0.1)', color: '#ff4757', border: '1px solid rgba(255,71,87,0.3)', cursor: 'pointer', letterSpacing: '0.06em', textTransform: 'uppercase' }}
-                    >Reconnect</button>
+                    >{lang === 'fr' ? 'Reconnecter' : 'Reconnect'}</button>
                 </div>
             )}
 
@@ -184,10 +188,10 @@ export default function BridgePage() {
                 <div className={`${styles.statusDot} ${isConnected && !pollError ? styles.dotLive : isConnected ? styles.dotWarn : styles.dotOff}`} />
                 <div style={{ flex: 1 }}>
                     <span className={styles.statusLabel}>
-                        {!isConnected ? 'NO DXTRADE CONNECTION'
-                            : pollError ? 'CONNECTION ERROR'
-                                : polling ? 'LIVE · POLLING EVERY 3s'
-                                    : 'CONNECTING…'}
+                        {!isConnected ? (lang === 'fr' ? 'AUCUNE CONNEXION DXTRADE' : 'NO DXTRADE CONNECTION')
+                            : pollError ? (lang === 'fr' ? 'ERREUR DE CONNEXION' : 'CONNECTION ERROR')
+                                : polling ? (lang === 'fr' ? 'EN DIRECT · ACTUALISATION TOUTES LES 3s' : 'LIVE · POLLING EVERY 3s')
+                                    : (lang === 'fr' ? 'CONNEXION…' : 'CONNECTING…')}
                     </span>
                     {isConnected && lastPoll && !pollError && (
                         <span className={styles.statusSub}>
@@ -208,17 +212,18 @@ export default function BridgePage() {
             {!isConnected && (
                 <div className={styles.noConnCard}>
                     <WifiOff size={28} style={{ color: 'var(--text-muted)', marginBottom: 8 }} />
-                    <p className={styles.noConnTitle}>DXTrade not connected</p>
+                    <p className={styles.noConnTitle}>{lang === 'fr' ? 'DXTrade non connecté' : 'DXTrade not connected'}</p>
                     <p className={styles.noConnSub}>
-                        Connect your account in Settings to enable the live position monitor.
-                        The Pre-Trade Analyzer below works without a connection.
+                        {lang === 'fr'
+                            ? 'Connectez votre compte dans les Paramètres pour activer le moniteur de positions en direct. L\'analyseur pré-trade fonctionne sans connexion.'
+                            : 'Connect your account in Settings to enable the live position monitor. The Pre-Trade Analyzer below works without a connection.'}
                     </p>
                     <button
                         className="btn btn--ghost btn--sm"
                         style={{ display: 'flex', alignItems: 'center', gap: 6 }}
                         onClick={() => useAppStore.getState().setActiveTab('settings')}
                     >
-                        <Settings2 size={13} /> Go to Settings
+                        <Settings2 size={13} /> {lang === 'fr' ? 'Aller aux paramètres' : 'Go to Settings'}
                     </button>
                 </div>
             )}
@@ -229,14 +234,14 @@ export default function BridgePage() {
                     className={`${styles.tab} ${activeTab === 'monitor' ? styles.tabActive : ''}`}
                     onClick={() => setActiveTab('monitor')}
                 >
-                    <Activity size={13} /> Live Monitor
+                    <Activity size={13} /> {lang === 'fr' ? 'Moniteur en direct' : 'Live Monitor'}
                     {positions.length > 0 && <span className={styles.tabBadge}>{positions.length}</span>}
                 </button>
                 <button
                     className={`${styles.tab} ${activeTab === 'pretrade' ? styles.tabActive : ''}`}
                     onClick={() => setActiveTab('pretrade')}
                 >
-                    <Zap size={13} /> Pre-Trade Check
+                    <Zap size={13} /> {lang === 'fr' ? 'Vérification pré-trade' : 'Pre-Trade Check'}
                 </button>
             </div>
 
@@ -250,10 +255,10 @@ export default function BridgePage() {
                         {metrics && (
                             <div className={styles.metricsStrip}>
                                 {[
-                                    { label: 'Balance', value: `$${metrics.balance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, color: '' },
-                                    { label: 'Equity', value: `$${metrics.equity.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, color: metrics.equity >= metrics.balance ? '#22c55e' : '#f87171' },
-                                    { label: 'Open P&L', value: `${metrics.openPl >= 0 ? '+' : ''}$${metrics.openPl.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, color: metrics.openPl >= 0 ? '#22c55e' : '#f87171' },
-                                    { label: 'Margin', value: `$${metrics.margin.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`, color: '' },
+                                    { label: lang === 'fr' ? 'Solde' : 'Balance', value: `$${metrics.balance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, color: '' },
+                                    { label: lang === 'fr' ? 'Équité' : 'Equity', value: `$${metrics.equity.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, color: metrics.equity >= metrics.balance ? '#22c55e' : '#f87171' },
+                                    { label: lang === 'fr' ? 'P&L ouvert' : 'Open P&L', value: `${metrics.openPl >= 0 ? '+' : ''}$${metrics.openPl.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, color: metrics.openPl >= 0 ? '#22c55e' : '#f87171' },
+                                    { label: lang === 'fr' ? 'Marge' : 'Margin', value: `$${metrics.margin.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`, color: '' },
                                 ].map(m => (
                                     <div key={m.label} className={styles.metricCell}>
                                         <span className={styles.metricLabel}>{m.label}</span>
@@ -272,8 +277,8 @@ export default function BridgePage() {
                                     <div className={styles.sonarRing} style={{ animationDelay: '1.4s' }} />
                                     <ShieldCheck size={22} style={{ color: 'var(--accent)', position: 'relative', zIndex: 1 }} />
                                 </div>
-                                <p className={styles.emptyTitle}>No open positions</p>
-                                <p className={styles.emptySub}>Monitoring live · positions appear here within 3s of opening</p>
+                                <p className={styles.emptyTitle}>{lang === 'fr' ? 'Aucune position ouverte' : 'No open positions'}</p>
+                                <p className={styles.emptySub}>{lang === 'fr' ? 'Surveillance en direct · les positions apparaissent ici dans les 3s' : 'Monitoring live · positions appear here within 3s of opening'}</p>
                             </div>
                         )}
 
@@ -313,19 +318,19 @@ export default function BridgePage() {
 
                                             <div className={styles.posGrid}>
                                                 <div className={styles.posCell}>
-                                                    <span className={styles.posCellLabel}>Entry</span>
+                                                    <span className={styles.posCellLabel}>{lang === 'fr' ? 'Entrée' : 'Entry'}</span>
                                                     <span className={styles.posCellValue}>{pos.entry.toLocaleString()}</span>
                                                 </div>
                                                 <div className={styles.posCell}>
-                                                    <span className={styles.posCellLabel}>Size</span>
+                                                    <span className={styles.posCellLabel}>{lang === 'fr' ? 'Taille' : 'Size'}</span>
                                                     <span className={styles.posCellValue}>{pos.lotSize}</span>
                                                 </div>
                                                 <div className={styles.posCell}>
-                                                    <span className={styles.posCellLabel}>Stop</span>
+                                                    <span className={styles.posCellLabel}>{lang === 'fr' ? 'Stop' : 'Stop'}</span>
                                                     <span className={styles.posCellValue} style={{ color: '#f87171' }}>{pos.stopLoss || '—'}</span>
                                                 </div>
                                                 <div className={styles.posCell}>
-                                                    <span className={styles.posCellLabel}>Target</span>
+                                                    <span className={styles.posCellLabel}>{lang === 'fr' ? 'Objectif' : 'Target'}</span>
                                                     <span className={styles.posCellValue} style={{ color: '#22c55e' }}>{pos.takeProfit || '—'}</span>
                                                 </div>
                                             </div>
@@ -333,19 +338,19 @@ export default function BridgePage() {
                                             {riskUSD > 0 && (
                                                 <div className={styles.posRiskRow}>
                                                     <span className={styles.posRiskItem}>
-                                                        Risk <strong style={{ color: riskStatus === 'danger' ? '#f87171' : riskStatus === 'caution' ? '#f59e0b' : 'var(--accent)' }}>
+                                                        {lang === 'fr' ? 'Risque' : 'Risk'} <strong style={{ color: riskStatus === 'danger' ? '#f87171' : riskStatus === 'caution' ? '#f59e0b' : 'var(--accent)' }}>
                                                             ${riskUSD.toFixed(0)} ({riskPct.toFixed(1)}%)
                                                         </strong>
                                                     </span>
                                                     {rr > 0 && (
                                                         <span className={styles.posRiskItem}>
-                                                            R:R <strong style={{ color: rr >= 2 ? '#22c55e' : rr >= 1.5 ? '#f59e0b' : '#f87171' }}>{rr.toFixed(1)}R</strong>
+                                                            {lang === 'fr' ? 'Risque/Récompense' : 'R:R'} <strong style={{ color: rr >= 2 ? '#22c55e' : rr >= 1.5 ? '#f59e0b' : '#f87171' }}>{rr.toFixed(1)}R</strong>
                                                         </span>
                                                     )}
                                                     {riskStatus !== 'safe' && (
                                                         <span className={styles.posWarn}>
                                                             <AlertTriangle size={10} />
-                                                            {riskStatus === 'danger' ? 'OVER LIMIT' : 'HIGH RISK'}
+                                                            {riskStatus === 'danger' ? (lang === 'fr' ? 'LIMITE DÉPASSÉE' : 'OVER LIMIT') : (lang === 'fr' ? 'RISQUE ÉLEVÉ' : 'HIGH RISK')}
                                                         </span>
                                                     )}
                                                 </div>
@@ -359,7 +364,7 @@ export default function BridgePage() {
                         {/* Manual refresh */}
                         {isConnected && (
                             <button className={styles.refreshBtn} onClick={poll}>
-                                <RefreshCw size={12} /> Refresh now
+                                <RefreshCw size={12} /> {lang === 'fr' ? 'Actualiser maintenant' : 'Refresh now'}
                             </button>
                         )}
                     </motion.div>
@@ -371,8 +376,8 @@ export default function BridgePage() {
                         <div className={`glass-card glass-card--elevated ${styles.ptCard}`}>
                             <div className={styles.ptHeader}>
                                 <Zap size={14} style={{ color: '#a78bfa' }} />
-                                <span className={styles.ptTitle}>Pre-Trade AI Check</span>
-                                <span className={styles.ptSub}>Fill before pressing the button</span>
+                                <span className={styles.ptTitle}>{lang === 'fr' ? 'Vérification IA pré-trade' : 'Pre-Trade AI Check'}</span>
+                                <span className={styles.ptSub}>{lang === 'fr' ? 'Remplissez avant d\'appuyer sur le bouton' : 'Fill before pressing the button'}</span>
                             </div>
 
                             {/* Direction toggle */}
@@ -389,7 +394,7 @@ export default function BridgePage() {
 
                             {/* Symbol */}
                             <div className="field-group" style={{ marginBottom: 0 }}>
-                                <label className="field-label">Symbol</label>
+                                <label className="field-label">{lang === 'fr' ? 'Symbole' : 'Symbol'}</label>
                                 <input className="field-input" value={ptSymbol} onChange={e => setPtSymbol(e.target.value.toUpperCase())}
                                     placeholder="BTC, ETH, SOL, MNQ…" autoCapitalize="characters" />
                             </div>
@@ -397,22 +402,22 @@ export default function BridgePage() {
                             {/* Price inputs */}
                             <div className={styles.ptGrid}>
                                 <div className="field-group" style={{ marginBottom: 0 }}>
-                                    <label className="field-label">Entry</label>
+                                    <label className="field-label">{lang === 'fr' ? 'Entrée' : 'Entry'}</label>
                                     <input className="field-input" type="number" inputMode="decimal"
                                         value={ptEntry} onChange={e => setPtEntry(e.target.value)} placeholder="65000" />
                                 </div>
                                 <div className="field-group" style={{ marginBottom: 0 }}>
-                                    <label className="field-label">Stop Loss</label>
+                                    <label className="field-label">{lang === 'fr' ? 'Stop Loss' : 'Stop Loss'}</label>
                                     <input className="field-input" type="number" inputMode="decimal"
                                         value={ptStop} onChange={e => setPtStop(e.target.value)} placeholder="64500" />
                                 </div>
                                 <div className="field-group" style={{ marginBottom: 0 }}>
-                                    <label className="field-label">Take Profit</label>
+                                    <label className="field-label">{lang === 'fr' ? 'Take Profit' : 'Take Profit'}</label>
                                     <input className="field-input" type="number" inputMode="decimal"
                                         value={ptTP} onChange={e => setPtTP(e.target.value)} placeholder="66000" />
                                 </div>
                                 <div className="field-group" style={{ marginBottom: 0 }}>
-                                    <label className="field-label">Lot Size</label>
+                                    <label className="field-label">{lang === 'fr' ? 'Taille de lot' : 'Lot Size'}</label>
                                     <input className="field-input" type="number" inputMode="decimal"
                                         value={ptLots} onChange={e => setPtLots(e.target.value)} placeholder="0.05" />
                                 </div>
@@ -441,17 +446,17 @@ export default function BridgePage() {
                                             {/* Stats row */}
                                             <div className={styles.ptStats}>
                                                 <div className={styles.ptStat}>
-                                                    <span>Risk</span>
+                                                    <span>{lang === 'fr' ? 'Risque' : 'Risk'}</span>
                                                     <strong>${ptResult.riskUSD.toFixed(0)} ({ptResult.riskPct.toFixed(1)}%)</strong>
                                                 </div>
                                                 {ptResult.rr > 0 && (
                                                     <div className={styles.ptStat}>
-                                                        <span>R:R</span>
+                                                        <span>{lang === 'fr' ? 'Risque/Récompense' : 'R:R'}</span>
                                                         <strong>{ptResult.rr.toFixed(1)}R</strong>
                                                     </div>
                                                 )}
                                                 <div className={styles.ptStat}>
-                                                    <span>Daily left</span>
+                                                    <span>{lang === 'fr' ? 'Restant du jour' : 'Daily left'}</span>
                                                     <strong>${ptResult.dailyRemaining.toFixed(0)}</strong>
                                                 </div>
                                             </div>
@@ -474,8 +479,10 @@ export default function BridgePage() {
 
                             {/* Using balance info */}
                             <p style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: '#4b5563', marginTop: -4 }}>
-                                Using: Balance ${balanceDisplay.toLocaleString()} · Daily limit ${account.dailyLossLimit.toLocaleString()} · Used today ${todayUsed.toFixed(0)}
-                                {metrics && ' (live)'}
+                                {lang === 'fr'
+                                    ? `Utilisation : Solde $${balanceDisplay.toLocaleString()} · Limite journalière $${account.dailyLossLimit.toLocaleString()} · Utilisé aujourd'hui $${todayUsed.toFixed(0)}`
+                                    : `Using: Balance $${balanceDisplay.toLocaleString()} · Daily limit $${account.dailyLossLimit.toLocaleString()} · Used today $${todayUsed.toFixed(0)}`}
+                                {metrics && (lang === 'fr' ? ' (en direct)' : ' (live)')}
                             </p>
                         </div>
                     </motion.div>

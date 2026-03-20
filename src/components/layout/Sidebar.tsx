@@ -7,15 +7,16 @@ import {
     LayoutDashboard, Terminal,
     BookOpen, BarChart2, Settings, Brain, ShieldCheck
 } from 'lucide-react';
+import { useTranslation } from '@/i18n/useTranslation';
 
-const TABS = [
-    { id: 'dashboard', label: 'Dashboard', Icon: LayoutDashboard },
-    { id: 'terminal', label: 'Risk Engine', Icon: Terminal },
-    { id: 'bridge', label: 'Bridge', Icon: ShieldCheck },
-    { id: 'plan', label: 'AI Coach', Icon: Brain },
-    { id: 'journal', label: 'Journal', Icon: BookOpen },
-    { id: 'analytics', label: 'Analytics', Icon: BarChart2 },
-    { id: 'settings', label: 'Settings', Icon: Settings },
+const TAB_IDS = [
+    { id: 'dashboard', Icon: LayoutDashboard },
+    { id: 'terminal', Icon: Terminal },
+    { id: 'bridge', Icon: ShieldCheck },
+    { id: 'plan', Icon: Brain },
+    { id: 'journal', Icon: BookOpen },
+    { id: 'analytics', Icon: BarChart2 },
+    { id: 'settings', Icon: Settings },
 ] as const;
 
 export default function Sidebar() {
@@ -23,7 +24,20 @@ export default function Sidebar() {
     // eslint-disable-next-line
     useEffect(() => { setMounted(true); }, []);
 
-    const { activeTab, setActiveTab } = useAppStore();
+    const { activeTab, setActiveTab, language, setLanguage } = useAppStore();
+    const { t } = useTranslation();
+    const lang = language ?? 'en';
+
+    const tabLabels: Record<string, string> = {
+        dashboard: t.nav.dashboard,
+        terminal: t.nav.riskEngine,
+        bridge: t.bridge.title,
+        plan: t.nav.aiCoach,
+        journal: t.nav.journal,
+        analytics: t.nav.analytics,
+        settings: t.nav.settings,
+    };
+
     if (!mounted) return null;
 
     return (
@@ -37,20 +51,36 @@ export default function Sidebar() {
                 </span>
             </div>
             <ul className={styles.list}>
-                {TABS.map(({ id, label, Icon }) => (
-                    <li key={id}>
-                        <button
-                            className={`${styles.item} ${activeTab === id ? styles.active : ''}`}
-                            onClick={() => setActiveTab(id)}
-                            title={label}
-                            aria-label={label}
-                        >
-                            <Icon size={18} strokeWidth={1.8} />
-                            <span className={styles.label}>{label}</span>
-                        </button>
-                    </li>
-                ))}
+                {TAB_IDS.map(({ id, Icon }) => {
+                    const label = tabLabels[id] ?? id;
+                    return (
+                        <li key={id}>
+                            <button
+                                className={`${styles.item} ${activeTab === id ? styles.active : ''}`}
+                                onClick={() => setActiveTab(id)}
+                                title={label}
+                                aria-label={label}
+                            >
+                                <Icon size={18} strokeWidth={1.8} />
+                                <span className={styles.label}>{label}</span>
+                            </button>
+                        </li>
+                    );
+                })}
             </ul>
+
+            {/* Language switcher at bottom of sidebar */}
+            <div className={styles.langSection}>
+                <button
+                    className={styles.langToggle}
+                    onClick={() => setLanguage(lang === 'en' ? 'fr' : 'en')}
+                    title={lang === 'en' ? 'Passer en français' : 'Switch to English'}
+                >
+                    <span className={lang === 'en' ? styles.langActive : styles.langInactive}>EN</span>
+                    <span className={styles.langSep}>|</span>
+                    <span className={lang === 'fr' ? styles.langActive : styles.langInactive}>FR</span>
+                </button>
+            </div>
         </nav>
     );
 }

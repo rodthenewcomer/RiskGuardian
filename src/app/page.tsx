@@ -15,6 +15,7 @@ import JournalPage from '@/components/pages/JournalPage';
 import Onboarding from '@/components/pages/Onboarding';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { AnimatePresence, motion } from 'framer-motion';
+import { ToastContainer } from '@/components/ui/Toast';
 
 const pageVariants = {
   enter: { opacity: 0, y: 10 },
@@ -82,6 +83,7 @@ export default function Home() {
         </ErrorBoundary>
       </main>
       <BottomNav />
+      <ToastContainer />
     </div>
   );
 }

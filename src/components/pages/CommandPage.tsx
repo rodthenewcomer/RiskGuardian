@@ -6,6 +6,7 @@ import {
     useAppStore, getFuturesSpec, calcPositionSize, getESTFull,
     TRADEIFY_CRYPTO_LIST,
 } from '@/store/appStore';
+import { useTranslation } from '@/i18n/useTranslation';
 import {
     TrendingUp, TrendingDown, AlertTriangle, Terminal,
     BookmarkPlus, Check, RotateCcw, Zap,
@@ -94,6 +95,9 @@ export default function CommandPage() {
         setActiveTab, trades,
         updateAccount, resetTodaySession,
     } = useAppStore();
+    const { t } = useTranslation();
+    const { language } = useAppStore();
+    const lang = language ?? 'en';
 
     // ── Form state ──────────────────────────────────────────────────
     const [asset,   setAsset]   = useState('BTC');
@@ -407,7 +411,7 @@ export default function CommandPage() {
                 padding: '10px 16px', borderBottom: D, gap: 8,
             }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <span style={{ ...mono, fontSize: 11, color: '#A6FF4D', fontWeight: 900, letterSpacing: '0.12em' }}>_ RISK ENGINE</span>
+                    <span style={{ ...mono, fontSize: 11, color: '#A6FF4D', fontWeight: 900, letterSpacing: '0.12em' }}>_ {lang === 'fr' ? 'MOTEUR DE RISQUE' : 'RISK ENGINE'}</span>
                     {aType !== 'crypto' && (
                         <span style={{ ...mono, fontSize: 9, color: CAT_COLOR[aType] ?? '#4b5563', padding: '2px 6px', border: `1px solid ${CAT_COLOR[aType]}30`, borderRadius: 4, letterSpacing: '0.08em', textTransform: 'uppercase' }}>
                             {aType}
@@ -472,7 +476,7 @@ export default function CommandPage() {
                     {[false, true].map(short => {
                         const active = isShort === short;
                         const color  = short ? '#ff4757' : '#A6FF4D';
-                        const label  = short ? 'SHORT' : 'LONG';
+                        const label  = short ? (lang === 'fr' ? 'SHORT' : 'SHORT') : (lang === 'fr' ? 'LONG' : 'LONG');
                         return (
                             <motion.button
                                 key={label}
@@ -502,7 +506,7 @@ export default function CommandPage() {
                 <div style={cardBase}>
                     {/* Asset */}
                     <div style={{ padding: '12px 14px', borderBottom: D }}>
-                        <label style={lbl}>Asset</label>
+                        <label style={lbl}>{lang === 'fr' ? 'Actif' : 'Asset'}</label>
                         <input
                             style={{ ...inp, fontSize: 16, color: '#fff', textTransform: 'uppercase' }}
                             placeholder="BTC · SOL · MNQ · ES · EUR/USD…"
@@ -517,7 +521,7 @@ export default function CommandPage() {
 
                     {/* Entry */}
                     <div style={{ padding: '12px 14px', borderBottom: D }}>
-                        <label style={lbl}>Entry Price</label>
+                        <label style={lbl}>{lang === 'fr' ? 'Prix d\'entrée' : 'Entry Price'}</label>
                         <input
                             ref={entryRef}
                             style={inp}
@@ -532,7 +536,7 @@ export default function CommandPage() {
                     {/* Stop Loss */}
                     <div style={{ padding: '12px 14px', borderBottom: D }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
-                            <span style={{ ...lbl, marginBottom: 0 }}>Stop Loss</span>
+                            <span style={{ ...lbl, marginBottom: 0 }}>{lang === 'fr' ? 'Stop Loss' : 'Stop Loss'}</span>
                             {entryN > 0 && stopN > 0 && Math.abs(entryN - stopN) > 0 && (
                                 <span style={{ ...mono, fontSize: 11, color: '#ff4757', fontWeight: 800 }}>
                                     {((Math.abs(entryN - stopN) / entryN) * 100).toFixed(2)}% away
@@ -552,7 +556,7 @@ export default function CommandPage() {
                     {/* Take Profit */}
                     <div style={{ padding: '12px 14px', borderBottom: D }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
-                            <span style={{ ...lbl, marginBottom: 0 }}>Take Profit</span>
+                            <span style={{ ...lbl, marginBottom: 0 }}>{lang === 'fr' ? 'Take Profit' : 'Take Profit'}</span>
                             <span style={{ ...mono, fontSize: 10, color: '#4b5563' }}>optional · 2R auto-set</span>
                         </div>
                         <input
@@ -569,7 +573,7 @@ export default function CommandPage() {
                     <div style={{ padding: '12px 14px' }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
                             <span style={{ ...lbl, marginBottom: 0 }}>
-                                {inputMode === 'risk' ? 'Risk $' : 'Size (Contracts/Lots)'}
+                                {inputMode === 'risk' ? (lang === 'fr' ? 'Montant à risquer ($)' : 'Risk Amount ($)') : (lang === 'fr' ? 'Taille (Contrats/Lots)' : 'Size (Contracts/Lots)')}
                             </span>
                             <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
                                 <button
@@ -623,13 +627,13 @@ export default function CommandPage() {
                             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', padding: '14px 14px 10px' }}>
                                 {[
                                     {
-                                        lbl: 'POSITION SIZE',
+                                        lbl: lang === 'fr' ? 'TAILLE DE POSITION' : 'POSITION SIZE',
                                         val: fmtSize(result.size, result.unit),
                                         sub: result.unit,
                                         clr: '#fff',
                                     },
                                     {
-                                        lbl: 'NOTIONAL',
+                                        lbl: lang === 'fr' ? 'NOTIONNEL' : 'NOTIONAL',
                                         val: result.notional >= 1000
                                             ? `$${(result.notional / 1000).toFixed(1)}K`
                                             : `$${result.notional.toFixed(0)}`,
@@ -637,7 +641,7 @@ export default function CommandPage() {
                                         clr: '#e2e8f0',
                                     },
                                     {
-                                        lbl: inputMode === 'size' ? 'RISK AMOUNT' : 'R:R RATIO',
+                                        lbl: inputMode === 'size' ? (lang === 'fr' ? 'MONTANT À RISQUER' : 'RISK AMOUNT') : (lang === 'fr' ? 'RISQUE/RÉCOMPENSE' : 'R:R RATIO'),
                                         val: inputMode === 'size' ? `-$${result.riskAmt.toFixed(0)}` : `${result.rr.toFixed(2)}R`,
                                         sub: `+$${result.reward.toFixed(0)}`,
                                         clr: inputMode === 'size' ? '#ff4757' : (result.rr >= 2 ? '#A6FF4D' : result.rr >= 1.5 ? '#EAB308' : '#ff4757'),
@@ -741,10 +745,10 @@ export default function CommandPage() {
                                 }}
                             >
                                 {logged
-                                    ? <><Check size={15} /> TRADE LOGGED</>
+                                    ? <><Check size={15} /> {lang === 'fr' ? 'TRADE ENREGISTRÉ' : 'TRADE LOGGED'}</>
                                     : result.bad
-                                        ? <><AlertTriangle size={15} /> LOG ANYWAY (RISKY)</>
-                                        : <><BookmarkPlus size={15} /> LOG TRADE</>
+                                        ? <><AlertTriangle size={15} /> {lang === 'fr' ? 'ENREGISTRER QUAND MÊME (RISQUÉ)' : 'LOG ANYWAY (RISKY)'}</>
+                                        : <><BookmarkPlus size={15} /> {lang === 'fr' ? 'ENREGISTRER LE TRADE' : 'LOG TRADE'}</>
                                 }
                             </motion.button>
                         </motion.div>
@@ -761,7 +765,7 @@ export default function CommandPage() {
                             padding: '4px 0', letterSpacing: '0.06em', textTransform: 'uppercase',
                         }}
                     >
-                        <RotateCcw size={10} /> Clear fields
+                        <RotateCcw size={10} /> {lang === 'fr' ? 'Effacer les champs' : 'Clear fields'}
                     </button>
                 )}
 
@@ -772,7 +776,7 @@ export default function CommandPage() {
                         transition={{ delay: 0.3 }}
                         style={{ padding: '8px 0 4px', display: 'flex', flexDirection: 'column', gap: 4 }}
                     >
-                        <span style={{ ...mono, fontSize: 10, color: '#4b5563', letterSpacing: '0.06em', textTransform: 'uppercase' }}>Quick examples</span>
+                        <span style={{ ...mono, fontSize: 10, color: '#4b5563', letterSpacing: '0.06em', textTransform: 'uppercase' }}>{lang === 'fr' ? 'Exemples rapides' : 'Quick examples'}</span>
                         {[
                             { label: 'BTC Long',    cmd: 'btc 95000 stop93500' },
                             { label: 'MNQ Short',   cmd: 'sell mnq 21000 stop21030 risk250' },
@@ -882,7 +886,7 @@ export default function CommandPage() {
                                 padding: '14px 0',
                                 caretColor: '#A6FF4D',
                             }}
-                            placeholder="Enter command and press Enter…"
+                            placeholder={lang === 'fr' ? 'Tapez : NQ 21450 21400 500 ou remplissez manuellement' : 'Type: NQ 21450 21400 500 or fill manually below'}
                             value={nlpInput}
                             onChange={e => setNlpInput(e.target.value)}
                             onKeyDown={handleNlpKey}

@@ -1,8 +1,9 @@
 'use client';
 
 import styles from './AnalyticsPage.module.css';
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useRef } from 'react';
 import { useAppStore, getTradingDay } from '@/store/appStore';
+import { useTranslation } from '@/i18n/useTranslation';
 import { useIsMobile } from '@/hooks/useIsMobile';
 import { generateForensics } from '@/ai/EdgeForensics';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -19,8 +20,11 @@ import HeatmapGrid from '@/components/charts/HeatmapGrid';
 import TradeScatterChart, { type ScatterPoint } from '@/components/charts/TradeScatterChart';
 
 export default function AnalyticsPage() {
-    const { trades, account } = useAppStore();
+    const { trades, account, language } = useAppStore();
     const isMobile = useIsMobile();
+    const { t } = useTranslation();
+    const lang = language ?? 'en';
+    const touchStartX = useRef(0);
     const [activeTab, setActiveTab] = useState('OVERVIEW');
     const [dateFrom, setDateFrom] = useState('');
     const [dateTo, setDateTo] = useState('');
@@ -53,18 +57,15 @@ export default function AnalyticsPage() {
     // Process Algorithmic Forensics
     const forensics = useMemo(() => generateForensics(tradesWithDuration, account), [tradesWithDuration, account]);
 
-    const TABS = [
-        'OVERVIEW',
-        'DAILY P&L',
-        'INSTRUMENTS',
-        'SESSIONS',
-        'TIME OF DAY',
-        'STREAKS',
-        `PATTERNS (${forensics.patterns.length})`,
-        'SCORECARD',
-        'QUANT',
-        'VERDICT',
-        'COMPARE'
+    const TABS: Array<{ key: string; label: string }> = [
+        { key: 'OVERVIEW', label: lang === 'fr' ? 'APERÇU' : 'OVERVIEW' },
+        { key: 'DAILY', label: lang === 'fr' ? 'P&L JOURNALIER' : 'DAILY P&L' },
+        { key: 'INSTRUMENTS', label: lang === 'fr' ? 'INSTRUMENTS' : 'INSTRUMENTS' },
+        { key: 'SESSIONS', label: lang === 'fr' ? 'SESSIONS' : 'SESSIONS' },
+        { key: 'BEHAVIOR', label: lang === 'fr' ? `COMPORTEMENT (${forensics.patterns.length})` : `BEHAVIOR (${forensics.patterns.length})` },
+        { key: 'QUANT', label: 'QUANT' },
+        { key: 'REPORT', label: lang === 'fr' ? 'RAPPORT' : 'REPORT' },
+        { key: 'COMPARE', label: lang === 'fr' ? 'COMPARER' : 'COMPARE' },
     ];
 
     // Core Metrics
@@ -659,9 +660,9 @@ export default function AnalyticsPage() {
                             </span>
                         </div>
                         <button
-                            onClick={() => setActiveTab('PATTERNS')}
+                            onClick={() => setActiveTab('BEHAVIOR')}
                             style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: '#e60023', background: 'none', border: 'none', cursor: 'pointer', letterSpacing: '0.06em', textDecoration: 'underline' }}>
-                            EXPLORE →
+                            {lang === 'fr' ? 'EXPLORER →' : 'EXPLORE →'}
                         </button>
                     </div>
                 )}
@@ -670,7 +671,7 @@ export default function AnalyticsPage() {
                 <div style={{ padding: isMobile ? '14px 14px 12px' : '20px 32px 16px', display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap' }}>
                     <div>
                         <h1 style={{ fontFamily: 'var(--font-mono)', fontSize: isMobile ? 18 : 26, fontWeight: 900, color: '#fff', letterSpacing: '-0.03em', lineHeight: 1, marginBottom: 8 }}>
-                            Analysis{reportRange ? ` · ${reportRange.fromShort} – ${reportRange.toShort}` : ''}
+                            {lang === 'fr' ? 'Analytiques' : 'Analysis'}{reportRange ? ` · ${reportRange.fromShort} – ${reportRange.toShort}` : ''}
                         </h1>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
                             <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: '#6b7280' }}>
@@ -680,7 +681,7 @@ export default function AnalyticsPage() {
                                 <>
                                     <span style={{ color: '#1a1c24' }}>·</span>
                                     <span style={{ fontFamily: 'var(--font-mono)', fontSize: 13, fontWeight: 700, color: netPnl >= 0 ? '#A6FF4D' : '#ff4757' }}>
-                                        {netPnl >= 0 ? '+' : ''}${netPnl.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} net P&L
+                                        {netPnl >= 0 ? '+' : ''}${netPnl.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} {lang === 'fr' ? 'P&L net' : 'net P&L'}
                                     </span>
                                 </>
                             )}
@@ -709,7 +710,7 @@ export default function AnalyticsPage() {
                             onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.borderColor = '#A6FF4D'; (e.currentTarget as HTMLButtonElement).style.color = '#A6FF4D'; }}
                             onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.borderColor = '#1a1c24'; (e.currentTarget as HTMLButtonElement).style.color = '#8b949e'; }}
                         >
-                            <Download size={12} /> EXPORT PDF
+                            <Download size={12} /> {lang === 'fr' ? 'EXPORTER PDF' : 'EXPORT PDF'}
                         </button>
                         <button
                             onClick={handleCopyLink}
@@ -730,17 +731,14 @@ export default function AnalyticsPage() {
             </div>
             <div className={styles.topTabsWrapper}>
                 <div className={styles.topTabs}>
-                    {TABS.map(t => {
-                        const tabKey = t.split(' ')[0];
-                        return (
-                            <button key={t} className={`${styles.tab} ${activeTab === tabKey ? styles.tabActive : ''}`} onClick={(e) => {
-                                setActiveTab(tabKey);
-                                e.currentTarget.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
-                            }}>
-                                {t}
-                            </button>
-                        );
-                    })}
+                    {TABS.map(({ key, label }) => (
+                        <button key={key} className={`${styles.tab} ${activeTab === key ? styles.tabActive : ''}`} onClick={(e) => {
+                            setActiveTab(key);
+                            e.currentTarget.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+                        }}>
+                            {label}
+                        </button>
+                    ))}
                 </div>
             </div>
 
@@ -754,12 +752,24 @@ export default function AnalyticsPage() {
                     letterSpacing: '0.05em',
                 }}>
                     <Info size={11} />
-                    <span>DATE FILTER ACTIVE — trades outside {dateFrom || '…'} → {dateTo || '…'} are hidden. New imports may not be visible.</span>
+                    <span>{lang === 'fr' ? `FILTRE ACTIF — trades hors ${dateFrom || '…'} → ${dateTo || '…'} masqués.` : `DATE FILTER ACTIVE — trades outside ${dateFrom || '…'} → ${dateTo || '…'} are hidden.`}</span>
                     <button onClick={() => { setDateFrom(''); setDateTo(''); }} style={{ marginLeft: 'auto', background: 'transparent', border: '1px solid rgba(251,191,36,0.3)', color: '#fbbf24', padding: '2px 8px', cursor: 'pointer', fontSize: 10, fontFamily: 'var(--font-mono)' }}>CLEAR</button>
                 </div>
             )}
 
-            <div className={styles.content}>
+            <div
+                className={styles.content}
+                onTouchStart={(e) => { touchStartX.current = e.touches[0].clientX; }}
+                onTouchEnd={(e) => {
+                    const diff = touchStartX.current - e.changedTouches[0].clientX;
+                    if (Math.abs(diff) > 60) {
+                        const keys = TABS.map(t => t.key);
+                        const curIdx = keys.indexOf(activeTab);
+                        if (diff > 0 && curIdx < keys.length - 1) setActiveTab(keys[curIdx + 1]);
+                        else if (diff < 0 && curIdx > 0) setActiveTab(keys[curIdx - 1]);
+                    }
+                }}
+            >
                 <AnimatePresence mode="wait">
                     {activeTab === 'OVERVIEW' && (
                         <motion.div key="overview" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} style={{ display: 'flex', flexDirection: 'column', gap: 20, marginBottom: 48 }}>
@@ -773,7 +783,7 @@ export default function AnalyticsPage() {
                                             RISK ALERT — {forensics.patterns.length} CRITICAL BEHAVIORAL PATTERN{forensics.patterns.length > 1 ? 'S' : ''} DETECTED IN YOUR DATA. CLICK TO INVESTIGATE.
                                         </span>
                                     </div>
-                                    <button onClick={() => setActiveTab('PATTERNS')} style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: '#e60023', background: 'none', border: 'none', cursor: 'pointer', letterSpacing: '0.06em', textDecoration: 'underline', whiteSpace: 'nowrap' }}>
+                                    <button onClick={() => setActiveTab('BEHAVIOR')} style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: '#e60023', background: 'none', border: 'none', cursor: 'pointer', letterSpacing: '0.06em', textDecoration: 'underline', whiteSpace: 'nowrap' }}>
                                         SEE ALL PATTERNS →
                                     </button>
                                 </div>
@@ -799,7 +809,7 @@ export default function AnalyticsPage() {
                                             <div style={{ fontFamily: 'var(--font-mono)', fontSize: 28, fontWeight: 700, color: '#ff4757' }}>
                                                 -${Math.abs(p.impact ?? 0).toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
                                             </div>
-                                            <button onClick={() => setActiveTab('PATTERNS')} style={{ marginTop: 10, fontFamily: 'var(--font-mono)', fontSize: 9, color: '#6b7280', background: 'none', border: 'none', cursor: 'pointer', letterSpacing: '0.08em', textDecoration: 'underline' }}>
+                                            <button onClick={() => setActiveTab('BEHAVIOR')} style={{ marginTop: 10, fontFamily: 'var(--font-mono)', fontSize: 9, color: '#6b7280', background: 'none', border: 'none', cursor: 'pointer', letterSpacing: '0.08em', textDecoration: 'underline' }}>
                                                 SEE ALL PATTERNS →
                                             </button>
                                         </div>
@@ -2188,7 +2198,7 @@ export default function AnalyticsPage() {
                         </motion.div>
                     )}
 
-                    {activeTab === 'TIME' && (
+                    {activeTab === 'BEHAVIOR' && (
                         <motion.div key="time" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} style={{ display: 'flex', flexDirection: 'column', gap: 20, marginBottom: 48 }}>
 
                             {closed.length === 0 ? (
@@ -2688,7 +2698,7 @@ export default function AnalyticsPage() {
                         </motion.div>
                     )}
 
-                    {activeTab === 'STREAKS' && (
+                    {activeTab === 'BEHAVIOR' && (
                         <motion.div key="streaks" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} style={{ display: 'flex', flexDirection: 'column', gap: 20, marginBottom: 48 }}>
 
                             {/* ── HEADER ── */}
@@ -2944,7 +2954,7 @@ export default function AnalyticsPage() {
                         </motion.div>
                     )}
 
-                    {activeTab.startsWith('PATTERNS') && (
+                    {activeTab === 'BEHAVIOR' && (
                         <motion.div key="patterns" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} style={{ display: 'flex', flexDirection: 'column', gap: 20, marginBottom: 48 }}>
 
                             {filterActive && (
@@ -3150,7 +3160,7 @@ export default function AnalyticsPage() {
                         </motion.div>
                     )}
 
-                    {activeTab === 'SCORECARD' && (() => {
+                    {activeTab === 'BEHAVIOR' && (() => {
                         // ── Pre-compute all enriched scorecard values ──
                         const sc = forensics.scorecard; // [{metric, grade, desc}]
                         const gradeColor = (g: string) => g === 'A' ? '#A6FF4D' : g === 'B' ? '#00D4FF' : g === 'C' ? '#EAB308' : g === '—' ? '#6b7280' : '#ff4757';
@@ -4318,7 +4328,7 @@ export default function AnalyticsPage() {
                         );
                     })()}
 
-                    {activeTab === 'VERDICT' && (() => {
+                    {activeTab === 'REPORT' && (() => {
                         // ── Grade computation ──
                         let gradeScore = 100;
                         forensics.patterns.forEach((p: any) => {

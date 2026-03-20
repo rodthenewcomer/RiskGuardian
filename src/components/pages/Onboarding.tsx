@@ -6,6 +6,7 @@ import { useAppStore, PROP_FIRMS, type PropFirmPreset } from '@/store/appStore';
 import { Shield, DollarSign, TrendingUp, ChevronRight, ChevronLeft, Check, Building2, AlertTriangle, Bitcoin, LineChart, CandlestickChart, CircleDollarSign, Settings2, Wifi, Loader2, WifiOff } from 'lucide-react';
 import styles from './Onboarding.module.css';
 import { dxConnect } from '@/lib/dxtradeSync';
+import { useTranslation } from '@/i18n/useTranslation';
 
 const STEPS = ['firm', 'balance', 'rules', 'asset', 'connect'] as const;
 type Step = typeof STEPS[number];
@@ -33,6 +34,24 @@ const getFirmLogo = (name: string) => {
 
 export default function Onboarding() {
     const { updateAccount, completeOnboarding, setDXTradeConfig, setDXTradeLastSync, setTrades } = useAppStore();
+    const { t } = useTranslation();
+    const { language } = useAppStore();
+    const lang = language ?? 'en';
+
+    const stepLabels: Record<string, string> = {
+        firm: lang === 'fr' ? 'Société' : 'Firm',
+        balance: lang === 'fr' ? 'Solde' : 'Balance',
+        rules: lang === 'fr' ? 'Règles' : 'Rules',
+        asset: lang === 'fr' ? 'Actif' : 'Asset',
+        connect: lang === 'fr' ? 'Connexion' : 'Connect',
+    };
+
+    const ASSET_OPTIONS_LABELS: Record<string, { label: string; sub: string }> = {
+        crypto: { label: lang === 'fr' ? 'Crypto' : 'Crypto', sub: 'BTC, ETH, SOL, DOGE' },
+        futures: { label: lang === 'fr' ? 'Contrats à terme' : 'Futures', sub: 'ES, NQ, MNQ, MES, CL' },
+        forex: { label: 'Forex', sub: 'EUR/USD, GBP/USD, JPY' },
+        stocks: { label: lang === 'fr' ? 'Actions' : 'Stocks', sub: 'AAPL, TSLA, NVDA, SPY' },
+    };
 
     const [step, setStep] = useState<Step>('firm');
     const [dir, setDir] = useState(1);
@@ -174,8 +193,8 @@ export default function Onboarding() {
                     <div className={styles.doneIcon}>
                         <Check size={32} strokeWidth={3} />
                     </div>
-                    <h2 className={styles.doneTitle}>You&#39;re all set.</h2>
-                    <p className={styles.doneSub}>Your risk rules are locked in. Time to trade with discipline.</p>
+                    <h2 className={styles.doneTitle}>{lang === 'fr' ? 'Tout est prêt.' : "You're all set."}</h2>
+                    <p className={styles.doneSub}>{lang === 'fr' ? 'Vos règles de risque sont verrouillées. Tradez avec discipline.' : 'Your risk rules are locked in. Time to trade with discipline.'}</p>
                 </motion.div>
             </div>
         );
@@ -218,9 +237,9 @@ export default function Onboarding() {
                                 <div className={styles.stepIconBalance}>
                                     <Building2 size={24} />
                                 </div>
-                                <h1 className={styles.stepTitle}>Who are you trading with?</h1>
+                                <h1 className={styles.stepTitle}>{lang === 'fr' ? 'Avec qui tradez-vous ?' : 'Who are you trading with?'}</h1>
                                 <p className={styles.stepSub}>
-                                    Select your prop firm to automatically sync their daily loss limits, drawdown rules, and leverage.
+                                    {lang === 'fr' ? 'Sélectionnez votre société de prop trading pour synchroniser automatiquement leurs limites de perte journalière, règles de drawdown et levier.' : 'Select your prop firm to automatically sync their daily loss limits, drawdown rules, and leverage.'}
                                 </p>
 
                                 <div className={styles.assetGrid} style={{ gridTemplateColumns: 'minmax(0, 1fr)' }}>
@@ -244,8 +263,8 @@ export default function Onboarding() {
                                                 <div className={styles.assetLabel} style={{ marginBottom: 4 }}>{firm.name}</div>
                                                 <div className={styles.assetSub}>
                                                     {firm.dailyPct > 0
-                                                        ? `${firm.dailyPct}% Daily Loss · ${firm.maxDrawPct}% Max Drawdown`
-                                                        : 'Set my own manual limits'}
+                                                        ? `${firm.dailyPct}% ${lang === 'fr' ? 'Perte journalière' : 'Daily Loss'} · ${firm.maxDrawPct}% ${lang === 'fr' ? 'Drawdown max' : 'Max Drawdown'}`
+                                                        : (lang === 'fr' ? 'Définir mes propres limites' : 'Set my own manual limits')}
                                                 </div>
                                             </div>
                                             {selectedFirm?.name === firm.name && (
@@ -265,9 +284,9 @@ export default function Onboarding() {
                                 <div className={styles.stepIconBalance}>
                                     <DollarSign size={24} />
                                 </div>
-                                <h1 className={styles.stepTitle}>What&#39;s your account size?</h1>
+                                <h1 className={styles.stepTitle}>{lang === 'fr' ? 'Quel est le solde de votre compte ?' : "What's your account size?"}</h1>
                                 <p className={styles.stepSub}>
-                                    Enter the exact starting capital or current balance. We will use this to calculate your hard risk limits.
+                                    {lang === 'fr' ? 'Entrez le capital de départ exact ou le solde actuel. Nous l\'utiliserons pour calculer vos limites de risque.' : 'Enter the exact starting capital or current balance. We will use this to calculate your hard risk limits.'}
                                 </p>
                                 <div className={styles.bigInputWrap}>
                                     <span className={styles.bigInputPrefix}>$</span>
@@ -282,11 +301,11 @@ export default function Onboarding() {
                                     />
                                 </div>
                                 {balNum > 0 && balNum < 100 && (
-                                    <p className={styles.inputHintWarning}>Minimum account size is $100</p>
+                                    <p className={styles.inputHintWarning}>{lang === 'fr' ? 'Solde minimum requis : 100 $' : 'Minimum account size is $100'}</p>
                                 )}
                                 {balNum >= 100 && (
                                     <p className={styles.inputHintSuccess}>
-                                        ${balNum.toLocaleString()} — limits will be generated off this balance.
+                                        {lang === 'fr' ? `${balNum.toLocaleString('fr-FR')} $ — les limites seront calculées sur ce solde.` : `$${balNum.toLocaleString()} — limits will be generated off this balance.`}
                                     </p>
                                 )}
                             </div>
@@ -298,22 +317,22 @@ export default function Onboarding() {
                                 <div className={styles.stepIconRisk}>
                                     <Shield size={24} />
                                 </div>
-                                <h1 className={styles.stepTitle}>Review your risk limits</h1>
+                                <h1 className={styles.stepTitle}>{lang === 'fr' ? 'Confirmez vos règles de trading' : 'Review your risk limits'}</h1>
                                 <p className={styles.stepSub}>
-                                    These are the maximum boundaries for your account. RiskGuardian will warn you before you hit them.
+                                    {lang === 'fr' ? 'Ce sont les limites maximales pour votre compte. RiskGuardian vous avertira avant de les atteindre.' : 'These are the maximum boundaries for your account. RiskGuardian will warn you before you hit them.'}
                                 </p>
 
                                 {isCustom ? (
                                     <div style={{ display: 'flex', flexDirection: 'column', gap: 20, width: '100%', maxWidth: 400, margin: '0 auto' }}>
                                         <div style={{ textAlign: 'left' }}>
-                                            <label style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-secondary)', marginBottom: 8, display: 'block' }}>Daily Loss Limit (USD)</label>
+                                            <label style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-secondary)', marginBottom: 8, display: 'block' }}>{lang === 'fr' ? 'Limite de perte journalière (USD)' : 'Daily Loss Limit (USD)'}</label>
                                             <div className={styles.bigInputWrap} style={{ margin: 0 }}>
                                                 <span className={styles.bigInputPrefix}>$</span>
                                                 <input className={styles.bigInput} type="number" value={customDaily} onChange={e => setCustomDaily(e.target.value)} placeholder="500" />
                                             </div>
                                         </div>
                                         <div style={{ textAlign: 'left' }}>
-                                            <label style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-secondary)', marginBottom: 8, display: 'block' }}>Max Drawdown Limit (USD)</label>
+                                            <label style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-secondary)', marginBottom: 8, display: 'block' }}>{lang === 'fr' ? 'Limite de drawdown max (USD)' : 'Max Drawdown Limit (USD)'}</label>
                                             <div className={styles.bigInputWrap} style={{ margin: 0 }}>
                                                 <span className={styles.bigInputPrefix}>$</span>
                                                 <input className={styles.bigInput} type="number" value={customDrawdown} onChange={e => setCustomDrawdown(e.target.value)} placeholder="1000" />
@@ -323,17 +342,20 @@ export default function Onboarding() {
                                 ) : (
                                     <div style={{ display: 'flex', flexDirection: 'column', gap: 16, width: '100%', maxWidth: 400, margin: '0 auto' }}>
                                         <div style={{ padding: 20, background: 'rgba(255,255,255,0.03)', borderRadius: 12, border: '1px solid var(--border-medium)' }}>
-                                            <div style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 4 }}>Daily Loss Limit ({selectedFirm?.dailyPct}%)</div>
+                                            <div style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 4 }}>{lang === 'fr' ? `Limite de perte journalière (${selectedFirm?.dailyPct}%)` : `Daily Loss Limit (${selectedFirm?.dailyPct}%)`}</div>
                                             <div style={{ fontSize: 32, fontWeight: 800, color: 'var(--color-danger)' }}>${derivedDailyLimit.toLocaleString()}</div>
                                         </div>
                                         <div style={{ padding: 20, background: 'rgba(255,255,255,0.03)', borderRadius: 12, border: '1px solid var(--border-medium)' }}>
-                                            <div style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 4 }}>Max Trailing Drawdown ({selectedFirm?.maxDrawPct}%)</div>
+                                            <div style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 4 }}>{lang === 'fr' ? `Drawdown maximum glissant (${selectedFirm?.maxDrawPct}%)` : `Max Trailing Drawdown (${selectedFirm?.maxDrawPct}%)`}</div>
                                             <div style={{ fontSize: 32, fontWeight: 800, color: 'var(--color-danger)' }}>${derivedMaxDrawdown.toLocaleString()}</div>
                                         </div>
                                         <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12, padding: 16, background: 'rgba(166,255,77,0.05)', border: '1px solid var(--border-accent)', borderRadius: 8 }}>
                                             <AlertTriangle size={16} className="text-accent" style={{ marginTop: 2, flexShrink: 0 }} />
                                             <p style={{ fontSize: 12, color: 'var(--text-primary)', textAlign: 'left', margin: 0, lineHeight: 1.5 }}>
-                                                <strong>Max Risk Per Trade:</strong> Automatically set to {maxRiskPercent.toFixed(1)}% (assuming 5 trades per day). You can adjust this later in Settings.
+                                                {lang === 'fr'
+                                                    ? <><strong>Risque max par trade :</strong> Défini automatiquement à {maxRiskPercent.toFixed(1)}% (en supposant 5 trades par jour). Vous pouvez l&apos;ajuster dans les Paramètres.</>
+                                                    : <><strong>Max Risk Per Trade:</strong> Automatically set to {maxRiskPercent.toFixed(1)}% (assuming 5 trades per day). You can adjust this later in Settings.</>
+                                                }
                                             </p>
                                         </div>
                                     </div>
@@ -347,27 +369,30 @@ export default function Onboarding() {
                                 <div className={styles.stepIconAsset}>
                                     <TrendingUp size={24} />
                                 </div>
-                                <h1 className={styles.stepTitle}>What do you trade?</h1>
+                                <h1 className={styles.stepTitle}>{lang === 'fr' ? 'Que tradez-vous ?' : 'What do you trade?'}</h1>
                                 <p className={styles.stepSub}>
-                                    Sets your default calculator. You can always switch per trade.
+                                    {lang === 'fr' ? 'Définit votre calculateur par défaut. Vous pouvez toujours changer par trade.' : 'Sets your default calculator. You can always switch per trade.'}
                                 </p>
                                 <div className={styles.assetGrid}>
-                                    {ASSET_OPTIONS.map(opt => (
-                                        <button
-                                            key={opt.value}
-                                            className={`${styles.assetCard} ${asset === opt.value ? styles.assetCardActive : ''}`}
-                                            onClick={() => setAsset(opt.value as typeof asset)}
-                                        >
-                                            <span className={styles.assetEmoji}>{opt.icon}</span>
-                                            <span className={styles.assetLabel}>{opt.label}</span>
-                                            <span className={styles.assetSub}>{opt.sub}</span>
-                                            {asset === opt.value && (
-                                                <div className={styles.assetCheck}>
-                                                    <Check size={10} strokeWidth={3} />
-                                                </div>
-                                            )}
-                                        </button>
-                                    ))}
+                                    {ASSET_OPTIONS.map(opt => {
+                                        const translated = ASSET_OPTIONS_LABELS[opt.value] ?? { label: opt.label, sub: opt.sub };
+                                        return (
+                                            <button
+                                                key={opt.value}
+                                                className={`${styles.assetCard} ${asset === opt.value ? styles.assetCardActive : ''}`}
+                                                onClick={() => setAsset(opt.value as typeof asset)}
+                                            >
+                                                <span className={styles.assetEmoji}>{opt.icon}</span>
+                                                <span className={styles.assetLabel}>{translated.label}</span>
+                                                <span className={styles.assetSub}>{translated.sub}</span>
+                                                {asset === opt.value && (
+                                                    <div className={styles.assetCheck}>
+                                                        <Check size={10} strokeWidth={3} />
+                                                    </div>
+                                                )}
+                                            </button>
+                                        );
+                                    })}
                                 </div>
                             </div>
                         )}
@@ -378,9 +403,9 @@ export default function Onboarding() {
                                 <div className={styles.stepIconAsset}>
                                     <Wifi size={24} />
                                 </div>
-                                <h1 className={styles.stepTitle}>Connect DXTrade Live</h1>
+                                <h1 className={styles.stepTitle}>{lang === 'fr' ? 'Connecter DXTrade (Optionnel)' : 'Connect DXTrade (Optional)'}</h1>
                                 <p className={styles.stepSub}>
-                                    Link your Tradeify DXTrade account to auto-sync your balance, trade history, and open positions. Your credentials stay on your device.
+                                    {lang === 'fr' ? 'Liez votre compte DXTrade Tradeify pour synchroniser automatiquement votre solde, historique de trades et positions ouvertes. Vos identifiants restent sur votre appareil.' : 'Link your Tradeify DXTrade account to auto-sync your balance, trade history, and open positions. Your credentials stay on your device.'}
                                 </p>
 
                                 {dxSuccess ? (
@@ -393,7 +418,7 @@ export default function Onboarding() {
                                             <Check size={28} color="#A6FF4D" strokeWidth={2.5} />
                                         </div>
                                         <p style={{ fontFamily: 'var(--font-mono)', fontSize: 13, color: '#A6FF4D', fontWeight: 700, textAlign: 'center' }}>{dxProgress}</p>
-                                        <p style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: '#6b7280', textAlign: 'center' }}>Setting up your dashboard…</p>
+                                        <p style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: '#6b7280', textAlign: 'center' }}>{lang === 'fr' ? 'Configuration de votre tableau de bord…' : 'Setting up your dashboard…'}</p>
                                     </motion.div>
                                 ) : (
                                     <div style={{ display: 'flex', flexDirection: 'column', gap: 14, width: '100%', maxWidth: 400, margin: '0 auto' }}>
@@ -480,8 +505,8 @@ export default function Onboarding() {
                                             }}
                                         >
                                             {dxConnecting
-                                                ? <><Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} /> Connecting…</>
-                                                : <><Wifi size={14} /> Connect &amp; Sync Trades</>
+                                                ? <><Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} /> {lang === 'fr' ? 'Connexion…' : 'Connecting…'}</>
+                                                : <><Wifi size={14} /> {lang === 'fr' ? 'Connecter & Synchroniser' : 'Connect & Sync Trades'}</>
                                             }
                                         </button>
 
@@ -496,9 +521,8 @@ export default function Onboarding() {
                                                     fontSize: 12, fontWeight: 700, color: '#e2e8f0', letterSpacing: '0.06em', textTransform: 'uppercase',
                                                 }}
                                             >
-                                                Skip — I&apos;ll connect later
+                                                {lang === 'fr' ? 'Ignorer (fonctionne avec toute société)' : 'Skip (works with any prop firm)'}
                                             </button>
-                                            <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: '#4b5563' }}>(works with any prop firm)</span>
                                         </div>
                                     </div>
                                 )}
@@ -514,7 +538,7 @@ export default function Onboarding() {
                 <div className={styles.navRow}>
                     {stepIndex > 0 ? (
                         <button className={styles.backBtn} onClick={goBack}>
-                            <ChevronLeft size={18} /> Back
+                            <ChevronLeft size={18} /> {lang === 'fr' ? 'Retour' : 'Back'}
                         </button>
                     ) : <div />}
 
@@ -523,7 +547,7 @@ export default function Onboarding() {
                         onClick={goNext}
                         disabled={!canNext}
                     >
-                        Continue
+                        {lang === 'fr' ? 'Suivant' : 'Next'}
                         <ChevronRight size={18} />
                     </button>
                 </div>
@@ -531,7 +555,7 @@ export default function Onboarding() {
             {step === 'connect' && !dxSuccess && (
                 <div className={styles.navRow}>
                     <button className={styles.backBtn} onClick={goBack} disabled={dxConnecting}>
-                        <ChevronLeft size={18} /> Back
+                        <ChevronLeft size={18} /> {lang === 'fr' ? 'Retour' : 'Back'}
                     </button>
                     <div />
                 </div>

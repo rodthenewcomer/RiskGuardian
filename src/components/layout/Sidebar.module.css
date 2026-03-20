@@ -103,6 +103,44 @@
     }
 }
 
+/* Language section */
+.langSection {
+    display: none;
+}
+
+@media (min-width: 768px) {
+    .langSection {
+        display: flex;
+        margin-top: auto;
+        padding: 12px 8px;
+        width: 100%;
+        justify-content: center;
+    }
+
+    .langToggle {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        background: var(--bg-card);
+        border: 1px solid var(--border-subtle);
+        padding: 5px 8px;
+        cursor: pointer;
+        font-family: var(--font-mono);
+        font-size: 10px;
+        font-weight: 700;
+        letter-spacing: 0.06em;
+        color: var(--text-muted);
+        transition: border-color var(--t-fast);
+        width: 100%;
+        justify-content: center;
+    }
+
+    .langToggle:hover { border-color: var(--accent); }
+    .langActive { color: var(--accent); }
+    .langInactive { color: var(--text-dim); }
+    .langSep { color: var(--border-subtle); }
+}
+
 /* ≥1024px: wider sidebar with full labels */
 @media (min-width: 1024px) {
     .sidebar {

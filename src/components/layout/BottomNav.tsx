@@ -4,24 +4,36 @@ import styles from './BottomNav.module.css';
 import { useAppStore } from '@/store/appStore';
 import { LayoutDashboard, Terminal, BookOpen, Brain, BarChart2, Settings2 } from 'lucide-react';
 import { motion } from 'framer-motion';
+import { useTranslation } from '@/i18n/useTranslation';
 
-const TABS = [
-    { id: 'dashboard' as const, label: 'Dashboard', icon: LayoutDashboard },
-    { id: 'terminal' as const, label: 'Risk Engine', icon: Terminal },
-    { id: 'journal' as const, label: 'Journal', icon: BookOpen },
-    { id: 'plan' as const, label: 'AI Coach', icon: Brain },
-    { id: 'analytics' as const, label: 'Analytics', icon: BarChart2 },
-    { id: 'settings' as const, label: 'Settings', icon: Settings2 },
+const TAB_IDS = [
+    { id: 'dashboard' as const, icon: LayoutDashboard },
+    { id: 'terminal' as const, icon: Terminal },
+    { id: 'journal' as const, icon: BookOpen },
+    { id: 'plan' as const, icon: Brain },
+    { id: 'analytics' as const, icon: BarChart2 },
+    { id: 'settings' as const, icon: Settings2 },
 ];
 
 export default function BottomNav() {
     const { activeTab, setActiveTab } = useAppStore();
+    const { t } = useTranslation();
+
+    const tabLabels: Record<string, string> = {
+        dashboard: t.nav.dashboard,
+        terminal: t.nav.riskEngine,
+        journal: t.nav.journal,
+        plan: t.nav.aiCoach,
+        analytics: t.nav.analytics,
+        settings: t.nav.settings,
+    };
 
     return (
         <nav className={styles.nav} role="navigation" aria-label="Main navigation">
             <div className={styles.inner}>
-                {TABS.map(({ id, label, icon: Icon }) => {
+                {TAB_IDS.map(({ id, icon: Icon }) => {
                     const active = activeTab === id;
+                    const label = tabLabels[id] ?? id;
                     let hasAgedTrades = false;
                     if (id === 'journal') {
                         const store = useAppStore();

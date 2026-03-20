@@ -16,6 +16,7 @@ import {
     ChatCard, processNaturalLanguage
 } from '@/ai/RiskAI';
 import styles from './AIChatPage.module.css';
+import { useTranslation } from '@/i18n/useTranslation';
 
 interface ChatMessage {
     id: string;
@@ -45,6 +46,9 @@ const SUGGESTIONS = [
 // ─────────────────────────────────────────────────────────────────
 export default function AIChatPage() {
     const { account, trades, getDailyRiskRemaining } = useAppStore();
+    const { t } = useTranslation();
+    const { language } = useAppStore();
+    const lang = language ?? 'en';
 
     const [messages, setMessages] = useState<ChatMessage[]>([{
         id: 'welcome',
@@ -122,7 +126,9 @@ export default function AIChatPage() {
             const aiMsg: ChatMessage = {
                 id: crypto.randomUUID?.() || String(Date.now() + 1),
                 role: 'assistant',
-                content: `⛔ DAILY LOSS LIMIT REACHED — No new trade sizing allowed.\n\nYou have used $${todayUsed.toFixed(0)} of your $${dailyLimit.toFixed(0)} daily limit. No position sizing or entry calculations will be provided until tomorrow's session.\n\nYour only action now: close any open positions and stop trading for today. This limit exists to protect your account from catastrophic loss.\n\nI can still answer questions about your trading history, behavioral patterns, or rules — but I will not calculate size for a trade you should not be taking.`,
+                content: lang === 'fr'
+                    ? `⛔ LIMITE JOURNALIÈRE ATTEINTE — Aucun nouveau trade aujourd'hui.\n\nVous avez utilisé $${todayUsed.toFixed(0)} de votre limite journalière de $${dailyLimit.toFixed(0)}. Aucun calcul de taille de position ou d'entrée ne sera fourni jusqu'à la prochaine session.\n\nVotre seule action maintenant : clôturez toutes les positions ouvertes et arrêtez de trader pour aujourd'hui. Cette limite existe pour protéger votre compte contre une perte catastrophique.\n\nJe peux encore répondre aux questions sur votre historique de trading, vos comportements ou vos règles — mais je ne calculerai pas la taille d'un trade que vous ne devriez pas prendre.`
+                    : `⛔ DAILY LOSS LIMIT REACHED — No new trade sizing allowed.\n\nYou have used $${todayUsed.toFixed(0)} of your $${dailyLimit.toFixed(0)} daily limit. No position sizing or entry calculations will be provided until tomorrow's session.\n\nYour only action now: close any open positions and stop trading for today. This limit exists to protect your account from catastrophic loss.\n\nI can still answer questions about your trading history, behavioral patterns, or rules — but I will not calculate size for a trade you should not be taking.`,
                 cards: [],
                 timestamp: new Date(),
             };
@@ -157,8 +163,8 @@ export default function AIChatPage() {
                         <span className={styles.pulseDot} />
                     </div>
                     <div>
-                        <span style={{ ...mono, fontSize: 13, fontWeight: 900, color: '#fff', letterSpacing: '0.04em', display: 'block', lineHeight: 1 }}>ALGORITHMIC RISK COPILOT</span>
-                        <span style={{ ...lbl, display: 'block', marginTop: 3 }}>Natural language · Real-time intelligence</span>
+                        <span style={{ ...mono, fontSize: 13, fontWeight: 900, color: '#fff', letterSpacing: '0.04em', display: 'block', lineHeight: 1 }}>{lang === 'fr' ? 'COACH IA' : 'ALGORITHMIC RISK COPILOT'}</span>
+                        <span style={{ ...lbl, display: 'block', marginTop: 3 }}>{lang === 'fr' ? 'Langage naturel · Intelligence temps réel' : 'Natural language · Real-time intelligence'}</span>
                     </div>
                 </div>
                 <button
@@ -169,17 +175,17 @@ export default function AIChatPage() {
                     title="Reset chat"
                 >
                     <RotateCcw size={11} />
-                    <span style={{ ...mono, fontSize: 9, letterSpacing: '0.06em', textTransform: 'uppercase' as const }}>RESET</span>
+                    <span style={{ ...mono, fontSize: 9, letterSpacing: '0.06em', textTransform: 'uppercase' as const }}>{lang === 'fr' ? 'EFFACER' : 'RESET'}</span>
                 </button>
             </div>
 
             {/* ── CONTEXT STRIP ───────────────────────────────── */}
             <div className={styles.contextStrip} style={{ borderBottom: divider, flexShrink: 0 }}>
                 {([
-                    { icon: <ShieldCheck size={9} color={dailyColor} />, lbl: 'Daily Left',  val: `$${dailyLeft.toFixed(0)}`,  clr: dailyColor,   sub: `${Math.round(dailyLeftPct * 100)}% of limit` },
-                    { icon: <Zap size={9} color="#4b5563" />,            lbl: 'Safe Risk',   val: `$${maxRisk.toFixed(0)}`,    clr: '#e2e8f0',    sub: `${account.maxRiskPercent}% per trade` },
-                    { icon: <Activity size={9} color="#4b5563" />,       lbl: 'Balance',     val: balance >= 1000 ? `$${(balance / 1000).toFixed(1)}K` : `$${balance.toFixed(0)}`, clr: '#e2e8f0', sub: 'account equity' },
-                    { icon: null,                                         lbl: 'Today',       val: todayTrades.length.toString(), clr: todayPnl >= 0 ? '#A6FF4D' : '#ff4757', sub: todayTrades.length > 0 ? `${todayPnl >= 0 ? '+' : ''}$${todayPnl.toFixed(0)} P&L` : 'no trades yet' },
+                    { icon: <ShieldCheck size={9} color={dailyColor} />, lbl: lang === 'fr' ? 'Reste jour' : 'Daily Left',  val: `$${dailyLeft.toFixed(0)}`,  clr: dailyColor,   sub: `${Math.round(dailyLeftPct * 100)}% ${lang === 'fr' ? 'de la limite' : 'of limit'}` },
+                    { icon: <Zap size={9} color="#4b5563" />,            lbl: lang === 'fr' ? 'Risque sûr' : 'Safe Risk',   val: `$${maxRisk.toFixed(0)}`,    clr: '#e2e8f0',    sub: `${account.maxRiskPercent}% ${lang === 'fr' ? 'par trade' : 'per trade'}` },
+                    { icon: <Activity size={9} color="#4b5563" />,       lbl: lang === 'fr' ? 'Solde' : 'Balance',     val: balance >= 1000 ? `$${(balance / 1000).toFixed(1)}K` : `$${balance.toFixed(0)}`, clr: '#e2e8f0', sub: lang === 'fr' ? 'équité du compte' : 'account equity' },
+                    { icon: null,                                         lbl: lang === 'fr' ? 'Aujourd\'hui' : 'Today',       val: todayTrades.length.toString(), clr: todayPnl >= 0 ? '#A6FF4D' : '#ff4757', sub: todayTrades.length > 0 ? `${todayPnl >= 0 ? '+' : ''}$${todayPnl.toFixed(0)} P&L` : (lang === 'fr' ? 'aucun trade' : 'no trades yet') },
                 ] as const).map((s, i) => (
                     <div key={i} className={styles.contextCard}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: 4 }}>
@@ -217,7 +223,7 @@ export default function AIChatPage() {
                                 )}
                                 <div className={isUser ? styles.messageContentUser : undefined} style={{ display: 'flex', flexDirection: 'column', gap: 5, flex: isUser ? 'unset' : 1 }}>
                                     <span style={{ ...lbl, display: 'block', textAlign: isUser ? 'right' : 'left' }}>
-                                        {isUser ? 'You' : 'AI Coach'}
+                                        {isUser ? (lang === 'fr' ? 'Vous' : 'You') : (lang === 'fr' ? 'Coach IA' : 'AI Coach')}
                                     </span>
                                     <div className={styles.messageBubble} style={{
                                         background: isUser ? 'rgba(166,255,77,0.04)' : '#0d1117',
@@ -261,7 +267,7 @@ export default function AIChatPage() {
                                 <Brain size={11} color="#A6FF4D" />
                             </div>
                             <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
-                                <span style={{ ...lbl, display: 'block' }}>AI Coach</span>
+                                <span style={{ ...lbl, display: 'block' }}>{lang === 'fr' ? 'Coach IA' : 'AI Coach'}</span>
                                 <div className={styles.messageBubble} style={{ background: '#0d1117', border: '1px solid #1a1c24', borderLeft: '2px solid #1f2937' }}>
                                     <div className={styles.typingDots}><span /><span /><span /></div>
                                 </div>
@@ -291,7 +297,7 @@ export default function AIChatPage() {
                     value={input}
                     onChange={e => setInput(e.target.value)}
                     onKeyDown={e => e.key === 'Enter' && !e.shiftKey && handleSend()}
-                    placeholder='Try: "NQ at 21450, 30 point stop, $500 risk" or "2 NQ contracts, stop 20 points — my risk?"'
+                    placeholder={lang === 'fr' ? 'Tapez : NQ à 21450, stop 30 points, risque $500...' : 'Type: NQ at 21450, 30 point stop, $500 risk...'}
                     autoComplete="off"
                     style={{ ...mono, flex: 1, background: 'transparent', border: 'none', outline: 'none', fontSize: 16, color: '#e2e8f0', lineHeight: 1.5 }}
                 />

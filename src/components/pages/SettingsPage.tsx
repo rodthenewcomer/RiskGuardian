@@ -12,6 +12,7 @@ import {
     Brain, Download, Trash2, AlertTriangle, Zap,
 } from 'lucide-react';
 import { dxConnect, dxGetMetrics, dxGetHistory, dxGetPositions } from '@/lib/dxtradeSync';
+import { useTranslation } from '@/i18n/useTranslation';
 
 const getFirmLogo = (name: string) => {
     if (name.includes('Tradeify')) return 'https://www.google.com/s2/favicons?domain=tradeify.co&sz=128';
@@ -32,7 +33,11 @@ export default function SettingsPage() {
         account, updateAccount, resetTodaySession, resetOnboarding,
         dxtradeConfig, dxtradeLastSync, setDXTradeConfig, setDXTradeLastSync,
         setTrades, trades, autoSync,
+        language, setLanguage, tradingDayRollHour, setTradingDayRollHour,
     } = useAppStore();
+
+    const { t } = useTranslation();
+    const lang = language ?? 'en';
 
     const [saved, setSaved] = useState(false);
     const [selectedFirm, setSelectedFirm] = useState<string | null>(account.propFirm || null);
@@ -70,6 +75,11 @@ export default function SettingsPage() {
     const [drawdownType, setDrawdownType] = useState(account.drawdownType || 'EOD');
     const [maxDrawdownPct, setMaxDrawdownPct] = useState(String(initialDrawPct.toFixed(1)));
     const [maxTradesPerDay, setMaxTradesPerDay] = useState(String(account.maxTradesPerDay ?? ''));
+
+    // Language / localization & notifications
+    const [rollHour, setRollHour] = useState(String(tradingDayRollHour ?? 17));
+    const [discordWebhook, setDiscordWebhook] = useState('');
+    const [webhookTestStatus, setWebhookTestStatus] = useState<'idle' | 'testing' | 'ok' | 'error'>('idle');
 
     // Behavioral guards
     const [consecLossEnabled, setConsecLossEnabled] = useState(!!(account.maxConsecutiveLosses));
@@ -116,6 +126,26 @@ export default function SettingsPage() {
         } catch (e) {
             setDxError(e instanceof Error ? e.message : 'Sync failed. Token may have expired — reconnect.');
         } finally { setDxBusy(false); }
+    }
+
+    async function handleTestWebhook() {
+        if (!discordWebhook) return;
+        setWebhookTestStatus('testing');
+        try {
+            const msg = lang === 'fr'
+                ? '✅ RiskGuardian webhook configuré correctement.'
+                : '✅ RiskGuardian webhook configured successfully.';
+            const res = await fetch(discordWebhook, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ content: msg }),
+            });
+            setWebhookTestStatus(res.ok ? 'ok' : 'error');
+        } catch {
+            setWebhookTestStatus('error');
+        } finally {
+            setTimeout(() => setWebhookTestStatus('idle'), 3000);
+        }
     }
 
     async function handlePDFImport(e: React.ChangeEvent<HTMLInputElement>) {
@@ -215,6 +245,7 @@ export default function SettingsPage() {
             maxConsecutiveLosses: consecLossEnabled ? parseInt(maxConsecLosses) || 3 : undefined,
             coolDownMinutes: coolDownEnabled ? parseInt(coolDownMins) || 15 : undefined,
         });
+        setTradingDayRollHour(parseInt(rollHour) || 17);
         setSaved(true);
         setTimeout(() => setSaved(false), 2500);
     };
@@ -655,6 +686,132 @@ export default function SettingsPage() {
                     Import: Tradeify &quot;Single-Currency Account Statement&quot; PDF · Export: all trades as .csv
                 </p>
             </motion.div>
+
+            {/* ── Language & Localization ───────────────────────────────── */}
+            <motion.section variants={sectionVariant} style={{ background: '#0d1117', border: '1px solid #1a1c24', marginBottom: 1 }}>
+                <div style={{ padding: '16px 20px', borderBottom: '1px solid #1a1c24', display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <Settings2 size={14} color="#A6FF4D" />
+                    <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, fontWeight: 700, color: '#c9d1d9', letterSpacing: '0.08em', textTransform: 'uppercase' }}>
+                        {lang === 'fr' ? 'Langue & Localisation' : 'Language & Localization'}
+                    </span>
+                </div>
+                <div style={{ padding: '20px', display: 'flex', flexDirection: 'column', gap: 16 }}>
+                    {/* Language toggle */}
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                        <div>
+                            <div style={{ fontFamily: 'var(--font-mono)', fontSize: 12, color: '#c9d1d9', marginBottom: 4 }}>
+                                {lang === 'fr' ? 'Langue de l\'interface' : 'Interface Language'}
+                            </div>
+                            <div style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: '#6b7280' }}>
+                                {lang === 'fr' ? 'Passe toute l\'application en français ou en anglais' : 'Switch the entire app between French and English'}
+                            </div>
+                        </div>
+                        <div style={{ display: 'flex', gap: 0, border: '1px solid #1a1c24' }}>
+                            <button
+                                onClick={() => setLanguage('en')}
+                                style={{
+                                    fontFamily: 'var(--font-mono)', fontSize: 11, fontWeight: 700,
+                                    padding: '8px 16px', border: 'none', cursor: 'pointer',
+                                    background: lang === 'en' ? '#A6FF4D' : '#0b0e14',
+                                    color: lang === 'en' ? '#090909' : '#6b7280',
+                                    letterSpacing: '0.06em',
+                                }}
+                            >
+                                EN
+                            </button>
+                            <button
+                                onClick={() => setLanguage('fr')}
+                                style={{
+                                    fontFamily: 'var(--font-mono)', fontSize: 11, fontWeight: 700,
+                                    padding: '8px 16px', border: 'none', cursor: 'pointer', borderLeft: '1px solid #1a1c24',
+                                    background: lang === 'fr' ? '#A6FF4D' : '#0b0e14',
+                                    color: lang === 'fr' ? '#090909' : '#6b7280',
+                                    letterSpacing: '0.06em',
+                                }}
+                            >
+                                FR
+                            </button>
+                        </div>
+                    </div>
+                    {/* Trading day roll hour */}
+                    <div>
+                        <label style={{ display: 'block', fontFamily: 'var(--font-mono)', fontSize: 12, color: '#c9d1d9', marginBottom: 6 }}>
+                            {lang === 'fr' ? 'Heure de bascule du jour de trading' : 'Trading Day Roll Hour (EST)'}
+                        </label>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                            <input
+                                type="number" min="0" max="23"
+                                value={rollHour}
+                                onChange={e => setRollHour(e.target.value)}
+                                style={{
+                                    fontFamily: 'var(--font-mono)', fontSize: 13, color: '#fff',
+                                    background: '#0b0e14', border: '1px solid #1a1c24', padding: '8px 12px',
+                                    width: 80,
+                                }}
+                            />
+                            <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: '#6b7280' }}>
+                                {lang === 'fr'
+                                    ? `Heure 0-23 EST. Tradeify = 17 (17h00). Actuellement: ${rollHour}h00 EST`
+                                    : `Hour 0-23 EST. Tradeify default = 17 (5 PM). Current: ${rollHour}:00 EST`}
+                            </span>
+                        </div>
+                    </div>
+                </div>
+            </motion.section>
+
+            {/* ── Notifications & Alerts ───────────────────────────────────────── */}
+            <motion.section variants={sectionVariant} style={{ background: '#0d1117', border: '1px solid #1a1c24', marginBottom: 1 }}>
+                <div style={{ padding: '16px 20px', borderBottom: '1px solid #1a1c24', display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <Zap size={14} color="#EAB308" />
+                    <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, fontWeight: 700, color: '#c9d1d9', letterSpacing: '0.08em', textTransform: 'uppercase' }}>
+                        {lang === 'fr' ? 'Notifications & Alertes' : 'Notifications & Alerts'}
+                    </span>
+                </div>
+                <div style={{ padding: '20px', display: 'flex', flexDirection: 'column', gap: 16 }}>
+                    <div>
+                        <label style={{ display: 'block', fontFamily: 'var(--font-mono)', fontSize: 12, color: '#c9d1d9', marginBottom: 4 }}>
+                            {lang === 'fr' ? 'URL Discord Webhook' : 'Discord Webhook URL'}
+                        </label>
+                        <div style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: '#6b7280', marginBottom: 8 }}>
+                            {lang === 'fr'
+                                ? 'Recevez des alertes Discord quand la limite journalière est proche ou violée'
+                                : 'Receive Discord alerts when daily limit is near or breached'}
+                        </div>
+                        <div style={{ display: 'flex', gap: 8 }}>
+                            <input
+                                type="url"
+                                placeholder={lang === 'fr' ? 'https://discord.com/api/webhooks/...' : 'https://discord.com/api/webhooks/...'}
+                                value={discordWebhook}
+                                onChange={e => setDiscordWebhook(e.target.value)}
+                                style={{
+                                    flex: 1, fontFamily: 'var(--font-mono)', fontSize: 12, color: '#fff',
+                                    background: '#0b0e14', border: '1px solid #1a1c24', padding: '8px 12px',
+                                }}
+                            />
+                            <button
+                                onClick={handleTestWebhook}
+                                disabled={!discordWebhook || webhookTestStatus === 'testing'}
+                                style={{
+                                    fontFamily: 'var(--font-mono)', fontSize: 11, fontWeight: 700,
+                                    padding: '8px 14px', border: '1px solid #1a1c24', cursor: discordWebhook ? 'pointer' : 'not-allowed',
+                                    background: webhookTestStatus === 'ok' ? 'rgba(166,255,77,0.1)' : webhookTestStatus === 'error' ? 'rgba(255,71,87,0.1)' : '#0b0e14',
+                                    color: webhookTestStatus === 'ok' ? '#A6FF4D' : webhookTestStatus === 'error' ? '#ff4757' : '#8b949e',
+                                    letterSpacing: '0.06em',
+                                    whiteSpace: 'nowrap',
+                                }}
+                            >
+                                {webhookTestStatus === 'testing'
+                                    ? (lang === 'fr' ? 'TEST...' : 'TESTING...')
+                                    : webhookTestStatus === 'ok'
+                                    ? '✓ OK'
+                                    : webhookTestStatus === 'error'
+                                    ? '✗ FAIL'
+                                    : (lang === 'fr' ? 'TESTER' : 'TEST')}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </motion.section>
 
             {/* ── 7. Danger Zone ──────────────────────────────────── */}
             <motion.div variants={sectionVariant} className={`glass-card glass-card--elevated ${styles.section} ${styles.dangerSection}`}>

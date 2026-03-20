@@ -3,6 +3,7 @@
 import styles from './JournalPage.module.css';
 import { useState, useMemo, useRef, useEffect } from 'react';
 import { useAppStore } from '@/store/appStore';
+import { useTranslation } from '@/i18n/useTranslation';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
     TrendingUp, TrendingDown, Activity, Upload, LayoutList, CalendarDays,
@@ -50,6 +51,9 @@ function fmtDayLabel(dateStr: string): string {
 
 export default function JournalPage() {
     const { trades, setTrades, deleteTrade, updateTradeNote, setActiveTab, account } = useAppStore();
+    const { t } = useTranslation();
+    const { language } = useAppStore();
+    const lang = language ?? 'en';
     const csvRef = useRef<HTMLInputElement>(null);
     const pdfRef = useRef<HTMLInputElement>(null);
     const [viewMode, setViewMode] = useState<'list' | 'calendar'>('list');
@@ -272,8 +276,8 @@ export default function JournalPage() {
             {/* ── HEADER ─────────────────────────────────────── */}
             <div style={{ padding: isMobile ? '12px 14px' : '14px 20px', borderBottom: divider, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
                 <div>
-                    <h1 style={{ ...mono, fontSize: 18, fontWeight: 900, color: '#fff', letterSpacing: '-0.02em', lineHeight: 1 }}>Journal</h1>
-                    <span style={lbl}>Execution history · audit trail</span>
+                    <h1 style={{ ...mono, fontSize: 18, fontWeight: 900, color: '#fff', letterSpacing: '-0.02em', lineHeight: 1 }}>{lang === 'fr' ? 'JOURNAL' : 'JOURNAL'}</h1>
+                    <span style={lbl}>{lang === 'fr' ? 'Historique d\'exécution · piste d\'audit' : 'Execution history · audit trail'}</span>
                 </div>
                 <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
                     <button
@@ -282,20 +286,20 @@ export default function JournalPage() {
                         style={{ ...mono, display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, fontWeight: 700, padding: '7px 14px', background: '#A6FF4D', color: '#000', border: 'none', cursor: 'pointer', letterSpacing: '0.06em' }}
                     >
                         {pdfStatus.loading ? <Loader2 size={12} style={{ animation: 'spin 1s linear infinite' }} /> : <FileText size={12} />}
-                        Import PDF
+                        {lang === 'fr' ? 'Importer PDF' : 'Import PDF'}
                     </button>
                     <button onClick={() => csvRef.current?.click()} style={{ ...mono, display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, fontWeight: 700, padding: '7px 12px', background: 'transparent', color: '#8b949e', border: '1px solid #1a1c24', cursor: 'pointer' }}>
-                        <Upload size={12} /> CSV
+                        <Upload size={12} /> {lang === 'fr' ? 'Importer CSV' : 'Import CSV'}
                     </button>
                     {trades.length > 0 && (
                         <button onClick={handleExportCSV} style={{ ...mono, display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, fontWeight: 700, padding: '7px 12px', background: 'transparent', color: '#8b949e', border: '1px solid #1a1c24', cursor: 'pointer' }}>
-                            <FileDown size={12} /> Export
+                            <FileDown size={12} /> {lang === 'fr' ? 'Exporter JSON' : 'Export JSON'}
                         </button>
                     )}
                     {trades.length > 0 && (
                         <button onClick={() => { if (window.confirm(`Delete all ${trades.length} trades? This cannot be undone.`)) setTrades([]); }}
                             style={{ ...mono, display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, fontWeight: 700, padding: '7px 12px', background: 'transparent', color: '#ff4757', border: '1px solid rgba(255,71,87,0.25)', cursor: 'pointer' }}>
-                            <Trash2 size={12} /> Clear all
+                            <Trash2 size={12} /> {lang === 'fr' ? 'Tout effacer' : 'Clear all'}
                         </button>
                     )}
                 </div>
@@ -365,7 +369,7 @@ export default function JournalPage() {
                             color: filter === f ? '#000' : '#6b7280',
                             borderColor: filter === f ? (f === 'win' ? '#A6FF4D' : f === 'loss' ? '#ff4757' : f === 'open' ? '#EAB308' : '#e2e8f0') : '#1a1c24',
                         }}>
-                            {f === 'all' ? `All (${trades.length})` : f === 'win' ? `Wins (${wins.length})` : f === 'loss' ? `Losses (${losses.length})` : `Open (${trades.filter(t => t.outcome === 'open').length})`}
+                            {f === 'all' ? `${lang === 'fr' ? 'Tous' : 'All'} (${trades.length})` : f === 'win' ? `${lang === 'fr' ? 'Gains' : 'Wins'} (${wins.length})` : f === 'loss' ? `${lang === 'fr' ? 'Pertes' : 'Losses'} (${losses.length})` : `${lang === 'fr' ? 'Ouvert' : 'Open'} (${trades.filter(t => t.outcome === 'open').length})`}
                         </button>
                     ))}
 
@@ -376,23 +380,23 @@ export default function JournalPage() {
                             onChange={e => setAssetFilter(e.target.value)}
                             style={{ ...mono, fontSize: 10, fontWeight: 700, padding: '5px 10px', background: '#0d1117', border: '1px solid #1a1c24', color: assetFilter ? '#A6FF4D' : '#6b7280', cursor: 'pointer', outline: 'none' }}
                         >
-                            <option value="">All Assets</option>
+                            <option value="">{lang === 'fr' ? 'Tous les actifs' : 'All Assets'}</option>
                             {uniqueAssets.map(a => <option key={a} value={a}>{a}</option>)}
                         </select>
                     )}
 
                     {/* Results count */}
                     <span style={{ ...mono, fontSize: 10, color: '#4b5563', marginLeft: 4 }}>
-                        {totalShown} trade{totalShown !== 1 ? 's' : ''} shown
+                        {totalShown} {lang === 'fr' ? `trade${totalShown !== 1 ? 's' : ''} trouvé${totalShown !== 1 ? 's' : ''}` : `trade${totalShown !== 1 ? 's' : ''} shown`}
                     </span>
 
                     {/* View toggle — right side */}
                     <div style={{ marginLeft: 'auto', display: 'flex', border: divider, overflow: 'hidden' }}>
                         <button onClick={() => setViewMode('list')} style={{ ...mono, fontSize: 10, fontWeight: 700, padding: '5px 12px', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5, background: viewMode === 'list' ? '#e2e8f0' : 'transparent', color: viewMode === 'list' ? '#000' : '#6b7280' }}>
-                            <LayoutList size={12} /> List
+                            <LayoutList size={12} /> {lang === 'fr' ? 'Liste' : 'List'}
                         </button>
                         <button onClick={() => setViewMode('calendar')} style={{ ...mono, fontSize: 10, fontWeight: 700, padding: '5px 12px', border: 'none', borderLeft: divider, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5, background: viewMode === 'calendar' ? '#e2e8f0' : 'transparent', color: viewMode === 'calendar' ? '#000' : '#6b7280' }}>
-                            <CalendarDays size={12} /> Calendar
+                            <CalendarDays size={12} /> {lang === 'fr' ? 'Calendrier' : 'Calendar'}
                         </button>
                     </div>
                 </div>
@@ -402,9 +406,9 @@ export default function JournalPage() {
             {trades.length === 0 && (
                 <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '64px 20px', gap: 12, textAlign: 'center' }}>
                     <div style={{ fontSize: 40, lineHeight: 1 }}>📋</div>
-                    <span style={{ ...mono, fontSize: 16, fontWeight: 800, color: '#e2e8f0', marginTop: 8 }}>Journal is empty</span>
+                    <span style={{ ...mono, fontSize: 16, fontWeight: 800, color: '#e2e8f0', marginTop: 8 }}>{lang === 'fr' ? 'Aucun trade enregistré' : 'No trades logged yet'}</span>
                     <span style={{ ...mono, fontSize: 12, color: '#4b5563', maxWidth: 280, lineHeight: 1.7 }}>
-                        Import your Tradeify statement or log trades via the Risk Engine to begin your audit trail.
+                        {lang === 'fr' ? 'Importez votre relevé Tradeify ou enregistrez des trades via le Moteur de Risque.' : 'Import your Tradeify statement or log trades via the Risk Engine to begin your audit trail.'}
                     </span>
                     <button
                         onClick={() => pdfRef.current?.click()}
@@ -412,13 +416,13 @@ export default function JournalPage() {
                         style={{ ...mono, marginTop: 8, padding: '12px 24px', background: '#A6FF4D', color: '#000', border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: 800, letterSpacing: '0.06em', display: 'flex', alignItems: 'center', gap: 8 }}
                     >
                         {pdfStatus.loading ? <Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} /> : <FileText size={14} />}
-                        Import Tradeify PDF
+                        {lang === 'fr' ? 'Importer PDF Tradeify' : 'Import Tradeify PDF'}
                     </button>
                     <button
                         onClick={() => setActiveTab('calculator')}
                         style={{ ...mono, marginTop: 4, padding: '12px 24px', background: 'transparent', color: '#8b949e', border: '1px solid #1a1c24', cursor: 'pointer', fontSize: 13, fontWeight: 700, letterSpacing: '0.06em', display: 'flex', alignItems: 'center', gap: 8 }}
                     >
-                        Log a Trade
+                        {lang === 'fr' ? 'Enregistrer un trade' : 'Log a Trade'}
                     </button>
                 </div>
             )}
@@ -428,7 +432,7 @@ export default function JournalPage() {
                 <div>
                     {groupedByDay.length === 0 ? (
                         <div style={{ padding: '40px 20px', textAlign: 'center' }}>
-                            <span style={{ ...mono, fontSize: 12, color: '#4b5563' }}>No trades match the current filter.</span>
+                            <span style={{ ...mono, fontSize: 12, color: '#4b5563' }}>{lang === 'fr' ? 'Aucun trade ne correspond aux filtres.' : 'No trades match your filters.'}</span>
                         </div>
                     ) : (
                         groupedByDay.map(({ day, trades: dayTrades, dayPnl, dayWins, dayLosses }) => (
@@ -586,7 +590,7 @@ export default function JournalPage() {
                                                                     setInlineWinInput(prev => { const n = { ...prev }; delete n[trade.id]; return n; });
                                                                 }}
                                                                 style={{ ...mono, fontSize: 9, fontWeight: 800, padding: '4px 7px', background: 'rgba(166,255,77,0.1)', color: '#A6FF4D', border: '1px solid rgba(166,255,77,0.3)', cursor: 'pointer', letterSpacing: '0.04em', flexShrink: 0 }}
-                                                            >✓ WIN</button>
+                                                            >✓ {lang === 'fr' ? 'GAIN' : 'WIN'}</button>
                                                             <button
                                                                 title="Mark as Lost"
                                                                 onClick={() => {
@@ -613,7 +617,7 @@ export default function JournalPage() {
                                                                     setInlineLossInput(prev => { const n = { ...prev }; delete n[trade.id]; return n; });
                                                                 }}
                                                                 style={{ ...mono, fontSize: 9, fontWeight: 800, padding: '4px 7px', background: 'rgba(255,71,87,0.1)', color: '#ff4757', border: '1px solid rgba(255,71,87,0.3)', cursor: 'pointer', letterSpacing: '0.04em', flexShrink: 0 }}
-                                                            >✗ LOSS</button>
+                                                            >✗ {lang === 'fr' ? 'PERTE' : 'LOSS'}</button>
                                                         </div>
                                                     )}
                                                     {isExpanded ? <ChevronUp size={14} color="#4b5563" /> : <ChevronDown size={14} color="#4b5563" />}
@@ -641,11 +645,11 @@ export default function JournalPage() {
                                                         {/* Meta grid: ENTRY | SL | TP | R:R | SIZE */}
                                                         <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'repeat(2, 1fr)' : 'repeat(5, 1fr)', borderBottom: divider }}>
                                                             {[
-                                                                { k: 'Entry', v: trade.entry > 0 ? trade.entry.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 5 }) : '—', c: '#e2e8f0' },
+                                                                { k: lang === 'fr' ? 'Entrée' : 'Entry', v: trade.entry > 0 ? trade.entry.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 5 }) : '—', c: '#e2e8f0' },
                                                                 { k: 'Stop Loss', v: trade.stopLoss > 0 ? trade.stopLoss.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 5 }) : '—', c: '#ff4757' },
                                                                 { k: 'Take Profit', v: trade.takeProfit > 0 ? trade.takeProfit.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 5 }) : '—', c: '#A6FF4D' },
-                                                                { k: 'Risk : Reward', v: trade.rr > 0 ? `${trade.rr.toFixed(2)}R` : '—', c: '#00D4FF' },
-                                                                { k: 'Size', v: trade.lotSize > 0 ? trade.lotSize.toLocaleString() : '—', c: '#e2e8f0' },
+                                                                { k: lang === 'fr' ? 'Risque/Récompense' : 'Risk : Reward', v: trade.rr > 0 ? `${trade.rr.toFixed(2)}R` : '—', c: '#00D4FF' },
+                                                                { k: lang === 'fr' ? 'Taille' : 'Size', v: trade.lotSize > 0 ? trade.lotSize.toLocaleString() : '—', c: '#e2e8f0' },
                                                             ].map((m, i, arr) => {
                                                                 const cols = isMobile ? 2 : 5;
                                                                 const col = i % cols;
@@ -666,7 +670,7 @@ export default function JournalPage() {
                                                         
                                                         {/* Outcome Editor */}
                                                         <div style={{ padding: '12px 14px', borderBottom: divider, display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
-                                                            <span style={{ ...lbl, minWidth: 80 }}>Resolve</span>
+                                                            <span style={{ ...lbl, minWidth: 80 }}>{lang === 'fr' ? 'Résoudre' : 'Resolve'}</span>
                                                             <div style={{ display: 'flex', alignItems: 'center', background: '#0d1117', border: '1px solid #1a1c24', padding: '0 8px' }}>
                                                                 <span style={{ ...mono, color: '#4b5563', fontSize: 13 }}>$</span>
                                                                 <input
@@ -692,7 +696,7 @@ export default function JournalPage() {
                                                                      if (!isNaN(val)) setTrades(trades.map(t => t.id === trade.id ? { ...t, outcome: 'win', pnl: Math.abs(val), closedAt: t.closedAt || new Date().toISOString(), durationSeconds: Math.floor(holdMs / 1000) } : t));
                                                                 }}
                                                                 style={{ ...mono, fontSize: 11, fontWeight: 700, padding: '7px 12px', background: 'rgba(166,255,77,0.1)', color: '#A6FF4D', border: '1px solid rgba(166,255,77,0.3)', cursor: 'pointer' }}
-                                                            >Mark Won</button>
+                                                            >{lang === 'fr' ? 'Marquer Gain' : 'Mark Won'}</button>
                                                             <button
                                                                 onClick={() => {
                                                                      const minHold = (account.minHoldTimeSec ?? 20) * 1000;
@@ -707,12 +711,12 @@ export default function JournalPage() {
                                                                      if (!isNaN(val)) setTrades(trades.map(t => t.id === trade.id ? { ...t, outcome: 'loss', pnl: -Math.abs(val), closedAt: t.closedAt || new Date().toISOString(), durationSeconds: Math.floor(holdMs / 1000) } : t));
                                                                 }}
                                                                 style={{ ...mono, fontSize: 11, fontWeight: 700, padding: '7px 12px', background: 'rgba(255,71,87,0.1)', color: '#ff4757', border: '1px solid rgba(255,71,87,0.3)', cursor: 'pointer' }}
-                                                            >Mark Lost</button>
+                                                            >{lang === 'fr' ? 'Marquer Perte' : 'Mark Lost'}</button>
                                                         </div>
 
                                                         {/* Journal note */}
                                                         <div style={{ padding: isMobile ? '10px 12px' : '12px 16px' }}>
-                                                            <span style={lbl}>Trade Note</span>
+                                                            <span style={lbl}>{lang === 'fr' ? 'Note de trade' : 'Trade Note'}</span>
                                                             <textarea
                                                                 placeholder={`What was your setup rationale?\nHow did you feel entering this trade?\nWould you take this trade again?`}
                                                                 value={trade.note ?? ''}
