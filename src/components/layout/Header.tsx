@@ -3,20 +3,33 @@
 import { useEffect, useState } from 'react';
 import styles from './Header.module.css';
 import { useAppStore } from '@/store/appStore';
-import { Shield, Bell } from 'lucide-react';
+import { Shield, Bell, LogIn, LogOut, User } from 'lucide-react';
 import { motion } from 'framer-motion';
+import { supabase } from '@/lib/supabase';
 
-export default function Header() {
+interface HeaderProps {
+    onShowAuth?: () => void;
+}
+
+export default function Header({ onShowAuth }: HeaderProps) {
     const [mounted, setMounted] = useState(false);
-    // eslint-disable-next-line
     useEffect(() => { setMounted(true); }, []);
 
-    const { account, getTodayRiskUsed, language, setLanguage } = useAppStore();
+    const { account, getTodayRiskUsed, language, setLanguage, userId, userEmail, setUserId, setUserEmail } = useAppStore();
     const used = mounted ? getTodayRiskUsed() : 0;
     const guardPct = mounted ? Math.min(100, (used / account.dailyLossLimit) * 100) : 0;
     const isWarning = mounted && guardPct >= 60;
     const isDanger = mounted && guardPct >= 90;
     const lang = language ?? 'en';
+
+    async function handleSignOut() {
+        await supabase.auth.signOut();
+        setUserId(null);
+        setUserEmail(null);
+    }
+
+    // Truncate email for display
+    const displayEmail = userEmail ? (userEmail.length > 14 ? userEmail.slice(0, 12) + '…' : userEmail) : '';
 
     return (
         <header className={styles.header}>
@@ -60,8 +73,32 @@ export default function Header() {
                     <span className={lang === 'fr' ? styles.langActive : styles.langInactive}>FR</span>
                 </button>
 
+                {/* Auth — sign in or signed-in user */}
+                {mounted && (
+                    userId ? (
+                        <button
+                            className={`${styles.authBtn} ${styles.authBtnActive}`}
+                            onClick={handleSignOut}
+                            title={lang === 'fr' ? 'Se déconnecter' : 'Sign out'}
+                        >
+                            <User size={11} />
+                            {displayEmail}
+                            <LogOut size={11} />
+                        </button>
+                    ) : (
+                        <button
+                            className={styles.authBtn}
+                            onClick={onShowAuth}
+                            title={lang === 'fr' ? 'Se connecter pour synchroniser' : 'Sign in to sync'}
+                        >
+                            <LogIn size={11} />
+                            {lang === 'fr' ? 'Sync' : 'Sync'}
+                        </button>
+                    )
+                )}
+
                 {/* Notification bell */}
-                <button className="btn btn--icon" aria-label={lang === 'fr' ? 'Notifications' : 'Notifications'}>
+                <button className="btn btn--icon" aria-label="Notifications" style={{ position: 'relative' }}>
                     <Bell size={18} />
                     {mounted && isDanger && <span className={styles.notifDot} />}
                 </button>

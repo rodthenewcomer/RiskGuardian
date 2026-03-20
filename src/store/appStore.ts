@@ -112,6 +112,12 @@ interface AppState {
     /** Hour (0-23) EST at which the trading day rolls over — defaults to 17 */
     tradingDayRollHour: number;
 
+    /** Supabase auth state (persisted so user stays signed in across refreshes) */
+    userId: string | null;
+    userEmail: string | null;
+    /** Controls visibility of AuthModal — not persisted */
+    showAuthModal: boolean;
+
     // Actions
     completeOnboarding: () => void;
     resetOnboarding: () => void;
@@ -122,6 +128,9 @@ interface AppState {
     updateTradeOutcome: (id: string, outcome: 'win' | 'loss' | 'open') => void;
     updateTradeNote: (id: string, note: string) => void;
     updateTradeTags: (id: string, tags: string[]) => void;
+    setUserId: (id: string | null) => void;
+    setUserEmail: (email: string | null) => void;
+    setShowAuthModal: (show: boolean) => void;
     setActiveTab: (tab: AppState['activeTab']) => void;
     getTodayRiskUsed: () => number;
     getDailyRiskRemaining: () => number;
@@ -223,6 +232,9 @@ export const useAppStore = create<AppState>()(
             dxtradeLastSync: null,
             language: 'en',
             tradingDayRollHour: 17,
+            userId: null,
+            userEmail: null,
+            showAuthModal: false,
 
             completeOnboarding: () => set({ hasOnboarded: true }),
 
@@ -236,6 +248,8 @@ export const useAppStore = create<AppState>()(
                 dxtradeLastSync: null,
                 language: 'en',
                 tradingDayRollHour: 17,
+                userId: null,
+                userEmail: null,
             }),
 
             setDXTradeConfig: (config) => set({ dxtradeConfig: config }),
@@ -279,6 +293,10 @@ export const useAppStore = create<AppState>()(
             setLanguage: (lang) => set({ language: lang }),
 
             setTradingDayRollHour: (hour) => set({ tradingDayRollHour: hour }),
+
+            setUserId: (id) => set({ userId: id }),
+            setUserEmail: (email) => set({ userEmail: email }),
+            setShowAuthModal: (show) => set({ showAuthModal: show }),
 
             getTodayRiskUsed: () => {
                 const state = get();
@@ -379,6 +397,8 @@ export const useAppStore = create<AppState>()(
                 dxtradeLastSync: s.dxtradeLastSync,
                 language: s.language,
                 tradingDayRollHour: s.tradingDayRollHour,
+                userId: s.userId,
+                userEmail: s.userEmail,
             }),
         }
     )

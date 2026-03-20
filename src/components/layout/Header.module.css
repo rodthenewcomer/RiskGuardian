@@ -131,6 +131,33 @@
     color: var(--border-subtle);
 }
 
+/* Auth button */
+.authBtn {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    background: var(--bg-card);
+    border: 1px solid var(--border-subtle);
+    padding: 4px 10px;
+    cursor: pointer;
+    font-family: var(--font-mono);
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    color: var(--text-muted);
+    flex-shrink: 0;
+    transition: border-color var(--t-fast);
+    white-space: nowrap;
+}
+.authBtn:hover {
+    border-color: var(--accent);
+    color: var(--accent);
+}
+.authBtnActive {
+    border-color: rgba(166, 255, 77, 0.3);
+    color: var(--accent);
+}
+
 /* Notif dot */
 .notifDot {
     position: absolute;

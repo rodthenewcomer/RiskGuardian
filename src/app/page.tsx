@@ -13,9 +13,12 @@ import AnalyticsPage from '@/components/pages/AnalyticsPage';
 import SettingsPage from '@/components/pages/SettingsPage';
 import JournalPage from '@/components/pages/JournalPage';
 import Onboarding from '@/components/pages/Onboarding';
+import AuthModal from '@/components/auth/AuthModal';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { AnimatePresence, motion } from 'framer-motion';
 import { ToastContainer } from '@/components/ui/Toast';
+import { supabase } from '@/lib/supabase';
+import { fullSync, pushAccountSettings, pushTrades } from '@/lib/supabaseSync';
 
 const pageVariants = {
   enter: { opacity: 0, y: 10 },
@@ -27,19 +30,76 @@ const VALID_TABS = new Set(['dashboard', 'terminal', 'bridge', 'plan', 'analytic
 
 export default function Home() {
   const [mounted, setMounted] = useState(false);
-  const setActiveTab = useAppStore(s => s.setActiveTab);
+  const {
+    setActiveTab,
+    activeTab,
+    hasOnboarded,
+    trades,
+    account,
+    setTrades,
+    language,
+    tradingDayRollHour,
+    userId,
+    setUserId,
+    setUserEmail,
+    showAuthModal,
+    setShowAuthModal,
+  } = useAppStore();
 
+  // ── Session bootstrap + auth state listener ──────────────────
   useEffect(() => {
     // Handle PWA shortcut ?tab=terminal style navigation
     const param = new URLSearchParams(window.location.search).get('tab');
     if (param && VALID_TABS.has(param)) {
       setActiveTab(param as Parameters<typeof setActiveTab>[0]);
     }
-    setMounted(true);
-  }, [setActiveTab]);
 
-  const activeTab = useAppStore(s => s.activeTab);
-  const hasOnboarded = useAppStore(s => s.hasOnboarded);
+    // Check existing session on mount
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session?.user) {
+        setUserId(session.user.id);
+        setUserEmail(session.user.email ?? '');
+      }
+    });
+
+    // Listen for auth state changes (OAuth callback, sign-out, token refresh)
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (session?.user) {
+        setUserId(session.user.id);
+        setUserEmail(session.user.email ?? '');
+      } else {
+        setUserId(null);
+        setUserEmail(null);
+      }
+    });
+
+    setMounted(true);
+    return () => subscription.unsubscribe();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // ── Auto-sync trades to Supabase on mutations (debounced 2s) ──
+  useEffect(() => {
+    if (!userId || trades.length === 0) return;
+    const timer = setTimeout(() => {
+      pushTrades(trades, userId).catch(console.error);
+    }, 2000);
+    return () => clearTimeout(timer);
+  }, [trades, userId]);
+
+  // ── Auth success handler ──────────────────────────────────────
+  async function handleAuthSuccess(uid: string, email: string) {
+    setUserId(uid);
+    setUserEmail(email);
+    setShowAuthModal(false);
+    try {
+      const merged = await fullSync(trades, uid);
+      setTrades(merged);
+      await pushAccountSettings(account, uid, tradingDayRollHour, language);
+    } catch (err) {
+      console.error('Sync error after sign-in:', err);
+    }
+  }
 
   const pages: Record<string, React.ReactNode> = {
     dashboard: <DashboardPage />,
@@ -64,7 +124,7 @@ export default function Home() {
 
   return (
     <div className="app-shell">
-      <Header />
+      <Header onShowAuth={() => setShowAuthModal(true)} />
       <Sidebar />
       <main className="page-content" id="main-content">
         <ErrorBoundary>
@@ -84,6 +144,16 @@ export default function Home() {
       </main>
       <BottomNav />
       <ToastContainer />
+
+      {/* Auth modal — triggered from Header or anywhere via showAuthModal store flag */}
+      <AnimatePresence>
+        {showAuthModal && (
+          <AuthModal
+            onClose={() => setShowAuthModal(false)}
+            onSuccess={handleAuthSuccess}
+          />
+        )}
+      </AnimatePresence>
     </div>
   );
 }

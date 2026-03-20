@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import styles from './LandingPage.module.css';
+import { joinWaitlist } from '@/lib/supabaseSync';
 
 /* ─── Animated counter hook ─── */
 function useCounter(target: number, duration = 1400, start = false) {
@@ -116,17 +117,15 @@ export default function LandingPage() {
     const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
     const heroRef = useRef<HTMLDivElement>(null);
     const [email, setEmail] = useState('');
-    const [waitlistStatus, setWaitlistStatus] = useState<'idle' | 'success'>('idle');
+    const [waitlistStatus, setWaitlistStatus] = useState<'idle' | 'loading' | 'success' | 'already'>('idle');
     const [lang, setLang] = useState<'en' | 'fr'>('en');
 
-    function handleWaitlist(e: React.FormEvent) {
+    async function handleWaitlist(e: React.FormEvent) {
         e.preventDefault();
-        if (!email) return;
-        // Store email in localStorage as simple waitlist
-        const list: string[] = JSON.parse(localStorage.getItem('rg-waitlist') ?? '[]');
-        if (!list.includes(email)) list.push(email);
-        localStorage.setItem('rg-waitlist', JSON.stringify(list));
-        setWaitlistStatus('success');
+        if (!email || waitlistStatus === 'loading') return;
+        setWaitlistStatus('loading');
+        const result = await joinWaitlist(email, lang);
+        setWaitlistStatus(result === 'error' ? 'idle' : result === 'already' ? 'already' : 'success');
     }
 
     /* Parallax grain on mouse move */
@@ -408,9 +407,11 @@ export default function LandingPage() {
                             ? 'Soyez parmi les premiers à accéder aux fonctionnalités Pro. Aucun spam, désabonnement en 1 clic.'
                             : 'Be first to access Pro features when they launch. No spam, unsubscribe anytime.'}
                     </p>
-                    {waitlistStatus === 'success' ? (
+                    {(waitlistStatus === 'success' || waitlistStatus === 'already') ? (
                         <div style={{ fontFamily: 'monospace', fontSize: 13, fontWeight: 700, color: '#A6FF4D', padding: '12px 20px', background: 'rgba(166,255,77,0.08)', border: '1px solid rgba(166,255,77,0.3)' }}>
-                            ✓ {lang === 'fr' ? 'Vous êtes inscrit ! On vous contacte bientôt.' : "You're on the list! We'll be in touch."}
+                            ✓ {waitlistStatus === 'already'
+                                ? (lang === 'fr' ? 'Déjà inscrit avec cet e-mail.' : 'Already on the list with this email.')
+                                : (lang === 'fr' ? 'Vous êtes inscrit ! On vous contacte bientôt.' : "You're on the list! We'll be in touch.")}
                         </div>
                     ) : (
                         <form onSubmit={handleWaitlist} style={{ display: 'flex', gap: 0, maxWidth: 420, margin: '0 auto' }}>
@@ -428,14 +429,16 @@ export default function LandingPage() {
                             />
                             <button
                                 type="submit"
+                                disabled={waitlistStatus === 'loading'}
                                 style={{
                                     fontFamily: 'monospace', fontSize: 11, fontWeight: 700,
                                     padding: '10px 18px', background: '#A6FF4D', color: '#090909',
-                                    border: 'none', cursor: 'pointer', letterSpacing: '0.06em',
-                                    textTransform: 'uppercase', whiteSpace: 'nowrap',
+                                    border: 'none', cursor: waitlistStatus === 'loading' ? 'not-allowed' : 'pointer',
+                                    letterSpacing: '0.06em', textTransform: 'uppercase', whiteSpace: 'nowrap',
+                                    opacity: waitlistStatus === 'loading' ? 0.7 : 1,
                                 }}
                             >
-                                {lang === 'fr' ? 'Rejoindre →' : 'Join →'}
+                                {waitlistStatus === 'loading' ? '...' : (lang === 'fr' ? 'Rejoindre →' : 'Join →')}
                             </button>
                         </form>
                     )}
