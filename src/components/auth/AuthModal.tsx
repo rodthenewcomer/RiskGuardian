@@ -75,7 +75,7 @@ export default function AuthModal({ onClose, onSuccess }: AuthModalProps) {
         setLoading(true); setError('');
         const { error } = await supabase.auth.signInWithOAuth({
             provider: 'google',
-            options: { redirectTo: `${window.location.origin}/?auth=callback` },
+            options: { redirectTo: `${window.location.origin}/app?auth=callback` },
         });
         if (error) { setError(error.message); setLoading(false); }
     }
@@ -89,7 +89,7 @@ export default function AuthModal({ onClose, onSuccess }: AuthModalProps) {
         try {
             if (mode === 'forgot') {
                 const { error } = await supabase.auth.resetPasswordForEmail(email, {
-                    redirectTo: `${window.location.origin}/?auth=reset`,
+                    redirectTo: `${window.location.origin}/app?auth=reset`,
                 });
                 if (error) throw error;
                 setSuccess(T.emailSent);
@@ -97,15 +97,24 @@ export default function AuthModal({ onClose, onSuccess }: AuthModalProps) {
             }
 
             if (mode === 'signup') {
-                const { data, error } = await supabase.auth.signUp({ email, password });
-                if (error) throw error;
-                if (data.user) {
-                    if (data.session) {
-                        onSuccess(data.user.id, data.user.email ?? email);
-                    } else {
-                        setSuccess(T.signupSuccess);
+                // Use admin API to create confirmed user — no email confirmation required
+                const res = await fetch('/api/auth/signup', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email: email.toLowerCase().trim(), password }),
+                });
+                const json = await res.json();
+                if (!res.ok) {
+                    const msg = json.error ?? 'Signup failed';
+                    if (msg.includes('already been registered') || msg.includes('already registered') || msg.includes('already exists')) {
+                        throw new Error('User already registered');
                     }
+                    throw new Error(msg);
                 }
+                // Sign in immediately — user is pre-confirmed
+                const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({ email, password });
+                if (signInError) throw signInError;
+                if (signInData.user) onSuccess(signInData.user.id, signInData.user.email ?? email);
                 return;
             }
 
