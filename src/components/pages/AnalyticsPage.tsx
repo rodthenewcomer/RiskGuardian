@@ -4555,6 +4555,24 @@ export default function AnalyticsPage() {
                         });
                         const rptInstArray = Object.keys(rptInstMap).map(k => ({ asset: k, ...rptInstMap[k] })).sort((a, b) => b.pnl - a.pnl);
 
+                        // ── Chart data: equity curve ──
+                        let cumPnl = 0;
+                        const rptEquityCurve = rptTrades.map((t, i) => {
+                            cumPnl += (t.pnl ?? 0);
+                            return { i: i + 1, date: (t.closedAt ?? t.createdAt).slice(5, 10), pnl: Math.round(cumPnl * 100) / 100 };
+                        });
+
+                        // ── Chart data: daily P&L bars ──
+                        const rptDailyMap: Record<string, number> = {};
+                        rptTrades.forEach(t => {
+                            const d = (t.closedAt ?? t.createdAt).slice(0, 10);
+                            rptDailyMap[d] = (rptDailyMap[d] ?? 0) + (t.pnl ?? 0);
+                        });
+                        const rptDailyData = Object.entries(rptDailyMap).sort(([a], [b]) => a.localeCompare(b)).map(([date, pnl]) => ({ date: date.slice(5), pnl: Math.round(pnl * 100) / 100 }));
+
+                        // ── Chart data: behavioral cost bar ──
+                        const rptBehavData = rptForensics.patterns.map((p: any) => ({ name: p.name.length > 12 ? p.name.slice(0, 12) + '…' : p.name, cost: Math.abs(p.impact), freq: p.freq })).sort((a: any, b: any) => b.cost - a.cost).slice(0, 5);
+
                         // ── Next session rules (period-filtered) ──
                         const nextRules: string[] = [];
                         if (dangerZones.length > 0) {
@@ -4715,6 +4733,62 @@ export default function AnalyticsPage() {
                                     </div>
                                 )}
 
+                                {/* ── CHART 1: EQUITY CURVE ── */}
+                                {rptEquityCurve.length >= 2 && (
+                                    <div>
+                                        <div style={{ ...SL, color: '#FDC800', marginBottom: 14 }}>{lang === 'fr' ? 'COURBE D\'ÉQUITÉ — PÉRIODE' : 'EQUITY CURVE — PERIOD'}</div>
+                                        <div style={{ background: '#0d1117', border: '1px solid #1a1c24', padding: '12px 0 0' }}>
+                                            <ResponsiveContainer width="100%" height={160}>
+                                                <AreaChart data={rptEquityCurve} margin={{ top: 4, right: 16, left: 0, bottom: 0 }}>
+                                                    <defs>
+                                                        <linearGradient id="eqGrad" x1="0" y1="0" x2="0" y2="1">
+                                                            <stop offset="5%" stopColor={rptNetPnl >= 0 ? '#FDC800' : '#ff4757'} stopOpacity={0.25} />
+                                                            <stop offset="95%" stopColor={rptNetPnl >= 0 ? '#FDC800' : '#ff4757'} stopOpacity={0} />
+                                                        </linearGradient>
+                                                    </defs>
+                                                    <CartesianGrid strokeDasharray="3 3" stroke="#1a1c24" vertical={false} />
+                                                    <XAxis dataKey="date" tick={{ fontFamily: 'var(--font-mono)', fontSize: 8, fill: '#4b5563' }} tickLine={false} axisLine={false} interval="preserveStartEnd" />
+                                                    <YAxis tick={{ fontFamily: 'var(--font-mono)', fontSize: 8, fill: '#4b5563' }} tickLine={false} axisLine={false} tickFormatter={(v) => `$${v >= 0 ? '' : '-'}${Math.abs(v) >= 1000 ? (Math.abs(v) / 1000).toFixed(1) + 'k' : Math.abs(v).toFixed(0)}`} width={48} />
+                                                    <ReferenceLine y={0} stroke="#3d4451" strokeDasharray="4 2" />
+                                                    <Tooltip
+                                                        contentStyle={{ background: '#0d1117', border: '1px solid #1a1c24', borderRadius: 0, fontFamily: 'var(--font-mono)', fontSize: 10 }}
+                                                        formatter={(v: number | undefined) => v == null ? ['—', lang === 'fr' ? 'P&L cumulé' : 'Cumulative P&L'] : [`${v >= 0 ? '+' : ''}$${v.toFixed(2)}`, lang === 'fr' ? 'P&L cumulé' : 'Cumulative P&L']}
+                                                        labelStyle={{ color: '#6b7280', fontSize: 9 }}
+                                                    />
+                                                    <Area type="monotone" dataKey="pnl" stroke={rptNetPnl >= 0 ? '#FDC800' : '#ff4757'} strokeWidth={2} fill="url(#eqGrad)" dot={false} activeDot={{ r: 3, fill: rptNetPnl >= 0 ? '#FDC800' : '#ff4757' }} />
+                                                </AreaChart>
+                                            </ResponsiveContainer>
+                                        </div>
+                                    </div>
+                                )}
+
+                                {/* ── CHART 2: DAILY P&L BARS ── */}
+                                {rptDailyData.length >= 2 && (
+                                    <div>
+                                        <div style={{ ...SL, color: '#FDC800', marginBottom: 14 }}>{lang === 'fr' ? 'P&L QUOTIDIEN — PÉRIODE' : 'DAILY P&L — PERIOD'}</div>
+                                        <div style={{ background: '#0d1117', border: '1px solid #1a1c24', padding: '12px 0 0' }}>
+                                            <ResponsiveContainer width="100%" height={140}>
+                                                <BarChart data={rptDailyData} margin={{ top: 4, right: 16, left: 0, bottom: 0 }}>
+                                                    <CartesianGrid strokeDasharray="3 3" stroke="#1a1c24" vertical={false} />
+                                                    <XAxis dataKey="date" tick={{ fontFamily: 'var(--font-mono)', fontSize: 8, fill: '#4b5563' }} tickLine={false} axisLine={false} interval="preserveStartEnd" />
+                                                    <YAxis tick={{ fontFamily: 'var(--font-mono)', fontSize: 8, fill: '#4b5563' }} tickLine={false} axisLine={false} tickFormatter={(v) => `$${v >= 0 ? '' : '-'}${Math.abs(v) >= 1000 ? (Math.abs(v) / 1000).toFixed(1) + 'k' : Math.abs(v).toFixed(0)}`} width={48} />
+                                                    <ReferenceLine y={0} stroke="#3d4451" />
+                                                    <Tooltip
+                                                        contentStyle={{ background: '#0d1117', border: '1px solid #1a1c24', borderRadius: 0, fontFamily: 'var(--font-mono)', fontSize: 10 }}
+                                                        formatter={(v: number | undefined) => v == null ? ['—', 'P&L'] : [`${v >= 0 ? '+' : ''}$${v.toFixed(2)}`, 'P&L']}
+                                                        labelStyle={{ color: '#6b7280', fontSize: 9 }}
+                                                    />
+                                                    <Bar dataKey="pnl" radius={0} maxBarSize={32}>
+                                                        {rptDailyData.map((entry, i) => (
+                                                            <Cell key={i} fill={entry.pnl >= 0 ? '#FDC800' : '#ff4757'} fillOpacity={0.85} />
+                                                        ))}
+                                                    </Bar>
+                                                </BarChart>
+                                            </ResponsiveContainer>
+                                        </div>
+                                    </div>
+                                )}
+
                                 {/* ── SECTION 1: FORENSIC SCORECARD ── */}
                                 <div>
                                     <div style={{ fontFamily: QF, fontSize: 9, color: '#FDC800', letterSpacing: '0.15em', fontWeight: 700, marginBottom: 14, display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -4805,6 +4879,34 @@ export default function AnalyticsPage() {
                                     </div>
                                 </div>
 
+                                {/* ── CHART 4: WIN/LOSS ANATOMY COMPOSED ── */}
+                                {rptTrades.length >= 3 && (
+                                    <div>
+                                        <div style={{ ...SL, color: '#FDC800', marginBottom: 14 }}>{lang === 'fr' ? 'ANATOMIE GAIN/PERTE PAR TRADE' : 'WIN / LOSS ANATOMY PER TRADE'}</div>
+                                        <div style={{ background: '#0d1117', border: '1px solid #1a1c24', padding: '12px 0 0' }}>
+                                            <ResponsiveContainer width="100%" height={150}>
+                                                <BarChart data={rptTrades.slice(-40).map((t, i) => ({ i: i + 1, pnl: t.pnl ?? 0 }))} margin={{ top: 4, right: 16, left: 0, bottom: 0 }}>
+                                                    <CartesianGrid strokeDasharray="3 3" stroke="#1a1c24" vertical={false} />
+                                                    <XAxis dataKey="i" tick={{ fontFamily: 'var(--font-mono)', fontSize: 8, fill: '#4b5563' }} tickLine={false} axisLine={false} label={{ value: lang === 'fr' ? `${Math.min(40, rptTrades.length)} derniers trades` : `Last ${Math.min(40, rptTrades.length)} trades`, position: 'insideBottomRight', offset: -4, style: { fontFamily: 'var(--font-mono)', fontSize: 8, fill: '#4b5563' } }} />
+                                                    <YAxis tick={{ fontFamily: 'var(--font-mono)', fontSize: 8, fill: '#4b5563' }} tickLine={false} axisLine={false} tickFormatter={(v) => `$${v >= 0 ? '' : '-'}${Math.abs(v) >= 1000 ? (Math.abs(v) / 1000).toFixed(1) + 'k' : Math.abs(v).toFixed(0)}`} width={48} />
+                                                    <ReferenceLine y={0} stroke="#3d4451" />
+                                                    <Tooltip
+                                                        contentStyle={{ background: '#0d1117', border: '1px solid #1a1c24', borderRadius: 0, fontFamily: 'var(--font-mono)', fontSize: 10 }}
+                                                        formatter={(v: number | undefined) => v == null ? ['—', 'P&L'] : [`${v >= 0 ? '+' : ''}$${v.toFixed(2)}`, 'P&L']}
+                                                        labelFormatter={(l) => `Trade #${l}`}
+                                                        labelStyle={{ color: '#6b7280', fontSize: 9 }}
+                                                    />
+                                                    <Bar dataKey="pnl" radius={0} maxBarSize={20}>
+                                                        {rptTrades.slice(-40).map((t, i) => (
+                                                            <Cell key={i} fill={(t.pnl ?? 0) >= 0 ? '#FDC800' : '#ff4757'} fillOpacity={0.85} />
+                                                        ))}
+                                                    </Bar>
+                                                </BarChart>
+                                            </ResponsiveContainer>
+                                        </div>
+                                    </div>
+                                )}
+
                                 {/* ── SECTION 3: BEHAVIORAL FORENSICS ── */}
                                 {rptForensics.patterns.length > 0 && (
                                     <div>
@@ -4854,6 +4956,28 @@ export default function AnalyticsPage() {
                                                 <div style={{ fontFamily: QF, fontSize: 28, fontWeight: 900, color: '#FDC800' }}>{rptProjected >= 0 ? '+' : ''}${rptProjected.toLocaleString(undefined, { minimumFractionDigits: 0 })}</div>
                                                 <div style={{ fontFamily: QF, fontSize: 9, color: '#6b7280' }}>{lang === 'fr' ? 'Estimation théorique' : 'Theoretical estimate'}</div>
                                             </div>
+                                        </div>
+                                    </div>
+                                )}
+
+                                {/* ── CHART 3: BEHAVIORAL COST BAR ── */}
+                                {rptBehavData.length > 0 && (
+                                    <div>
+                                        <div style={{ ...SL, color: '#ff4757', marginBottom: 14 }}>{lang === 'fr' ? 'COÛT PAR MOTIF COMPORTEMENTAL' : 'COST BY BEHAVIORAL PATTERN'}</div>
+                                        <div style={{ background: '#0d1117', border: '1px solid #1a1c24', padding: '12px 0 0' }}>
+                                            <ResponsiveContainer width="100%" height={Math.max(100, rptBehavData.length * 36 + 24)}>
+                                                <BarChart data={rptBehavData} layout="vertical" margin={{ top: 4, right: 48, left: 8, bottom: 4 }}>
+                                                    <CartesianGrid strokeDasharray="3 3" stroke="#1a1c24" horizontal={false} />
+                                                    <XAxis type="number" tick={{ fontFamily: 'var(--font-mono)', fontSize: 8, fill: '#4b5563' }} tickLine={false} axisLine={false} tickFormatter={(v) => `$${v >= 1000 ? (v / 1000).toFixed(1) + 'k' : v}`} />
+                                                    <YAxis type="category" dataKey="name" tick={{ fontFamily: 'var(--font-mono)', fontSize: 9, fill: '#8b949e' }} tickLine={false} axisLine={false} width={80} />
+                                                    <Tooltip
+                                                        contentStyle={{ background: '#0d1117', border: '1px solid #1a1c24', borderRadius: 0, fontFamily: 'var(--font-mono)', fontSize: 10 }}
+                                                        formatter={(v: number | undefined, _: string | undefined, props: any) => v == null ? ['—', lang === 'fr' ? 'Coût estimé' : 'Est. cost'] : [`-$${v.toFixed(0)} · ${props.payload.freq}x`, lang === 'fr' ? 'Coût estimé' : 'Est. cost']}
+                                                        labelStyle={{ color: '#6b7280', fontSize: 9 }}
+                                                    />
+                                                    <Bar dataKey="cost" fill="#ff4757" fillOpacity={0.8} radius={0} maxBarSize={18} />
+                                                </BarChart>
+                                            </ResponsiveContainer>
                                         </div>
                                     </div>
                                 )}
