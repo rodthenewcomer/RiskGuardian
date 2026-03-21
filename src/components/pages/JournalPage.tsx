@@ -1000,17 +1000,6 @@ export default function JournalPage() {
                 </div>
             )}
 
-            {/* ── MONTHLY HEATMAP ─────────────────────────────── */}
-            {journalTab === 'trades' && trades.length > 0 && (
-                <div style={{ padding: isMobile ? '8px 14px' : '10px 20px', borderBottom: '1px solid #1a1c24' }}>
-                    <ChartCard
-                        title={lang === 'fr' ? 'CE MOIS' : 'THIS MONTH'}
-                        subtitle={lang === 'fr' ? 'P&L par jour de trading (heure de New York)' : 'P&L by trading day (New York time)'}
-                    >
-                        <MonthlyCalendarHeatmap data={heatmapData} height={240} />
-                    </ChartCard>
-                </div>
-            )}
 
             {/* ── STREAK BEADS ────────────────────────────────── */}
             {journalTab === 'trades' && trades.length > 0 && (
