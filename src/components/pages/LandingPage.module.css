@@ -9,7 +9,7 @@
     overflow-x: hidden;
     background: #FBFBF9;
     color: #1C293C;
-    font-family: 'Inter', system-ui, sans-serif;
+    font-family: var(--font-mono, 'JetBrains Mono', monospace);
 }
 
 /* ─── NAV ─── */
@@ -1036,4 +1036,293 @@
     font-size: 11px;
     color: rgba(255,255,255,0.3);
     letter-spacing: 0.04em;
+}
+
+/* ─── SECTION ALT (alternate bg) ─── */
+.sectionAlt {
+    padding: 80px 24px;
+    background: #F3F3EF;
+}
+
+/* ─── STEPS GRID (3 columns for how-it-works) ─── */
+.stepsGrid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 0;
+    border: 2px solid #1C293C;
+    margin-top: 48px;
+}
+
+@media (max-width: 900px) {
+    .stepsGrid { grid-template-columns: 1fr; }
+}
+
+.step {
+    padding: 32px 24px;
+    border: 1px solid #1C293C;
+    background: #fff;
+    opacity: 0;
+    transform: translateY(16px);
+    transition: opacity 0.4s ease, transform 0.4s ease;
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.stepVisible {
+    opacity: 1;
+    transform: translateY(0);
+}
+
+.stepIcon {
+    width: 52px;
+    height: 52px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 2px solid #1C293C;
+    background: #FDC800;
+    box-shadow: 3px 3px 0 #1C293C;
+    flex-shrink: 0;
+}
+
+.stepLine { display: none; }
+.stepBody {}
+
+.stepTitle {
+    font-family: var(--font-mono, 'JetBrains Mono', monospace);
+    font-size: 15px;
+    font-weight: 800;
+    color: #1C293C;
+    margin-bottom: 8px;
+    letter-spacing: -0.02em;
+}
+
+.stepDesc {
+    font-family: var(--font-mono, 'JetBrains Mono', monospace);
+    font-size: 13px;
+    color: #6B7280;
+    line-height: 1.65;
+}
+
+/* Override stepNum (kept for compatibility if referenced) */
+.stepNum {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 36px;
+    font-weight: 900;
+    margin-bottom: 16px;
+    line-height: 1;
+    border-bottom: 3px solid currentColor;
+    display: inline-block;
+    padding-bottom: 8px;
+}
+
+/* ─── PRICING ─── */
+.pricingGrid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0;
+    border: 2px solid #1C293C;
+    max-width: 800px;
+    margin-top: 48px;
+}
+
+@media (max-width: 640px) {
+    .pricingGrid { grid-template-columns: 1fr; }
+}
+
+.pricingCard {
+    padding: 36px 28px;
+    border: 1px solid #1C293C;
+    background: #fff;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    position: relative;
+}
+
+.pricingCardPro {
+    background: #1C293C;
+    color: #fff;
+}
+
+.pricingPopular {
+    font-family: var(--font-mono, monospace);
+    font-size: 10px;
+    font-weight: 800;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    background: #FDC800;
+    color: #1C293C;
+    padding: 3px 10px;
+    border: 1px solid #1C293C;
+    display: inline-block;
+    width: fit-content;
+    margin-bottom: 4px;
+}
+
+.pricingTier {
+    font-family: var(--font-mono, monospace);
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: #6B7280;
+}
+
+.pricingCardPro .pricingTier {
+    color: rgba(255,255,255,0.5);
+}
+
+.pricingPrice {
+    font-family: var(--font-mono, monospace);
+    font-size: 42px;
+    font-weight: 900;
+    color: #1C293C;
+    line-height: 1;
+}
+
+.pricingCardPro .pricingPrice {
+    color: #FDC800;
+}
+
+.pricingPer {
+    font-size: 16px;
+    font-weight: 500;
+    color: #6B7280;
+}
+
+.pricingCardPro .pricingPer {
+    color: rgba(255,255,255,0.45);
+}
+
+.pricingDesc {
+    font-size: 13px;
+    color: #6B7280;
+    padding-bottom: 16px;
+    border-bottom: 1px solid #1C293C;
+}
+
+.pricingCardPro .pricingDesc {
+    color: rgba(255,255,255,0.5);
+    border-bottom-color: rgba(255,255,255,0.15);
+}
+
+.pricingFeatures {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    flex: 1;
+}
+
+.pricingFeatureItem {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    font-family: var(--font-mono, monospace);
+    font-size: 13px;
+    color: #374151;
+    line-height: 1.4;
+}
+
+.pricingCardPro .pricingFeatureItem {
+    color: rgba(255,255,255,0.8);
+}
+
+.pricingBtnSecondary {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: var(--font-mono, monospace);
+    font-size: 13px;
+    font-weight: 800;
+    color: #1C293C;
+    text-decoration: none;
+    padding: 12px 20px;
+    border: 2px solid #1C293C;
+    background: #fff;
+    box-shadow: 3px 3px 0 #1C293C;
+    transition: transform 0.1s, box-shadow 0.1s;
+    margin-top: auto;
+    letter-spacing: 0.01em;
+}
+
+.pricingBtnSecondary:hover {
+    transform: translate(1px, 1px);
+    box-shadow: 2px 2px 0 #1C293C;
+}
+
+.pricingBtnPrimary {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: var(--font-mono, monospace);
+    font-size: 13px;
+    font-weight: 800;
+    color: #1C293C;
+    text-decoration: none;
+    padding: 12px 20px;
+    border: 2px solid #FDC800;
+    background: #FDC800;
+    box-shadow: 3px 3px 0 #FDC800;
+    transition: transform 0.1s, box-shadow 0.1s;
+    margin-top: auto;
+    letter-spacing: 0.01em;
+}
+
+.pricingBtnPrimary:hover {
+    transform: translate(1px, 1px);
+    box-shadow: 2px 2px 0 #FDC800;
+}
+
+/* Override sectionLabel/sectionTitle in statsSection */
+.statsSection .sectionLabel {
+    color: #FDC800;
+    background: rgba(253,200,0,0.15);
+    border-color: rgba(253,200,0,0.4);
+}
+
+.statsSection .sectionTitle {
+    color: #fff;
+}
+
+/* statCard inside statsSection gets animated via JS (visible class) */
+.statCard {
+    padding: 28px 20px;
+    border: 1px solid rgba(255,255,255,0.2);
+    text-align: center;
+}
+
+/* ─── HERO MOCKUP UPDATES ─── */
+.mockGuard {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 14px;
+    padding: 10px;
+    background: rgba(253,200,0,0.05);
+    border: 1px solid rgba(253,200,0,0.2);
+}
+
+/* font-family overrides for all text elements */
+.sectionLabel,
+.sectionSub,
+.sectionTitle,
+.featureTitle,
+.featureDesc,
+.testimonialQuote,
+.testimonialName,
+.testimonialRole,
+.navLink,
+.navCtaPrimary,
+.navCtaSecondary,
+.heroSub,
+.heroCtas,
+.finalCtaTitle,
+.finalCtaSub {
+    font-family: var(--font-mono, 'JetBrains Mono', monospace);
 }

@@ -17,9 +17,21 @@
     }
 }
 
-@media (min-width: 1024px) {
+@media (min-width: 768px) {
     .root {
-        max-width: 680px;
+        /* Desktop: centered card layout */
+        min-height: 100svh;
+        max-width: 520px;
+        margin: 0 auto;
+        padding: 0 0;
+        justify-content: center;
+    }
+
+    .stepWrap {
+        background: var(--bg-card);
+        border: 1px solid var(--border-subtle);
+        padding: 48px;
+        width: 100%;
     }
 }
 

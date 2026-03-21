@@ -1,36 +1,76 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# RiskGuardian — AI Risk OS for Prop Traders
 
-## Getting Started
+> Trade with rules, not emotions.
 
-First, run the development server:
+RiskGuardian is a real-time risk management OS built for funded/prop trading accounts. It enforces daily loss limits, calculates precise position sizes, journals every trade, and uses AI behavioral analysis to identify patterns that cost you money.
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+## Features
+
+- **Daily Loss Guard** — Hard-blocks trading when limit is reached
+- **Risk Calculator** — Exact lot size for 1-2% risk per trade
+- **AI Behavioral Coach** — Detects revenge trading, overtrading, tilt
+- **Advanced Trade Journal** — Log, tag, filter, review every trade
+- **Deep Analytics** — 10 tabs: equity curve, win rate, drawdown, heatmap, radar, and more
+- **Instant TP/SL Calculator** — Full trade plan in 5 seconds
+- **Prop Firm Presets** — Tradeify, FTMO, Funding Pips, 5%ers, custom rules
+
+## Tech Stack
+
+- Next.js 16 (App Router) · TypeScript · Zustand · Framer Motion · Recharts
+- Auth: Supabase (email + Google OAuth)
+- Styling: Inline styles (Calculator/Dashboard) + CSS Modules + Tailwind (Analytics)
+- AI: Local NLP (zero API calls) — `src/ai/RiskAI.ts` + `src/ai/EdgeForensics.ts`
+- PWA: manifest.json + service worker
+
+## Brand
+
+- Primary: `#FDC800` (yellow)
+- Secondary: `#432DD7` (purple)
+- Background: `#090909` (app), `#FBFBF9` (landing)
+- Danger: `#ff4757` | Warning: `#EAB308` | Success: `#16A34A`
+- Typography: `var(--font-mono)` for data, `Inter` for headings
+- Design: Neobrutalism — hard borders, flat color, no border-radius, offset shadows
+
+## Architecture
+
+```
+src/
+  app/           Next.js routes (/ landing, /app main app)
+  components/
+    pages/       DashboardPage, CalculatorPage, JournalPage, AnalyticsPage, AIChatPage, SettingsPage, Onboarding, LandingPage
+    layout/      Header, Sidebar, BottomNav
+    charts/      Reusable Recharts components
+    ui/          Toast, Logo
+    auth/        AuthPage, AuthModal
+  store/         appStore.ts — Zustand with localStorage persistence
+  ai/            RiskAI.ts (NLP), EdgeForensics.ts (pattern engine)
+  lib/           supabase.ts, supabaseSync.ts, dxtradeSync.ts
+  i18n/          EN/FR translations
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## Development
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+```bash
+npm install
+cp .env.local.example .env.local   # add Supabase keys
+npm run dev
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Environment Variables
 
-## Learn More
+```
+NEXT_PUBLIC_SUPABASE_URL=
+NEXT_PUBLIC_SUPABASE_ANON_KEY=
+SUPABASE_SERVICE_ROLE_KEY=
+```
 
-To learn more about Next.js, take a look at the following resources:
+## Prop Firm Support
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+Tradeify Crypto (Instant + Eval), FTMO, Funding Pips, The 5%ers, custom rules. Daily loss limits and max drawdown auto-calculated from account balance.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Domain Rules
 
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- Trading day rolls at 5PM EST (Tradeify rule)
+- Session gap = 2h+ between trades
+- Revenge trade = re-entry <5min after loss
+- Overtrading = >15 trades/session
