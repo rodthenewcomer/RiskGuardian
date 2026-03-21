@@ -360,7 +360,7 @@ export default function CommandPage() {
         const dist  = ps ? Math.abs(pe - ps) : 0;
         const rrOut = dist > 0 && tpPrice ? Math.abs(tpPrice - pe) / dist : 2;
         const notional = sz * pe * (sp?.pointValue ?? 1);
-        const comm     = notional * 0.0004;
+        const comm     = notional * 0.004 * 2; // 0.4% per leg × 2 round-trip
 
         // Fill form
         setAsset(pa); setIsShort(pShort);

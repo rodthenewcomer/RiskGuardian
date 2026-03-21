@@ -3,8 +3,7 @@
     flex-direction: column;
     padding: 0;
     background: #0B0E14;
-    /* Deep dark blueish black */
-    min-height: 100vh;
+    min-height: 100dvh; /* dvh: excludes browser chrome on iOS */
     font-family: var(--font-mono);
     color: #e2e8f0;
 }

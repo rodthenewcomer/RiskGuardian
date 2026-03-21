@@ -63,7 +63,10 @@ export default function AnalyticsPage() {
         { key: 'DAILY', label: lang === 'fr' ? 'P&L JOURNALIER' : 'DAILY P&L' },
         { key: 'INSTRUMENTS', label: lang === 'fr' ? 'INSTRUMENTS' : 'INSTRUMENTS' },
         { key: 'SESSIONS', label: lang === 'fr' ? 'SESSIONS' : 'SESSIONS' },
-        { key: 'BEHAVIOR', label: lang === 'fr' ? `COMPORTEMENT (${forensics.patterns.length})` : `BEHAVIOR (${forensics.patterns.length})` },
+        { key: 'TIME', label: lang === 'fr' ? 'HORAIRES' : 'TIME' },
+        { key: 'STREAKS', label: lang === 'fr' ? 'SÉRIES' : 'STREAKS' },
+        { key: 'PATTERNS', label: lang === 'fr' ? `MOTIFS (${forensics.patterns.length})` : `PATTERNS (${forensics.patterns.length})` },
+        { key: 'SCORECARD', label: 'SCORECARD' },
         { key: 'QUANT', label: 'QUANT' },
         { key: 'REPORT', label: lang === 'fr' ? 'RAPPORT' : 'REPORT' },
         { key: 'COMPARE', label: lang === 'fr' ? 'COMPARER' : 'COMPARE' },
@@ -661,7 +664,7 @@ export default function AnalyticsPage() {
                             </span>
                         </div>
                         <button
-                            onClick={() => setActiveTab('BEHAVIOR')}
+                            onClick={() => setActiveTab('PATTERNS')}
                             style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: '#e60023', background: 'none', border: 'none', cursor: 'pointer', letterSpacing: '0.06em', textDecoration: 'underline' }}>
                             {lang === 'fr' ? 'EXPLORER →' : 'EXPLORE →'}
                         </button>
@@ -784,7 +787,7 @@ export default function AnalyticsPage() {
                                             {lang === 'fr' ? `ALERTE RISQUE — ${forensics.patterns.length} MOTIF${forensics.patterns.length > 1 ? 'S' : ''} COMPORTEMENTAL${forensics.patterns.length > 1 ? 'S' : ''} CRITIQUE${forensics.patterns.length > 1 ? 'S' : ''} DÉTECTÉ${forensics.patterns.length > 1 ? 'S' : ''} DANS VOS DONNÉES. CLIQUEZ POUR ENQUÊTER.` : `RISK ALERT — ${forensics.patterns.length} CRITICAL BEHAVIORAL PATTERN${forensics.patterns.length > 1 ? 'S' : ''} DETECTED IN YOUR DATA. CLICK TO INVESTIGATE.`}
                                         </span>
                                     </div>
-                                    <button onClick={() => setActiveTab('BEHAVIOR')} style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: '#e60023', background: 'none', border: 'none', cursor: 'pointer', letterSpacing: '0.06em', textDecoration: 'underline', whiteSpace: 'nowrap' }}>
+                                    <button onClick={() => setActiveTab('PATTERNS')} style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: '#e60023', background: 'none', border: 'none', cursor: 'pointer', letterSpacing: '0.06em', textDecoration: 'underline', whiteSpace: 'nowrap' }}>
                                         {lang === 'fr' ? 'VOIR TOUS LES MOTIFS →' : 'SEE ALL PATTERNS →'}
                                     </button>
                                 </div>
@@ -810,7 +813,7 @@ export default function AnalyticsPage() {
                                             <div style={{ fontFamily: 'var(--font-mono)', fontSize: 28, fontWeight: 700, color: '#ff4757' }}>
                                                 -${Math.abs(p.impact ?? 0).toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
                                             </div>
-                                            <button onClick={() => setActiveTab('BEHAVIOR')} style={{ marginTop: 10, fontFamily: 'var(--font-mono)', fontSize: 9, color: '#6b7280', background: 'none', border: 'none', cursor: 'pointer', letterSpacing: '0.08em', textDecoration: 'underline' }}>
+                                            <button onClick={() => setActiveTab('PATTERNS')} style={{ marginTop: 10, fontFamily: 'var(--font-mono)', fontSize: 9, color: '#6b7280', background: 'none', border: 'none', cursor: 'pointer', letterSpacing: '0.08em', textDecoration: 'underline' }}>
                                                 {lang === 'fr' ? 'VOIR TOUS LES MOTIFS →' : 'SEE ALL PATTERNS →'}
                                             </button>
                                         </div>
@@ -2301,7 +2304,7 @@ export default function AnalyticsPage() {
                         </motion.div>
                     )}
 
-                    {activeTab === 'BEHAVIOR' && (
+                    {activeTab === 'TIME' && (
                         <motion.div key="time" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} style={{ display: 'flex', flexDirection: 'column', gap: 20, marginBottom: 48 }}>
 
                             {closed.length === 0 ? (
@@ -2809,7 +2812,7 @@ export default function AnalyticsPage() {
                         </motion.div>
                     )}
 
-                    {activeTab === 'BEHAVIOR' && (
+                    {activeTab === 'STREAKS' && (
                         <motion.div key="streaks" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} style={{ display: 'flex', flexDirection: 'column', gap: 20, marginBottom: 48 }}>
 
                             {/* ── HEADER ── */}
@@ -3065,7 +3068,7 @@ export default function AnalyticsPage() {
                         </motion.div>
                     )}
 
-                    {activeTab === 'BEHAVIOR' && (
+                    {activeTab === 'PATTERNS' && (
                         <motion.div key="patterns" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} style={{ display: 'flex', flexDirection: 'column', gap: 20, marginBottom: 48 }}>
 
                             {filterActive && (
@@ -3271,7 +3274,7 @@ export default function AnalyticsPage() {
                         </motion.div>
                     )}
 
-                    {activeTab === 'BEHAVIOR' && (() => {
+                    {activeTab === 'SCORECARD' && (() => {
                         // ── Pre-compute all enriched scorecard values ──
                         const sc = forensics.scorecard; // [{metric, grade, desc}]
                         const gradeColor = (g: string) => g === 'A' ? '#FDC800' : g === 'B' ? '#00D4FF' : g === 'C' ? '#EAB308' : g === '—' ? '#6b7280' : '#ff4757';

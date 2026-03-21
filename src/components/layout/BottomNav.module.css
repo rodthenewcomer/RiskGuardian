@@ -4,11 +4,12 @@
     bottom: 0;
     left: 0;
     right: 0;
-    height: var(--bottom-nav-height);
+    /* Grow to include safe area so button row stays at full --bottom-nav-height */
+    height: calc(var(--bottom-nav-height) + env(safe-area-inset-bottom, 0px));
     z-index: 100;
     background: var(--bg-base);
     border-top: 1px solid var(--border-subtle);
-    padding-bottom: env(safe-area-inset-bottom, 12px);
+    padding-bottom: env(safe-area-inset-bottom, 0px);
 }
 
 @media (min-width: 768px) {

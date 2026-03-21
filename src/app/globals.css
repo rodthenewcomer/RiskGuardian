@@ -165,7 +165,8 @@ textarea {
 
 .page-content {
   flex: 1;
-  padding: calc(var(--nav-height) + var(--space-4)) var(--space-4) calc(var(--bottom-nav-height) + var(--space-4));
+  /* Bottom accounts for nav height + safe area so content isn't hidden on notched iPhones */
+  padding: calc(var(--nav-height) + var(--space-4)) var(--space-4) calc(var(--bottom-nav-height) + env(safe-area-inset-bottom, 0px) + var(--space-4));
   width: 100%;
 }
 
