@@ -1,8 +1,8 @@
 'use client';
 
 import styles from './AnalyticsPage.module.css';
-import { useState, useMemo, useRef } from 'react';
-import { useAppStore, getTradingDay } from '@/store/appStore';
+import { useState, useMemo, useRef, useEffect } from 'react';
+import { useAppStore, getTradingDay, type ReportSnapshot } from '@/store/appStore';
 import { useTranslation } from '@/i18n/useTranslation';
 import { useIsMobile } from '@/hooks/useIsMobile';
 import { generateForensics } from '@/ai/EdgeForensics';
@@ -21,7 +21,7 @@ import TradeScatterChart, { type ScatterPoint } from '@/components/charts/TradeS
 import { ChartCard, SegmentedBar, ThresholdBullet, DivergingBarList } from '@/components/charts/RiskGuardianPrimitives';
 
 export default function AnalyticsPage() {
-    const { trades, account, language } = useAppStore();
+    const { trades, account, language, reportSnapshots, saveReportSnapshot, deleteReportSnapshot } = useAppStore();
     const isMobile = useIsMobile();
     const { t } = useTranslation();
     const lang = language ?? 'en';
@@ -30,6 +30,9 @@ export default function AnalyticsPage() {
     const [dateFrom, setDateFrom] = useState('');
     const [dateTo, setDateTo] = useState('');
     const [copied, setCopied] = useState(false);
+    const [reportPeriod, setReportPeriod] = useState<'7D'|'30D'|'90D'|'ALL'>('ALL');
+    const [snapshotSaved, setSnapshotSaved] = useState(false);
+    const [compareSelected, setCompareSelected] = useState<string[]>([]);
 
     // Sort chronological + apply date range filter
     // Date filter uses getTradingDay(closedAt) — trades held overnight are correctly attributed
@@ -4461,28 +4464,66 @@ export default function AnalyticsPage() {
                         );
                     })()}
 
-                    {activeTab === 'REPORT' && (() => {
+                    {(activeTab === 'REPORT' || activeTab === 'COMPARE') && (() => {
+                        // ── Period-filtered closed trades for REPORT ──
+                        const now = new Date();
+                        const periodCutoff: Record<string, Date> = {
+                            '7D':  new Date(now.getTime() - 7  * 86400000),
+                            '30D': new Date(now.getTime() - 30 * 86400000),
+                            '90D': new Date(now.getTime() - 90 * 86400000),
+                            'ALL': new Date(0),
+                        };
+                        const rptTrades = reportPeriod === 'ALL' ? closed : closed.filter(t => new Date(t.closedAt ?? t.createdAt) >= periodCutoff[reportPeriod]);
+                        const rptWins   = rptTrades.filter(t => (t.pnl ?? 0) > 0);
+                        const rptLosses = rptTrades.filter(t => (t.pnl ?? 0) < 0);
+                        const rptNetPnl = rptTrades.reduce((s, t) => s + (t.pnl ?? 0), 0);
+                        const rptGrossP = rptWins.reduce((s, t) => s + (t.pnl ?? 0), 0);
+                        const rptGrossL = rptLosses.reduce((s, t) => s + Math.abs(t.pnl ?? 0), 0);
+                        const rptWinRate = rptTrades.length > 0 ? (rptWins.length / rptTrades.length) * 100 : 0;
+                        const rptPF = rptGrossL > 0 ? rptGrossP / rptGrossL : rptGrossP > 0 ? 99 : 0;
+                        const rptAvgW = rptWins.length > 0 ? rptGrossP / rptWins.length : 0;
+                        const rptAvgL = rptLosses.length > 0 ? rptGrossL / rptLosses.length : 0;
+                        const rptWlRatio = rptAvgL > 0 ? rptAvgW / rptAvgL : rptAvgW > 0 ? 99 : 0;
+                        const rptExpectancy = rptTrades.length > 0 ? rptNetPnl / rptTrades.length : 0;
+                        const rptForensics = generateForensics(rptTrades.map(t => ({ ...t, outcome: t.outcome ?? 'open' })), account);
+                        const rptBehavCost = rptForensics.patterns.reduce((s: number, p: any) => s + Math.min(0, p.impact ?? 0), 0);
+                        const rptSessions = rptForensics.sessions ?? [];
+                        const rptGreenSess = rptSessions.filter((s: any) => s.pnl > 0).length;
+                        const rptTopPattern = rptForensics.patterns[0]?.name ?? '';
+                        const rptTotalRecovery = rptForensics.patterns.reduce((s: number, p: any) => s + Math.abs(p.impact), 0);
+                        const rptProjected = rptNetPnl + rptTotalRecovery;
+                        const rptAvgWinDur  = rptWins.length > 0 ? rptWins.reduce((s, t) => s + (t.durationSeconds ?? 0), 0) / rptWins.length : 0;
+                        const rptAvgLossDur = rptLosses.length > 0 ? rptLosses.reduce((s, t) => s + (t.durationSeconds ?? 0), 0) / rptLosses.length : 0;
+                        const rptHtRatio = rptAvgLossDur > 0 ? rptAvgLossDur / Math.max(rptAvgWinDur, 1) : 0;
+                        const rptAvgRR    = rptTrades.length > 0 ? rptTrades.reduce((s, t) => s + (t.rr ?? 0), 0) / rptTrades.length : 0;
+                        const rptBestTrade  = rptTrades.reduce((a, t) => (t.pnl ?? 0) > (a.pnl ?? 0) ? t : a, rptTrades[0] ?? { pnl: 0, asset: '—' } as typeof rptTrades[0]);
+                        const rptWorstTrade = rptTrades.reduce((a, t) => (t.pnl ?? 0) < (a.pnl ?? 0) ? t : a, rptTrades[0] ?? { pnl: 0, asset: '—' } as typeof rptTrades[0]);
+                        const rptRevScore = Math.min(60, rptForensics.patterns.filter((p: any) => p.name === 'Revenge Trading').length > 0
+                            ? rptForensics.patterns.find((p: any) => p.name === 'Revenge Trading').freq * 20 : 0);
+                        const rptFinScore = Math.abs(rptBehavCost) > (account.startingBalance ?? 50000) * 0.05 ? 25 : 0;
+                        const rptWrErosion = rptTrades.length > 0 && rptWinRate < 35 ? 15 : 0;
+
                         // ── Grade computation ──
                         let gradeScore = 100;
-                        forensics.patterns.forEach((p: any) => {
+                        rptForensics.patterns.forEach((p: any) => {
                             if (p.severity === 'CRITICAL') gradeScore -= 20;
                             else gradeScore -= 10;
                         });
-                        if (closed.length > 0 && winRate < 50) gradeScore -= 10;
-                        if (closed.length > 0 && profitFactor < 1) gradeScore -= 20;
+                        if (rptTrades.length > 0 && rptWinRate < 50) gradeScore -= 10;
+                        if (rptTrades.length > 0 && rptPF < 1) gradeScore -= 20;
                         gradeScore = Math.max(0, gradeScore);
                         const grade = gradeScore >= 90 ? 'A' : gradeScore >= 75 ? 'B' : gradeScore >= 55 ? 'C' : 'D';
                         const gradeColor = grade === 'A' ? '#FDC800' : grade === 'B' ? '#00D4FF' : grade === 'C' ? '#EAB308' : '#ff4757';
 
-                        // ── Risk score component display ──
+                        // ── Risk score components (period-adjusted) ──
                         const riskComponents = [
-                            { label: lang === 'fr' ? 'Trading revanche' : 'Revenge Trading', score: revScore, max: 60 },
-                            { label: lang === 'fr' ? 'Coût comportemental' : 'Behavioral Cost', score: financialScore, max: 25 },
-                            { label: lang === 'fr' ? 'Érosion taux de réussite' : 'Win Rate Erosion', score: wrErosion, max: 15 },
+                            { label: lang === 'fr' ? 'Trading revanche' : 'Revenge Trading', score: rptRevScore, max: 60 },
+                            { label: lang === 'fr' ? 'Coût comportemental' : 'Behavioral Cost', score: rptFinScore, max: 25 },
+                            { label: lang === 'fr' ? 'Érosion taux de réussite' : 'Win Rate Erosion', score: rptWrErosion, max: 15 },
                         ];
 
                         // ── Prescriptions sorted by impact ──
-                        const prescriptions = [...forensics.patterns]
+                        const prescriptions = [...rptForensics.patterns]
                             .sort((a: any, b: any) => Math.abs(b.impact) - Math.abs(a.impact))
                             .map((p: any, idx: number) => ({
                                 num: String(idx + 1).padStart(2, '0'),
@@ -4498,19 +4539,23 @@ export default function AnalyticsPage() {
                                 freq: p.freq,
                             }));
 
-                        // ── Projected totals ──
-                        const totalRecovery = forensics.patterns.reduce((s: number, p: any) => s + Math.abs(p.impact), 0);
-                        const projectedPnl = netPnl + totalRecovery;
-                        const tradeCount = closed.length;
-                        const sessionCount = forensics.sessions?.length || 1;
-                        const htRatio = avgLossDuration > 0 ? avgLossDuration / Math.max(avgWinDuration, 1) : 0;
+                        // ── Period-filtered session metrics ──
+                        const rptAvgSessPnl    = rptSessions.length > 0 ? rptSessions.reduce((a: number, s: any) => a + s.pnl, 0) / rptSessions.length : 0;
+                        const rptAvgSessTrades = rptSessions.length > 0 ? rptSessions.reduce((a: number, s: any) => a + s.trades.length, 0) / rptSessions.length : 0;
+                        const rptSessWinRate   = rptSessions.length > 0 ? (rptGreenSess / rptSessions.length) * 100 : 0;
 
-                        // ── Session quality ──
-                        const greenSess = sessionMetrics.filter((s: any) => s.pnl > 0).length;
-                        const totalSess = sessionMetrics.length;
-                        const sessWinRate = totalSess > 0 ? (greenSess / totalSess) * 100 : 0;
+                        // ── Period-filtered instrument breakdown ──
+                        const rptInstMap: Record<string, { wins: number; losses: number; pnl: number }> = {};
+                        rptTrades.forEach(t => {
+                            const k = t.asset ?? 'Unknown';
+                            if (!rptInstMap[k]) rptInstMap[k] = { wins: 0, losses: 0, pnl: 0 };
+                            if ((t.pnl ?? 0) > 0) rptInstMap[k].wins++;
+                            else if ((t.pnl ?? 0) < 0) rptInstMap[k].losses++;
+                            rptInstMap[k].pnl += (t.pnl ?? 0);
+                        });
+                        const rptInstArray = Object.keys(rptInstMap).map(k => ({ asset: k, ...rptInstMap[k] })).sort((a, b) => b.pnl - a.pnl);
 
-                        // ── Data-derived next session rules ──
+                        // ── Next session rules (period-filtered) ──
                         const nextRules: string[] = [];
                         if (dangerZones.length > 0) {
                             const worst = dangerZones[0];
@@ -4519,25 +4564,25 @@ export default function AnalyticsPage() {
                                 : `No entries at ${String(worst.h).padStart(2, '0')}:00 EST — this hour has $${Math.abs(worst.pnl).toFixed(0)} cumulative negative P&L. It is your worst trading hour.`
                             );
                         }
-                        if (htRatio > 1.5) {
+                        if (rptHtRatio > 1.5) {
                             nextRules.push(lang === 'fr'
-                                ? `Fermer les perdants à ${fmtDuration(Math.max(avgWinDuration * 1.2, 60))} maximum — vos perdants durent ${htRatio.toFixed(1)}x plus longtemps que vos gagnants, signal de "bag holding".`
-                                : `Close losers at ${fmtDuration(Math.max(avgWinDuration * 1.2, 60))} max — losers last ${htRatio.toFixed(1)}x longer than winners, a classic bag-holding signal.`
+                                ? `Fermer les perdants à ${fmtDuration(Math.max(rptAvgWinDur * 1.2, 60))} maximum — vos perdants durent ${rptHtRatio.toFixed(1)}x plus longtemps que vos gagnants, signal de "bag holding".`
+                                : `Close losers at ${fmtDuration(Math.max(rptAvgWinDur * 1.2, 60))} max — losers last ${rptHtRatio.toFixed(1)}x longer than winners, a classic bag-holding signal.`
                             );
                         }
-                        if (winRate < 50 && profitFactor > 1) {
+                        if (rptWinRate < 50 && rptPF > 1) {
                             nextRules.push(lang === 'fr'
-                                ? `Ne pas augmenter la fréquence — votre edge vient de la qualité (PF ${profitFactor.toFixed(2)}) pas du volume. Chaque trade supplémentaire non-setup dilue l'edge.`
-                                : `Do not increase frequency — your edge is quality-driven (PF ${profitFactor.toFixed(2)}), not volume. Each non-setup entry dilutes it.`
+                                ? `Ne pas augmenter la fréquence — votre edge vient de la qualité (PF ${rptPF.toFixed(2)}) pas du volume. Chaque trade supplémentaire non-setup dilue l'edge.`
+                                : `Do not increase frequency — your edge is quality-driven (PF ${rptPF.toFixed(2)}), not volume. Each non-setup entry dilutes it.`
                             );
-                        } else if (winRate >= 50 && wlRatio < 1) {
+                        } else if (rptWinRate >= 50 && rptWlRatio < 1) {
                             nextRules.push(lang === 'fr'
-                                ? `Étendre les cibles de profit — taux de réussite ${winRate.toFixed(0)}% mais ratio G/P ${wlRatio.toFixed(2)}:1. Chaque sortie précoce détruit de l'expectative.`
-                                : `Extend profit targets — ${winRate.toFixed(0)}% win rate but ${wlRatio.toFixed(2)}:1 W/L ratio. Every early exit destroys expectancy.`
+                                ? `Étendre les cibles de profit — taux de réussite ${rptWinRate.toFixed(0)}% mais ratio G/P ${rptWlRatio.toFixed(2)}:1. Chaque sortie précoce détruit de l'expectative.`
+                                : `Extend profit targets — ${rptWinRate.toFixed(0)}% win rate but ${rptWlRatio.toFixed(2)}:1 W/L ratio. Every early exit destroys expectancy.`
                             );
                         }
-                        if (nextRules.length < 3 && forensics.patterns.length > 0) {
-                            const top = forensics.patterns[0]; // most costly pattern (sorted asc by impact)
+                        if (nextRules.length < 3 && rptForensics.patterns.length > 0) {
+                            const top = rptForensics.patterns[0];
                             const topRule = top.name === 'Held Losers'
                                 ? (lang === 'fr'
                                     ? `Stopper les perdants à temps — ${top.freq} trades retenus trop longtemps détectés, coût $${Math.abs(top.impact).toFixed(0)}. Règle : si un trade dépasse la durée moyenne d'un gagnant, fermer sans exception.`
@@ -4557,8 +4602,8 @@ export default function AnalyticsPage() {
                         }
                         if (nextRules.length < 3) {
                             nextRules.push(lang === 'fr'
-                                ? `Respecter le stop journalier calculé — ${closed.length} trades analysés, aucun motif critique détecté. Maintenir le cap et la consistance.`
-                                : `Honor your calculated daily stop — ${closed.length} trades analyzed, no critical behavioral patterns detected. Maintain consistency.`
+                                ? `Respecter le stop journalier calculé — ${rptTrades.length} trades analysés, aucun motif critique détecté. Maintenir le cap et la consistance.`
+                                : `Honor your calculated daily stop — ${rptTrades.length} trades analyzed, no critical behavioral patterns detected. Maintain consistency.`
                             );
                         }
 
@@ -4566,8 +4611,109 @@ export default function AnalyticsPage() {
                         const CARD_S = { background: '#0d1117' as const, border: '1px solid #1a1c24', padding: '20px 24px' };
                         const SL = { fontFamily: QF, fontSize: 9, color: '#6b7280', letterSpacing: '0.15em' as const, fontWeight: 700, textTransform: 'uppercase' as const, marginBottom: 4 };
 
-                        return (
-                            <motion.div key="verdict" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} style={{ display: 'flex', flexDirection: 'column', gap: 32 }}>
+                        // ── Save snapshot handler ──
+                        const handleSaveSnapshot = () => {
+                            const snap: ReportSnapshot = {
+                                id: Date.now().toString(),
+                                savedAt: new Date().toISOString(),
+                                periodLabel: reportPeriod,
+                                grade,
+                                gradeScore,
+                                netPnl: rptNetPnl,
+                                winRate: rptWinRate,
+                                profitFactor: rptPF,
+                                expectancy: rptExpectancy,
+                                avgWin: rptAvgW,
+                                avgLoss: rptAvgL,
+                                wlRatio: rptWlRatio,
+                                behavioralCost: rptBehavCost,
+                                tradeCount: rptTrades.length,
+                                sessionCount: rptSessions.length,
+                                riskScore: rptForensics.riskScore,
+                                greenSessions: rptGreenSess,
+                                totalSessions: rptSessions.length,
+                                topPattern: rptTopPattern,
+                                projectedPnl: rptProjected,
+                            };
+                            saveReportSnapshot(snap);
+                            setSnapshotSaved(true);
+                            setTimeout(() => setSnapshotSaved(false), 2500);
+                        };
+
+                        // ── Delta vs last snapshot ──
+                        const lastSnap = reportSnapshots.length > 0 ? reportSnapshots[reportSnapshots.length - 1] : null;
+                        const deltaNetPnl  = lastSnap ? rptNetPnl  - lastSnap.netPnl       : null;
+                        const deltaWinRate = lastSnap ? rptWinRate - lastSnap.winRate       : null;
+                        const deltaPF      = lastSnap ? rptPF      - lastSnap.profitFactor  : null;
+                        const deltaGrade   = lastSnap ? gradeScore - lastSnap.gradeScore    : null;
+
+                        if (activeTab === 'REPORT') { return (
+                            <motion.div key="report" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} style={{ display: 'flex', flexDirection: 'column', gap: 28 }}>
+
+                                {/* ── HEADER: Period selector + Grade + Save ── */}
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap' as const, gap: 8 }}>
+                                        <div style={{ display: 'flex', gap: 2 }}>
+                                            {(['ALL', '90D', '30D', '7D'] as const).map(p => (
+                                                <button key={p} onClick={() => setReportPeriod(p)} style={{ fontFamily: QF, fontSize: 10, fontWeight: 700, letterSpacing: '0.1em', padding: '6px 14px', border: 'none', cursor: 'pointer', background: reportPeriod === p ? '#FDC800' : '#0d1117', color: reportPeriod === p ? '#000' : '#6b7280', borderBottom: reportPeriod === p ? '2px solid #FDC800' : '2px solid transparent' }}>{p}</button>
+                                            ))}
+                                        </div>
+                                        <button onClick={handleSaveSnapshot} disabled={rptTrades.length === 0} style={{ fontFamily: QF, fontSize: 9, fontWeight: 900, letterSpacing: '0.1em', padding: '6px 14px', border: '1px solid #FDC80060', cursor: rptTrades.length === 0 ? 'not-allowed' : 'pointer', background: snapshotSaved ? '#FDC800' : 'transparent', color: snapshotSaved ? '#000' : '#FDC800', transition: 'all 0.2s' }}>
+                                            {snapshotSaved ? (lang === 'fr' ? '✓ SAUVEGARDÉ' : '✓ SAVED') : (lang === 'fr' ? 'SAUVEGARDER RAPPORT' : 'SAVE REPORT')}
+                                        </button>
+                                    </div>
+                                    <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr 1fr' : '100px 1fr 1fr 1fr 1fr', gap: 1, background: '#1a1c24' }}>
+                                        <div style={{ background: '#0d1117', padding: '16px 12px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 2 }}>
+                                            <div style={{ fontFamily: QF, fontSize: 8, color: '#6b7280', letterSpacing: '0.15em', textTransform: 'uppercase' as const }}>{lang === 'fr' ? 'NOTE' : 'GRADE'}</div>
+                                            <div style={{ fontFamily: QF, fontSize: 48, fontWeight: 900, lineHeight: 1, color: gradeColor }}>{grade}</div>
+                                            <div style={{ fontFamily: QF, fontSize: 9, color: '#8b949e' }}>{gradeScore}/100</div>
+                                        </div>
+                                        {[
+                                            { label: lang === 'fr' ? 'P&L NET' : 'NET P&L', value: `${rptNetPnl >= 0 ? '+' : ''}$${rptNetPnl.toFixed(0)}`, color: rptNetPnl >= 0 ? '#FDC800' : '#ff4757', sub: `${rptTrades.length} trades`, delta: deltaNetPnl, deltaFmt: (d: number) => `${d >= 0 ? '+' : ''}$${Math.abs(d).toFixed(0)}` },
+                                            { label: lang === 'fr' ? 'TAUX RÉUSSITE' : 'WIN RATE', value: `${rptWinRate.toFixed(1)}%`, color: rptWinRate >= 55 ? '#FDC800' : rptWinRate >= 45 ? '#EAB308' : '#ff4757', sub: `${rptWins.length}W / ${rptLosses.length}L`, delta: deltaWinRate, deltaFmt: (d: number) => `${d >= 0 ? '+' : ''}${d.toFixed(1)}%` },
+                                            { label: lang === 'fr' ? 'FACT. PROFIT' : 'PROFIT FACTOR', value: rptPF > 90 ? '∞' : rptPF.toFixed(2), color: rptPF >= 1.5 ? '#FDC800' : rptPF >= 1 ? '#EAB308' : '#ff4757', sub: `Exp. $${rptExpectancy.toFixed(0)}`, delta: deltaPF, deltaFmt: (d: number) => `${d >= 0 ? '+' : ''}${d.toFixed(2)}x` },
+                                            { label: lang === 'fr' ? 'SCORE RISQUE' : 'RISK SCORE', value: `${rptForensics.riskScore}/100`, color: rptForensics.riskScore >= 60 ? '#ff4757' : rptForensics.riskScore >= 30 ? '#EAB308' : '#FDC800', sub: `${rptForensics.patterns.length} ${lang === 'fr' ? 'motifs' : 'patterns'}`, delta: deltaGrade !== null ? -deltaGrade : null, deltaFmt: (d: number) => `${d >= 0 ? '+' : ''}${d.toFixed(0)}pts` },
+                                        ].map((kpi, i) => (
+                                            <div key={i} style={{ background: '#0d1117', padding: '14px 16px', display: 'flex', flexDirection: 'column', gap: 3 }}>
+                                                <div style={{ ...SL, marginBottom: 0 }}>{kpi.label}</div>
+                                                <div style={{ fontFamily: QF, fontSize: 20, fontWeight: 900, color: kpi.color }}>{kpi.value}</div>
+                                                <div style={{ fontFamily: QF, fontSize: 9, color: '#6b7280' }}>{kpi.sub}</div>
+                                                {kpi.delta !== null && (
+                                                    <div style={{ fontFamily: QF, fontSize: 9, color: kpi.delta >= 0 ? '#FDC800' : '#ff4757', marginTop: 1 }}>
+                                                        {kpi.deltaFmt(kpi.delta)} {lang === 'fr' ? 'vs dernier' : 'vs last'}
+                                                    </div>
+                                                )}
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+
+                                {/* ── P&L INCOME STATEMENT ── */}
+                                {rptTrades.length > 0 && (
+                                    <div>
+                                        <div style={{ ...SL, color: '#FDC800', marginBottom: 14 }}>{lang === 'fr' ? 'COMPTE DE RÉSULTAT P&L' : 'P&L INCOME STATEMENT'}</div>
+                                        <div style={{ background: '#0d1117', border: '1px solid #1a1c24' }}>
+                                            {[
+                                                { label: lang === 'fr' ? 'Profits bruts' : 'Gross Profit', value: rptGrossP, color: '#FDC800', indent: 0, isTotal: false },
+                                                { label: lang === 'fr' ? 'Pertes brutes' : 'Gross Loss', value: -rptGrossL, color: '#ff4757', indent: 0, isTotal: false },
+                                                { label: 'Net P&L', value: rptNetPnl, color: rptNetPnl >= 0 ? '#FDC800' : '#ff4757', indent: 0, isTotal: true },
+                                                { label: lang === 'fr' ? 'Coût comportemental' : 'Behavioral Cost', value: rptBehavCost, color: '#ff4757', indent: 1, isTotal: false },
+                                                { label: lang === 'fr' ? 'P&L "Propre" (sans erreurs)' : '"Clean" P&L (without errors)', value: rptProjected, color: rptProjected >= 0 ? '#00D4FF' : '#ff4757', indent: 0, isTotal: true },
+                                            ].map((row, i) => (
+                                                <div key={i} style={{ display: 'flex', alignItems: 'center', padding: `${row.isTotal ? '12px' : '9px'} 18px`, borderBottom: '1px solid #1a1c24', background: row.isTotal ? '#0b0e14' : 'transparent' }}>
+                                                    <div style={{ flex: 1, fontFamily: QF, fontSize: row.isTotal ? 11 : 10, color: row.isTotal ? '#fff' : '#8b949e', fontWeight: row.isTotal ? 700 : 400, paddingLeft: row.indent * 16 }}>
+                                                        {row.indent > 0 && <span style={{ marginRight: 8, color: '#3d4451' }}>└─</span>}
+                                                        {row.label}
+                                                    </div>
+                                                    <div style={{ fontFamily: QF, fontSize: row.isTotal ? 15 : 12, fontWeight: row.isTotal ? 900 : 700, color: row.color }}>{row.value >= 0 ? '+' : ''}${Math.abs(row.value).toFixed(0)}</div>
+                                                    <div style={{ width: 72, marginLeft: 14, height: 4, background: '#1a1c24', flexShrink: 0 }}>
+                                                        <div style={{ height: '100%', width: `${rptGrossP > 0 ? Math.min(100, Math.abs(row.value) / rptGrossP * 100) : 0}%`, background: row.color, opacity: 0.6 }} />
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
 
                                 {/* ── SECTION 1: FORENSIC SCORECARD ── */}
                                 <div>
@@ -4575,47 +4721,16 @@ export default function AnalyticsPage() {
                                         {lang === 'fr' ? 'RAPPORT FORENSIQUE' : 'FORENSIC REPORT'}
                                         <span style={{ background: '#FDC800', color: '#000', fontSize: 8, padding: '2px 6px', fontWeight: 900, letterSpacing: '0.1em' }}>{lang === 'fr' ? 'COMPLET' : 'FULL'}</span>
                                     </div>
-                                    <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '160px 1fr', ...CARD_S, padding: 0 }}>
-                                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '28px 20px', borderRight: isMobile ? 'none' : '1px solid #1a1c24', borderBottom: isMobile ? '1px solid #1a1c24' : 'none', gap: 4 }}>
-                                            <div style={{ ...SL, marginBottom: 0 }}>{lang === 'fr' ? 'NOTE GLOBALE' : 'OVERALL GRADE'}</div>
-                                            <div style={{ fontSize: 72, fontWeight: 900, lineHeight: 1, color: gradeColor, fontFamily: QF }}>{grade}</div>
-                                            <div style={{ fontFamily: QF, fontSize: 10, color: '#8b949e' }}>{gradeScore}/100</div>
-                                            <div style={{ marginTop: 6, background: gradeColor + '15', border: `1px solid ${gradeColor}30`, padding: '3px 8px' }}>
-                                                <span style={{ fontFamily: QF, fontSize: 9, color: gradeColor, fontWeight: 700 }}>{
-                                                    grade === 'A' ? (lang === 'fr' ? 'EXÉCUTION SOLIDE' : 'SOLID EXECUTION') :
-                                                    grade === 'B' ? (lang === 'fr' ? 'FUITES MINEURES' : 'MINOR LEAKAGE') :
-                                                    grade === 'C' ? (lang === 'fr' ? 'À AMÉLIORER' : 'NEEDS WORK') :
-                                                    (lang === 'fr' ? 'PROBLÈMES CRITIQUES' : 'CRITICAL ISSUES')
-                                                }</span>
-                                            </div>
-                                        </div>
-                                        <div style={{ padding: '20px 24px', display: 'flex', flexDirection: 'column', gap: 16 }}>
-                                            <p style={{ fontFamily: 'var(--font-sans)', fontSize: 13, color: '#c9d1d9', lineHeight: 1.7, margin: 0 }}>
-                                                {forensics.verdict.message}
-                                                {forensics.patterns.length > 0 && ` ${lang === 'fr' ? 'La fuite principale est' : 'Top behavioral leak is'} ${forensics.patterns[0].name.toLowerCase()}, ${lang === 'fr' ? 'coûtant' : 'costing'} $${Math.abs(forensics.patterns[0].impact).toLocaleString()} ${lang === 'fr' ? 'sur' : 'across'} ${forensics.patterns[0].freq} ${lang === 'fr' ? 'occurrences.' : 'occurrences.'}`}
-                                            </p>
-                                            <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 12 }}>
-                                                <ThresholdBullet
-                                                    label={lang === 'fr' ? 'TAUX DE RÉUSSITE' : 'WIN RATE'}
-                                                    value={winRate} unit="%"
-                                                    thresholds={[{ max: 40, label: lang === 'fr' ? 'Danger' : 'Danger', color: '#ff4757' }, { max: 55, label: lang === 'fr' ? 'Prudence' : 'Caution', color: '#EAB308' }, { max: 100, label: lang === 'fr' ? 'Cible' : 'Target', color: '#FDC800' }]}
-                                                />
-                                                <ThresholdBullet
-                                                    label={lang === 'fr' ? 'FACTEUR DE PROFIT' : 'PROFIT FACTOR'}
-                                                    value={Math.min(profitFactor, 5)} unit="x"
-                                                    thresholds={[{ max: 1, label: lang === 'fr' ? 'Perte' : 'Loss', color: '#ff4757' }, { max: 1.5, label: lang === 'fr' ? 'Faible' : 'Weak', color: '#EAB308' }, { max: 5, label: lang === 'fr' ? 'Solide' : 'Solid', color: '#FDC800' }]}
-                                                />
-                                                <ThresholdBullet
-                                                    label={lang === 'fr' ? 'ESPÉRANCE' : 'EXPECTANCY'}
-                                                    value={Math.max(-500, Math.min(expectancy, 1000))} unit="$"
-                                                    thresholds={[{ max: 0, label: lang === 'fr' ? 'Négatif' : 'Negative', color: '#ff4757' }, { max: 100, label: lang === 'fr' ? 'Faible' : 'Weak', color: '#EAB308' }, { max: 1000, label: lang === 'fr' ? 'Bon' : 'Good', color: '#FDC800' }]}
-                                                />
-                                                <ThresholdBullet
-                                                    label={lang === 'fr' ? 'SCORE DE RISQUE' : 'RISK SCORE'}
-                                                    value={forensics.riskScore} unit=""
-                                                    thresholds={[{ max: 30, label: lang === 'fr' ? 'Bas' : 'Low', color: '#FDC800' }, { max: 60, label: lang === 'fr' ? 'Modéré' : 'Moderate', color: '#EAB308' }, { max: 100, label: lang === 'fr' ? 'Critique' : 'Critical', color: '#ff4757' }]}
-                                                />
-                                            </div>
+                                    <div style={{ ...CARD_S, padding: '16px 20px', display: 'flex', flexDirection: 'column', gap: 16 }}>
+                                        <p style={{ fontFamily: 'var(--font-sans)', fontSize: 13, color: '#c9d1d9', lineHeight: 1.7, margin: 0 }}>
+                                            {rptForensics.verdict.message}
+                                            {rptForensics.patterns.length > 0 && ` ${lang === 'fr' ? 'La fuite principale est' : 'Top behavioral leak is'} ${rptForensics.patterns[0].name.toLowerCase()}, ${lang === 'fr' ? 'coûtant' : 'costing'} $${Math.abs(rptForensics.patterns[0].impact).toLocaleString()} ${lang === 'fr' ? 'sur' : 'across'} ${rptForensics.patterns[0].freq} ${lang === 'fr' ? 'occurrences.' : 'occurrences.'}`}
+                                        </p>
+                                        <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 12 }}>
+                                            <ThresholdBullet label={lang === 'fr' ? 'TAUX DE RÉUSSITE' : 'WIN RATE'} value={rptWinRate} unit="%" thresholds={[{ max: 40, label: 'Danger', color: '#ff4757' }, { max: 55, label: lang === 'fr' ? 'Prudence' : 'Caution', color: '#EAB308' }, { max: 100, label: lang === 'fr' ? 'Cible' : 'Target', color: '#FDC800' }]} />
+                                            <ThresholdBullet label={lang === 'fr' ? 'FACTEUR DE PROFIT' : 'PROFIT FACTOR'} value={Math.min(rptPF, 5)} unit="x" thresholds={[{ max: 1, label: lang === 'fr' ? 'Perte' : 'Loss', color: '#ff4757' }, { max: 1.5, label: lang === 'fr' ? 'Faible' : 'Weak', color: '#EAB308' }, { max: 5, label: lang === 'fr' ? 'Solide' : 'Solid', color: '#FDC800' }]} />
+                                            <ThresholdBullet label={lang === 'fr' ? 'ESPÉRANCE' : 'EXPECTANCY'} value={Math.max(-500, Math.min(rptExpectancy, 1000))} unit="$" thresholds={[{ max: 0, label: lang === 'fr' ? 'Négatif' : 'Negative', color: '#ff4757' }, { max: 100, label: lang === 'fr' ? 'Faible' : 'Weak', color: '#EAB308' }, { max: 1000, label: 'Good', color: '#FDC800' }]} />
+                                            <ThresholdBullet label={lang === 'fr' ? 'SCORE DE RISQUE' : 'RISK SCORE'} value={rptForensics.riskScore} unit="" thresholds={[{ max: 30, label: lang === 'fr' ? 'Bas' : 'Low', color: '#FDC800' }, { max: 60, label: lang === 'fr' ? 'Modéré' : 'Moderate', color: '#EAB308' }, { max: 100, label: lang === 'fr' ? 'Critique' : 'Critical', color: '#ff4757' }]} />
                                         </div>
                                     </div>
                                 </div>
@@ -4625,10 +4740,10 @@ export default function AnalyticsPage() {
                                     <div style={{ ...SL, color: '#FDC800', marginBottom: 14 }}>{lang === 'fr' ? 'ANATOMIE DES TRADES' : 'TRADE ANATOMY'}</div>
                                     <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr 1fr' : 'repeat(4, 1fr)', gap: 1, background: '#1a1c24' }}>
                                         {[
-                                            { label: lang === 'fr' ? 'GAIN MOY.' : 'AVG WIN', value: `$${avgWin.toFixed(2)}`, color: '#FDC800', sub: `${wins.length} ${lang === 'fr' ? 'trades' : 'trades'}` },
-                                            { label: lang === 'fr' ? 'PERTE MOY.' : 'AVG LOSS', value: `-$${avgLoss.toFixed(2)}`, color: '#ff4757', sub: `${losses.length} ${lang === 'fr' ? 'trades' : 'trades'}` },
-                                            { label: lang === 'fr' ? 'RATIO G/P' : 'W/L RATIO', value: `${wlRatio.toFixed(2)}:1`, color: wlRatio >= 1 ? '#FDC800' : '#EAB308', sub: wlRatio >= 1 ? (lang === 'fr' ? 'Solide' : 'Solid') : (lang === 'fr' ? 'À améliorer' : 'Improve') },
-                                            { label: lang === 'fr' ? 'COÛT COMPORT.' : 'BEHAVIORAL COST', value: behavioralCost < 0 ? `-$${Math.abs(behavioralCost).toFixed(0)}` : '$0', color: behavioralCost < 0 ? '#ff4757' : '#FDC800', sub: lang === 'fr' ? 'Pertes évitables' : 'Avoidable losses' },
+                                            { label: lang === 'fr' ? 'GAIN MOY.' : 'AVG WIN', value: `$${rptAvgW.toFixed(2)}`, color: '#FDC800', sub: `${rptWins.length} trades` },
+                                            { label: lang === 'fr' ? 'PERTE MOY.' : 'AVG LOSS', value: `-$${rptAvgL.toFixed(2)}`, color: '#ff4757', sub: `${rptLosses.length} trades` },
+                                            { label: lang === 'fr' ? 'RATIO G/P' : 'W/L RATIO', value: `${rptWlRatio.toFixed(2)}:1`, color: rptWlRatio >= 1 ? '#FDC800' : '#EAB308', sub: rptWlRatio >= 1 ? (lang === 'fr' ? 'Solide' : 'Solid') : (lang === 'fr' ? 'À améliorer' : 'Improve') },
+                                            { label: lang === 'fr' ? 'COÛT COMPORT.' : 'BEHAVIORAL COST', value: rptBehavCost < 0 ? `-$${Math.abs(rptBehavCost).toFixed(0)}` : '$0', color: rptBehavCost < 0 ? '#ff4757' : '#FDC800', sub: lang === 'fr' ? 'Pertes évitables' : 'Avoidable losses' },
                                         ].map((kpi, i) => (
                                             <div key={i} style={{ background: '#0d1117', padding: '16px 18px', display: 'flex', flexDirection: 'column', gap: 4 }}>
                                                 <div style={{ ...SL, marginBottom: 0 }}>{kpi.label}</div>
@@ -4637,15 +4752,35 @@ export default function AnalyticsPage() {
                                             </div>
                                         ))}
                                     </div>
+                                    {/* Best / Worst / Avg R:R row */}
+                                    {rptTrades.length > 0 && (
+                                        <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr 1fr', gap: 1, background: '#1a1c24', marginTop: 1 }}>
+                                            <div style={{ background: '#0d1117', padding: '12px 18px', display: 'flex', flexDirection: 'column', gap: 2 }}>
+                                                <div style={{ ...SL, color: '#FDC800', marginBottom: 0 }}>{lang === 'fr' ? 'MEILLEUR TRADE' : 'BEST TRADE'}</div>
+                                                <div style={{ fontFamily: QF, fontSize: 18, fontWeight: 900, color: '#FDC800' }}>+${(rptBestTrade?.pnl ?? 0).toFixed(0)}</div>
+                                                <div style={{ fontFamily: QF, fontSize: 9, color: '#6b7280' }}>{rptBestTrade?.asset ?? '—'}</div>
+                                            </div>
+                                            <div style={{ background: '#0d1117', padding: '12px 18px', display: 'flex', flexDirection: 'column', gap: 2 }}>
+                                                <div style={{ ...SL, color: '#ff4757', marginBottom: 0 }}>{lang === 'fr' ? 'PIRE TRADE' : 'WORST TRADE'}</div>
+                                                <div style={{ fontFamily: QF, fontSize: 18, fontWeight: 900, color: '#ff4757' }}>${(rptWorstTrade?.pnl ?? 0).toFixed(0)}</div>
+                                                <div style={{ fontFamily: QF, fontSize: 9, color: '#6b7280' }}>{rptWorstTrade?.asset ?? '—'}</div>
+                                            </div>
+                                            <div style={{ background: '#0d1117', padding: '12px 18px', display: 'flex', flexDirection: 'column', gap: 2 }}>
+                                                <div style={{ ...SL, color: '#38bdf8', marginBottom: 0 }}>{lang === 'fr' ? 'R:R MOYEN' : 'AVG R:R'}</div>
+                                                <div style={{ fontFamily: QF, fontSize: 18, fontWeight: 900, color: '#38bdf8' }}>{rptAvgRR > 0 ? `${rptAvgRR.toFixed(2)}:1` : '—'}</div>
+                                                <div style={{ fontFamily: QF, fontSize: 9, color: '#6b7280' }}>{rptTrades.filter(t => (t.rr ?? 0) > 0).length} trades</div>
+                                            </div>
+                                        </div>
+                                    )}
                                     {/* Hold time bars */}
                                     <div style={{ ...CARD_S, marginTop: 1, padding: '16px 24px' }}>
                                         <div style={{ ...SL, marginBottom: 10 }}>{lang === 'fr' ? 'DURÉE DE DÉTENTION : GAGNANTS VS PERDANTS' : 'HOLD TIME: WINNERS VS LOSERS'}</div>
                                         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                                             {([
-                                                { label: lang === 'fr' ? 'Gagnants' : 'Winners', dur: avgWinDuration, color: '#FDC800' },
-                                                { label: lang === 'fr' ? 'Perdants' : 'Losers', dur: avgLossDuration, color: '#ff4757' },
+                                                { label: lang === 'fr' ? 'Gagnants' : 'Winners', dur: rptAvgWinDur, color: '#FDC800' },
+                                                { label: lang === 'fr' ? 'Perdants' : 'Losers', dur: rptAvgLossDur, color: '#ff4757' },
                                             ] as Array<{ label: string; dur: number; color: string }>).map((row) => {
-                                                const maxDur = Math.max(avgWinDuration, avgLossDuration, 1);
+                                                const maxDur = Math.max(rptAvgWinDur, rptAvgLossDur, 1);
                                                 const pct = Math.min(100, (row.dur / maxDur) * 100);
                                                 return (
                                                     <div key={row.label} style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
@@ -4658,12 +4793,12 @@ export default function AnalyticsPage() {
                                                 );
                                             })}
                                         </div>
-                                        {htRatio > 1.5 && (
+                                        {rptHtRatio > 1.5 && (
                                             <div style={{ marginTop: 10, padding: '8px 12px', background: 'rgba(255,71,87,0.08)', borderLeft: '3px solid #ff4757' }}>
                                                 <span style={{ fontFamily: QF, fontSize: 10, color: '#ff4757' }}>
                                                     {lang === 'fr'
-                                                        ? `Perdants maintenus ${htRatio.toFixed(1)}x plus longtemps que les gagnants — signal classique de "bag holding".`
-                                                        : `Losers held ${htRatio.toFixed(1)}x longer than winners — classic bag-holding signal.`}
+                                                        ? `Perdants maintenus ${rptHtRatio.toFixed(1)}x plus longtemps que les gagnants — signal classique de "bag holding".`
+                                                        : `Losers held ${rptHtRatio.toFixed(1)}x longer than winners — classic bag-holding signal.`}
                                                 </span>
                                             </div>
                                         )}
@@ -4671,19 +4806,19 @@ export default function AnalyticsPage() {
                                 </div>
 
                                 {/* ── SECTION 3: BEHAVIORAL FORENSICS ── */}
-                                {forensics.patterns.length > 0 && (
+                                {rptForensics.patterns.length > 0 && (
                                     <div>
                                         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
                                             <div style={{ ...SL, color: '#ff4757', marginBottom: 0 }}>{lang === 'fr' ? 'FORENSIQUE COMPORTEMENTALE' : 'BEHAVIORAL FORENSICS'}</div>
                                             <span style={{ fontFamily: QF, fontSize: 9, color: '#ff4757', background: 'rgba(255,71,87,0.1)', border: '1px solid rgba(255,71,87,0.3)', padding: '2px 8px' }}>
-                                                {forensics.patterns.length} {lang === 'fr' ? 'MOTIFS DÉTECTÉS' : 'PATTERNS DETECTED'}
+                                                {rptForensics.patterns.length} {lang === 'fr' ? 'MOTIFS DÉTECTÉS' : 'PATTERNS DETECTED'}
                                             </span>
                                         </div>
                                         <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                                            {forensics.patterns.map((p: any, idx: number) => {
+                                            {rptForensics.patterns.map((p: any, idx: number) => {
                                                 const badgeColor = p.severity === 'CRITICAL' ? '#ff4757' : Math.abs(p.impact) > 200 ? '#EAB308' : '#8b949e';
                                                 const badgeLabel = p.severity === 'CRITICAL' ? 'CRITICAL' : Math.abs(p.impact) > 200 ? 'HIGH' : 'MODERATE';
-                                                const costPct = grossProfit > 0 ? (Math.abs(p.impact) / grossProfit * 100) : 0;
+                                                const costPct = rptGrossP > 0 ? (Math.abs(p.impact) / rptGrossP * 100) : 0;
                                                 return (
                                                     <div key={idx} style={{ background: '#0d1117', border: '1px solid #1a1c24', borderLeft: `3px solid ${badgeColor}` }}>
                                                         <div style={{ padding: '14px 18px 8px', display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 }}>
@@ -4709,14 +4844,14 @@ export default function AnalyticsPage() {
                                         <div style={{ marginTop: 2, ...CARD_S, background: 'rgba(255,71,87,0.05)', borderColor: 'rgba(255,71,87,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap' as const, gap: 12 }}>
                                             <div>
                                                 <div style={{ ...SL }}>{lang === 'fr' ? 'COÛT COMPORTEMENTAL TOTAL' : 'TOTAL BEHAVIORAL COST'}</div>
-                                                <div style={{ fontFamily: QF, fontSize: 28, fontWeight: 900, color: '#ff4757' }}>-${Math.abs(behavioralCost).toLocaleString(undefined, { minimumFractionDigits: 0 })}</div>
+                                                <div style={{ fontFamily: QF, fontSize: 28, fontWeight: 900, color: '#ff4757' }}>-${Math.abs(rptBehavCost).toLocaleString(undefined, { minimumFractionDigits: 0 })}</div>
                                                 <div style={{ fontFamily: QF, fontSize: 9, color: '#6b7280' }}>
-                                                    {lang === 'fr' ? `${Math.abs(behavioralCost / Math.max(grossProfit, 1) * 100).toFixed(1)}% des profits bruts · ${forensics.patterns.length} motifs` : `${Math.abs(behavioralCost / Math.max(grossProfit, 1) * 100).toFixed(1)}% of gross profits · ${forensics.patterns.length} patterns`}
+                                                    {lang === 'fr' ? `${Math.abs(rptBehavCost / Math.max(rptGrossP, 1) * 100).toFixed(1)}% des profits bruts · ${rptForensics.patterns.length} motifs` : `${Math.abs(rptBehavCost / Math.max(rptGrossP, 1) * 100).toFixed(1)}% of gross profits · ${rptForensics.patterns.length} patterns`}
                                                 </div>
                                             </div>
                                             <div style={{ textAlign: 'right' as const }}>
                                                 <div style={{ ...SL }}>{lang === 'fr' ? 'P&L SANS ERREURS' : 'P&L WITHOUT ERRORS'}</div>
-                                                <div style={{ fontFamily: QF, fontSize: 28, fontWeight: 900, color: '#FDC800' }}>{withoutToxicPatterns >= 0 ? '+' : ''}${withoutToxicPatterns.toLocaleString(undefined, { minimumFractionDigits: 0 })}</div>
+                                                <div style={{ fontFamily: QF, fontSize: 28, fontWeight: 900, color: '#FDC800' }}>{rptProjected >= 0 ? '+' : ''}${rptProjected.toLocaleString(undefined, { minimumFractionDigits: 0 })}</div>
                                                 <div style={{ fontFamily: QF, fontSize: 9, color: '#6b7280' }}>{lang === 'fr' ? 'Estimation théorique' : 'Theoretical estimate'}</div>
                                             </div>
                                         </div>
@@ -4729,10 +4864,10 @@ export default function AnalyticsPage() {
                                     <div style={{ ...CARD_S, display: 'flex', flexDirection: 'column', gap: 12 }}>
                                         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                                             <span style={{ fontFamily: QF, fontSize: 9, color: '#8b949e' }}>{lang === 'fr' ? 'SCORE GLOBAL' : 'OVERALL SCORE'}</span>
-                                            <span style={{ fontFamily: QF, fontSize: 22, fontWeight: 900, color: forensics.riskScore >= 60 ? '#ff4757' : forensics.riskScore >= 30 ? '#EAB308' : '#FDC800' }}>{forensics.riskScore}/100</span>
+                                            <span style={{ fontFamily: QF, fontSize: 22, fontWeight: 900, color: rptForensics.riskScore >= 60 ? '#ff4757' : rptForensics.riskScore >= 30 ? '#EAB308' : '#FDC800' }}>{rptForensics.riskScore}/100</span>
                                         </div>
                                         <div style={{ height: 6, background: '#1a1c24', position: 'relative' }}>
-                                            <div style={{ position: 'absolute', left: 0, top: 0, height: '100%', width: `${Math.min(100, forensics.riskScore)}%`, background: forensics.riskScore >= 60 ? '#ff4757' : forensics.riskScore >= 30 ? '#EAB308' : '#FDC800' }} />
+                                            <div style={{ position: 'absolute', left: 0, top: 0, height: '100%', width: `${Math.min(100, rptForensics.riskScore)}%`, background: rptForensics.riskScore >= 60 ? '#ff4757' : rptForensics.riskScore >= 30 ? '#EAB308' : '#FDC800' }} />
                                             <div style={{ position: 'absolute', left: '30%', top: -3, height: 'calc(100% + 6px)', width: 1, background: '#FDC800', opacity: 0.4 }} />
                                             <div style={{ position: 'absolute', left: '60%', top: -3, height: 'calc(100% + 6px)', width: 1, background: '#ff4757', opacity: 0.4 }} />
                                         </div>
@@ -4757,15 +4892,15 @@ export default function AnalyticsPage() {
                                 </div>
 
                                 {/* ── SECTION 5: SESSION QUALITY ── */}
-                                {sessionMetrics.length > 0 && (
+                                {rptSessions.length > 0 && (
                                     <div>
                                         <div style={{ ...SL, color: '#FDC800', marginBottom: 14 }}>{lang === 'fr' ? 'QUALITÉ DES SESSIONS' : 'SESSION QUALITY'}</div>
                                         <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr 1fr' : 'repeat(4, 1fr)', gap: 1, background: '#1a1c24', marginBottom: 2 }}>
                                             {[
-                                                { label: lang === 'fr' ? 'SESSIONS VERTES' : 'GREEN SESSIONS', value: `${greenSess}/${totalSess}`, color: '#FDC800', sub: `${sessWinRate.toFixed(0)}% ${lang === 'fr' ? 'taux' : 'rate'}` },
-                                                { label: lang === 'fr' ? 'P&L MOY./SESSION' : 'AVG SESSION P&L', value: `${avgSessionPnl >= 0 ? '+' : ''}$${avgSessionPnl.toFixed(0)}`, color: avgSessionPnl >= 0 ? '#FDC800' : '#ff4757', sub: lang === 'fr' ? 'par session' : 'per session' },
-                                                { label: lang === 'fr' ? 'TRADES MOY.' : 'AVG TRADES', value: avgSessionTrades.toFixed(1), color: '#c9d1d9', sub: lang === 'fr' ? 'par session' : 'per session' },
-                                                { label: lang === 'fr' ? 'SÉRIE MAX GAGNANTE' : 'MAX WIN STREAK', value: `${forensics.maxWinStreak || 0}W`, color: '#FDC800', sub: `${forensics.maxLossStreak || 0}L ${lang === 'fr' ? 'série max perdante' : 'max loss streak'}` },
+                                                { label: lang === 'fr' ? 'SESSIONS VERTES' : 'GREEN SESSIONS', value: `${rptGreenSess}/${rptSessions.length}`, color: '#FDC800', sub: `${rptSessWinRate.toFixed(0)}% ${lang === 'fr' ? 'taux' : 'rate'}` },
+                                                { label: lang === 'fr' ? 'P&L MOY./SESSION' : 'AVG SESSION P&L', value: `${rptAvgSessPnl >= 0 ? '+' : ''}$${rptAvgSessPnl.toFixed(0)}`, color: rptAvgSessPnl >= 0 ? '#FDC800' : '#ff4757', sub: lang === 'fr' ? 'par session' : 'per session' },
+                                                { label: lang === 'fr' ? 'TRADES MOY.' : 'AVG TRADES', value: rptAvgSessTrades.toFixed(1), color: '#c9d1d9', sub: lang === 'fr' ? 'par session' : 'per session' },
+                                                { label: lang === 'fr' ? 'SÉRIE MAX GAGNANTE' : 'MAX WIN STREAK', value: `${rptForensics.maxWinStreak || 0}W`, color: '#FDC800', sub: `${rptForensics.maxLossStreak || 0}L ${lang === 'fr' ? 'série max perdante' : 'max loss streak'}` },
                                             ].map((kpi, i) => (
                                                 <div key={i} style={{ background: '#0d1117', padding: '14px 18px', display: 'flex', flexDirection: 'column', gap: 4 }}>
                                                     <div style={{ ...SL, marginBottom: 0 }}>{kpi.label}</div>
@@ -4775,24 +4910,24 @@ export default function AnalyticsPage() {
                                             ))}
                                         </div>
                                         <div style={{ ...CARD_S, padding: '12px 18px' }}>
-                                            <SegmentedBar wins={greenSess} losses={totalSess - greenSess} height={28} showLabels />
+                                            <SegmentedBar wins={rptGreenSess} losses={rptSessions.length - rptGreenSess} height={28} showLabels />
                                             <div style={{ fontFamily: QF, fontSize: 9, color: '#6b7280', marginTop: 6 }}>{lang === 'fr' ? 'Sessions profitables vs déficitaires' : 'Profitable sessions vs losing sessions'}</div>
                                         </div>
                                     </div>
                                 )}
 
                                 {/* ── SECTION 6: INSTRUMENT P&L ── */}
-                                {instrumentArray.length > 0 && (
+                                {rptInstArray.length > 0 && (
                                     <div>
                                         <ChartCard
                                             title={lang === 'fr' ? 'CONTRIBUTION P&L PAR INSTRUMENT' : 'INSTRUMENT P&L CONTRIBUTION'}
                                             subtitle={lang === 'fr' ? 'P&L net par instrument — barres à droite = profit, gauche = perte' : 'Net P&L per instrument — right = profit, left = loss'}
                                         >
                                             <DivergingBarList
-                                                data={instrumentArray.map(inst => ({
+                                                data={rptInstArray.map(inst => ({
                                                     label: inst.asset,
                                                     value: inst.pnl,
-                                                    note: `${inst.wins + inst.losses} ${lang === 'fr' ? 'trades' : 'trades'}`,
+                                                    note: `${inst.wins + inst.losses} trades`,
                                                 }))}
                                                 valueFormat={(v) => `${v >= 0 ? '+' : ''}$${Math.abs(v).toFixed(0)}`}
                                             />
@@ -4835,12 +4970,12 @@ export default function AnalyticsPage() {
                                     <div style={{ ...CARD_S, textAlign: 'center' as const, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12, padding: '40px 24px' }}>
                                         <span style={{ fontFamily: QF, fontSize: 48, fontWeight: 900, color: gradeColor, lineHeight: 1 }}>{grade}</span>
                                         <span style={{ fontFamily: QF, fontSize: 12, fontWeight: 700, color: '#fff' }}>
-                                            {closed.length >= 10 ? (lang === 'fr' ? 'Aucun motif critique détecté' : 'No Critical Patterns Detected') : (lang === 'fr' ? 'Données insuffisantes' : 'Insufficient Data')}
+                                            {rptTrades.length >= 10 ? (lang === 'fr' ? 'Aucun motif critique détecté' : 'No Critical Patterns Detected') : (lang === 'fr' ? 'Données insuffisantes' : 'Insufficient Data')}
                                         </span>
                                         <p style={{ fontFamily: 'var(--font-sans)', fontSize: 12, color: '#6b7280', maxWidth: 320, lineHeight: 1.6 }}>
-                                            {closed.length >= 10
-                                                ? forensics.verdict.message
-                                                : (lang === 'fr' ? `${closed.length} trades clôturés. Minimum 10 requis pour l'analyse forensique complète.` : `${closed.length} closed trades logged. Minimum 10 recommended for full forensic analysis.`)}
+                                            {rptTrades.length >= 10
+                                                ? rptForensics.verdict.message
+                                                : (lang === 'fr' ? `${rptTrades.length} trades clôturés. Minimum 10 requis pour l'analyse forensique complète.` : `${rptTrades.length} closed trades logged. Minimum 10 recommended for full forensic analysis.`)}
                                         </p>
                                     </div>
                                 )}
@@ -4850,34 +4985,28 @@ export default function AnalyticsPage() {
                                     <div>
                                         <div style={{ ...SL, color: '#FDC800', marginBottom: 8 }}>{lang === 'fr' ? 'IMPACT PROJETÉ SI IMPLÉMENTÉ' : 'PROJECTED IMPACT IF IMPLEMENTED'}</div>
                                         <p style={{ fontFamily: 'var(--font-sans)', fontSize: 11, color: '#6b7280', marginBottom: 16, lineHeight: 1.6 }}>
-                                            {lang === 'fr'
-                                                ? 'Projection en supposant l\'élimination complète de tous les motifs comportementaux détectés. L\'amélioration réelle variera selon les chevauchements de trades.'
-                                                : 'Projection assumes full elimination of all flagged patterns. Actual improvement varies — patterns may overlap on shared trades.'}
+                                            {lang === 'fr' ? "Projection en supposant l'élimination complète de tous les motifs comportementaux détectés." : 'Projection assumes full elimination of all flagged patterns. Actual improvement varies — patterns may overlap on shared trades.'}
                                         </p>
                                         <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr auto 1fr', gap: isMobile ? 12 : 0, alignItems: 'center' }}>
                                             <div style={{ ...CARD_S, display: 'flex', flexDirection: 'column', gap: 6 }}>
                                                 <div style={{ ...SL }}>{lang === 'fr' ? 'ACTUEL (avec erreurs)' : 'CURRENT (with errors)'}</div>
-                                                <div style={{ fontFamily: QF, fontSize: 36, fontWeight: 900, color: netPnl >= 0 ? '#FDC800' : '#ff4757' }}>
-                                                    {netPnl >= 0 ? '+' : '-'}${Math.abs(netPnl).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                                <div style={{ fontFamily: QF, fontSize: 36, fontWeight: 900, color: rptNetPnl >= 0 ? '#FDC800' : '#ff4757' }}>
+                                                    {rptNetPnl >= 0 ? '+' : '-'}${Math.abs(rptNetPnl).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                                                 </div>
-                                                <div style={{ fontFamily: QF, fontSize: 9, color: '#6b7280' }}>{tradeCount} {lang === 'fr' ? 'trades' : 'trades'} · {sessionCount} {lang === 'fr' ? 'sessions' : 'sessions'}</div>
+                                                <div style={{ fontFamily: QF, fontSize: 9, color: '#6b7280' }}>{rptTrades.length} trades · {rptSessions.length} {lang === 'fr' ? 'sessions' : 'sessions'}</div>
                                             </div>
                                             <div style={{ textAlign: 'center' as const, fontFamily: QF, fontSize: 20, color: '#6b7280', padding: '0 12px' }}>→</div>
                                             <div style={{ ...CARD_S, display: 'flex', flexDirection: 'column', gap: 6 }}>
                                                 <div style={{ ...SL }}>{lang === 'fr' ? 'PROJETÉ (avec corrections)' : 'PROJECTED (with corrections)'}</div>
-                                                <div style={{ fontFamily: QF, fontSize: 36, fontWeight: 900, color: projectedPnl >= 0 ? '#FDC800' : '#ff4757' }}>
-                                                    {projectedPnl >= 0 ? '+' : '-'}${Math.abs(projectedPnl).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                                <div style={{ fontFamily: QF, fontSize: 36, fontWeight: 900, color: rptProjected >= 0 ? '#FDC800' : '#ff4757' }}>
+                                                    {rptProjected >= 0 ? '+' : '-'}${Math.abs(rptProjected).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                                                 </div>
-                                                <div style={{ fontFamily: QF, fontSize: 9, color: '#6b7280' }}>~{tradeCount} {lang === 'fr' ? 'trades' : 'trades'} · {lang === 'fr' ? 'Corrections appliquées' : 'Corrections applied'}</div>
+                                                <div style={{ fontFamily: QF, fontSize: 9, color: '#6b7280' }}>~{rptTrades.length} trades · {lang === 'fr' ? 'Corrections appliquées' : 'Corrections applied'}</div>
                                             </div>
                                         </div>
                                         <div style={{ marginTop: 2, ...CARD_S, textAlign: 'center' as const, padding: '14px 18px', background: 'rgba(253,200,0,0.04)', borderColor: 'rgba(253,200,0,0.2)' }}>
-                                            <span style={{ fontFamily: QF, fontSize: 11, color: '#6b7280' }}>
-                                                {lang === 'fr' ? 'AMÉLIORATION POTENTIELLE : ' : 'POTENTIAL IMPROVEMENT: '}
-                                            </span>
-                                            <span style={{ fontFamily: QF, fontSize: 11, fontWeight: 900, color: '#FDC800' }}>
-                                                +${totalRecovery.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                                            </span>
+                                            <span style={{ fontFamily: QF, fontSize: 11, color: '#6b7280' }}>{lang === 'fr' ? 'AMÉLIORATION POTENTIELLE : ' : 'POTENTIAL IMPROVEMENT: '}</span>
+                                            <span style={{ fontFamily: QF, fontSize: 11, fontWeight: 900, color: '#FDC800' }}>+${rptTotalRecovery.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                                         </div>
                                     </div>
                                 )}
@@ -4896,91 +5025,196 @@ export default function AnalyticsPage() {
                                 </div>
 
                             </motion.div>
-                        );
-                    })()}
+                        ); } // end REPORT tab
 
-                    {activeTab === 'COMPARE' && (() => {
-                        const thirtyDaysAgo = new Date();
-                        thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-                        const thirtyDayStr = thirtyDaysAgo.toISOString().slice(0, 10);
+                        // ── COMPARE TAB ──
+                        const fmtSnap = (d: string) => new Date(d).toLocaleDateString(lang === 'fr' ? 'fr-FR' : 'en-US', { month: 'short', day: 'numeric', year: '2-digit' });
+                        const gradeC = (g: string) => g === 'A' ? '#FDC800' : g === 'B' ? '#00D4FF' : g === 'C' ? '#EAB308' : '#ff4757';
 
-                        const recent30 = closed.filter(t => getTradingDay(t.closedAt ?? t.createdAt) >= thirtyDayStr);
-                        const prior = closed.filter(t => getTradingDay(t.closedAt ?? t.createdAt) < thirtyDayStr);
-
-                        const calcMetrics = (set: typeof closed) => {
-                            const wins = set.filter(t => (t.pnl ?? 0) > 0);
-                            const losses = set.filter(t => (t.pnl ?? 0) < 0);
-                            const pnl = set.reduce((s, t) => s + (t.pnl ?? 0), 0);
-                            const gp = wins.reduce((s, t) => s + (t.pnl ?? 0), 0);
-                            const gl = losses.reduce((s, t) => s + Math.abs(t.pnl ?? 0), 0);
-                            const wr = set.length > 0 ? (wins.length / set.length) * 100 : 0;
+                        // Multi-period comparison data (always available)
+                        const multiPeriods = (['ALL', '90D', '30D', '7D'] as const).map(p => {
+                            const cutoff = p === 'ALL' ? new Date(0) : new Date(Date.now() - parseInt(p) * 86400000);
+                            const t = p === 'ALL' ? closed : closed.filter(tr => new Date(tr.closedAt ?? tr.createdAt) >= cutoff);
+                            const w = t.filter(tr => (tr.pnl ?? 0) > 0);
+                            const l = t.filter(tr => (tr.pnl ?? 0) < 0);
+                            const pnl = t.reduce((s, tr) => s + (tr.pnl ?? 0), 0);
+                            const gp = w.reduce((s, tr) => s + (tr.pnl ?? 0), 0);
+                            const gl = l.reduce((s, tr) => s + Math.abs(tr.pnl ?? 0), 0);
+                            const wr = t.length > 0 ? (w.length / t.length) * 100 : 0;
                             const pf = gl > 0 ? gp / gl : gp > 0 ? 99 : 0;
-                            const avgW = wins.length > 0 ? gp / wins.length : 0;
-                            const avgL = losses.length > 0 ? gl / losses.length : 0;
-                            return { count: set.length, wins: wins.length, losses: losses.length, pnl, wr, pf, avgW, avgL };
-                        };
+                            return { label: p, count: t.length, pnl, wr, pf };
+                        });
 
-                        const allMetrics = calcMetrics(closed);
-                        const r30Metrics = calcMetrics(recent30);
-                        const priorMetrics = calcMetrics(prior);
-
-                        if (closed.length < 5) {
+                        if (reportSnapshots.length === 0) {
                             return (
-                                <motion.div key="compare" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="flex flex-col items-center justify-center p-12 gap-4 text-center">
-                                    <span className="text-[13px] font-bold text-white">Need 5+ closed trades</span>
-                                    <p className="text-[11px] text-[#6b7280] max-w-xs leading-loose">Log or import more trades to unlock the period-over-period comparison view.</p>
+                                <motion.div key="compare-empty" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+                                    <div style={{ ...CARD_S, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16, padding: '48px 24px', textAlign: 'center' as const }}>
+                                        <div style={{ fontFamily: QF, fontSize: 13, fontWeight: 700, color: '#fff' }}>{lang === 'fr' ? 'Aucun rapport sauvegardé' : 'No saved reports'}</div>
+                                        <p style={{ fontFamily: 'var(--font-sans)', fontSize: 12, color: '#6b7280', maxWidth: 320, lineHeight: 1.7, margin: 0 }}>
+                                            {lang === 'fr' ? "Sauvegardez un rapport depuis l'onglet REPORT pour commencer à comparer vos périodes. Bouton \"SAUVEGARDER RAPPORT\" en haut." : 'Save a report from the REPORT tab to start comparing trading periods. Use the "SAVE REPORT" button at the top of the Report tab.'}
+                                        </p>
+                                    </div>
+                                    <div>
+                                        <div style={{ ...SL, color: '#FDC800', marginBottom: 12 }}>{lang === 'fr' ? 'COMPARAISON MULTI-PÉRIODES' : 'MULTI-PERIOD COMPARISON'}</div>
+                                        <div style={{ overflowX: 'auto' }}>
+                                            <table style={{ width: '100%', borderCollapse: 'collapse', fontFamily: QF }}>
+                                                <thead><tr style={{ borderBottom: '1px solid #1a1c24' }}>
+                                                    {[lang === 'fr' ? 'PÉRIODE' : 'PERIOD', 'TRADES', 'P&L NET', lang === 'fr' ? 'TAUX' : 'WIN RATE', 'PF'].map((h, i) => (
+                                                        <th key={i} style={{ padding: '8px 16px', fontSize: 9, color: '#6b7280', textAlign: i === 0 ? 'left' : 'right', letterSpacing: '0.1em', fontWeight: 700 }}>{h}</th>
+                                                    ))}
+                                                </tr></thead>
+                                                <tbody>{multiPeriods.map((row, i) => (
+                                                    <tr key={i} style={{ borderBottom: '1px solid #1a1c24', background: i % 2 === 0 ? '#0c0e13' : 'transparent' }}>
+                                                        <td style={{ padding: '10px 16px', fontSize: 11, fontWeight: 900, color: '#FDC800' }}>{row.label}</td>
+                                                        <td style={{ padding: '10px 16px', fontSize: 11, color: '#c9d1d9', textAlign: 'right' }}>{row.count}</td>
+                                                        <td style={{ padding: '10px 16px', fontSize: 11, fontWeight: 700, color: row.pnl >= 0 ? '#FDC800' : '#ff4757', textAlign: 'right' }}>{row.pnl >= 0 ? '+' : ''}${row.pnl.toFixed(0)}</td>
+                                                        <td style={{ padding: '10px 16px', fontSize: 11, color: row.wr >= 55 ? '#FDC800' : row.wr >= 45 ? '#EAB308' : '#ff4757', textAlign: 'right' }}>{row.count > 0 ? `${row.wr.toFixed(1)}%` : '—'}</td>
+                                                        <td style={{ padding: '10px 16px', fontSize: 11, color: row.pf >= 1.5 ? '#FDC800' : row.pf >= 1 ? '#EAB308' : '#ff4757', textAlign: 'right' }}>{row.count > 0 ? (row.pf > 90 ? '∞' : row.pf.toFixed(2)) : '—'}</td>
+                                                    </tr>
+                                                ))}</tbody>
+                                            </table>
+                                        </div>
+                                    </div>
                                 </motion.div>
                             );
                         }
 
-                        const rows = [
-                            { label: 'Trades',        all: allMetrics.count.toString(),                    r30: r30Metrics.count.toString(),                    prior: priorMetrics.count.toString() },
-                            { label: 'Net P&L',       all: `${allMetrics.pnl >= 0 ? '+' : ''}$${allMetrics.pnl.toFixed(0)}`,   r30: `${r30Metrics.pnl >= 0 ? '+' : ''}$${r30Metrics.pnl.toFixed(0)}`,   prior: `${priorMetrics.pnl >= 0 ? '+' : ''}$${priorMetrics.pnl.toFixed(0)}` },
-                            { label: 'Win Rate',      all: `${allMetrics.wr.toFixed(1)}%`,                 r30: `${r30Metrics.wr.toFixed(1)}%`,                 prior: priorMetrics.count > 0 ? `${priorMetrics.wr.toFixed(1)}%` : '—' },
-                            { label: 'Profit Factor', all: allMetrics.pf > 90 ? '∞' : allMetrics.pf.toFixed(2), r30: r30Metrics.pf > 90 ? '∞' : r30Metrics.count > 0 ? r30Metrics.pf.toFixed(2) : '—', prior: priorMetrics.pf > 90 ? '∞' : priorMetrics.count > 0 ? priorMetrics.pf.toFixed(2) : '—' },
-                            { label: 'Avg Win',       all: `$${allMetrics.avgW.toFixed(0)}`,               r30: r30Metrics.wins > 0 ? `$${r30Metrics.avgW.toFixed(0)}` : '—',   prior: priorMetrics.wins > 0 ? `$${priorMetrics.avgW.toFixed(0)}` : '—' },
-                            { label: 'Avg Loss',      all: `$${allMetrics.avgL.toFixed(0)}`,               r30: r30Metrics.losses > 0 ? `$${r30Metrics.avgL.toFixed(0)}` : '—', prior: priorMetrics.losses > 0 ? `$${priorMetrics.avgL.toFixed(0)}` : '—' },
+                        // ── COMPARE: snapshots exist ──
+                        const sortedSnaps = [...reportSnapshots].sort((a, b) => new Date(a.savedAt).getTime() - new Date(b.savedAt).getTime());
+                        const snapA = compareSelected.length > 0 ? sortedSnaps.find(s => s.id === compareSelected[0]) ?? sortedSnaps[sortedSnaps.length - 1] : sortedSnaps[sortedSnaps.length - 1];
+                        const snapBObj = compareSelected.length > 1 ? sortedSnaps.find(s => s.id === compareSelected[1]) ?? null : null;
+                        const compB = snapBObj ?? { netPnl: rptNetPnl, winRate: rptWinRate, profitFactor: rptPF, expectancy: rptExpectancy, grade, gradeScore, riskScore: rptForensics.riskScore, tradeCount: rptTrades.length, sessionCount: rptSessions.length, greenSessions: rptGreenSess, totalSessions: rptSessions.length, topPattern: rptTopPattern, behavioralCost: rptBehavCost, savedAt: new Date().toISOString(), periodLabel: `${reportPeriod} (${lang === 'fr' ? 'maintenant' : 'now'})`, id: 'now', projectedPnl: rptProjected, avgWin: rptAvgW, avgLoss: rptAvgL, wlRatio: rptWlRatio };
+                        const deltaRows = [
+                            { label: 'Net P&L', a: `${snapA.netPnl >= 0 ? '+' : ''}$${snapA.netPnl.toFixed(0)}`, b: `${compB.netPnl >= 0 ? '+' : ''}$${compB.netPnl.toFixed(0)}`, delta: compB.netPnl - snapA.netPnl, fmtD: (d: number) => `${d >= 0 ? '+' : ''}$${Math.abs(d).toFixed(0)}`, posGood: true },
+                            { label: lang === 'fr' ? 'Taux réussite' : 'Win Rate', a: `${snapA.winRate.toFixed(1)}%`, b: `${compB.winRate.toFixed(1)}%`, delta: compB.winRate - snapA.winRate, fmtD: (d: number) => `${d >= 0 ? '+' : ''}${d.toFixed(1)}%`, posGood: true },
+                            { label: 'Profit Factor', a: snapA.profitFactor > 90 ? '∞' : snapA.profitFactor.toFixed(2), b: compB.profitFactor > 90 ? '∞' : compB.profitFactor.toFixed(2), delta: compB.profitFactor - snapA.profitFactor, fmtD: (d: number) => `${d >= 0 ? '+' : ''}${d.toFixed(2)}`, posGood: true },
+                            { label: lang === 'fr' ? 'Espérance' : 'Expectancy', a: `$${snapA.expectancy.toFixed(0)}`, b: `$${compB.expectancy.toFixed(0)}`, delta: compB.expectancy - snapA.expectancy, fmtD: (d: number) => `${d >= 0 ? '+' : ''}$${d.toFixed(0)}`, posGood: true },
+                            { label: lang === 'fr' ? 'Score risque' : 'Risk Score', a: `${snapA.riskScore}/100`, b: `${compB.riskScore}/100`, delta: compB.riskScore - snapA.riskScore, fmtD: (d: number) => `${d >= 0 ? '+' : ''}${d.toFixed(0)}`, posGood: false },
+                            { label: lang === 'fr' ? 'Coût comport.' : 'Behavioral Cost', a: `-$${Math.abs(snapA.behavioralCost).toFixed(0)}`, b: `-$${Math.abs(compB.behavioralCost).toFixed(0)}`, delta: Math.abs(snapA.behavioralCost) - Math.abs(compB.behavioralCost), fmtD: (d: number) => `${d >= 0 ? (lang === 'fr' ? '-$' : '-$') : '+$'}${Math.abs(d).toFixed(0)} ${d >= 0 ? (lang === 'fr' ? 'réduit' : 'reduced') : (lang === 'fr' ? 'augmenté' : 'increased')}`, posGood: true },
+                            { label: lang === 'fr' ? 'Note globale' : 'Grade Score', a: `${snapA.grade} (${snapA.gradeScore})`, b: `${compB.grade} (${compB.gradeScore})`, delta: compB.gradeScore - snapA.gradeScore, fmtD: (d: number) => `${d >= 0 ? '+' : ''}${d.toFixed(0)}pts`, posGood: true },
                         ];
 
-                        const trend = r30Metrics.pnl > priorMetrics.pnl && priorMetrics.count > 0 ? '↑ Improving' : r30Metrics.pnl < priorMetrics.pnl && priorMetrics.count > 0 ? '↓ Declining' : '— Stable';
-                        const trendColor = trend.startsWith('↑') ? '#FDC800' : trend.startsWith('↓') ? '#ff4757' : '#EAB308';
-
                         return (
-                            <motion.div key="compare" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="flex flex-col gap-0">
-                                {/* Trend badge */}
-                                <div className="flex items-center gap-3 px-5 py-4 border-b border-[#1a1c24]">
-                                    <span className="text-[11px] font-mono font-black uppercase tracking-widest" style={{ color: trendColor }}>{trend}</span>
-                                    <span className="text-[10px] font-mono text-[#6b7280]">Last 30 days vs. prior period</span>
+                            <motion.div key="compare" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+                                {/* Snapshot library */}
+                                <div>
+                                    <div style={{ ...SL, color: '#FDC800', marginBottom: 12 }}>{lang === 'fr' ? `HISTORIQUE DES RAPPORTS (${sortedSnaps.length})` : `REPORT HISTORY (${sortedSnaps.length})`}</div>
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                                        {sortedSnaps.map((snap) => {
+                                            const isSelected = compareSelected.includes(snap.id);
+                                            const selIdx = compareSelected.indexOf(snap.id);
+                                            return (
+                                                <div key={snap.id} onClick={() => {
+                                                    if (isSelected) { setCompareSelected(prev => prev.filter(id => id !== snap.id)); }
+                                                    else if (compareSelected.length < 2) { setCompareSelected(prev => [...prev, snap.id]); }
+                                                    else { setCompareSelected([compareSelected[1], snap.id]); }
+                                                }} style={{ background: isSelected ? '#0f1520' : '#0d1117', border: `1px solid ${isSelected ? '#FDC80060' : '#1a1c24'}`, padding: '12px 16px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 12 }}>
+                                                    <div style={{ width: 20, height: 20, border: `2px solid ${isSelected ? '#FDC800' : '#3d4451'}`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, fontFamily: QF, fontSize: 10, fontWeight: 900, color: '#FDC800', background: isSelected ? '#FDC80015' : 'transparent' }}>
+                                                        {isSelected ? String.fromCharCode(64 + selIdx + 1) : ''}
+                                                    </div>
+                                                    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 2 }}>
+                                                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                                            <span style={{ fontFamily: QF, fontSize: 11, fontWeight: 700, color: '#fff' }}>{fmtSnap(snap.savedAt)}</span>
+                                                            <span style={{ fontFamily: QF, fontSize: 9, color: gradeC(snap.grade), background: gradeC(snap.grade) + '15', border: `1px solid ${gradeC(snap.grade)}40`, padding: '1px 6px' }}>{snap.grade} · {snap.gradeScore}</span>
+                                                            <span style={{ fontFamily: QF, fontSize: 9, color: '#4b5563' }}>{snap.periodLabel}</span>
+                                                        </div>
+                                                        <div style={{ fontFamily: QF, fontSize: 9, color: '#6b7280', display: 'flex', gap: 16 }}>
+                                                            <span style={{ color: snap.netPnl >= 0 ? '#FDC800' : '#ff4757' }}>{snap.netPnl >= 0 ? '+' : ''}${snap.netPnl.toFixed(0)}</span>
+                                                            <span>WR {snap.winRate.toFixed(1)}%</span>
+                                                            <span>PF {snap.profitFactor > 90 ? '∞' : snap.profitFactor.toFixed(2)}</span>
+                                                            <span>{snap.tradeCount} trades</span>
+                                                        </div>
+                                                    </div>
+                                                    <button onClick={(e) => { e.stopPropagation(); deleteReportSnapshot(snap.id); setCompareSelected(prev => prev.filter(id => id !== snap.id)); }} style={{ fontFamily: QF, fontSize: 9, color: '#4b5563', background: 'transparent', border: 'none', cursor: 'pointer', padding: '2px 6px', flexShrink: 0 }}>✕</button>
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                    <div style={{ fontFamily: QF, fontSize: 9, color: '#4b5563', marginTop: 8 }}>
+                                        {lang === 'fr' ? "Sélectionnez jusqu'à 2 rapports. B = période actuelle si un seul sélectionné." : 'Select up to 2 reports. B = current period if only one selected.'}
+                                    </div>
                                 </div>
-                                {/* Table */}
-                                <div className="overflow-x-auto">
-                                    <table className="w-full text-left border-collapse">
-                                        <thead>
-                                            <tr className="border-b border-[#1a1c24]">
-                                                <th className="px-5 py-3 text-[9px] font-mono uppercase tracking-widest text-[#6b7280]">Metric</th>
-                                                <th className="px-5 py-3 text-[9px] font-mono uppercase tracking-widest text-[#6b7280]">All Time</th>
-                                                <th className="px-5 py-3 text-[9px] font-mono uppercase tracking-widest" style={{ color: '#00D4FF' }}>Last 30d</th>
-                                                <th className="px-5 py-3 text-[9px] font-mono uppercase tracking-widest text-[#6b7280]">Prior</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody>
-                                            {rows.map((row, i) => (
-                                                <tr key={i} className="border-b border-[#1a1c24]" style={{ background: i % 2 === 0 ? '#0c0e13' : 'transparent' }}>
-                                                    <td className="px-5 py-3 text-[10px] font-mono text-[#6b7280] uppercase tracking-wider">{row.label}</td>
-                                                    <td className="px-5 py-3 text-[12px] font-mono font-bold text-[#e2e8f0]">{row.all}</td>
-                                                    <td className="px-5 py-3 text-[12px] font-mono font-black" style={{ color: '#00D4FF' }}>{row.r30}</td>
-                                                    <td className="px-5 py-3 text-[12px] font-mono text-[#6b7280]">{row.prior}</td>
-                                                </tr>
+
+                                {/* Delta comparison table */}
+                                <div>
+                                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12, flexWrap: 'wrap' as const, gap: 8 }}>
+                                        <div style={{ ...SL, color: '#FDC800', marginBottom: 0 }}>{lang === 'fr' ? 'COMPARAISON DELTA' : 'DELTA COMPARISON'}</div>
+                                        <div style={{ display: 'flex', gap: 6 }}>
+                                            {[{ s: snapA, i: 0 }, { s: compB, i: 1 }].map(({ s, i }) => (
+                                                <div key={i} style={{ fontFamily: QF, fontSize: 9, color: i === 0 ? '#8b949e' : '#00D4FF', background: i === 0 ? '#1a1c24' : 'rgba(0,212,255,0.08)', border: `1px solid ${i === 0 ? '#1a1c24' : '#00D4FF40'}`, padding: '3px 8px' }}>
+                                                    {String.fromCharCode(65 + i)}: {fmtSnap(s.savedAt)} · {s.periodLabel}
+                                                </div>
                                             ))}
-                                        </tbody>
-                                    </table>
+                                        </div>
+                                    </div>
+                                    <div style={{ overflowX: 'auto' }}>
+                                        <table style={{ width: '100%', borderCollapse: 'collapse', fontFamily: QF }}>
+                                            <thead><tr style={{ borderBottom: '1px solid #1a1c24' }}>
+                                                {[lang === 'fr' ? 'MÉTRIQUE' : 'METRIC', 'A', 'B', 'Δ'].map((h, i) => (
+                                                    <th key={i} style={{ padding: '8px 16px', fontSize: 9, color: i === 2 ? '#00D4FF' : '#6b7280', textAlign: i === 0 ? 'left' : 'right', letterSpacing: '0.1em', fontWeight: 700 }}>{h}</th>
+                                                ))}
+                                            </tr></thead>
+                                            <tbody>
+                                                {deltaRows.map((row, i) => {
+                                                    const dGood = row.posGood ? row.delta > 0 : row.delta < 0;
+                                                    const dColor = row.delta === 0 ? '#6b7280' : dGood ? '#FDC800' : '#ff4757';
+                                                    return (
+                                                        <tr key={i} style={{ borderBottom: '1px solid #0f1117', background: i % 2 === 0 ? '#0c0e13' : 'transparent' }}>
+                                                            <td style={{ padding: '10px 16px', fontSize: 10, color: '#8b949e' }}>{row.label}</td>
+                                                            <td style={{ padding: '10px 16px', fontSize: 11, color: '#6b7280', textAlign: 'right' }}>{row.a}</td>
+                                                            <td style={{ padding: '10px 16px', fontSize: 11, color: '#00D4FF', fontWeight: 700, textAlign: 'right' }}>{row.b}</td>
+                                                            <td style={{ padding: '10px 16px', fontSize: 11, fontWeight: 900, color: dColor, textAlign: 'right' }}>{row.fmtD(row.delta)}</td>
+                                                        </tr>
+                                                    );
+                                                })}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                    {/* Trend verdict */}
+                                    <div style={{ marginTop: 2, background: '#0d1117', border: '1px solid #1a1c24', padding: '14px 18px' }}>
+                                        {(() => {
+                                            const pos = deltaRows.filter(r => r.posGood ? r.delta > 0 : r.delta < 0).length;
+                                            const neg = deltaRows.filter(r => r.posGood ? r.delta < 0 : r.delta > 0).length;
+                                            const trend = pos > neg ? (lang === 'fr' ? '↑ EN PROGRESSION' : '↑ IMPROVING') : pos < neg ? (lang === 'fr' ? '↓ EN RÉGRESSION' : '↓ DECLINING') : '→ STABLE';
+                                            const tc = trend.startsWith('↑') ? '#FDC800' : trend.startsWith('↓') ? '#ff4757' : '#EAB308';
+                                            return (
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' as const }}>
+                                                    <span style={{ fontFamily: QF, fontSize: 13, fontWeight: 900, color: tc }}>{trend}</span>
+                                                    <span style={{ fontFamily: QF, fontSize: 10, color: '#6b7280' }}>
+                                                        {lang === 'fr' ? `${pos}/${deltaRows.length} métriques améliorées entre le rapport A et le rapport B.` : `${pos}/${deltaRows.length} metrics improved between report A and report B.`}
+                                                    </span>
+                                                </div>
+                                            );
+                                        })()}
+                                    </div>
                                 </div>
-                                <p className="px-5 py-3 text-[10px] font-mono text-[#6b7280]">
-                                    Last 30d: {r30Metrics.count} trades · Prior: {priorMetrics.count} trades
-                                </p>
+
+                                {/* Multi-period comparison */}
+                                <div>
+                                    <div style={{ ...SL, color: '#FDC800', marginBottom: 12 }}>{lang === 'fr' ? 'COMPARAISON MULTI-PÉRIODES' : 'MULTI-PERIOD COMPARISON'}</div>
+                                    <div style={{ overflowX: 'auto' }}>
+                                        <table style={{ width: '100%', borderCollapse: 'collapse', fontFamily: QF }}>
+                                            <thead><tr style={{ borderBottom: '1px solid #1a1c24' }}>
+                                                {[lang === 'fr' ? 'PÉRIODE' : 'PERIOD', 'TRADES', 'P&L NET', lang === 'fr' ? 'TAUX' : 'WIN RATE', 'PF'].map((h, i) => (
+                                                    <th key={i} style={{ padding: '8px 16px', fontSize: 9, color: '#6b7280', textAlign: i === 0 ? 'left' : 'right', letterSpacing: '0.1em', fontWeight: 700 }}>{h}</th>
+                                                ))}
+                                            </tr></thead>
+                                            <tbody>{multiPeriods.map((row, i) => (
+                                                <tr key={i} style={{ borderBottom: '1px solid #1a1c24', background: i % 2 === 0 ? '#0c0e13' : 'transparent' }}>
+                                                    <td style={{ padding: '10px 16px', fontSize: 11, fontWeight: 900, color: '#FDC800' }}>{row.label}</td>
+                                                    <td style={{ padding: '10px 16px', fontSize: 11, color: '#c9d1d9', textAlign: 'right' }}>{row.count}</td>
+                                                    <td style={{ padding: '10px 16px', fontSize: 11, fontWeight: 700, color: row.pnl >= 0 ? '#FDC800' : '#ff4757', textAlign: 'right' }}>{row.pnl >= 0 ? '+' : ''}${row.pnl.toFixed(0)}</td>
+                                                    <td style={{ padding: '10px 16px', fontSize: 11, color: row.wr >= 55 ? '#FDC800' : row.wr >= 45 ? '#EAB308' : '#ff4757', textAlign: 'right' }}>{row.count > 0 ? `${row.wr.toFixed(1)}%` : '—'}</td>
+                                                    <td style={{ padding: '10px 16px', fontSize: 11, color: row.pf >= 1.5 ? '#FDC800' : row.pf >= 1 ? '#EAB308' : '#ff4757', textAlign: 'right' }}>{row.count > 0 ? (row.pf > 90 ? '∞' : row.pf.toFixed(2)) : '—'}</td>
+                                                </tr>
+                                            ))}</tbody>
+                                        </table>
+                                    </div>
+                                </div>
                             </motion.div>
                         );
                     })()}
+
                 </AnimatePresence>
             </div>
         </div>

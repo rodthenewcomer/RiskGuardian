@@ -103,6 +103,7 @@ export default function Onboarding() {
         updateAccount({
             balance: overrideBalance ?? balNum,
             startingBalance: overrideBalance ?? balNum,
+            highestBalance: overrideBalance ?? balNum,
             dailyLossLimit: derivedDailyLimit,
             maxDrawdownLimit: derivedMaxDrawdown,
             maxRiskPercent: maxRiskPercent,

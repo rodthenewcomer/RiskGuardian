@@ -85,6 +85,30 @@ export interface DailySession {
     guardTriggered: boolean;
 }
 
+/** Snapshot of key performance metrics saved when user views the Report tab */
+export interface ReportSnapshot {
+    id: string;
+    savedAt: string;           // ISO timestamp
+    periodLabel: string;       // '7D' | '30D' | '90D' | 'ALL'
+    grade: string;             // 'A' | 'B' | 'C' | 'D'
+    gradeScore: number;        // 0-100
+    netPnl: number;
+    winRate: number;
+    profitFactor: number;
+    expectancy: number;
+    avgWin: number;
+    avgLoss: number;
+    wlRatio: number;
+    behavioralCost: number;
+    tradeCount: number;
+    sessionCount: number;
+    riskScore: number;
+    greenSessions: number;
+    totalSessions: number;
+    topPattern: string;
+    projectedPnl: number;
+}
+
 /** Persisted DXTrade connection config (token only — no password stored) */
 export interface DXTradeConfig {
     server: string;       // e.g. "live.tradeify.com"
@@ -119,6 +143,9 @@ interface AppState {
     /** Controls visibility of AuthModal — not persisted */
     showAuthModal: boolean;
 
+    /** Saved report snapshots — persisted, max 20 */
+    reportSnapshots: ReportSnapshot[];
+
     // Actions
     completeOnboarding: () => void;
     resetOnboarding: () => void;
@@ -141,6 +168,8 @@ interface AppState {
     setDXTradeLastSync: (time: string) => void;
     setLanguage: (lang: 'en' | 'fr') => void;
     setTradingDayRollHour: (hour: number) => void;
+    saveReportSnapshot: (snapshot: ReportSnapshot) => void;
+    deleteReportSnapshot: (id: string) => void;
     /**
      * Auto-compute balance, highestBalance, and dailyLossLimit from trade history.
      * Called automatically after setTrades / addTrade / deleteTrade.
@@ -213,6 +242,7 @@ export const useAppStore = create<AppState>()(
     persist(
         (set, get) => ({
             hasOnboarded: false,
+            reportSnapshots: [],
             account: {
                 balance: 0,
                 dailyLossLimit: 0,
@@ -244,6 +274,7 @@ export const useAppStore = create<AppState>()(
                 account: { balance: 0, dailyLossLimit: 0, maxRiskPercent: 1, assetType: 'crypto', currency: 'USD', propFirmType: 'Instant Funding', drawdownType: 'EOD', leverage: 2, startingBalance: 0, highestBalance: 0, isConsistencyActive: false },
                 trades: [],
                 dailySessions: [],
+                reportSnapshots: [],
                 activeTab: 'dashboard',
                 dxtradeConfig: null,
                 dxtradeLastSync: null,
@@ -255,6 +286,13 @@ export const useAppStore = create<AppState>()(
 
             setDXTradeConfig: (config) => set({ dxtradeConfig: config }),
             setDXTradeLastSync: (time) => set({ dxtradeLastSync: time }),
+
+            saveReportSnapshot: (snapshot) => set((s) => ({
+                reportSnapshots: [...s.reportSnapshots, snapshot].slice(-20),
+            })),
+            deleteReportSnapshot: (id) => set((s) => ({
+                reportSnapshots: s.reportSnapshots.filter(r => r.id !== id),
+            })),
 
             updateAccount: (settings) =>
                 set((s) => ({ account: { ...s.account, ...settings } })),
@@ -394,6 +432,7 @@ export const useAppStore = create<AppState>()(
                 account: s.account,
                 trades: s.trades.slice(0, 500), // 500 trades ≈ 150KB — well within localStorage 5MB limit
                 dailySessions: s.dailySessions.slice(-30),
+                reportSnapshots: s.reportSnapshots.slice(-20),
                 dxtradeConfig: s.dxtradeConfig,
                 dxtradeLastSync: s.dxtradeLastSync,
                 language: s.language,
