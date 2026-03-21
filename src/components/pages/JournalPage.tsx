@@ -8,8 +8,12 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
     TrendingUp, TrendingDown, Activity, Upload, LayoutList, CalendarDays,
     ChevronLeft, ChevronRight, FileDown, FileText, Loader2, Trash2,
-    ChevronDown, ChevronUp,
+    ChevronDown, ChevronUp, Flame, BookOpen, Brain, Target, Zap, BarChart2,
 } from 'lucide-react';
+import {
+    AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid,
+    Tooltip as RechartTooltip, ResponsiveContainer, Cell,
+} from 'recharts';
 import { TRADEIFY_CRYPTO_LIST, FUTURES_SPECS, getTradingDay } from '@/store/appStore';
 import { ChartCard } from '@/components/charts/RiskGuardianPrimitives';
 import StreakBeads from '@/components/charts/StreakBeads';
@@ -77,6 +81,12 @@ export default function JournalPage() {
         window.addEventListener('resize', check);
         return () => window.removeEventListener('resize', check);
     }, []);
+
+    // ── EdgeForensics dashboard state ─────────────────────────
+    const [journalTab, setJournalTab] = useState<'trades' | 'notes' | 'insights'>('trades');
+    const [timeFilter, setTimeFilter] = useState<'month' | '3m' | 'ytd' | 'all'>('month');
+    const [ritualDismissed, setRitualDismissed] = useState(false);
+    const [chartsExpanded, setChartsExpanded] = useState(true);
 
     // ── Design tokens ────────────────────────────────────────
     const mono: React.CSSProperties = { fontFamily: 'var(--font-mono)' };
@@ -244,6 +254,135 @@ export default function JournalPage() {
     const avgLossAmt = losses.length > 0 ? Math.abs(losses.reduce((s, t) => s + (t.pnl ?? 0), 0)) / losses.length : 0;
     const profitFactor = avgLossAmt > 0 ? avgWinAmt / avgLossAmt : avgWinAmt > 0 ? 99 : 0;
 
+    // ── Consistency streak: consecutive trading days going back from today ──
+    const consistencyStreak = useMemo(() => {
+        const tradingDays = new Set(
+            trades.filter(t => t.outcome !== 'open').map(t => getTradingDay(t.closedAt ?? t.createdAt))
+        );
+        let streak = 0;
+        const today = new Date();
+        for (let i = 0; i < 365; i++) {
+            const d = new Date(today);
+            d.setDate(d.getDate() - i);
+            const ds = d.toISOString().slice(0, 10);
+            if (tradingDays.has(ds)) { streak++; }
+            else if (i > 0) break; // allow today to be open (no closed trades yet)
+        }
+        return streak;
+    }, [trades]);
+
+    // ── Discipline score 0–100 ────────────────────────────────
+    const disciplineScore = useMemo(() => {
+        if (closedTrades.length === 0) return 0;
+        let score = 100;
+        const sorted = [...closedTrades].sort(
+            (a, b) => new Date(a.closedAt ?? a.createdAt).getTime() - new Date(b.closedAt ?? b.createdAt).getTime()
+        );
+        let revengeCount = 0;
+        for (let i = 1; i < sorted.length; i++) {
+            if (sorted[i - 1].outcome === 'loss') {
+                const gap = new Date(sorted[i].createdAt).getTime() - new Date(sorted[i - 1].closedAt ?? sorted[i - 1].createdAt).getTime();
+                if (gap < 5 * 60 * 1000) revengeCount++;
+            }
+        }
+        score -= Math.min(revengeCount * 10, 40);
+        if (winRate < 40) score -= 20; else if (winRate < 50) score -= 10;
+        if (profitFactor < 1) score -= 20; else if (profitFactor < 1.5) score -= 5;
+        return Math.max(0, Math.min(100, score));
+    }, [closedTrades, winRate, profitFactor]);
+
+    // ── Traceability: % trades annotated ─────────────────────
+    const traceabilityScore = useMemo(() => {
+        const withNotes = trades.filter(t => t.note && t.note.trim().length > 10).length;
+        const total = trades.length;
+        return { pct: total > 0 ? Math.round((withNotes / total) * 100) : 0, count: withNotes, total };
+    }, [trades]);
+
+    // ── Session count (unique trading days with closed trades) ─
+    const sessionCount = useMemo(() => {
+        const days = new Set(closedTrades.map(t => getTradingDay(t.closedAt ?? t.createdAt)));
+        return days.size;
+    }, [closedTrades]);
+    const AI_COACHING_THRESHOLD = 5;
+
+    // ── Time-filtered trades for KPIs + charts ────────────────
+    const timeFilteredTrades = useMemo(() => {
+        const now = new Date();
+        const cutoff = timeFilter === 'month'
+            ? new Date(now.getFullYear(), now.getMonth(), 1)
+            : timeFilter === '3m'
+            ? new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000)
+            : timeFilter === 'ytd'
+            ? new Date(now.getFullYear(), 0, 1)
+            : new Date(0);
+        return closedTrades.filter(t => new Date(t.closedAt ?? t.createdAt) >= cutoff);
+    }, [closedTrades, timeFilter]);
+
+    const tfWins = timeFilteredTrades.filter(t => t.outcome === 'win');
+    const tfLosses = timeFilteredTrades.filter(t => t.outcome === 'loss');
+    const tfPnl = timeFilteredTrades.reduce((s, t) => s + (t.pnl ?? 0), 0);
+    const tfWinRate = timeFilteredTrades.length > 0 ? Math.round((tfWins.length / timeFilteredTrades.length) * 100) : 0;
+    const tfAvgWin = tfWins.length > 0 ? tfWins.reduce((s, t) => s + (t.pnl ?? 0), 0) / tfWins.length : 0;
+    const tfAvgLoss = tfLosses.length > 0 ? Math.abs(tfLosses.reduce((s, t) => s + (t.pnl ?? 0), 0)) / tfLosses.length : 0;
+    const tfPf = tfAvgLoss > 0 ? tfAvgWin / tfAvgLoss : tfAvgWin > 0 ? 99 : 0;
+    const tfExpectancy = timeFilteredTrades.length > 0 ? tfPnl / timeFilteredTrades.length : 0;
+
+    // ── Equity curve (cumulative P&L over time) ───────────────
+    const equityCurveData = useMemo(() => {
+        const sorted = [...timeFilteredTrades].sort(
+            (a, b) => new Date(a.closedAt ?? a.createdAt).getTime() - new Date(b.closedAt ?? b.createdAt).getTime()
+        );
+        let cum = 0;
+        return sorted.map((t, i) => {
+            cum += t.pnl ?? 0;
+            return { i: i + 1, pnl: Math.round(cum * 100) / 100 };
+        });
+    }, [timeFilteredTrades]);
+
+    // ── Daily P&L bars ────────────────────────────────────────
+    const dailyPnlData = useMemo(() => {
+        const dayMap: Record<string, number> = {};
+        timeFilteredTrades.forEach(t => {
+            const d = getTradingDay(t.closedAt ?? t.createdAt);
+            dayMap[d] = (dayMap[d] ?? 0) + (t.pnl ?? 0);
+        });
+        return Object.entries(dayMap)
+            .sort(([a], [b]) => a.localeCompare(b))
+            .slice(-30)
+            .map(([d, pnl]) => ({ d: d.slice(5), pnl: Math.round(pnl * 100) / 100 }));
+    }, [timeFilteredTrades]);
+
+    // ── By Symbol ─────────────────────────────────────────────
+    const bySymbolData = useMemo(() => {
+        const symMap: Record<string, { pnl: number; count: number }> = {};
+        timeFilteredTrades.forEach(t => {
+            if (!symMap[t.asset]) symMap[t.asset] = { pnl: 0, count: 0 };
+            symMap[t.asset].pnl += t.pnl ?? 0;
+            symMap[t.asset].count++;
+        });
+        return Object.entries(symMap)
+            .map(([sym, { pnl, count }]) => ({ sym, pnl: Math.round(pnl * 100) / 100, count }))
+            .sort((a, b) => Math.abs(b.pnl) - Math.abs(a.pnl))
+            .slice(0, 8);
+    }, [timeFilteredTrades]);
+
+    // ── By Day of Week ────────────────────────────────────────
+    const byDowData = useMemo(() => {
+        const DOW = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+        const dowMap: Record<number, { pnl: number; count: number }> = {};
+        timeFilteredTrades.forEach(t => {
+            const dow = new Date(t.closedAt ?? t.createdAt).getDay();
+            if (!dowMap[dow]) dowMap[dow] = { pnl: 0, count: 0 };
+            dowMap[dow].pnl += t.pnl ?? 0;
+            dowMap[dow].count++;
+        });
+        return [1, 2, 3, 4, 5].map(dow => ({
+            dow: DOW[dow],
+            avg: dowMap[dow] ? Math.round((dowMap[dow].pnl / dowMap[dow].count) * 100) / 100 : 0,
+            count: dowMap[dow]?.count ?? 0,
+        }));
+    }, [timeFilteredTrades]);
+
     // ── Unique assets for filter ─────────────────────────────
     const uniqueAssets = useMemo(() => [...new Set(trades.map(t => t.asset))].sort(), [trades]);
 
@@ -346,44 +485,478 @@ export default function JournalPage() {
                 )}
             </AnimatePresence>
 
-            {/* ── STATS STRIP ─────────────────────────────────── */}
-            <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'repeat(2,1fr)' : 'repeat(4,1fr)', borderBottom: divider }}>
-                {[
-                    {
-                        lbl: 'Net P&L', val: closedTrades.length > 0 ? `${totalPnl >= 0 ? '+' : ''}$${Math.abs(totalPnl).toLocaleString(undefined, { maximumFractionDigits: 2 })}` : '—',
-                        clr: closedTrades.length > 0 ? pnlColor : '#4b5563',
-                        sub: closedTrades.length > 0 ? `${wins.length}W · ${losses.length}L` : 'no trades yet'
-                    },
-                    {
-                        lbl: 'Win Rate', val: closedTrades.length > 0 ? `${winRate}%` : '—',
-                        clr: winRate >= 55 ? '#FDC800' : winRate >= 45 ? '#EAB308' : closedTrades.length > 0 ? '#ff4757' : '#4b5563',
-                        sub: closedTrades.length > 0 ? `${closedTrades.length} closed` : '—'
-                    },
-                    {
-                        lbl: 'Profit Factor', val: closedTrades.length > 0 ? (profitFactor > 90 ? '∞' : profitFactor.toFixed(2)) : '—',
-                        clr: profitFactor >= 1.5 ? '#FDC800' : profitFactor >= 1 ? '#EAB308' : closedTrades.length > 0 ? '#ff4757' : '#4b5563',
-                        sub: avgLossAmt > 0 ? `avg W $${avgWinAmt.toFixed(0)} / L $${avgLossAmt.toFixed(0)}` : '—'
-                    },
-                    {
-                        lbl: 'Logged', val: trades.length.toString(),
-                        clr: '#e2e8f0',
-                        sub: trades.filter(t => t.outcome === 'open').length > 0 ? `${trades.filter(t => t.outcome === 'open').length} open` : 'all closed'
-                    },
-                ].map((s, i) => (
-                    <div key={i} style={{
-                        padding: isMobile ? '12px 12px' : '14px 16px',
-                        borderRight: isMobile ? (i % 2 === 0 ? divider : 'none') : (i < 3 ? divider : 'none'),
-                        borderBottom: isMobile && i < 2 ? divider : 'none',
-                    }}>
-                        <span style={lbl}>{s.lbl}</span>
-                        <span style={{ ...mono, fontSize: isMobile ? 16 : 20, fontWeight: 800, color: s.clr, letterSpacing: '-0.02em', display: 'block', marginTop: 4, lineHeight: 1 }}>{s.val}</span>
-                        <span style={{ ...mono, fontSize: 9, color: '#4b5563', display: 'block', marginTop: 3 }}>{s.sub}</span>
+            {/* ── EDGE FORENSICS DASHBOARD ─────────────────────── */}
+            {/* 3-Card row: Consistency | Discipline | Traceability */}
+            <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'repeat(3, 1fr)', borderBottom: divider }}>
+                {/* Consistency */}
+                <div style={{ padding: isMobile ? '14px' : '18px 20px', borderRight: isMobile ? 'none' : divider, borderBottom: isMobile ? divider : 'none' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+                        <Flame size={13} color={consistencyStreak >= 3 ? '#FDC800' : consistencyStreak >= 1 ? '#EAB308' : '#4b5563'} />
+                        <span style={{ ...mono, fontSize: 9, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase' as const, color: '#4b5563' }}>
+                            {lang === 'fr' ? 'Régularité' : 'Consistency'}
+                        </span>
                     </div>
+                    <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
+                        <span style={{ ...mono, fontSize: 32, fontWeight: 900, color: consistencyStreak >= 3 ? '#FDC800' : consistencyStreak >= 1 ? '#EAB308' : '#4b5563', letterSpacing: '-0.04em', lineHeight: 1 }}>
+                            {consistencyStreak}
+                        </span>
+                        <span style={{ ...mono, fontSize: 11, color: '#4b5563' }}>{lang === 'fr' ? 'jours consécutifs' : 'day streak'}</span>
+                    </div>
+                    {/* Progress bar toward 5-day goal */}
+                    <div style={{ marginTop: 10, height: 3, background: '#1a1c24', borderRadius: 2, overflow: 'hidden' }}>
+                        <div style={{ height: '100%', width: `${Math.min((consistencyStreak / 5) * 100, 100)}%`, background: consistencyStreak >= 3 ? '#FDC800' : '#EAB308', transition: 'width 0.4s ease' }} />
+                    </div>
+                    <span style={{ ...mono, fontSize: 9, color: '#4b5563', display: 'block', marginTop: 4 }}>
+                        {lang === 'fr' ? `Objectif : 5 jours · ${Math.max(0, 5 - consistencyStreak)} restant${5 - consistencyStreak > 1 ? 's' : ''}` : `Goal: 5 days · ${Math.max(0, 5 - consistencyStreak)} to go`}
+                    </span>
+                </div>
+
+                {/* Discipline */}
+                <div style={{ padding: isMobile ? '14px' : '18px 20px', borderRight: isMobile ? 'none' : divider, borderBottom: isMobile ? divider : 'none' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+                        <Target size={13} color={disciplineScore >= 80 ? '#FDC800' : disciplineScore >= 60 ? '#EAB308' : '#ff4757'} />
+                        <span style={{ ...mono, fontSize: 9, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase' as const, color: '#4b5563' }}>
+                            {lang === 'fr' ? 'Discipline' : 'Discipline'}
+                        </span>
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
+                        <span style={{ ...mono, fontSize: 32, fontWeight: 900, color: disciplineScore >= 80 ? '#FDC800' : disciplineScore >= 60 ? '#EAB308' : closedTrades.length > 0 ? '#ff4757' : '#4b5563', letterSpacing: '-0.04em', lineHeight: 1 }}>
+                            {closedTrades.length > 0 ? disciplineScore : '—'}
+                        </span>
+                        {closedTrades.length > 0 && <span style={{ ...mono, fontSize: 11, color: '#4b5563' }}>/100</span>}
+                    </div>
+                    <div style={{ marginTop: 10, height: 3, background: '#1a1c24', borderRadius: 2, overflow: 'hidden' }}>
+                        <div style={{ height: '100%', width: `${disciplineScore}%`, background: disciplineScore >= 80 ? '#FDC800' : disciplineScore >= 60 ? '#EAB308' : '#ff4757', transition: 'width 0.4s ease' }} />
+                    </div>
+                    <span style={{ ...mono, fontSize: 9, color: '#4b5563', display: 'block', marginTop: 4 }}>
+                        {closedTrades.length === 0
+                            ? (lang === 'fr' ? 'Aucun trade clôturé' : 'No closed trades yet')
+                            : disciplineScore >= 80
+                            ? (lang === 'fr' ? 'Excellente discipline' : 'Excellent discipline')
+                            : disciplineScore >= 60
+                            ? (lang === 'fr' ? 'Quelques patterns à corriger' : 'Some patterns to correct')
+                            : (lang === 'fr' ? 'Trading émotionnel détecté' : 'Emotional trading detected')}
+                    </span>
+                </div>
+
+                {/* Traceability */}
+                <div style={{ padding: isMobile ? '14px' : '18px 20px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+                        <BookOpen size={13} color={traceabilityScore.pct >= 60 ? '#FDC800' : traceabilityScore.pct >= 30 ? '#EAB308' : '#4b5563'} />
+                        <span style={{ ...mono, fontSize: 9, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase' as const, color: '#4b5563' }}>
+                            {lang === 'fr' ? 'Traçabilité' : 'Traceability'}
+                        </span>
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
+                        <span style={{ ...mono, fontSize: 32, fontWeight: 900, color: traceabilityScore.pct >= 60 ? '#FDC800' : traceabilityScore.pct >= 30 ? '#EAB308' : '#4b5563', letterSpacing: '-0.04em', lineHeight: 1 }}>
+                            {traceabilityScore.pct}
+                        </span>
+                        <span style={{ ...mono, fontSize: 11, color: '#4b5563' }}>%</span>
+                    </div>
+                    <div style={{ marginTop: 10, height: 3, background: '#1a1c24', borderRadius: 2, overflow: 'hidden' }}>
+                        <div style={{ height: '100%', width: `${traceabilityScore.pct}%`, background: traceabilityScore.pct >= 60 ? '#FDC800' : '#EAB308', transition: 'width 0.4s ease' }} />
+                    </div>
+                    <span style={{ ...mono, fontSize: 9, color: '#4b5563', display: 'block', marginTop: 4 }}>
+                        {lang === 'fr'
+                            ? `${traceabilityScore.count}/${traceabilityScore.total} trades annotés`
+                            : `${traceabilityScore.count}/${traceabilityScore.total} trades annotated`}
+                    </span>
+                </div>
+            </div>
+
+            {/* AI Coaching progress bar */}
+            <div style={{ padding: isMobile ? '10px 14px' : '12px 20px', borderBottom: divider, background: '#0a0a0a', display: 'flex', alignItems: 'center', gap: 12 }}>
+                <Zap size={13} color="#FDC800" style={{ flexShrink: 0 }} />
+                <div style={{ flex: 1 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 5 }}>
+                        <span style={{ ...mono, fontSize: 9, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase' as const, color: '#FDC800' }}>
+                            {lang === 'fr' ? 'Vers le coaching IA' : 'Path to AI Coaching'}
+                        </span>
+                        <span style={{ ...mono, fontSize: 9, color: '#4b5563' }}>
+                            {Math.min(sessionCount, AI_COACHING_THRESHOLD)}/{AI_COACHING_THRESHOLD} {lang === 'fr' ? 'sessions' : 'sessions'}
+                        </span>
+                    </div>
+                    <div style={{ height: 3, background: '#1a1c24', borderRadius: 2, overflow: 'hidden' }}>
+                        <div style={{ height: '100%', width: `${Math.min((sessionCount / AI_COACHING_THRESHOLD) * 100, 100)}%`, background: 'linear-gradient(90deg, #FDC800, #fb923c)', transition: 'width 0.5s ease' }} />
+                    </div>
+                </div>
+                <span style={{ ...mono, fontSize: 9, color: '#4b5563', flexShrink: 0 }}>
+                    {sessionCount >= AI_COACHING_THRESHOLD
+                        ? (lang === 'fr' ? '🔓 Débloqué' : '🔓 Unlocked')
+                        : lang === 'fr'
+                        ? `${AI_COACHING_THRESHOLD - sessionCount} sessions pour débloquer la corrélation d'humeur`
+                        : `${AI_COACHING_THRESHOLD - sessionCount} sessions to unlock mood correlation`}
+                </span>
+            </div>
+
+            {/* Pre-session ritual banner */}
+            <AnimatePresence>
+                {!ritualDismissed && (
+                    <motion.div
+                        initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }}
+                        style={{ borderBottom: divider, borderLeft: '2px solid rgba(253,200,0,0.5)', background: 'rgba(253,200,0,0.04)', overflow: 'hidden' }}
+                    >
+                        <div style={{ padding: isMobile ? '10px 14px' : '10px 20px', display: 'flex', alignItems: 'center', gap: 12 }}>
+                            <Brain size={13} color="#FDC800" style={{ flexShrink: 0 }} />
+                            <span style={{ ...mono, fontSize: 11, color: '#c9d1d9', flex: 1 }}>
+                                {lang === 'fr'
+                                    ? 'Rituel pré-session — As-tu révisé ton plan de trading ? Définis ton biais directionnel avant d\'ouvrir le marché.'
+                                    : 'Pre-session ritual — Have you reviewed your trading plan? Define your directional bias before opening the market.'}
+                            </span>
+                            <button onClick={() => setRitualDismissed(true)}
+                                style={{ background: 'none', border: 'none', color: '#4b5563', cursor: 'pointer', fontSize: 16, lineHeight: 1, flexShrink: 0, padding: '2px 6px' }}>×</button>
+                        </div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
+
+            {/* Tab switcher: TRADES | NOTES | INSIGHTS */}
+            <div style={{ borderBottom: divider, display: 'flex', gap: 0, background: '#090909' }}>
+                {([
+                    { id: 'trades', label: lang === 'fr' ? 'TRADES' : 'TRADES', icon: <Activity size={11} /> },
+                    { id: 'notes', label: lang === 'fr' ? `NOTES (${trades.filter(t => t.note && t.note.trim().length > 10).length})` : `NOTES (${trades.filter(t => t.note && t.note.trim().length > 10).length})`, icon: <BookOpen size={11} /> },
+                    { id: 'insights', label: lang === 'fr' ? 'APERÇUS' : 'INSIGHTS', icon: <Brain size={11} /> },
+                ] as const).map(tab => (
+                    <button key={tab.id} onClick={() => setJournalTab(tab.id)}
+                        style={{
+                            ...mono, fontSize: 10, fontWeight: 700, letterSpacing: '0.1em', padding: isMobile ? '12px 14px' : '14px 20px',
+                            background: 'transparent', border: 'none', borderBottom: journalTab === tab.id ? '2px solid #FDC800' : '2px solid transparent',
+                            color: journalTab === tab.id ? '#fff' : '#4b5563', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6,
+                            transition: 'color 0.15s',
+                        }}>
+                        {tab.icon} {tab.label}
+                    </button>
                 ))}
             </div>
 
+            {/* Time filter pills + KPI strip */}
+            {(journalTab === 'trades' || journalTab === 'insights') && (
+                <>
+                    {/* Time filter */}
+                    <div style={{ padding: isMobile ? '8px 14px' : '10px 20px', borderBottom: divider, display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                        <span style={{ ...mono, fontSize: 9, color: '#4b5563', letterSpacing: '0.1em', textTransform: 'uppercase' as const, marginRight: 4 }}>
+                            {lang === 'fr' ? 'Période' : 'Period'}
+                        </span>
+                        {([
+                            { id: 'month', label: lang === 'fr' ? 'CE MOIS' : 'THIS MONTH' },
+                            { id: '3m', label: lang === 'fr' ? '3 MOIS' : 'LAST 3M' },
+                            { id: 'ytd', label: lang === 'fr' ? 'YTD' : 'YTD' },
+                            { id: 'all', label: lang === 'fr' ? 'TOUT' : 'ALL TIME' },
+                        ] as const).map(f => (
+                            <button key={f.id} onClick={() => setTimeFilter(f.id)}
+                                style={{
+                                    ...mono, fontSize: 9, fontWeight: 700, letterSpacing: '0.08em', padding: '4px 10px',
+                                    background: timeFilter === f.id ? '#FDC800' : 'transparent',
+                                    color: timeFilter === f.id ? '#000' : '#4b5563',
+                                    border: `1px solid ${timeFilter === f.id ? '#FDC800' : '#1a1c24'}`,
+                                    cursor: 'pointer', transition: 'all 0.15s',
+                                }}>
+                                {f.label}
+                            </button>
+                        ))}
+                        <span style={{ ...mono, fontSize: 9, color: '#4b5563', marginLeft: 'auto' }}>
+                            {timeFilteredTrades.length} {lang === 'fr' ? 'trades' : 'trades'}
+                        </span>
+                    </div>
+
+                    {/* KPI strip */}
+                    <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'repeat(2,1fr)' : 'repeat(5,1fr)', borderBottom: divider }}>
+                        {[
+                            {
+                                k: 'Net P&L',
+                                v: timeFilteredTrades.length > 0 ? `${tfPnl >= 0 ? '+' : ''}$${Math.abs(tfPnl).toLocaleString(undefined, { maximumFractionDigits: 2 })}` : '—',
+                                c: timeFilteredTrades.length > 0 ? (tfPnl >= 0 ? '#FDC800' : '#ff4757') : '#4b5563',
+                                sub: timeFilteredTrades.length > 0 ? `${tfWins.length}W · ${tfLosses.length}L` : '—',
+                            },
+                            {
+                                k: lang === 'fr' ? 'Taux de réussite' : 'Win Rate',
+                                v: timeFilteredTrades.length > 0 ? `${tfWinRate}%` : '—',
+                                c: tfWinRate >= 55 ? '#FDC800' : tfWinRate >= 45 ? '#EAB308' : timeFilteredTrades.length > 0 ? '#ff4757' : '#4b5563',
+                                sub: `${timeFilteredTrades.length} ${lang === 'fr' ? 'clôturés' : 'closed'}`,
+                            },
+                            {
+                                k: lang === 'fr' ? 'Facteur de profit' : 'Profit Factor',
+                                v: timeFilteredTrades.length > 0 ? (tfPf > 90 ? '∞' : tfPf.toFixed(2)) : '—',
+                                c: tfPf >= 1.5 ? '#FDC800' : tfPf >= 1 ? '#EAB308' : timeFilteredTrades.length > 0 ? '#ff4757' : '#4b5563',
+                                sub: tfAvgLoss > 0 ? `PF · ${tfPf.toFixed(2)}x` : '—',
+                            },
+                            {
+                                k: lang === 'fr' ? 'Espérance/trade' : 'Expectancy',
+                                v: timeFilteredTrades.length > 0 ? `${tfExpectancy >= 0 ? '+' : ''}$${Math.abs(tfExpectancy).toFixed(2)}` : '—',
+                                c: tfExpectancy >= 0 ? '#38bdf8' : '#ff4757',
+                                sub: lang === 'fr' ? 'par trade' : 'per trade',
+                            },
+                            {
+                                k: lang === 'fr' ? 'Moy. Gain / Perte' : 'Avg Win / Loss',
+                                v: tfWins.length > 0 ? `$${tfAvgWin.toFixed(0)}` : '—',
+                                c: '#FDC800',
+                                sub: tfLosses.length > 0 ? `vs $${tfAvgLoss.toFixed(0)} loss` : '—',
+                            },
+                        ].map((s, i, arr) => (
+                            <div key={i} style={{
+                                padding: isMobile ? '12px 12px' : '14px 16px',
+                                borderRight: isMobile ? (i % 2 === 0 ? divider : 'none') : (i < arr.length - 1 ? divider : 'none'),
+                                borderBottom: isMobile && i < 2 ? divider : 'none',
+                                background: '#0d1117',
+                            }}>
+                                <span style={lbl}>{s.k}</span>
+                                <span style={{ ...mono, fontSize: isMobile ? 16 : 20, fontWeight: 800, color: s.c, letterSpacing: '-0.02em', display: 'block', marginTop: 4, lineHeight: 1 }}>{s.v}</span>
+                                <span style={{ ...mono, fontSize: 9, color: '#4b5563', display: 'block', marginTop: 3 }}>{s.sub}</span>
+                            </div>
+                        ))}
+                    </div>
+
+                    {/* Collapsible charts section */}
+                    {timeFilteredTrades.length >= 2 && (
+                        <div style={{ borderBottom: divider }}>
+                            {/* Charts header */}
+                            <button
+                                onClick={() => setChartsExpanded(p => !p)}
+                                style={{ ...mono, width: '100%', display: 'flex', alignItems: 'center', gap: 8, padding: isMobile ? '10px 14px' : '10px 20px', background: '#0a0a0a', border: 'none', borderBottom: chartsExpanded ? divider : 'none', cursor: 'pointer', color: '#4b5563' }}>
+                                <BarChart2 size={12} />
+                                <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase' as const }}>
+                                    {lang === 'fr' ? 'Graphiques' : 'Charts'}
+                                </span>
+                                {chartsExpanded ? <ChevronUp size={12} style={{ marginLeft: 'auto' }} /> : <ChevronDown size={12} style={{ marginLeft: 'auto' }} />}
+                            </button>
+                            <AnimatePresence initial={false}>
+                                {chartsExpanded && (
+                                    <motion.div
+                                        key="charts"
+                                        initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }}
+                                        style={{ overflow: 'hidden' }}
+                                    >
+                                        <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'repeat(2, 1fr)', gap: 0 }}>
+                                            {/* Equity Curve */}
+                                            <div style={{ padding: isMobile ? '14px' : '18px 20px', borderRight: isMobile ? 'none' : divider, borderBottom: divider }}>
+                                                <span style={lbl}>{lang === 'fr' ? 'Courbe de capital' : 'Equity Curve'}</span>
+                                                <ResponsiveContainer width="100%" height={140}>
+                                                    <AreaChart data={equityCurveData} margin={{ top: 8, right: 0, left: 0, bottom: 0 }}>
+                                                        <defs>
+                                                            <linearGradient id="equityGrad" x1="0" y1="0" x2="0" y2="1">
+                                                                <stop offset="5%" stopColor="#FDC800" stopOpacity={0.3} />
+                                                                <stop offset="95%" stopColor="#FDC800" stopOpacity={0} />
+                                                            </linearGradient>
+                                                        </defs>
+                                                        <CartesianGrid strokeDasharray="3 3" stroke="#1a1c24" />
+                                                        <XAxis dataKey="i" tick={{ fontSize: 9, fill: '#4b5563', fontFamily: 'var(--font-mono)' }} tickLine={false} axisLine={false} />
+                                                        <YAxis tick={{ fontSize: 9, fill: '#4b5563', fontFamily: 'var(--font-mono)' }} tickLine={false} axisLine={false} width={45} tickFormatter={v => `$${v}`} />
+                                                        <RechartTooltip
+                                                            contentStyle={{ background: '#0d1117', border: '1px solid #1a1c24', borderRadius: 0, fontFamily: 'var(--font-mono)', fontSize: 11 }}
+                                                            labelStyle={{ color: '#4b5563' }}
+                                                            formatter={(v: number | undefined) => [`$${(v ?? 0).toFixed(2)}`, lang === 'fr' ? 'Cumulé' : 'Cumulative']}
+                                                        />
+                                                        <Area type="monotone" dataKey="pnl" stroke="#FDC800" strokeWidth={1.5} fill="url(#equityGrad)" dot={false} />
+                                                    </AreaChart>
+                                                </ResponsiveContainer>
+                                            </div>
+
+                                            {/* Daily P&L */}
+                                            <div style={{ padding: isMobile ? '14px' : '18px 20px', borderBottom: divider }}>
+                                                <span style={lbl}>{lang === 'fr' ? 'P&L journalier' : 'Daily P&L'}</span>
+                                                <ResponsiveContainer width="100%" height={140}>
+                                                    <BarChart data={dailyPnlData} margin={{ top: 8, right: 0, left: 0, bottom: 0 }}>
+                                                        <CartesianGrid strokeDasharray="3 3" stroke="#1a1c24" />
+                                                        <XAxis dataKey="d" tick={{ fontSize: 8, fill: '#4b5563', fontFamily: 'var(--font-mono)' }} tickLine={false} axisLine={false} />
+                                                        <YAxis tick={{ fontSize: 9, fill: '#4b5563', fontFamily: 'var(--font-mono)' }} tickLine={false} axisLine={false} width={45} tickFormatter={v => `$${v}`} />
+                                                        <RechartTooltip
+                                                            contentStyle={{ background: '#0d1117', border: '1px solid #1a1c24', borderRadius: 0, fontFamily: 'var(--font-mono)', fontSize: 11 }}
+                                                            formatter={(v: number | undefined) => { const n = v ?? 0; return [`${n >= 0 ? '+' : ''}$${n.toFixed(2)}`, 'P&L']; }}
+                                                        />
+                                                        <Bar dataKey="pnl" maxBarSize={20}>
+                                                            {dailyPnlData.map((d, i) => (
+                                                                <Cell key={i} fill={d.pnl >= 0 ? '#FDC800' : '#ff4757'} fillOpacity={0.85} />
+                                                            ))}
+                                                        </Bar>
+                                                    </BarChart>
+                                                </ResponsiveContainer>
+                                            </div>
+
+                                            {/* By Symbol */}
+                                            {bySymbolData.length > 0 && (
+                                                <div style={{ padding: isMobile ? '14px' : '18px 20px', borderRight: isMobile ? 'none' : divider }}>
+                                                    <span style={lbl}>{lang === 'fr' ? 'Par instrument' : 'By Symbol'}</span>
+                                                    <div style={{ marginTop: 12, display: 'flex', flexDirection: 'column', gap: 8 }}>
+                                                        {bySymbolData.map((s, i) => {
+                                                            const maxPnl = Math.max(...bySymbolData.map(x => Math.abs(x.pnl)));
+                                                            const pct = maxPnl > 0 ? (Math.abs(s.pnl) / maxPnl) * 100 : 0;
+                                                            return (
+                                                                <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                                                    <span style={{ ...mono, fontSize: 9, fontWeight: 700, color: '#c9d1d9', width: 60, flexShrink: 0 }}>{s.sym}</span>
+                                                                    <div style={{ flex: 1, height: 4, background: '#1a1c24', borderRadius: 2, overflow: 'hidden' }}>
+                                                                        <div style={{ height: '100%', width: `${pct}%`, background: s.pnl >= 0 ? '#FDC800' : '#ff4757' }} />
+                                                                    </div>
+                                                                    <span style={{ ...mono, fontSize: 10, fontWeight: 700, color: s.pnl >= 0 ? '#FDC800' : '#ff4757', width: 64, textAlign: 'right', flexShrink: 0 }}>
+                                                                        {s.pnl >= 0 ? '+' : ''}${s.pnl.toFixed(2)}
+                                                                    </span>
+                                                                    <span style={{ ...mono, fontSize: 9, color: '#4b5563', width: 24, textAlign: 'right', flexShrink: 0 }}>{s.count}</span>
+                                                                </div>
+                                                            );
+                                                        })}
+                                                    </div>
+                                                </div>
+                                            )}
+
+                                            {/* By Day of Week */}
+                                            <div style={{ padding: isMobile ? '14px' : '18px 20px' }}>
+                                                <span style={lbl}>{lang === 'fr' ? 'Par jour de semaine' : 'By Day of Week'}</span>
+                                                <ResponsiveContainer width="100%" height={140}>
+                                                    <BarChart data={byDowData} margin={{ top: 8, right: 0, left: 0, bottom: 0 }}>
+                                                        <CartesianGrid strokeDasharray="3 3" stroke="#1a1c24" />
+                                                        <XAxis dataKey="dow" tick={{ fontSize: 9, fill: '#4b5563', fontFamily: 'var(--font-mono)' }} tickLine={false} axisLine={false} />
+                                                        <YAxis tick={{ fontSize: 9, fill: '#4b5563', fontFamily: 'var(--font-mono)' }} tickLine={false} axisLine={false} width={45} tickFormatter={v => `$${v}`} />
+                                                        <RechartTooltip
+                                                            contentStyle={{ background: '#0d1117', border: '1px solid #1a1c24', borderRadius: 0, fontFamily: 'var(--font-mono)', fontSize: 11 }}
+                                                            formatter={(v: number | undefined) => { const n = v ?? 0; return [`${n >= 0 ? '+' : ''}$${n.toFixed(2)}`, lang === 'fr' ? 'Moy.' : 'Avg']; }}
+                                                        />
+                                                        <Bar dataKey="avg" maxBarSize={32}>
+                                                            {byDowData.map((d, i) => (
+                                                                <Cell key={i} fill={d.avg >= 0 ? '#FDC800' : '#ff4757'} fillOpacity={0.85} />
+                                                            ))}
+                                                        </Bar>
+                                                    </BarChart>
+                                                </ResponsiveContainer>
+                                            </div>
+                                        </div>
+                                    </motion.div>
+                                )}
+                            </AnimatePresence>
+                        </div>
+                    )}
+                </>
+            )}
+
+            {/* ── NOTES TAB ───────────────────────────────────── */}
+            {journalTab === 'notes' && (
+                <div style={{ padding: isMobile ? '14px' : '20px' }}>
+                    {trades.filter(t => t.note && t.note.trim().length > 0).length === 0 ? (
+                        <div style={{ textAlign: 'center', padding: '40px 20px' }}>
+                            <BookOpen size={32} color="#1a1c24" style={{ margin: '0 auto 12px' }} />
+                            <span style={{ ...mono, fontSize: 12, color: '#4b5563', display: 'block' }}>
+                                {lang === 'fr' ? 'Aucune note. Développez un trade pour annoter.' : 'No notes yet. Expand a trade to annotate it.'}
+                            </span>
+                        </div>
+                    ) : (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
+                            {trades
+                                .filter(t => t.note && t.note.trim().length > 0)
+                                .sort((a, b) => new Date(b.closedAt ?? b.createdAt).getTime() - new Date(a.closedAt ?? a.createdAt).getTime())
+                                .map((t, i, arr) => (
+                                    <div key={t.id} style={{ borderBottom: i < arr.length - 1 ? divider : 'none', padding: '16px 0' }}>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
+                                            <span style={{ ...mono, fontSize: 11, fontWeight: 800, color: t.outcome === 'win' ? '#FDC800' : t.outcome === 'loss' ? '#ff4757' : '#EAB308' }}>
+                                                {t.asset}
+                                            </span>
+                                            <span style={{ ...mono, fontSize: 9, color: '#4b5563' }}>{(t.outcome ?? 'open').toUpperCase()}</span>
+                                            {t.pnl !== undefined && (
+                                                <span style={{ ...mono, fontSize: 11, fontWeight: 700, color: (t.pnl ?? 0) >= 0 ? '#FDC800' : '#ff4757' }}>
+                                                    {(t.pnl ?? 0) >= 0 ? '+' : ''}${Math.abs(t.pnl ?? 0).toFixed(2)}
+                                                </span>
+                                            )}
+                                            <span style={{ ...mono, fontSize: 9, color: '#4b5563', marginLeft: 'auto' }}>
+                                                {new Date(t.closedAt ?? t.createdAt).toLocaleDateString()}
+                                            </span>
+                                        </div>
+                                        <p style={{ ...mono, fontSize: 12, color: '#8b949e', lineHeight: 1.7, margin: 0, whiteSpace: 'pre-wrap' }}>{t.note}</p>
+                                    </div>
+                                ))}
+                        </div>
+                    )}
+                </div>
+            )}
+
+            {/* ── INSIGHTS TAB ─────────────────────────────────── */}
+            {journalTab === 'insights' && (
+                <div style={{ padding: isMobile ? '14px' : '20px', display: 'flex', flexDirection: 'column', gap: 16 }}>
+                    {closedTrades.length === 0 ? (
+                        <div style={{ textAlign: 'center', padding: '40px 20px' }}>
+                            <Brain size={32} color="#1a1c24" style={{ margin: '0 auto 12px' }} />
+                            <span style={{ ...mono, fontSize: 12, color: '#4b5563', display: 'block' }}>
+                                {lang === 'fr' ? 'Aucune donnée. Enregistrez vos trades pour débloquer les aperçus comportementaux.' : 'No data yet. Log trades to unlock behavioral insights.'}
+                            </span>
+                        </div>
+                    ) : (
+                        <>
+                            {/* Best/Worst metrics */}
+                            <div style={{ background: '#0d1117', border: divider, padding: '16px 20px' }}>
+                                <span style={{ ...lbl, marginBottom: 12, display: 'block' }}>{lang === 'fr' ? 'Observations comportementales' : 'Behavioral Observations'}</span>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                                    {[
+                                        {
+                                            icon: '→',
+                                            color: tfWinRate >= 55 ? '#FDC800' : '#ff4757',
+                                            text: lang === 'fr'
+                                                ? `Taux de réussite ${tfWinRate}% sur la période — ${tfWinRate >= 55 ? 'au-dessus du seuil de rentabilité' : 'en dessous du seuil de rentabilité'}`
+                                                : `${tfWinRate}% win rate over period — ${tfWinRate >= 55 ? 'above breakeven threshold' : 'below breakeven threshold'}`
+                                        },
+                                        {
+                                            icon: '→',
+                                            color: tfPf >= 1 ? '#FDC800' : '#ff4757',
+                                            text: lang === 'fr'
+                                                ? `Facteur de profit ${tfPf > 90 ? '∞' : tfPf.toFixed(2)}x — ${tfPf >= 1.5 ? 'excellent edge statistique' : tfPf >= 1 ? 'edge positif, à consolider' : 'edge négatif, réviser la stratégie'}`
+                                                : `Profit factor ${tfPf > 90 ? '∞' : tfPf.toFixed(2)}x — ${tfPf >= 1.5 ? 'excellent statistical edge' : tfPf >= 1 ? 'positive edge, keep refining' : 'negative edge, revisit strategy'}`
+                                        },
+                                        ...(tfAvgWin > 0 && tfAvgLoss > 0 ? [{
+                                            icon: '→',
+                                            color: tfAvgWin > tfAvgLoss ? '#FDC800' : '#EAB308',
+                                            text: lang === 'fr'
+                                                ? `Ratio gain/perte moyen : $${tfAvgWin.toFixed(0)} / $${tfAvgLoss.toFixed(0)} — ${tfAvgWin > tfAvgLoss ? 'winners plus grands que losers' : 'losers plus grands que winners, surveiller les stops'}`
+                                                : `Avg win/loss ratio: $${tfAvgWin.toFixed(0)} / $${tfAvgLoss.toFixed(0)} — ${tfAvgWin > tfAvgLoss ? 'winners larger than losers' : 'losers larger than winners, review stops'}`
+                                        }] : []),
+                                        ...(byDowData.length > 0 ? (() => {
+                                            const best = byDowData.reduce((a, b) => a.avg > b.avg ? a : b);
+                                            const worst = byDowData.reduce((a, b) => a.avg < b.avg ? a : b);
+                                            return best.count > 0 ? [{
+                                                icon: '→',
+                                                color: '#38bdf8',
+                                                text: lang === 'fr'
+                                                    ? `Meilleur jour : ${best.dow} (+$${best.avg.toFixed(2)} moy.) · Pire : ${worst.dow} (${worst.avg >= 0 ? '+' : ''}$${worst.avg.toFixed(2)} moy.)`
+                                                    : `Best day: ${best.dow} (+$${best.avg.toFixed(2)} avg) · Worst: ${worst.dow} (${worst.avg >= 0 ? '+' : ''}$${worst.avg.toFixed(2)} avg)`
+                                            }] : [];
+                                        })() : []),
+                                    ].map((obs, i) => (
+                                        <div key={i} style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
+                                            <span style={{ ...mono, fontSize: 12, color: obs.color, flexShrink: 0, marginTop: 1 }}>{obs.icon}</span>
+                                            <span style={{ ...mono, fontSize: 12, color: '#c9d1d9', lineHeight: 1.6 }}>{obs.text}</span>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+
+                            {/* Actionable coaching rules */}
+                            <div style={{ background: '#0d1117', border: divider, padding: '16px 20px' }}>
+                                <span style={{ ...lbl, marginBottom: 12, display: 'block' }}>{lang === 'fr' ? 'Règles de coaching issues de vos données' : 'Coaching Rules From Your Data'}</span>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                                    {[
+                                        tfWinRate < 50
+                                            ? (lang === 'fr' ? '⛔ Réduire la taille des positions jusqu\'à ce que le taux de réussite dépasse 50% sur 20 trades.' : '⛔ Reduce position size until win rate exceeds 50% over 20 trades.')
+                                            : (lang === 'fr' ? '✓ Taux de réussite solide. Concentrez-vous sur la maximisation de la taille lors des setups A+.' : '✓ Solid win rate. Focus on maximising size on A+ setups.'),
+                                        tfPf < 1
+                                            ? (lang === 'fr' ? '⛔ Facteur de profit inférieur à 1 — couper les pertes plus tôt ou laisser courir les gagnants.' : '⛔ Profit factor below 1 — cut losses sooner or let winners run further.')
+                                            : (lang === 'fr' ? '✓ Facteur de profit positif. Continuez à respecter vos take profits.' : '✓ Positive profit factor. Keep honoring your take profits.'),
+                                        disciplineScore < 70
+                                            ? (lang === 'fr' ? '⛔ Score de discipline faible. Respectez un délai de 10 minutes après chaque perte avant de re-entrer.' : '⛔ Discipline score low. Enforce a 10-minute cooling-off rule after each loss.')
+                                            : (lang === 'fr' ? '✓ Bonne discipline émotionnelle détectée. Maintenez ce rythme.' : '✓ Good emotional discipline detected. Maintain this rhythm.'),
+                                        traceabilityScore.pct < 50
+                                            ? (lang === 'fr' ? '⛔ Traçabilité insuffisante. Annotez chaque trade avec le setup, le biais et l\'émotion ressentie.' : '⛔ Low traceability. Annotate every trade with setup, bias, and felt emotion.')
+                                            : (lang === 'fr' ? '✓ Bonne couverture des notes. Les patterns comportementaux sont maintenant détectables.' : '✓ Good note coverage. Behavioral patterns are now detectable.'),
+                                        consistencyStreak === 0
+                                            ? (lang === 'fr' ? '⛔ Aucun trade enregistré aujourd\'hui. La régularité est le premier pilier de la progression.' : '⛔ No trades logged today. Consistency is the first pillar of improvement.')
+                                            : (lang === 'fr' ? `✓ Série de ${consistencyStreak} jour${consistencyStreak > 1 ? 's' : ''} — la régularité construit l'edge de long terme.` : `✓ ${consistencyStreak}-day streak — consistency builds long-term edge.`),
+                                    ].map((rule, i) => (
+                                        <div key={i} style={{ display: 'flex', gap: 10, alignItems: 'flex-start', padding: '8px 0', borderBottom: i < 4 ? '1px solid #0d1117' : 'none' }}>
+                                            <span style={{ ...mono, fontSize: 12, color: rule.startsWith('⛔') ? '#ff4757' : '#FDC800', lineHeight: 1.6 }}>{rule}</span>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        </>
+                    )}
+                </div>
+            )}
+
             {/* ── FILTER + VIEW TOGGLE ────────────────────────── */}
-            {trades.length > 0 && (
+            {journalTab === 'trades' && trades.length > 0 && (
                 <div style={{ padding: isMobile ? '8px 14px' : '10px 20px', borderBottom: divider, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                     {/* Outcome filters */}
                     {(['all', 'win', 'loss', 'open'] as const).map(f => (
@@ -428,7 +1001,7 @@ export default function JournalPage() {
             )}
 
             {/* ── MONTHLY HEATMAP ─────────────────────────────── */}
-            {trades.length > 0 && (
+            {journalTab === 'trades' && trades.length > 0 && (
                 <div style={{ padding: isMobile ? '8px 14px' : '10px 20px', borderBottom: '1px solid #1a1c24' }}>
                     <ChartCard
                         title={lang === 'fr' ? 'CE MOIS' : 'THIS MONTH'}
@@ -440,7 +1013,7 @@ export default function JournalPage() {
             )}
 
             {/* ── STREAK BEADS ────────────────────────────────── */}
-            {trades.length > 0 && (
+            {journalTab === 'trades' && trades.length > 0 && (
                 <div style={{ padding: isMobile ? '8px 14px' : '10px 20px', borderBottom: '1px solid #1a1c24' }}>
                     <ChartCard
                         title={lang === 'fr' ? 'SÉRIE' : 'STREAK'}
@@ -452,7 +1025,7 @@ export default function JournalPage() {
             )}
 
             {/* ── EMPTY STATE ─────────────────────────────────── */}
-            {trades.length === 0 && (
+            {journalTab === 'trades' && trades.length === 0 && (
                 <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '64px 20px', gap: 12, textAlign: 'center' }}>
                     <div style={{ fontSize: 40, lineHeight: 1 }}>📋</div>
                     <span style={{ ...mono, fontSize: 16, fontWeight: 800, color: '#e2e8f0', marginTop: 8 }}>{lang === 'fr' ? 'Aucun trade enregistré' : 'No trades logged yet'}</span>
@@ -477,7 +1050,7 @@ export default function JournalPage() {
             )}
 
             {/* ── LIST VIEW ───────────────────────────────────── */}
-            {trades.length > 0 && viewMode === 'list' && (
+            {journalTab === 'trades' && trades.length > 0 && viewMode === 'list' && (
                 <div>
                     {groupedByDay.length === 0 ? (
                         <div style={{ padding: '40px 20px', textAlign: 'center' }}>
@@ -794,7 +1367,7 @@ export default function JournalPage() {
             )}
 
             {/* ── CALENDAR VIEW ───────────────────────────────── */}
-            {trades.length > 0 && viewMode === 'calendar' && (
+            {journalTab === 'trades' && trades.length > 0 && viewMode === 'calendar' && (
                 <motion.div initial={{ opacity: 0, scale: 0.98 }} animate={{ opacity: 1, scale: 1 }} className={styles.calendarContainer} style={isMobile ? { borderRadius: 0, margin: 0 } : {}}>
                     <div className={styles.calendarHeader}>
                         <div className={styles.calendarNav}>
