@@ -4,6 +4,7 @@ import styles from './SettingsPage.module.css';
 import { useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAppStore, PROP_FIRMS, type PropFirmPreset } from '@/store/appStore';
+import { useTranslation } from '@/i18n/useTranslation';
 import { scanViolations, type TradeViolation } from '@/lib/tradeViolations';
 import {
     Settings2, DollarSign, ShieldAlert, Check, RefreshCw, Building2,
@@ -160,6 +161,7 @@ export default function SettingsPage() {
     } = useAppStore();
 
     const lang = language ?? 'en';
+    const { t } = useTranslation();
 
     const [saved, setSaved] = useState(false);
     const [selectedFirm, setSelectedFirm] = useState<string | null>(account.propFirm || null);
@@ -209,7 +211,7 @@ export default function SettingsPage() {
         if (!e.target) return;
         (e.target as HTMLInputElement).value = '';
         if (!file) return;
-        setPdfBusy(true); setPdfMsg('Parsing statement...');
+        setPdfBusy(true); setPdfMsg(t.settings.pdfParsing);
         try {
             const { parseTradeifyPDF } = await import('@/lib/parseTradeifyPDF');
             const result = await parseTradeifyPDF(file);
@@ -365,10 +367,10 @@ export default function SettingsPage() {
                 <Settings2 size={18} color="#FDC800" />
                 <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontFamily: 'var(--font-mono)', fontSize: 14, fontWeight: 800, color: '#fff', letterSpacing: '0.04em', textTransform: 'uppercase' }}>
-                        Settings
+                        {t.settings.title}
                     </div>
                     <div style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: '#6b7280', marginTop: 2 }}>
-                        Risk rules · account · preferences
+                        {t.settings.subtitle}
                     </div>
                 </div>
                 <motion.button
@@ -377,7 +379,7 @@ export default function SettingsPage() {
                     whileTap={{ scale: 0.94 }}
                 >
                     <Check size={13} />
-                    {saved ? 'Saved!' : 'Save'}
+                    {saved ? t.settings.saved : t.settings.saveSettings}
                 </motion.button>
             </motion.div>
 
@@ -389,12 +391,12 @@ export default function SettingsPage() {
 
                     {/* ── 1. Account Setup ─────────────────────────────────── */}
                     <motion.section variants={sectionVariant} style={{ ...CARD, padding: 20, marginBottom: 0 }}>
-                        <SectionHeader icon={<DollarSign size={14} />} label="Account Setup" />
+                        <SectionHeader icon={<DollarSign size={14} />} label={t.settings.accountSetup} />
 
                         <div className={styles.inputGrid}>
                             <Field
-                                label="Starting Balance"
-                                hint={`Drawdown floor reference`}
+                                label={t.settings.startingBalance}
+                                hint={t.settings.drawdownFloorHint}
                             >
                                 <input
                                     type="number"
@@ -409,7 +411,7 @@ export default function SettingsPage() {
                                 />
                             </Field>
                             <Field
-                                label="Current Balance"
+                                label={t.settings.currentBalance}
                             >
                                 <input
                                     type="number"
@@ -427,8 +429,8 @@ export default function SettingsPage() {
 
                         <div className={styles.inputGrid} style={{ marginTop: 12 }}>
                             <Field
-                                label="Daily Loss Limit ($)"
-                                hint={balNum > 0 && dailyLimit ? `${((parseFloat(dailyLimit) / balNum) * 100).toFixed(2)}% of balance` : undefined}
+                                label={t.settings.dailyLossLimit}
+                                hint={balNum > 0 && dailyLimit ? `${((parseFloat(dailyLimit) / balNum) * 100).toFixed(2)}% ${t.settings.ofBalance}` : undefined}
                             >
                                 <input
                                     type="number"
@@ -443,8 +445,8 @@ export default function SettingsPage() {
                                 />
                             </Field>
                             <Field
-                                label="Max Drawdown (%)"
-                                hint={balNum > 0 ? `$${((balNum * (parseFloat(maxDrawdownPct) || 0)) / 100).toFixed(0)} floor` : undefined}
+                                label={t.settings.maxDrawdown}
+                                hint={balNum > 0 ? `$${((balNum * (parseFloat(maxDrawdownPct) || 0)) / 100).toFixed(0)} ${t.settings.floor}` : undefined}
                             >
                                 <input
                                     type="number"
@@ -462,8 +464,8 @@ export default function SettingsPage() {
 
                         <div className={styles.inputGrid} style={{ marginTop: 12 }}>
                             <Field
-                                label="Max Risk / Trade (%)"
-                                hint={balNum > 0 && maxRisk ? `~$${((balNum * parseFloat(maxRisk)) / 100).toFixed(0)} per trade` : undefined}
+                                label={t.settings.maxRiskPerTrade}
+                                hint={balNum > 0 && maxRisk ? `~$${((balNum * parseFloat(maxRisk)) / 100).toFixed(0)} ${t.settings.perTrade}` : undefined}
                             >
                                 <input
                                     type="number"
@@ -478,7 +480,7 @@ export default function SettingsPage() {
                                 />
                             </Field>
                             <Field
-                                label="Max Trades / Day"
+                                label={t.settings.maxTradesPerDay}
                                 hint={!maxTradesPerDay && balNum > 0 && dailyLimit && maxRisk
                                     ? `Min possible: ${Math.floor(parseFloat(dailyLimit) / ((balNum * parseFloat(maxRisk)) / 100))} at max risk`
                                     : undefined}
@@ -499,7 +501,7 @@ export default function SettingsPage() {
 
                         {/* Drawdown type selector */}
                         <div style={{ marginTop: 12 }}>
-                            <label style={LABEL}>Drawdown Type</label>
+                            <label style={LABEL}>{t.settings.drawdownType}</label>
                             <div style={{ display: 'flex', gap: 0, border: '2px solid #1a1c24' }}>
                                 {(['EOD', 'Trailing', 'Static'] as const).map((dt, i) => (
                                     <button
@@ -528,7 +530,7 @@ export default function SettingsPage() {
 
                     {/* ── 4. Account Rules ─────────────────────────────────── */}
                     <motion.section variants={sectionVariant} style={{ ...CARD, padding: 20, marginTop: 0, borderTop: 'none' }}>
-                        <SectionHeader icon={<Brain size={14} />} label="Account Rules" />
+                        <SectionHeader icon={<Brain size={14} />} label={t.settings.accountRules} />
                         <p style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: '#6b7280', marginBottom: 16, marginTop: -8 }}>
                             Circuit breakers that protect you from emotional trading.
                         </p>
@@ -597,7 +599,7 @@ export default function SettingsPage() {
                                     exit={{ opacity: 0, height: 0 }}
                                     style={{ overflow: 'hidden', marginBottom: 8 }}
                                 >
-                                    <Field label="Max Consecutive Losses" hint={`Stop trading after ${maxConsecLosses} losses in a row`}>
+                                    <Field label={t.settings.maxConsecLosses} hint={`Stop trading after ${maxConsecLosses} losses in a row`}>
                                         <input
                                             type="number" inputMode="numeric" pattern="[0-9]*"
                                             value={maxConsecLosses} onChange={e => setMaxConsecLosses(e.target.value)}
@@ -633,7 +635,7 @@ export default function SettingsPage() {
                                     exit={{ opacity: 0, height: 0 }}
                                     style={{ overflow: 'hidden' }}
                                 >
-                                    <Field label="Cool-Down Duration (minutes)" hint={`Wait ${coolDownMins}min after a losing trade`}>
+                                    <Field label={t.settings.cooldownMinutes} hint={`Wait ${coolDownMins}min after a losing trade`}>
                                         <input
                                             type="number" inputMode="numeric" pattern="[0-9]*"
                                             value={coolDownMins} onChange={e => setCoolDownMins(e.target.value)}
@@ -671,7 +673,7 @@ export default function SettingsPage() {
 
                     {/* ── 2. Prop Firm Presets ──────────────────────────────── */}
                     <motion.section variants={sectionVariant} style={{ ...CARD, padding: 20, marginBottom: 0 }}>
-                        <SectionHeader icon={<Building2 size={14} />} label="Prop Firm Presets" />
+                        <SectionHeader icon={<Building2 size={14} />} label={t.settings.propFirmPresets} />
 
                         <div className={styles.firmRail}>
                             {PROP_FIRMS.filter(f => f.dailyPct > 0).map(firm => (
@@ -787,7 +789,7 @@ export default function SettingsPage() {
                     <motion.section variants={sectionVariant} style={{ ...CARD, padding: 20, marginTop: 0, borderTop: 'none' }}>
                         <SectionHeader icon={<CandlestickChart size={14} />} label="Asset & Instrument" />
 
-                        <label style={LABEL}>Default Asset Type</label>
+                        <label style={LABEL}>{t.settings.assetType}</label>
                         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 0, border: '2px solid #1a1c24' }}>
                             {(['crypto', 'forex', 'futures', 'stocks'] as const).map((type, i) => (
                                 <button
@@ -821,10 +823,10 @@ export default function SettingsPage() {
 
                     {/* ── 5. Trading Day ───────────────────────────────────── */}
                     <motion.section variants={sectionVariant} style={{ ...CARD, padding: 20, marginTop: 0, borderTop: 'none' }}>
-                        <SectionHeader icon={<Clock size={14} />} label="Trading Day" />
+                        <SectionHeader icon={<Clock size={14} />} label={t.settings.tradingDay} />
 
                         <Field
-                            label="Day Roll Hour (EST, 0-23)"
+                            label={t.settings.tradingDayRoll}
                             hint={`Tradeify default: 17 (5:00 PM EST). Currently: ${rollHour}:00 EST`}
                         >
                             <input
@@ -844,7 +846,7 @@ export default function SettingsPage() {
 
                     {/* ── 6. Language ──────────────────────────────────────── */}
                     <motion.section variants={sectionVariant} style={{ ...CARD, padding: 20, marginTop: 0, borderTop: 'none' }}>
-                        <SectionHeader icon={<Globe size={14} />} label="Language" />
+                        <SectionHeader icon={<Globe size={14} />} label={t.common.language} />
 
                         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
                             <div>
@@ -930,14 +932,14 @@ export default function SettingsPage() {
                                 style={{ ...BTN_GHOST, justifyContent: 'center', width: '100%' }}
                             >
                                 {pdfBusy ? <Loader2 size={13} style={{ animation: 'spin 1s linear infinite' }} /> : <Upload size={13} />}
-                                Import PDF
+                                {t.settings.importPDF}
                             </button>
                             <button
                                 onClick={handleExportCSV}
                                 disabled={trades.length === 0}
                                 style={{ ...BTN_GHOST, justifyContent: 'center', width: '100%', opacity: trades.length === 0 ? 0.4 : 1 }}
                             >
-                                <Download size={13} /> Export CSV
+                                <Download size={13} /> {t.settings.exportCSV}
                             </button>
                         </div>
 
@@ -1008,7 +1010,7 @@ export default function SettingsPage() {
 
                     {/* ── 7. Danger Zone ───────────────────────────────────── */}
                     <motion.section variants={sectionVariant} style={{ ...CARD, padding: 20, marginTop: 0, borderTop: 'none', borderColor: 'rgba(248,113,113,0.18)' }}>
-                        <SectionHeader icon={<AlertTriangle size={14} />} label="Danger Zone" />
+                        <SectionHeader icon={<AlertTriangle size={14} />} label={t.settings.dangerZone} />
 
                         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                             <button
@@ -1106,7 +1108,7 @@ export default function SettingsPage() {
                     }}
                 >
                     <Check size={15} />
-                    {saved ? 'Settings Saved!' : 'Save Settings'}
+                    {saved ? t.settings.saved : t.settings.saveSettings}
                 </motion.button>
             </motion.div>
 

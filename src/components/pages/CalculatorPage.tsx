@@ -11,13 +11,16 @@
 
 import { useState, useCallback, useMemo, useEffect, useRef } from 'react';
 import { useAppStore, getFuturesSpec, getESTFull, getTradingDay } from '@/store/appStore';
+import { useTranslation } from '@/i18n/useTranslation';
 import { AlertTriangle, ShieldCheck, Zap, Search, Terminal, TrendingUp, TrendingDown, X, Target, Brain, Activity } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { TRADEIFY_ASSETS } from '@/data/tradeifyAssets';
 import { calcSmartPositionSize, detectAssetType, scoreTradeQuality, analyzeBehavior, optimizeTakeProfit } from '@/ai/RiskAI';
 
 export default function CalculatorPage() {
-    const { account, addTrade, addDailyRisk, getDailyRiskRemaining, trades, setActiveTab } = useAppStore();
+    const { account, addTrade, addDailyRisk, getDailyRiskRemaining, trades, setActiveTab, language } = useAppStore();
+    const lang = language ?? 'en';
+    const { t } = useTranslation();
 
     // ── Core state ───────────────────────────────────────────────
     const [command,         setCommand]         = useState('');
@@ -294,8 +297,8 @@ export default function CalculatorPage() {
             <div style={{ padding: isMobile ? '10px 14px' : '12px 20px', borderBottom: divider, display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                     <Terminal size={14} color="#FDC800" />
-                    <span style={{ ...mono, fontSize: 13, fontWeight: 900, color: '#fff', letterSpacing: '0.04em' }}>RISK ENGINE</span>
-                    <span style={{ ...lbl, display: 'inline', marginLeft: 4 }}>— position sizer</span>
+                    <span style={{ ...mono, fontSize: 13, fontWeight: 900, color: '#fff', letterSpacing: '0.04em' }}>{t.calculator.title.toUpperCase()}</span>
+                    <span style={{ ...lbl, display: 'inline', marginLeft: 4 }}>— {t.calculator.subtitle}</span>
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                     <span style={{ ...mono, fontSize: 10, color: '#4b5563' }}>
@@ -366,7 +369,7 @@ export default function CalculatorPage() {
                         color: !isShort ? '#000' : '#4b5563',
                         display: 'flex', alignItems: 'center', gap: 5,
                     }}>
-                        <TrendingUp size={11} />LONG
+                        <TrendingUp size={11} />{t.calculator.long.toUpperCase()}
                     </button>
                     <button onClick={() => setIsShort(true)} style={{
                         ...mono, fontSize: 10, fontWeight: 800, letterSpacing: '0.06em', padding: '8px 14px',
@@ -375,7 +378,7 @@ export default function CalculatorPage() {
                         color: isShort ? '#fff' : '#4b5563',
                         display: 'flex', alignItems: 'center', gap: 5,
                     }}>
-                        <TrendingDown size={11} />SHORT
+                        <TrendingDown size={11} />{t.calculator.short.toUpperCase()}
                     </button>
                 </div>
 
@@ -430,7 +433,7 @@ export default function CalculatorPage() {
 
                 {/* ASSET */}
                 <div style={{ padding: isMobile ? '12px 12px' : '14px 16px', borderRight: divider, borderBottom: isMobile ? divider : 'none', position: 'relative' }} className="asset-browser-wrap">
-                    <span style={{ ...lbl, display: 'block', marginBottom: 4 }}>Asset</span>
+                    <span style={{ ...lbl, display: 'block', marginBottom: 4 }}>{t.calculator.asset}</span>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                         <input
                             style={{ ...mono, width: '100%', background: 'transparent', border: 'none', outline: 'none', fontSize: isMobile ? 18 : 22, fontWeight: 900, color: '#e2e8f0', padding: 0 }}
@@ -508,7 +511,7 @@ export default function CalculatorPage() {
 
                 {/* ENTRY PRICE */}
                 <div style={{ padding: isMobile ? '12px 12px' : '14px 16px', borderRight: isMobile ? 'none' : divider, borderBottom: isMobile ? divider : 'none' }}>
-                    <span style={{ ...lbl, display: 'block', marginBottom: 4 }}>Entry Price</span>
+                    <span style={{ ...lbl, display: 'block', marginBottom: 4 }}>{t.calculator.entry}</span>
                     <input
                         ref={entryInputRef}
                         type="number" inputMode="decimal" pattern="[0-9]*"
@@ -524,7 +527,7 @@ export default function CalculatorPage() {
 
                 {/* STOP LOSS */}
                 <div style={{ padding: isMobile ? '12px 12px' : '14px 16px', borderRight: divider, borderBottom: isMobile ? divider : 'none' }}>
-                    <span style={{ ...lbl, display: 'block', marginBottom: 4 }}>Stop Loss</span>
+                    <span style={{ ...lbl, display: 'block', marginBottom: 4 }}>{t.calculator.stopLoss}</span>
                     <input
                         type="number" inputMode="decimal" pattern="[0-9]*"
                         style={{ ...mono, width: '100%', background: 'transparent', border: 'none', outline: 'none', fontSize: isMobile ? 18 : 22, fontWeight: 900, color: '#ff4757', padding: 0 }}
@@ -648,7 +651,7 @@ export default function CalculatorPage() {
                         {/* HERO: Size + Potential */}
                         <div style={{ padding: isMobile ? '16px 14px' : '20px 20px', borderBottom: divider, background: '#0a0a0a', display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 16 }}>
                             <div>
-                                <span style={{ ...lbl, display: 'block', marginBottom: 6 }}>Position Size</span>
+                                <span style={{ ...lbl, display: 'block', marginBottom: 6 }}>{t.calculator.positionSize}</span>
                                 <div style={{ display: 'flex', alignItems: 'baseline', gap: 10 }}>
                                     <span style={{ ...mono, fontSize: isMobile ? 40 : 52, fontWeight: 900, color: '#fff', letterSpacing: '-0.04em', lineHeight: 1 }}>
                                         {calc.size >= 0.001
@@ -685,9 +688,9 @@ export default function CalculatorPage() {
                         {/* SL / Entry / TP price row */}
                         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', borderBottom: divider }}>
                             {[
-                                { k: 'Stop Loss',      v: fmt(calc.slNum),  c: '#ff4757', s: `risk $${calc.rsk.toFixed(0)} if hit` },
-                                { k: 'Entry',          v: fmt(calc.eNum),   c: '#e2e8f0', s: `${isShort ? 'SHORT' : 'LONG'} · 1R: ${fmt(calc.tp1R)}` },
-                                { k: 'Take Profit 2R', v: fmt(calc.tp2R),   c: '#FDC800', s: `3R target: ${fmt(calc.tp3R)}` },
+                                { k: t.calculator.stopLoss,      v: fmt(calc.slNum),  c: '#ff4757', s: `risk $${calc.rsk.toFixed(0)} if hit` },
+                                { k: t.calculator.entry,          v: fmt(calc.eNum),   c: '#e2e8f0', s: `${isShort ? t.calculator.short.toUpperCase() : t.calculator.long.toUpperCase()} · 1R: ${fmt(calc.tp1R)}` },
+                                { k: `${t.calculator.takeProfit} 2R`, v: fmt(calc.tp2R),   c: '#FDC800', s: `3R target: ${fmt(calc.tp3R)}` },
                             ].map((s, i) => (
                                 <div key={i} style={{ padding: isMobile ? '12px 12px' : '14px 16px', borderRight: i < 2 ? divider : 'none' }}>
                                     <span style={{ ...lbl, display: 'block', marginBottom: 4 }}>{s.k}</span>
@@ -700,10 +703,10 @@ export default function CalculatorPage() {
                         {/* Metadata 4-col */}
                         <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'repeat(2,1fr)' : 'repeat(4,1fr)', borderBottom: divider }}>
                             {[
-                                { k: 'R:R Ratio',   v: '2.00R',   c: '#FDC800',  s: 'minimum standard' },
-                                { k: 'Notional',    v: calc.notional >= 1000000 ? `$${(calc.notional/1000000).toFixed(2)}M` : calc.notional >= 1000 ? `$${(calc.notional/1000).toFixed(1)}K` : `$${calc.notional.toFixed(0)}`, c: '#e2e8f0', s: calc.atype === 'futures' ? 'contract notional' : 'position value' },
-                                { k: 'Commission',  v: calc.comm > 0 ? `$${calc.comm.toFixed(2)}` : 'N/A', c: calc.comm > 0 ? '#EAB308' : '#4b5563', s: calc.atype === 'crypto' ? '0.04% Tradeify' : 'flat per contract' },
-                                { k: 'Risk / Unit', v: calc.riskPerUnit < 0.01 ? `$${calc.riskPerUnit.toFixed(4)}` : `$${calc.riskPerUnit.toFixed(2)}`, c: '#e2e8f0', s: `per ${calc.unit.replace(/s$/, '')}` },
+                                { k: t.calculator.riskReward,   v: '2.00R',   c: '#FDC800',  s: 'minimum standard' },
+                                { k: t.calculator.notional,    v: calc.notional >= 1000000 ? `$${(calc.notional/1000000).toFixed(2)}M` : calc.notional >= 1000 ? `$${(calc.notional/1000).toFixed(1)}K` : `$${calc.notional.toFixed(0)}`, c: '#e2e8f0', s: calc.atype === 'futures' ? 'contract notional' : 'position value' },
+                                { k: t.calculator.commission,  v: calc.comm > 0 ? `$${calc.comm.toFixed(2)}` : 'N/A', c: calc.comm > 0 ? '#EAB308' : '#4b5563', s: calc.atype === 'crypto' ? '0.04% Tradeify' : 'flat per contract' },
+                                { k: `${t.calculator.riskAmount.replace(' ($)', '')} / Unit`, v: calc.riskPerUnit < 0.01 ? `$${calc.riskPerUnit.toFixed(4)}` : `$${calc.riskPerUnit.toFixed(2)}`, c: '#e2e8f0', s: `per ${calc.unit.replace(/s$/, '')}` },
                             ].map((s, i) => (
                                 <div key={i} style={{
                                     padding: isMobile ? '10px 12px' : '12px 16px',
@@ -751,7 +754,7 @@ export default function CalculatorPage() {
                                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
                                     <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
                                         <Brain size={13} color={gradeColor(tradeQuality.grade)} />
-                                        <span style={{ ...lbl }}>Trade Quality Score</span>
+                                        <span style={{ ...lbl }}>{t.calculator.tradeQuality}</span>
                                     </div>
                                     <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                                         <span style={{ ...mono, fontSize: 18, fontWeight: 900, color: gradeColor(tradeQuality.grade), letterSpacing: '-0.02em' }}>
@@ -824,9 +827,9 @@ export default function CalculatorPage() {
                                 }}
                             >
                                 {logged
-                                    ? <><ShieldCheck size={15} color="#fff" /> Logged — redirecting to Journal</>
+                                    ? <><ShieldCheck size={15} color="#fff" /> {t.calculator.tradeLogged}</>
                                     : calc.approved
-                                        ? <><ShieldCheck size={15} /> Log Trade to Journal</>
+                                        ? <><ShieldCheck size={15} /> {t.calculator.journalIt}</>
                                         : <><AlertTriangle size={15} /> Fix Errors to Log</>
                                 }
                             </button>

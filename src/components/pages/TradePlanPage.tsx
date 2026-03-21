@@ -2,12 +2,14 @@
 
 import styles from './TradePlanPage.module.css';
 import { useAppStore } from '@/store/appStore';
+import { useTranslation } from '@/i18n/useTranslation';
 import { motion } from 'framer-motion';
 import OutcomeCard from '@/components/ui/OutcomeCard';
 import { TrendingUp, TrendingDown, Clock, Zap } from 'lucide-react';
 
 export default function TradePlanPage() {
     const { trades, updateTradeOutcome, account, setActiveTab } = useAppStore();
+    const { t } = useTranslation();
     const openTrades = trades.filter(t => !t.outcome || t.outcome === 'open');
     const latestPlan = openTrades[0] ?? null;
 
@@ -18,14 +20,14 @@ export default function TradePlanPage() {
                     <div className={styles.emptyIcon}>
                         <Zap size={32} strokeWidth={2} />
                     </div>
-                    <h2 className="text-subheading text-[#fff] mb-2">NO ACTIVE TARGET</h2>
-                    <p className="text-caption mb-6">Calculate and lock a trade in the Risk Engine to arm the HUD.</p>
+                    <h2 className="text-subheading text-[#fff] mb-2">{t.plan.noActiveTarget}</h2>
+                    <p className="text-caption mb-6">{t.plan.noActiveTargetDesc}</p>
                     <button
                         className="btn btn--primary px-8 py-4"
                         onClick={() => setActiveTab('terminal')}
                         id="create-plan-btn"
                     >
-                        ARM NEW TRADE
+                        {t.plan.armNewTrade}
                     </button>
                 </div>
             </div>
@@ -42,7 +44,7 @@ export default function TradePlanPage() {
             {/* Header */}
             <div className={styles.header}>
                 <div className={styles.headerLeft}>
-                    <span className="text-caption text-[var(--accent)] font-[800] tracking-[0.1em]">ARMED TARGET</span>
+                    <span className="text-caption text-[var(--accent)] font-[800] tracking-[0.1em]">{t.plan.armedTarget}</span>
                     <h1 className={styles.assetName}>{latestPlan.asset}</h1>
                     <p className="text-caption flex items-center gap-1">
                         <Clock size={12} />
@@ -51,45 +53,45 @@ export default function TradePlanPage() {
                 </div>
                 <div className={styles.rrBig}>
                     <span className={styles.rrValue}>{latestPlan.rr.toFixed(1)}R</span>
-                    <span className={styles.rrLabel}>YIELD</span>
+                    <span className={styles.rrLabel}>{t.plan.yield}</span>
                 </div>
             </div>
 
             {/* Entry Box */}
             <div className={styles.entryCard}>
-                <span className={styles.entryLabel}>ENTRY<br />POINT</span>
+                <span className={styles.entryLabel}>{t.plan.entryPoint}</span>
                 <span className={styles.entryValue}>{latestPlan.entry.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 5 })}</span>
-                <span className={styles.entryLots}>{latestPlan.lotSize.toLocaleString()} {latestPlan.lotSize === 1 ? 'UNIT' : 'UNITS'}</span>
+                <span className={styles.entryLots}>{latestPlan.lotSize.toLocaleString()} {latestPlan.lotSize === 1 ? t.plan.unit : t.plan.units}</span>
             </div>
 
             {/* Coordinates */}
             <div className={styles.outcomes}>
-                <OutcomeCard label="TAKE PROFIT (TP)" price={latestPlan.takeProfit} pnl={latestPlan.rewardUSD} type="tp" rr={latestPlan.rr} />
-                <OutcomeCard label="STOP LOSS (SL)" price={latestPlan.stopLoss} pnl={latestPlan.riskUSD} type="sl" />
+                <OutcomeCard label={t.plan.takeProfit} price={latestPlan.takeProfit} pnl={latestPlan.rewardUSD} type="tp" rr={latestPlan.rr} />
+                <OutcomeCard label={t.plan.stopLoss} price={latestPlan.stopLoss} pnl={latestPlan.riskUSD} type="sl" />
             </div>
 
             {/* Battle Stats */}
             <div className={styles.stats}>
                 <div className={styles.statRow}>
-                    <span className={styles.statLabel}>Risk Exposure</span>
+                    <span className={styles.statLabel}>{t.plan.riskExposure}</span>
                     <span className={`${styles.statValue} text-danger`}>-${latestPlan.riskUSD.toFixed(0)}</span>
                 </div>
                 <div className={styles.statRow}>
-                    <span className={styles.statLabel}>Max Reward</span>
+                    <span className={styles.statLabel}>{t.plan.maxReward}</span>
                     <span className={`${styles.statValue} text-success`}>+${latestPlan.rewardUSD.toFixed(0)}</span>
                 </div>
                 <div className={styles.statRow}>
-                    <span className={styles.statLabel}>Collateral Impact</span>
+                    <span className={styles.statLabel}>{t.plan.collateralImpact}</span>
                     <span className={styles.statValue}>{((latestPlan.riskUSD / account.balance) * 100).toFixed(2)}%</span>
                 </div>
                 <div className={styles.statRow}>
-                    <span className={styles.statLabel}>Balance if WIN</span>
+                    <span className={styles.statLabel}>{t.plan.balanceIfWin}</span>
                     <span className={`${styles.statValue} text-success`}>
                         ${(account.balance + latestPlan.rewardUSD).toLocaleString('en-US', { minimumFractionDigits: 0 })}
                     </span>
                 </div>
                 <div className={styles.statRow}>
-                    <span className={styles.statLabel}>Balance if LOSS</span>
+                    <span className={styles.statLabel}>{t.plan.balanceIfLoss}</span>
                     <span className={`${styles.statValue} text-danger`}>
                         ${(account.balance - latestPlan.riskUSD).toLocaleString('en-US', { minimumFractionDigits: 0 })}
                     </span>
@@ -104,7 +106,7 @@ export default function TradePlanPage() {
                     id="mark-win-btn"
                 >
                     <TrendingUp size={20} />
-                    TP HIT
+                    {t.plan.tpHit}
                 </button>
                 <button
                     className={`btn btn--danger ${styles.outcomeBtn}`}
@@ -112,7 +114,7 @@ export default function TradePlanPage() {
                     id="mark-loss-btn"
                 >
                     <TrendingDown size={20} />
-                    SL HIT
+                    {t.plan.slHit}
                 </button>
             </div>
         </motion.div>

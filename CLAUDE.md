@@ -55,7 +55,7 @@ Claude must embody ALL of the following roles on EVERY task:
 
 ## Chart Requirements
 
-- All charts must use brand colors: #A6FF4D (green), #ff4757 (red), #EAB308 (yellow), #090909 (bg)
+- All charts must use brand colors: #FDC800 (yellow/accent), #ff4757 (red), #38bdf8 (blue), #090909 (bg)
 - All charts must include CartesianGrid
 - All charts must have tooltips with full context
 - All charts must be responsive via ResponsiveContainer
@@ -69,7 +69,7 @@ Claude must embody ALL of the following roles on EVERY task:
 
 - **Background:** #090909 (page), #0d1117 (card), #0b0e14 (sub-card)
 - **Borders:** #1a1c24
-- **Accent green:** #A6FF4D (wins, positive, CTA)
+- **Accent yellow:** #FDC800 (wins, positive, CTA — primary brand color)
 - **Danger red:** #ff4757 (losses, critical alerts)
 - **Warning yellow:** #EAB308
 - **Info blue:** #38bdf8
@@ -117,6 +117,17 @@ Every Analytics tab must include:
 7. **Mobile-responsive** — CSS grid collapses on <768px
 
 ---
+
+# Internationalisation — Mandatory on Every Task
+
+**Every task that adds or changes UI text MUST implement both EN and FR.**
+
+- ALL user-facing strings must be added to `src/i18n/translations.ts` under both `en` and `fr` keys
+- French copy must be human-quality and optimised for conversion — not literal machine translation
+- Every page/component must use `useTranslation()` (or `lang` from `useAppStore`) to render localised strings — **never hardcode English**
+- When writing FR copy: use tu/vous consistently (tu for coaching, vous for formal UI), use natural trading vocabulary in French (ex: "gains" not "profits", "solde" not "balance", "risque" not "risk")
+- Pages that use `lang` directly (e.g., `lang === 'fr' ? '...' : '...'`) are acceptable only for very short inline strings; all labels, headings, hints, and CTAs must go through the translations file
+- Before marking any task done, verify the FR version renders correctly
 
 # Code Quality Rules
 
