@@ -84,7 +84,7 @@ export default function JournalPage() {
 
     // ── EdgeForensics dashboard state ─────────────────────────
     const [journalTab, setJournalTab] = useState<'trades' | 'notes' | 'insights'>('trades');
-    const [timeFilter, setTimeFilter] = useState<'month' | '3m' | 'ytd' | 'all'>('month');
+    const [timeFilter, setTimeFilter] = useState<'month' | '3m' | 'ytd' | 'all'>('all');
     const [ritualDismissed, setRitualDismissed] = useState(false);
     const [chartsExpanded, setChartsExpanded] = useState(true);
 
@@ -877,17 +877,20 @@ export default function JournalPage() {
                         </div>
                     ) : (
                         <>
-                            {/* Best/Worst metrics */}
+                            {/* Behavioral observations — only render when the period has actual data */}
+                            {timeFilteredTrades.length > 0 && (
                             <div style={{ background: '#0d1117', border: divider, padding: '16px 20px' }}>
-                                <span style={{ ...lbl, marginBottom: 12, display: 'block' }}>{lang === 'fr' ? 'Observations comportementales' : 'Behavioral Observations'}</span>
+                                <span style={{ ...lbl, marginBottom: 12, display: 'block' }}>
+                                    {lang === 'fr' ? `Observations — ${timeFilteredTrades.length} trades · ${tfWins.length}W ${tfLosses.length}L` : `Observations — ${timeFilteredTrades.length} trades · ${tfWins.length}W ${tfLosses.length}L`}
+                                </span>
                                 <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
                                     {[
                                         {
                                             icon: '→',
                                             color: tfWinRate >= 55 ? '#FDC800' : '#ff4757',
                                             text: lang === 'fr'
-                                                ? `Taux de réussite ${tfWinRate}% sur la période — ${tfWinRate >= 55 ? 'au-dessus du seuil de rentabilité' : 'en dessous du seuil de rentabilité'}`
-                                                : `${tfWinRate}% win rate over period — ${tfWinRate >= 55 ? 'above breakeven threshold' : 'below breakeven threshold'}`
+                                                ? `Taux de réussite ${tfWinRate}% (${tfWins.length}W/${timeFilteredTrades.length}T) — ${tfWinRate >= 55 ? 'au-dessus du seuil de rentabilité' : 'en dessous du seuil de rentabilité'}`
+                                                : `${tfWinRate}% win rate (${tfWins.length}W/${timeFilteredTrades.length}T) — ${tfWinRate >= 55 ? 'above breakeven threshold' : 'below breakeven threshold'}`
                                         },
                                         {
                                             icon: '→',
@@ -922,34 +925,39 @@ export default function JournalPage() {
                                     ))}
                                 </div>
                             </div>
+                            )}
 
-                            {/* Actionable coaching rules */}
+                            {/* Actionable coaching rules — derived from ALL-TIME data so they're always meaningful */}
+                            {closedTrades.length >= 3 && (
                             <div style={{ background: '#0d1117', border: divider, padding: '16px 20px' }}>
-                                <span style={{ ...lbl, marginBottom: 12, display: 'block' }}>{lang === 'fr' ? 'Règles de coaching issues de vos données' : 'Coaching Rules From Your Data'}</span>
+                                <span style={{ ...lbl, marginBottom: 12, display: 'block' }}>
+                                    {lang === 'fr' ? `Règles de coaching — ${closedTrades.length} trades analysés` : `Coaching Rules — ${closedTrades.length} trades analysed`}
+                                </span>
                                 <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                                     {[
-                                        tfWinRate < 50
-                                            ? (lang === 'fr' ? '⛔ Réduire la taille des positions jusqu\'à ce que le taux de réussite dépasse 50% sur 20 trades.' : '⛔ Reduce position size until win rate exceeds 50% over 20 trades.')
-                                            : (lang === 'fr' ? '✓ Taux de réussite solide. Concentrez-vous sur la maximisation de la taille lors des setups A+.' : '✓ Solid win rate. Focus on maximising size on A+ setups.'),
-                                        tfPf < 1
-                                            ? (lang === 'fr' ? '⛔ Facteur de profit inférieur à 1 — couper les pertes plus tôt ou laisser courir les gagnants.' : '⛔ Profit factor below 1 — cut losses sooner or let winners run further.')
-                                            : (lang === 'fr' ? '✓ Facteur de profit positif. Continuez à respecter vos take profits.' : '✓ Positive profit factor. Keep honoring your take profits.'),
+                                        winRate < 50
+                                            ? (lang === 'fr' ? `⛔ Taux de réussite ${winRate}% — réduire la taille des positions jusqu'à dépasser 50% sur 20 trades.` : `⛔ Win rate ${winRate}% — reduce position size until you exceed 50% over 20 trades.`)
+                                            : (lang === 'fr' ? `✓ Taux de réussite ${winRate}% — solide. Maximisez la taille sur les setups A+.` : `✓ Win rate ${winRate}% — solid. Maximise size on A+ setups.`),
+                                        profitFactor < 1
+                                            ? (lang === 'fr' ? `⛔ Facteur de profit ${profitFactor.toFixed(2)} — couper les pertes plus tôt ou laisser courir les gagnants.` : `⛔ Profit factor ${profitFactor.toFixed(2)} — cut losses sooner or let winners run further.`)
+                                            : (lang === 'fr' ? `✓ Facteur de profit ${profitFactor.toFixed(2)} — positif. Continuez à respecter vos take profits.` : `✓ Profit factor ${profitFactor.toFixed(2)} — positive. Keep honoring your take profits.`),
                                         disciplineScore < 70
-                                            ? (lang === 'fr' ? '⛔ Score de discipline faible. Respectez un délai de 10 minutes après chaque perte avant de re-entrer.' : '⛔ Discipline score low. Enforce a 10-minute cooling-off rule after each loss.')
-                                            : (lang === 'fr' ? '✓ Bonne discipline émotionnelle détectée. Maintenez ce rythme.' : '✓ Good emotional discipline detected. Maintain this rhythm.'),
+                                            ? (lang === 'fr' ? `⛔ Score de discipline ${disciplineScore}/100 — délai obligatoire de 10 min après chaque perte.` : `⛔ Discipline score ${disciplineScore}/100 — enforce a 10-minute cooling-off rule after each loss.`)
+                                            : (lang === 'fr' ? `✓ Discipline ${disciplineScore}/100 — bonne régulation émotionnelle détectée.` : `✓ Discipline ${disciplineScore}/100 — good emotional regulation detected.`),
                                         traceabilityScore.pct < 50
-                                            ? (lang === 'fr' ? '⛔ Traçabilité insuffisante. Annotez chaque trade avec le setup, le biais et l\'émotion ressentie.' : '⛔ Low traceability. Annotate every trade with setup, bias, and felt emotion.')
-                                            : (lang === 'fr' ? '✓ Bonne couverture des notes. Les patterns comportementaux sont maintenant détectables.' : '✓ Good note coverage. Behavioral patterns are now detectable.'),
+                                            ? (lang === 'fr' ? `⛔ ${traceabilityScore.pct}% des trades annotés — documentez chaque trade : setup, biais, émotion.` : `⛔ ${traceabilityScore.pct}% of trades annotated — document every trade: setup, bias, emotion.`)
+                                            : (lang === 'fr' ? `✓ ${traceabilityScore.pct}% des trades annotés — les patterns comportementaux sont détectables.` : `✓ ${traceabilityScore.pct}% of trades annotated — behavioral patterns are now detectable.`),
                                         consistencyStreak === 0
-                                            ? (lang === 'fr' ? '⛔ Aucun trade enregistré aujourd\'hui. La régularité est le premier pilier de la progression.' : '⛔ No trades logged today. Consistency is the first pillar of improvement.')
+                                            ? (lang === 'fr' ? '⛔ Aucun trade fermé aujourd\'hui — la régularité est le premier pilier de la progression.' : '⛔ No closed trades today — consistency is the first pillar of improvement.')
                                             : (lang === 'fr' ? `✓ Série de ${consistencyStreak} jour${consistencyStreak > 1 ? 's' : ''} — la régularité construit l'edge de long terme.` : `✓ ${consistencyStreak}-day streak — consistency builds long-term edge.`),
                                     ].map((rule, i) => (
-                                        <div key={i} style={{ display: 'flex', gap: 10, alignItems: 'flex-start', padding: '8px 0', borderBottom: i < 4 ? '1px solid #0d1117' : 'none' }}>
+                                        <div key={i} style={{ display: 'flex', gap: 10, alignItems: 'flex-start', padding: '8px 0', borderBottom: i < 4 ? '1px solid #131519' : 'none' }}>
                                             <span style={{ ...mono, fontSize: 12, color: rule.startsWith('⛔') ? '#ff4757' : '#FDC800', lineHeight: 1.6 }}>{rule}</span>
                                         </div>
                                     ))}
                                 </div>
                             </div>
+                            )}
                         </>
                     )}
                 </div>
