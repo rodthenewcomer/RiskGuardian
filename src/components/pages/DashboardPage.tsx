@@ -386,80 +386,68 @@ export default function DashboardPage() {
             </motion.div>
 
             {/* ── SECTION 3 — KPI GRID (8 cells) ──────────────── */}
-            <motion.div variants={fadeUp} style={{
-                display: 'grid',
-                gridTemplateColumns: isMobile ? 'repeat(2,1fr)' : 'repeat(4,1fr)',
-                borderBottom: divider,
-            }}>
-                {[
-                    {
-                        lbl: 'NET P&L',
-                        val: `${totalPnl >= 0 ? '+' : ''}$${Math.abs(totalPnl).toLocaleString(undefined, { maximumFractionDigits: 0 })}`,
-                        clr: pnlColor,
-                        sub: `${wins.length}W · ${losses.length}L`,
-                    },
-                    {
-                        lbl: 'WIN RATE',
-                        val: `${winRate}%`,
-                        clr: wrColor,
-                        sub: `${closedTrades.length} ${lang === 'fr' ? 'trades' : 'trades'}`,
-                    },
-                    {
-                        lbl: 'PROFIT FACTOR',
-                        val: profitFactor > 0 ? profitFactor.toFixed(2) : '—',
-                        clr: pfColor,
-                        sub: '≥1.5 = edge',
-                    },
-                    {
-                        lbl: lang === 'fr' ? 'SÉRIE' : 'STREAK',
-                        val: closedTrades.length > 0 ? `${streakCount}${streakType}` : '—',
-                        clr: streakColor,
-                        sub: streakType === 'W' ? (lang === 'fr' ? 'en feu' : 'on fire') : (lang === 'fr' ? 'drawdown' : 'drawdown'),
-                    },
-                    {
-                        lbl: lang === 'fr' ? 'UTILISÉ AUJD' : 'DAILY USED',
-                        val: `$${animUsed.toFixed(0)}`,
-                        clr: used > 0 ? '#ff4757' : '#4b5563',
-                        sub: `${usedPct.toFixed(1)}% ${lang === 'fr' ? 'de la limite' : 'of limit'}`,
-                    },
-                    {
-                        lbl: lang === 'fr' ? 'RESTANT' : 'REMAINING',
-                        val: `$${animRemaining.toFixed(0)}`,
-                        clr: remaining === 0 ? '#ff4757' : '#FDC800',
-                        sub: lang === 'fr' ? 'aujourd\'hui' : 'today',
-                    },
-                    {
-                        lbl: lang === 'fr' ? 'MARGE DRAWDOWN' : 'DRAWDOWN BUFFER',
-                        val: `$${animBuffer.toFixed(0)}`,
-                        clr: floorDanger ? '#ff4757' : floorWarning ? '#EAB308' : '#FDC800',
-                        sub: `${drawdownInfo.usedPct.toFixed(1)}% used`,
-                    },
-                    {
-                        lbl: lang === 'fr' ? 'RISQUE MAX SUIVANT' : 'MAX NEXT RISK',
-                        val: `$${animSafeNext.toFixed(0)}`,
-                        clr: '#FDC800',
-                        sub: `${account.maxRiskPercent}% of balance`,
-                    },
-                ].map((s, i) => (
-                    <div
-                        key={i}
-                        style={{
-                            padding: '16px 20px',
-                            borderRight: isMobile
-                                ? (i % 2 === 0 ? divider : 'none')
-                                : (i % 4 < 3 ? divider : 'none'),
-                            borderBottom: isMobile
-                                ? (i < 6 ? divider : 'none')
-                                : (i < 4 ? divider : 'none'),
-                            display: 'flex', flexDirection: 'column', gap: 3,
-                        }}
-                    >
-                        <span style={lbl}>{s.lbl}</span>
-                        <span style={{ ...mono, fontSize: 20, fontWeight: 800, color: s.clr, lineHeight: 1, letterSpacing: '-0.02em' }}>{s.val}</span>
-                        <span style={{ ...mono, fontSize: 9, color: '#6b7280' }}>{s.sub}</span>
-                    </div>
-                ))}
-            </motion.div>
+            {(() => {
+                const kpiItems = [
+                    { lbl: 'NET P&L',                                          val: `${totalPnl >= 0 ? '+' : ''}$${Math.abs(totalPnl).toLocaleString(undefined, { maximumFractionDigits: 0 })}`, clr: pnlColor,                                                           sub: `${wins.length}W · ${losses.length}L` },
+                    { lbl: 'WIN RATE',                                          val: `${winRate}%`,                                                                                             clr: wrColor,                                                            sub: `${closedTrades.length} trades` },
+                    { lbl: 'PROFIT FACTOR',                                     val: profitFactor > 0 ? profitFactor.toFixed(2) : '—',                                                         clr: pfColor,                                                            sub: '≥1.5 = edge' },
+                    { lbl: lang === 'fr' ? 'SÉRIE' : 'STREAK',                 val: closedTrades.length > 0 ? `${streakCount}${streakType}` : '—',                                             clr: streakColor,                                                        sub: streakType === 'W' ? (lang === 'fr' ? 'en feu' : 'on fire') : 'drawdown' },
+                    { lbl: lang === 'fr' ? 'UTILISÉ AUJD' : 'DAILY USED',      val: `$${animUsed.toFixed(0)}`,                                                                                 clr: used > 0 ? '#ff4757' : '#4b5563',                                   sub: `${usedPct.toFixed(1)}% of limit` },
+                    { lbl: lang === 'fr' ? 'RESTANT' : 'REMAINING',            val: `$${animRemaining.toFixed(0)}`,                                                                            clr: remaining === 0 ? '#ff4757' : '#FDC800',                            sub: lang === 'fr' ? 'aujourd\'hui' : 'today' },
+                    { lbl: lang === 'fr' ? 'MARGE DRAWDOWN' : 'DD BUFFER',     val: `$${animBuffer.toFixed(0)}`,                                                                               clr: floorDanger ? '#ff4757' : floorWarning ? '#EAB308' : '#FDC800',    sub: `${drawdownInfo.usedPct.toFixed(1)}% used` },
+                    { lbl: lang === 'fr' ? 'RISQUE MAX' : 'MAX NEXT RISK',     val: `$${animSafeNext.toFixed(0)}`,                                                                             clr: '#FDC800',                                                          sub: `${account.maxRiskPercent}% of bal` },
+                ];
+                return (
+                    <motion.div variants={fadeUp} style={{ borderBottom: divider, position: 'relative' }}>
+                        {isMobile ? (
+                            /* ── Mobile: horizontal scroll strip ── */
+                            <>
+                                <div style={{
+                                    display: 'flex',
+                                    overflowX: 'auto',
+                                    scrollSnapType: 'x mandatory',
+                                    WebkitOverflowScrolling: 'touch',
+                                    scrollbarWidth: 'none',
+                                    msOverflowStyle: 'none',
+                                } as React.CSSProperties}>
+                                    {kpiItems.map((s, i) => (
+                                        <div key={i} style={{
+                                            flexShrink: 0,
+                                            minWidth: 128,
+                                            padding: '18px 16px',
+                                            borderRight: divider,
+                                            scrollSnapAlign: 'start',
+                                            display: 'flex', flexDirection: 'column', gap: 5,
+                                        }}>
+                                            <span style={lbl}>{s.lbl}</span>
+                                            <span style={{ ...mono, fontSize: 22, fontWeight: 800, color: s.clr, lineHeight: 1, letterSpacing: '-0.03em' }}>{s.val}</span>
+                                            <span style={{ ...mono, fontSize: 9, color: '#6b7280' }}>{s.sub}</span>
+                                        </div>
+                                    ))}
+                                </div>
+                                {/* Right-edge fade shows there are more cards */}
+                                <div style={{ position: 'absolute', right: 0, top: 0, bottom: 0, width: 48, background: 'linear-gradient(to left, #090909 0%, transparent 100%)', pointerEvents: 'none' }} />
+                            </>
+                        ) : (
+                            /* ── Desktop: 4-col grid ── */
+                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)' }}>
+                                {kpiItems.map((s, i) => (
+                                    <div key={i} style={{
+                                        padding: '16px 20px',
+                                        borderRight: i % 4 < 3 ? divider : 'none',
+                                        borderBottom: i < 4 ? divider : 'none',
+                                        display: 'flex', flexDirection: 'column', gap: 3,
+                                    }}>
+                                        <span style={lbl}>{s.lbl}</span>
+                                        <span style={{ ...mono, fontSize: 20, fontWeight: 800, color: s.clr, lineHeight: 1, letterSpacing: '-0.02em' }}>{s.val}</span>
+                                        <span style={{ ...mono, fontSize: 9, color: '#6b7280' }}>{s.sub}</span>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                    </motion.div>
+                );
+            })()}
 
             {/* ── EQUITY CURVE — full width below KPI grid ─────── */}
             {pnlChartData.length > 1 && (
@@ -577,7 +565,9 @@ export default function DashboardPage() {
                 {/* Card A: Daily Guard */}
                 <div style={{
                     ...card,
-                    margin: isMobile ? '12px 12px 0' : '12px 8px 12px 12px',
+                    margin: isMobile ? '12px 0 0' : '12px 8px 12px 12px',
+                    borderLeft: isMobile ? 'none' : undefined,
+                    borderRight: isMobile ? 'none' : undefined,
                 }}>
                     <div style={{ padding: '14px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: divider }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -632,7 +622,9 @@ export default function DashboardPage() {
                 {account.startingBalance > 0 && (
                     <div style={{
                         ...card,
-                        margin: isMobile ? '8px 12px 12px' : '12px 12px 12px 8px',
+                        margin: isMobile ? '8px 0 12px' : '12px 12px 12px 8px',
+                        borderLeft: isMobile ? 'none' : undefined,
+                        borderRight: isMobile ? 'none' : undefined,
                     }}>
                         <div style={{ padding: '14px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: divider }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -730,7 +722,7 @@ export default function DashboardPage() {
 
             {/* ── SECTION 8 — CONSISTENCY CARD ─────────────────── */}
             {isInstantFunded && totalPnl > 0 && (
-                <motion.div variants={fadeUp} style={{ ...card, margin: '0 12px 0' }}>
+                <motion.div variants={fadeUp} style={{ ...card, margin: isMobile ? '0' : '0 12px 0', borderLeft: isMobile ? 'none' : undefined, borderRight: isMobile ? 'none' : undefined }}>
                     <div style={{ padding: '14px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: divider }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                             <Activity size={12} color="#4b5563" />
@@ -805,7 +797,7 @@ export default function DashboardPage() {
 
             {/* ── SECTION 9 — SESSION INTELLIGENCE ────────────── */}
             {closedTrades.length >= 5 && (
-                <motion.div variants={fadeUp} style={{ ...card, margin: '12px 12px 0' }}>
+                <motion.div variants={fadeUp} style={{ ...card, margin: isMobile ? '12px 0 0' : '12px 12px 0', borderLeft: isMobile ? 'none' : undefined, borderRight: isMobile ? 'none' : undefined }}>
                     <div style={{ padding: '12px 16px', display: 'flex', alignItems: 'center', gap: 8, borderBottom: divider }}>
                         <Zap size={11} color="#4b5563" />
                         <span style={lbl}>{lang === 'fr' ? 'Intelligence de session' : 'Session Intelligence'}</span>
@@ -838,7 +830,7 @@ export default function DashboardPage() {
 
             {/* ── SECTION 10 — RULE COMPLIANCE ─────────────────── */}
             {account.propFirm && (
-                <motion.div variants={fadeUp} style={{ ...card, margin: '12px 12px 0' }}>
+                <motion.div variants={fadeUp} style={{ ...card, margin: isMobile ? '12px 0 0' : '12px 12px 0', borderLeft: isMobile ? 'none' : undefined, borderRight: isMobile ? 'none' : undefined }}>
                     <div style={{ padding: '12px 16px', display: 'flex', alignItems: 'center', gap: 8, borderBottom: divider }}>
                         <Shield size={11} color="#4b5563" />
                         <span style={lbl}>{lang === 'fr' ? 'Conformité règles' : 'Rule Compliance'}</span>
@@ -908,7 +900,7 @@ export default function DashboardPage() {
             )}
 
             {/* ── SECTION 11 — RECENT TRADES ───────────────────── */}
-            <motion.div variants={fadeUp} style={{ ...card, margin: '12px 12px 0' }}>
+            <motion.div variants={fadeUp} style={{ ...card, margin: isMobile ? '12px 0 0' : '12px 12px 0', borderLeft: isMobile ? 'none' : undefined, borderRight: isMobile ? 'none' : undefined }}>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', borderBottom: divider }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                         {totalPnl >= 0 ? <TrendingUp size={11} color="#FDC800" /> : <TrendingDown size={11} color="#ff4757" />}
@@ -1009,7 +1001,7 @@ export default function DashboardPage() {
                 </motion.button>
             </motion.div>
 
-            <div style={{ height: 12 }} />
+            <div style={{ height: isMobile ? 80 : 12 }} />
         </motion.div>
     );
 }

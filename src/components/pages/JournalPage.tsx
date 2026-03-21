@@ -76,7 +76,7 @@ export default function JournalPage() {
     const [inlineOutcomeId, setInlineOutcomeId] = useState<string | null>(null);
     const [isMobile, setIsMobile] = useState(false);
     useEffect(() => {
-        const check = () => setIsMobile(window.innerWidth < 640);
+        const check = () => setIsMobile(window.innerWidth < 768);
         check();
         window.addEventListener('resize', check);
         return () => window.removeEventListener('resize', check);
@@ -660,51 +660,39 @@ export default function JournalPage() {
                     </div>
 
                     {/* KPI strip */}
-                    <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'repeat(2,1fr)' : 'repeat(5,1fr)', borderBottom: divider }}>
-                        {[
-                            {
-                                k: 'Net P&L',
-                                v: timeFilteredTrades.length > 0 ? `${tfPnl >= 0 ? '+' : ''}$${Math.abs(tfPnl).toLocaleString(undefined, { maximumFractionDigits: 2 })}` : '—',
-                                c: timeFilteredTrades.length > 0 ? (tfPnl >= 0 ? '#FDC800' : '#ff4757') : '#4b5563',
-                                sub: timeFilteredTrades.length > 0 ? `${tfWins.length}W · ${tfLosses.length}L` : '—',
-                            },
-                            {
-                                k: lang === 'fr' ? 'Taux de réussite' : 'Win Rate',
-                                v: timeFilteredTrades.length > 0 ? `${tfWinRate}%` : '—',
-                                c: tfWinRate >= 55 ? '#FDC800' : tfWinRate >= 45 ? '#EAB308' : timeFilteredTrades.length > 0 ? '#ff4757' : '#4b5563',
-                                sub: `${timeFilteredTrades.length} ${lang === 'fr' ? 'clôturés' : 'closed'}`,
-                            },
-                            {
-                                k: lang === 'fr' ? 'Facteur de profit' : 'Profit Factor',
-                                v: timeFilteredTrades.length > 0 ? (tfPf > 90 ? '∞' : tfPf.toFixed(2)) : '—',
-                                c: tfPf >= 1.5 ? '#FDC800' : tfPf >= 1 ? '#EAB308' : timeFilteredTrades.length > 0 ? '#ff4757' : '#4b5563',
-                                sub: tfAvgLoss > 0 ? `PF · ${tfPf.toFixed(2)}x` : '—',
-                            },
-                            {
-                                k: lang === 'fr' ? 'Espérance/trade' : 'Expectancy',
-                                v: timeFilteredTrades.length > 0 ? `${tfExpectancy >= 0 ? '+' : ''}$${Math.abs(tfExpectancy).toFixed(2)}` : '—',
-                                c: tfExpectancy >= 0 ? '#38bdf8' : '#ff4757',
-                                sub: lang === 'fr' ? 'par trade' : 'per trade',
-                            },
-                            {
-                                k: lang === 'fr' ? 'Moy. Gain / Perte' : 'Avg Win / Loss',
-                                v: tfWins.length > 0 ? `$${tfAvgWin.toFixed(0)}` : '—',
-                                c: '#FDC800',
-                                sub: tfLosses.length > 0 ? `vs $${tfAvgLoss.toFixed(0)} loss` : '—',
-                            },
-                        ].map((s, i, arr) => (
-                            <div key={i} style={{
-                                padding: isMobile ? '12px 12px' : '14px 16px',
-                                borderRight: isMobile ? (i % 2 === 0 ? divider : 'none') : (i < arr.length - 1 ? divider : 'none'),
-                                borderBottom: isMobile && i < 2 ? divider : 'none',
-                                background: '#0d1117',
-                            }}>
-                                <span style={lbl}>{s.k}</span>
-                                <span style={{ ...mono, fontSize: isMobile ? 16 : 20, fontWeight: 800, color: s.c, letterSpacing: '-0.02em', display: 'block', marginTop: 4, lineHeight: 1 }}>{s.v}</span>
-                                <span style={{ ...mono, fontSize: 9, color: '#4b5563', display: 'block', marginTop: 3 }}>{s.sub}</span>
+                    {(() => {
+                        const kpis = [
+                            { k: 'Net P&L',                                            v: timeFilteredTrades.length > 0 ? `${tfPnl >= 0 ? '+' : ''}$${Math.abs(tfPnl).toLocaleString(undefined, { maximumFractionDigits: 2 })}` : '—', c: timeFilteredTrades.length > 0 ? (tfPnl >= 0 ? '#FDC800' : '#ff4757') : '#4b5563', sub: timeFilteredTrades.length > 0 ? `${tfWins.length}W · ${tfLosses.length}L` : '—' },
+                            { k: lang === 'fr' ? 'Taux réussite' : 'Win Rate',         v: timeFilteredTrades.length > 0 ? `${tfWinRate}%` : '—', c: tfWinRate >= 55 ? '#FDC800' : tfWinRate >= 45 ? '#EAB308' : timeFilteredTrades.length > 0 ? '#ff4757' : '#4b5563', sub: `${timeFilteredTrades.length} ${lang === 'fr' ? 'clôturés' : 'closed'}` },
+                            { k: lang === 'fr' ? 'Fact. profit' : 'Profit Factor',     v: timeFilteredTrades.length > 0 ? (tfPf > 90 ? '∞' : tfPf.toFixed(2)) : '—', c: tfPf >= 1.5 ? '#FDC800' : tfPf >= 1 ? '#EAB308' : timeFilteredTrades.length > 0 ? '#ff4757' : '#4b5563', sub: tfAvgLoss > 0 ? `${tfPf.toFixed(2)}x` : '—' },
+                            { k: lang === 'fr' ? 'Espérance' : 'Expectancy',           v: timeFilteredTrades.length > 0 ? `${tfExpectancy >= 0 ? '+' : ''}$${Math.abs(tfExpectancy).toFixed(2)}` : '—', c: tfExpectancy >= 0 ? '#38bdf8' : '#ff4757', sub: lang === 'fr' ? 'par trade' : 'per trade' },
+                            { k: lang === 'fr' ? 'Moy. Gain / Perte' : 'Avg Win/Loss', v: tfWins.length > 0 ? `$${tfAvgWin.toFixed(0)}` : '—', c: '#FDC800', sub: tfLosses.length > 0 ? `vs $${tfAvgLoss.toFixed(0)} loss` : '—' },
+                        ];
+                        return isMobile ? (
+                            <div style={{ borderBottom: divider, position: 'relative' }}>
+                                <div style={{ display: 'flex', overflowX: 'auto', scrollSnapType: 'x mandatory', WebkitOverflowScrolling: 'touch', scrollbarWidth: 'none', msOverflowStyle: 'none' } as React.CSSProperties}>
+                                    {kpis.map((s, i) => (
+                                        <div key={i} style={{ flexShrink: 0, minWidth: 120, padding: '16px 14px', borderRight: divider, scrollSnapAlign: 'start', background: '#0d1117' }}>
+                                            <span style={lbl}>{s.k}</span>
+                                            <span style={{ ...mono, fontSize: 20, fontWeight: 800, color: s.c, letterSpacing: '-0.02em', display: 'block', marginTop: 4, lineHeight: 1 }}>{s.v}</span>
+                                            <span style={{ ...mono, fontSize: 9, color: '#4b5563', display: 'block', marginTop: 3 }}>{s.sub}</span>
+                                        </div>
+                                    ))}
+                                </div>
+                                <div style={{ position: 'absolute', right: 0, top: 0, bottom: 0, width: 40, background: 'linear-gradient(to left, #0d1117 0%, transparent 100%)', pointerEvents: 'none' }} />
                             </div>
-                        ))}
-                    </div>
+                        ) : (
+                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5,1fr)', borderBottom: divider }}>
+                                {kpis.map((s, i, arr) => (
+                                    <div key={i} style={{ padding: '14px 16px', borderRight: i < arr.length - 1 ? divider : 'none', background: '#0d1117' }}>
+                                        <span style={lbl}>{s.k}</span>
+                                        <span style={{ ...mono, fontSize: 20, fontWeight: 800, color: s.c, letterSpacing: '-0.02em', display: 'block', marginTop: 4, lineHeight: 1 }}>{s.v}</span>
+                                        <span style={{ ...mono, fontSize: 9, color: '#4b5563', display: 'block', marginTop: 3 }}>{s.sub}</span>
+                                    </div>
+                                ))}
+                            </div>
+                        );
+                    })()}
 
                     {/* Collapsible charts section */}
                     {timeFilteredTrades.length >= 2 && (

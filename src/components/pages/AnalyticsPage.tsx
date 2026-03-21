@@ -822,25 +822,42 @@ export default function AnalyticsPage() {
                             })()}
 
                             {/* ── 8 KPI BOXES ── */}
-                            <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'repeat(2, 1fr)' : 'repeat(4, 1fr)', borderTop: '1px solid #1a1c24', borderLeft: '1px solid #1a1c24' }}>
-                                {/* Row 1 */}
-                                {[
-                                    { label: lang === 'fr' ? 'P&L NET (APRÈS FRAIS)' : 'NET P&L (AFTER FEES)', value: `${netPnl >= 0 ? '+' : '-'}$${Math.abs(netPnl).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, color: netPnl >= 0 ? '#FDC800' : '#ff4757', sub: lang === 'fr' ? `Brut $${grossProfit.toFixed(0)} · Perte $${grossLoss.toFixed(0)}` : `Gross $${grossProfit.toFixed(0)} · Loss $${grossLoss.toFixed(0)}` },
-                                    { label: lang === 'fr' ? 'TAUX DE RÉUSSITE' : 'WIN RATE', value: `${winRate.toFixed(1)}%`, color: winRate >= 50 ? '#FDC800' : '#EAB308', sub: `${wins.length}W / ${losses.length}L ${lang === 'fr' ? 'sur' : 'of'} ${closed.length} trades` },
-                                    { label: lang === 'fr' ? 'FACTEUR DE PROFIT' : 'PROFIT FACTOR', value: profitFactor === 99 ? '∞' : profitFactor.toFixed(2), color: profitFactor >= 2 ? '#FDC800' : profitFactor >= 1.2 ? '#EAB308' : '#ff4757', sub: lang === 'fr' ? `Gagné $${grossProfit.toFixed(0)} / Perdu $${grossLoss.toFixed(0)}` : `Won $${grossProfit.toFixed(0)} / Lost $${grossLoss.toFixed(0)}` },
-                                    { label: lang === 'fr' ? 'ESPÉRANCE / TRADE' : 'EXPECTANCY / TRADE', value: `${expectancy >= 0 ? '+' : ''}$${expectancy.toFixed(2)}`, color: expectancy >= 0 ? '#FDC800' : '#ff4757', sub: lang === 'fr' ? `Moy G $${avgWin.toFixed(0)} · Moy P $${avgLoss.toFixed(0)}` : `Avg W $${avgWin.toFixed(0)} · Avg L $${avgLoss.toFixed(0)}` },
-                                    { label: lang === 'fr' ? 'DRAWDOWN MAX' : 'MAX DRAWDOWN', value: maxDd > 0 ? `-$${maxDd.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '—', color: '#ff4757', sub: lang === 'fr' ? 'Sommet au creux' : 'Peak to trough' },
-                                    { label: lang === 'fr' ? 'HAUSSE MAX' : 'MAX RUN-UP', value: maxRunup > 0 ? `+$${maxRunup.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '—', color: '#FDC800', sub: lang === 'fr' ? 'Creux au sommet' : 'Trough to peak' },
-                                    { label: lang === 'fr' ? 'DURÉE MOY. TRADE' : 'AVG TRADE DURATION', value: fmtDuration((avgWinDuration * wins.length + avgLossDuration * losses.length) / Math.max(1, closed.length)), color: '#c9d1d9', sub: lang === 'fr' ? `${wins.length + losses.length} trades clôturés` : `${wins.length + losses.length} closed trades` },
-                                    { label: lang === 'fr' ? 'RATIO G/P EN $' : 'W/L DOLLAR RATIO', value: wlRatio > 0 ? `${wlRatio.toFixed(2)}:1` : '—', color: wlRatio >= 1.5 ? '#FDC800' : wlRatio >= 1 ? '#EAB308' : '#ff4757', sub: lang === 'fr' ? `$${avgWin.toFixed(0)} gain moy · $${avgLoss.toFixed(0)} perte moy` : `$${avgWin.toFixed(0)} avg win · $${avgLoss.toFixed(0)} avg loss` },
-                                ].map((k, i) => (
-                                    <div key={i} style={{ padding: isMobile ? '14px 14px' : '20px 24px', borderBottom: '1px solid #1a1c24', borderRight: '1px solid #1a1c24', background: '#0d1117', display: 'flex', flexDirection: 'column', gap: 6 }}>
-                                        <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#6b7280', letterSpacing: '0.1em', textTransform: 'uppercase' }}>{k.label}</span>
-                                        <span style={{ fontFamily: 'var(--font-mono)', fontSize: isMobile ? 18 : 22, fontWeight: 700, color: k.color, lineHeight: 1, textShadow: `0 0 12px ${k.color}22` }}>{k.value}</span>
-                                        <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: '#6b7280' }}>{k.sub}</span>
+                            {(() => {
+                                const kpiBoxes = [
+                                    { label: lang === 'fr' ? 'NET P&L' : 'NET P&L',            value: `${netPnl >= 0 ? '+' : '-'}$${Math.abs(netPnl).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, color: netPnl >= 0 ? '#FDC800' : '#ff4757', sub: `Gross $${grossProfit.toFixed(0)} · Loss $${grossLoss.toFixed(0)}` },
+                                    { label: lang === 'fr' ? 'TAUX RÉUSSITE' : 'WIN RATE',       value: `${winRate.toFixed(1)}%`, color: winRate >= 50 ? '#FDC800' : '#EAB308', sub: `${wins.length}W / ${losses.length}L of ${closed.length}` },
+                                    { label: lang === 'fr' ? 'FACT. PROFIT' : 'PROFIT FACTOR',   value: profitFactor === 99 ? '∞' : profitFactor.toFixed(2), color: profitFactor >= 2 ? '#FDC800' : profitFactor >= 1.2 ? '#EAB308' : '#ff4757', sub: `Won $${grossProfit.toFixed(0)} / Lost $${grossLoss.toFixed(0)}` },
+                                    { label: lang === 'fr' ? 'ESPÉRANCE' : 'EXPECTANCY',          value: `${expectancy >= 0 ? '+' : ''}$${expectancy.toFixed(2)}`, color: expectancy >= 0 ? '#FDC800' : '#ff4757', sub: `Avg W $${avgWin.toFixed(0)} · Avg L $${avgLoss.toFixed(0)}` },
+                                    { label: lang === 'fr' ? 'DRAWDOWN MAX' : 'MAX DRAWDOWN',    value: maxDd > 0 ? `-$${maxDd.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '—', color: '#ff4757', sub: lang === 'fr' ? 'Sommet au creux' : 'Peak to trough' },
+                                    { label: lang === 'fr' ? 'HAUSSE MAX' : 'MAX RUN-UP',        value: maxRunup > 0 ? `+$${maxRunup.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '—', color: '#FDC800', sub: lang === 'fr' ? 'Creux au sommet' : 'Trough to peak' },
+                                    { label: lang === 'fr' ? 'DURÉE MOY.' : 'AVG DURATION',      value: fmtDuration((avgWinDuration * wins.length + avgLossDuration * losses.length) / Math.max(1, closed.length)), color: '#c9d1d9', sub: `${wins.length + losses.length} closed trades` },
+                                    { label: lang === 'fr' ? 'RATIO G/P $' : 'W/L RATIO $',     value: wlRatio > 0 ? `${wlRatio.toFixed(2)}:1` : '—', color: wlRatio >= 1.5 ? '#FDC800' : wlRatio >= 1 ? '#EAB308' : '#ff4757', sub: `$${avgWin.toFixed(0)} avg win · $${avgLoss.toFixed(0)} loss` },
+                                ];
+                                return isMobile ? (
+                                    <div style={{ position: 'relative', borderTop: '1px solid #1a1c24' }}>
+                                        <div style={{ display: 'flex', overflowX: 'auto', scrollSnapType: 'x mandatory', WebkitOverflowScrolling: 'touch', scrollbarWidth: 'none', msOverflowStyle: 'none' } as React.CSSProperties}>
+                                            {kpiBoxes.map((k, i) => (
+                                                <div key={i} style={{ flexShrink: 0, minWidth: 140, padding: '16px 14px', borderRight: '1px solid #1a1c24', borderBottom: '1px solid #1a1c24', scrollSnapAlign: 'start', background: '#0d1117', display: 'flex', flexDirection: 'column', gap: 6 }}>
+                                                    <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#6b7280', letterSpacing: '0.1em', textTransform: 'uppercase' }}>{k.label}</span>
+                                                    <span style={{ fontFamily: 'var(--font-mono)', fontSize: 20, fontWeight: 700, color: k.color, lineHeight: 1, textShadow: `0 0 12px ${k.color}22` }}>{k.value}</span>
+                                                    <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: '#6b7280' }}>{k.sub}</span>
+                                                </div>
+                                            ))}
+                                        </div>
+                                        <div style={{ position: 'absolute', right: 0, top: 0, bottom: 0, width: 48, background: 'linear-gradient(to left, #0B0E14 0%, transparent 100%)', pointerEvents: 'none' }} />
                                     </div>
-                                ))}
-                            </div>
+                                ) : (
+                                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', borderTop: '1px solid #1a1c24', borderLeft: '1px solid #1a1c24' }}>
+                                        {kpiBoxes.map((k, i) => (
+                                            <div key={i} style={{ padding: '20px 24px', borderBottom: '1px solid #1a1c24', borderRight: '1px solid #1a1c24', background: '#0d1117', display: 'flex', flexDirection: 'column', gap: 6 }}>
+                                                <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#6b7280', letterSpacing: '0.1em', textTransform: 'uppercase' }}>{k.label}</span>
+                                                <span style={{ fontFamily: 'var(--font-mono)', fontSize: 22, fontWeight: 700, color: k.color, lineHeight: 1, textShadow: `0 0 12px ${k.color}22` }}>{k.value}</span>
+                                                <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: '#6b7280' }}>{k.sub}</span>
+                                            </div>
+                                        ))}
+                                    </div>
+                                );
+                            })()}
 
                             {/* ── WIN/LOSS SPLIT + THRESHOLD BULLETS ── */}
                             {closed.length > 0 && (

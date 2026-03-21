@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useMemo, useRef, useEffect } from 'react';
+import { useIsMobile } from '@/hooks/useIsMobile';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
     useAppStore, getFuturesSpec, calcPositionSize, getESTFull,
@@ -98,6 +99,7 @@ export default function CommandPage() {
     const { t } = useTranslation();
     const { language } = useAppStore();
     const lang = language ?? 'en';
+    const isMobile = useIsMobile();
 
     // ── Form state ──────────────────────────────────────────────────
     const [asset,   setAsset]   = useState('BTC');
@@ -111,10 +113,11 @@ export default function CommandPage() {
     const [logged,  setLogged]  = useState(false);
 
     // ── NLP bar ─────────────────────────────────────────────────────
-    const [nlpInput,   setNlpInput]   = useState('');
-    const [nlpLogs,    setNlpLogs]    = useState<NLPLog[]>([]);
-    const [nlpHist,    setNlpHist]    = useState<string[]>([]);
-    const [nlpHistIdx, setNlpHistIdx] = useState(-1);
+    const [nlpInput,    setNlpInput]    = useState('');
+    const [nlpLogs,     setNlpLogs]     = useState<NLPLog[]>([]);
+    const [nlpHist,     setNlpHist]     = useState<string[]>([]);
+    const [nlpHistIdx,  setNlpHistIdx]  = useState(-1);
+    const [nlpExpanded, setNlpExpanded] = useState(false);
 
     const nlpRef    = useRef<HTMLInputElement>(null);
     const nlpEndRef = useRef<HTMLDivElement>(null);
@@ -403,7 +406,7 @@ export default function CommandPage() {
 
     // ════════════════════════════════════════════════════════════════
     return (
-        <div style={{ display: 'flex', flexDirection: 'column', background: '#090909', minHeight: '100vh', paddingBottom: 80 }}>
+        <div style={{ display: 'flex', flexDirection: 'column', background: '#090909', minHeight: '100vh', paddingBottom: isMobile && result ? 148 : 80 }}>
 
             {/* ── 1. HEADER BAR ────────────────────────────────────── */}
             <div style={{
@@ -804,11 +807,14 @@ export default function CommandPage() {
                 <div style={{ borderRadius: 12, border: '1px solid #1a2a14', overflow: 'hidden', background: '#04070a' }}>
 
                     {/* Terminal header strip */}
-                    <div style={{
-                        display: 'flex', alignItems: 'center', gap: 8, padding: '8px 14px',
-                        borderBottom: '1px solid #0e1a10',
-                        background: 'linear-gradient(90deg, #070d07 0%, #04070a 100%)',
-                    }}>
+                    <div
+                        onClick={() => isMobile && setNlpExpanded(e => !e)}
+                        style={{
+                            display: 'flex', alignItems: 'center', gap: 8, padding: '8px 14px',
+                            borderBottom: '1px solid #0e1a10',
+                            background: 'linear-gradient(90deg, #070d07 0%, #04070a 100%)',
+                            cursor: isMobile ? 'pointer' : 'default',
+                        }}>
                         <Terminal size={11} color="#FDC800" />
                         <span style={{ ...mono, fontSize: 9, color: '#FDC800', letterSpacing: '0.18em', fontWeight: 900, textTransform: 'uppercase' }}>
                             NLP COMMAND
@@ -816,13 +822,22 @@ export default function CommandPage() {
                         <span style={{ ...mono, fontSize: 9, color: '#2a4a1e', marginLeft: 4 }}>
                             btc 95000 stop93500 risk500 · sell mnq 21000 stop21030 · help
                         </span>
-                        {/* Terminal traffic lights */}
-                        <div style={{ marginLeft: 'auto', display: 'flex', gap: 5 }}>
-                            {['#ff5f57','#ffbd2e','#28c840'].map((c, i) => (
-                                <div key={i} style={{ width: 8, height: 8, borderRadius: '50%', background: c, opacity: 0.6 }} />
-                            ))}
+                        {/* Terminal traffic lights / mobile expand chevron */}
+                        <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 5 }}>
+                            {isMobile ? (
+                                <span style={{ ...mono, fontSize: 9, color: '#FDC800', letterSpacing: '0.08em' }}>
+                                    {nlpExpanded ? '▲ HIDE' : '▼ OPEN'}
+                                </span>
+                            ) : (
+                                ['#ff5f57','#ffbd2e','#28c840'].map((c, i) => (
+                                    <div key={i} style={{ width: 8, height: 8, borderRadius: '50%', background: c, opacity: 0.6 }} />
+                                ))
+                            )}
                         </div>
                     </div>
+
+                    {/* On mobile: hide body unless expanded */}
+                    {(!isMobile || nlpExpanded) && (<>
 
                     {/* Log output area */}
                     <AnimatePresence>
@@ -909,9 +924,71 @@ export default function CommandPage() {
                             RUN
                         </motion.button>
                     </div>
+
+                    </>)}
                 </div>
 
             </div>
+
+            {/* ── STICKY LOG TRADE BAR (mobile only) ───────────── */}
+            <AnimatePresence>
+                {isMobile && result && (
+                    <motion.div
+                        initial={{ y: 80, opacity: 0 }}
+                        animate={{ y: 0, opacity: 1 }}
+                        exit={{ y: 80, opacity: 0 }}
+                        transition={{ ease: [0.16, 1, 0.3, 1], duration: 0.32 }}
+                        style={{
+                            position: 'fixed',
+                            bottom: 72, /* z-index 50: above content, below bottom nav (z-100) */
+                            left: 0, right: 0,
+                            padding: '10px 16px',
+                            background: 'rgba(9,9,9,0.97)',
+                            borderTop: '1px solid #1a1c24',
+                            backdropFilter: 'blur(12px)',
+                            zIndex: 50,
+                        }}
+                    >
+                        {/* Mini result summary strip */}
+                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
+                            {[
+                                { lbl: 'SIZE', val: fmtSize(result.size, result.unit), clr: '#fff' },
+                                { lbl: 'RISK', val: `-$${result.riskAmt.toFixed(0)}`, clr: '#ff4757' },
+                                { lbl: 'R:R', val: `${result.rr.toFixed(2)}R`, clr: result.rr >= 2 ? '#FDC800' : result.rr >= 1.5 ? '#EAB308' : '#ff4757' },
+                                { lbl: 'REWARD', val: `+$${result.reward.toFixed(0)}`, clr: '#FDC800' },
+                            ].map((s, i) => (
+                                <div key={i} style={{ textAlign: 'center' }}>
+                                    <span style={{ ...mono, fontSize: 8, color: '#4b5563', letterSpacing: '0.1em', textTransform: 'uppercase' as const, display: 'block' }}>{s.lbl}</span>
+                                    <span style={{ ...mono, fontSize: 14, fontWeight: 800, color: s.clr }}>{s.val}</span>
+                                </div>
+                            ))}
+                        </div>
+                        <motion.button
+                            onClick={handleLog}
+                            whileTap={{ scale: 0.97 }}
+                            disabled={logged}
+                            style={{
+                                width: '100%',
+                                ...mono, fontSize: 14, fontWeight: 900, letterSpacing: '0.1em',
+                                padding: '16px 0', border: 'none',
+                                background: logged ? '#0d1a06' : result.bad ? '#1a0f0f' : '#FDC800',
+                                color: logged ? '#FDC800' : result.bad ? '#ff4757' : '#000',
+                                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 9,
+                                cursor: logged ? 'default' : 'pointer',
+                                borderRadius: 8,
+                            }}
+                        >
+                            {logged
+                                ? <><Check size={15} /> {lang === 'fr' ? 'TRADE ENREGISTRÉ' : 'TRADE LOGGED'}</>
+                                : result.bad
+                                    ? <><AlertTriangle size={15} /> {lang === 'fr' ? 'ENREGISTRER (RISQUÉ)' : 'LOG ANYWAY (RISKY)'}</>
+                                    : <><BookmarkPlus size={15} /> {lang === 'fr' ? 'ENREGISTRER LE TRADE' : 'LOG TRADE'}</>
+                            }
+                        </motion.button>
+                    </motion.div>
+                )}
+            </AnimatePresence>
+
         </div>
     );
 }
