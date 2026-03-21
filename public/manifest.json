@@ -2,7 +2,7 @@
   "name": "RiskGuardian — AI Risk OS",
   "short_name": "RiskGuardian",
   "description": "Real-time AI that prevents prop firm account violations before they happen.",
-  "start_url": "/",
+  "start_url": "/app",
   "scope": "/",
   "display": "standalone",
   "background_color": "#090909",
@@ -29,21 +29,21 @@
       "name": "Risk Engine",
       "short_name": "Engine",
       "description": "Calculate position size and log a trade",
-      "url": "/?tab=terminal",
+      "url": "/app?tab=terminal",
       "icons": [{ "src": "/favicon.svg", "sizes": "any" }]
     },
     {
       "name": "Analytics",
       "short_name": "Stats",
       "description": "View your trading forensics and verdict",
-      "url": "/?tab=analytics",
+      "url": "/app?tab=analytics",
       "icons": [{ "src": "/favicon.svg", "sizes": "any" }]
     },
     {
       "name": "Journal",
       "short_name": "Log",
       "description": "Review your trade history",
-      "url": "/?tab=journal",
+      "url": "/app?tab=journal",
       "icons": [{ "src": "/favicon.svg", "sizes": "any" }]
     }
   ]
