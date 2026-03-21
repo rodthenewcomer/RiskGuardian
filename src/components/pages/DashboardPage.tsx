@@ -353,9 +353,8 @@ export default function DashboardPage() {
             }}>
                 <div style={{
                     display: 'flex',
-                    flexDirection: isMobile ? 'column' : 'row',
-                    alignItems: isMobile ? 'flex-start' : 'center',
-                    gap: isMobile ? 16 : 32,
+                    flexDirection: 'column',
+                    gap: 6,
                 }}>
                     {/* Left — balance */}
                     <div style={{ flex: 1 }}>
@@ -383,16 +382,6 @@ export default function DashboardPage() {
                             </motion.span>
                         )}
                     </div>
-                    {/* Right — equity chart */}
-                    {pnlChartData.length > 1 && (
-                        <motion.div
-                            initial={{ opacity: 0, scaleX: 0.6 }} animate={{ opacity: 1, scaleX: 1 }}
-                            transition={{ ease: [0.16, 1, 0.3, 1], duration: 0.7, delay: 0.15 }}
-                            style={{ height: isMobile ? 80 : 100, minWidth: isMobile ? '100%' : 280, transformOrigin: 'left', flex: isMobile ? 'none' : '0 0 280px' }}
-                        >
-                            <PnLChart data={pnlChartData} />
-                        </motion.div>
-                    )}
                 </div>
             </motion.div>
 
@@ -471,6 +460,32 @@ export default function DashboardPage() {
                     </div>
                 ))}
             </motion.div>
+
+            {/* ── EQUITY CURVE — full width below KPI grid ─────── */}
+            {pnlChartData.length > 1 && (
+                <motion.div variants={fadeUp} style={{ borderBottom: divider, background: '#0d1117' }}>
+                    <div style={{ padding: '14px 20px 8px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                        <div>
+                            <span style={{ ...mono, fontSize: 9, color: '#6b7280', letterSpacing: '0.12em', textTransform: 'uppercase' }}>
+                                {lang === 'fr' ? 'COURBE D\'ÉQUITÉ' : 'EQUITY CURVE'}
+                            </span>
+                            <span style={{ ...mono, fontSize: 10, color: pnlColor, fontWeight: 700, marginLeft: 12 }}>
+                                {totalPnl >= 0 ? '+' : ''}${totalPnl.toLocaleString(undefined, { maximumFractionDigits: 0 })} {lang === 'fr' ? 'net' : 'net'}
+                            </span>
+                        </div>
+                        <span style={{ ...mono, fontSize: 9, color: '#4b5563' }}>
+                            {closedTrades.length} {lang === 'fr' ? 'trades clôturés' : 'closed trades'}
+                        </span>
+                    </div>
+                    <motion.div
+                        initial={{ opacity: 0, scaleX: 0.7 }} animate={{ opacity: 1, scaleX: 1 }}
+                        transition={{ ease: [0.16, 1, 0.3, 1], duration: 0.8, delay: 0.1 }}
+                        style={{ height: isMobile ? 160 : 220, transformOrigin: 'left', padding: '0 0 4px' }}
+                    >
+                        <PnLChart data={pnlChartData} />
+                    </motion.div>
+                </motion.div>
+            )}
 
             {/* ── SECTION 4 — ALERT BANNERS ────────────────────── */}
             {milestone && (
