@@ -5,14 +5,15 @@ import styles from './Sidebar.module.css';
 import { useAppStore } from '@/store/appStore';
 import {
     LayoutDashboard, Terminal,
-    BookOpen, BarChart2, Settings, Brain, ShieldCheck
+    BookOpen, BarChart2, Settings, Brain, LogOut, User
 } from 'lucide-react';
 import { useTranslation } from '@/i18n/useTranslation';
+import { supabase } from '@/lib/supabase';
+import Logo from '@/components/ui/Logo';
 
 const TAB_IDS = [
     { id: 'dashboard', Icon: LayoutDashboard },
     { id: 'terminal', Icon: Terminal },
-    { id: 'bridge', Icon: ShieldCheck },
     { id: 'plan', Icon: Brain },
     { id: 'journal', Icon: BookOpen },
     { id: 'analytics', Icon: BarChart2 },
@@ -24,19 +25,26 @@ export default function Sidebar() {
     // eslint-disable-next-line
     useEffect(() => { setMounted(true); }, []);
 
-    const { activeTab, setActiveTab, language, setLanguage } = useAppStore();
+    const { activeTab, setActiveTab, language, setLanguage, userId, userEmail, setUserId, setUserEmail } = useAppStore();
     const { t } = useTranslation();
     const lang = language ?? 'en';
+
+    async function handleSignOut() {
+        await supabase.auth.signOut();
+        setUserId(null);
+        setUserEmail(null);
+    }
 
     const tabLabels: Record<string, string> = {
         dashboard: t.nav.dashboard,
         terminal: t.nav.riskEngine,
-        bridge: t.bridge.title,
         plan: t.nav.aiCoach,
         journal: t.nav.journal,
         analytics: t.nav.analytics,
         settings: t.nav.settings,
     };
+
+    const displayEmail = userEmail ? (userEmail.length > 16 ? userEmail.slice(0, 14) + '…' : userEmail) : '';
 
     if (!mounted) return null;
 
@@ -44,10 +52,10 @@ export default function Sidebar() {
         <nav className={styles.sidebar} aria-label="Main navigation">
             <div className={styles.logo}>
                 <span className={styles.logoCompact}>
-                    <span className={styles.logoAccent}>R</span>G
+                    <Logo size="sm" />
                 </span>
                 <span className={styles.logoFull}>
-                    <span className={styles.logoAccent}>Risk</span>Guardian
+                    <Logo size="md" />
                 </span>
             </div>
             <ul className={styles.list}>
@@ -69,8 +77,20 @@ export default function Sidebar() {
                 })}
             </ul>
 
-            {/* Language switcher at bottom of sidebar */}
+            {/* Bottom section: account + lang */}
             <div className={styles.langSection}>
+                {/* Sign out / account info */}
+                {userId && (
+                    <button
+                        className={styles.signOutBtn}
+                        onClick={handleSignOut}
+                        title={lang === 'fr' ? 'Se déconnecter' : 'Sign out'}
+                    >
+                        <User size={13} strokeWidth={1.8} />
+                        <span className={styles.signOutEmail}>{displayEmail || (lang === 'fr' ? 'Compte' : 'Account')}</span>
+                        <LogOut size={13} strokeWidth={1.8} />
+                    </button>
+                )}
                 <button
                     className={styles.langToggle}
                     onClick={() => setLanguage(lang === 'en' ? 'fr' : 'en')}

@@ -139,6 +139,26 @@
     .langActive { color: var(--accent); }
     .langInactive { color: var(--text-dim); }
     .langSep { color: var(--border-subtle); }
+
+    .signOutBtn {
+        display: flex;
+        align-items: center;
+        gap: 5px;
+        background: var(--bg-card);
+        border: 1px solid var(--border-subtle);
+        padding: 6px 8px;
+        cursor: pointer;
+        font-family: var(--font-mono);
+        font-size: 10px;
+        font-weight: 600;
+        color: var(--text-muted);
+        width: 100%;
+        justify-content: center;
+        margin-bottom: 6px;
+        transition: border-color var(--t-fast), color var(--t-fast);
+    }
+    .signOutBtn:hover { border-color: #ff4757; color: #ff4757; }
+    .signOutEmail { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 80px; }
 }
 
 /* ≥1024px: wider sidebar with full labels */

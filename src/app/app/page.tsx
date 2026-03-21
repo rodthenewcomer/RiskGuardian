@@ -7,7 +7,6 @@ import Sidebar from '@/components/layout/Sidebar';
 import BottomNav from '@/components/layout/BottomNav';
 import DashboardPage from '@/components/pages/DashboardPage';
 import CommandPage from '@/components/pages/CommandPage';
-import BridgePage from '@/components/pages/BridgePage';
 import AIChatPage from '@/components/pages/AIChatPage';
 import AnalyticsPage from '@/components/pages/AnalyticsPage';
 import SettingsPage from '@/components/pages/SettingsPage';
@@ -30,7 +29,7 @@ const pageVariants = {
   exit: { opacity: 0, y: -6 },
 };
 
-const VALID_TABS = new Set(['dashboard', 'terminal', 'bridge', 'plan', 'analytics', 'settings', 'journal', 'calculator']);
+const VALID_TABS = new Set(['dashboard', 'terminal', 'plan', 'analytics', 'settings', 'journal', 'calculator']);
 
 export default function Home() {
   const [mounted, setMounted] = useState(false);
@@ -111,7 +110,6 @@ export default function Home() {
   const pages: Record<string, React.ReactNode> = {
     dashboard: <DashboardPage />,
     terminal: <CommandPage />,
-    bridge: <BridgePage />,
     plan: <AIChatPage />,
     analytics: <ErrorBoundary><AnalyticsPage /></ErrorBoundary>,
     settings: <SettingsPage />,

@@ -3,7 +3,8 @@
 import { useEffect, useState } from 'react';
 import styles from './Header.module.css';
 import { useAppStore } from '@/store/appStore';
-import { Shield, Bell, LogIn, LogOut, User } from 'lucide-react';
+import { Bell, LogIn, LogOut, User } from 'lucide-react';
+import Logo from '@/components/ui/Logo';
 import { motion } from 'framer-motion';
 import { supabase } from '@/lib/supabase';
 
@@ -36,12 +37,7 @@ export default function Header({ onShowAuth }: HeaderProps) {
             <div className={styles.inner}>
                 {/* Logo */}
                 <div className={styles.logo}>
-                    <div className={`${styles.logoIcon}${isDanger ? ` ${styles.danger}` : isWarning ? ` ${styles.warning}` : ''}`}>
-                        <Shield size={16} strokeWidth={2.5} />
-                    </div>
-                    <span className={styles.logoText}>
-                        Risk<span className={styles.logoAccent}>Guardian</span>
-                    </span>
+                    <Logo size="sm" />
                 </div>
 
                 {/* Balance pill */}
