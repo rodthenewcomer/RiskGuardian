@@ -3,24 +3,29 @@
 
 /* ═══════════════════════════════════════════════════════
    RISKGUARDIA — DESIGN TOKENS
-   Theme: Pure Black + Lime Green accent
+   Theme: Neobrutalism — #FDC800 yellow + #432DD7 purple
 ――――――――――――――――――――――――――――――――――――――――――――――――――――――― */
 :root {
-  /* ── Accent (ONE color only) ── */
-  --accent: #A6FF4D;
-  --accent-dim: rgba(166, 255, 77, 0.10);
-  --accent-soft: rgba(166, 255, 77, 0.18);
-  --accent-glow: rgba(166, 255, 77, 0.28);
-  --accent-border: rgba(166, 255, 77, 0.25);
+  /* ── Neobrutalism primary accent ── */
+  --accent: #FDC800;
+  --accent-dim: rgba(253, 200, 0, 0.12);
+  --accent-soft: rgba(253, 200, 0, 0.20);
+  --accent-glow: rgba(253, 200, 0, 0.30);
+  --accent-border: rgba(253, 200, 0, 0.35);
 
-  /* ── Backgrounds (pure black scale) ── */
+  /* ── Secondary (electric purple) ── */
+  --secondary: #432DD7;
+  --secondary-dim: rgba(67, 45, 215, 0.12);
+  --secondary-border: rgba(67, 45, 215, 0.35);
+
+  /* ── Backgrounds (pure black scale — app shell stays dark) ── */
   --bg-base: #090909;
   --bg-surface: #0F0F0F;
   --bg-card: #141414;
   --bg-elevated: #1C1C1C;
   --bg-input: rgba(255, 255, 255, 0.04);
 
-  /* ── Borders ── */
+  /* ── Borders (app shell) ── */
   --border-faint: rgba(255, 255, 255, 0.04);
   --border-subtle: rgba(255, 255, 255, 0.07);
   --border-medium: rgba(255, 255, 255, 0.11);
@@ -33,11 +38,22 @@
   --text-muted: #555555;
   --text-disabled: #333333;
 
-  /* ── Semantic (keep danger/warning minimal) ── */
-  --color-danger: #FF4757;
-  --color-danger-dim: rgba(255, 71, 87, 0.10);
-  --color-warning: #FF9500;
-  --color-warning-dim: rgba(255, 149, 0, 0.10);
+  /* ── Semantic ── */
+  --color-danger: #DC2626;
+  --color-danger-dim: rgba(220, 38, 38, 0.12);
+  --color-warning: #D97706;
+  --color-warning-dim: rgba(217, 119, 6, 0.12);
+  --color-success: #16A34A;
+  --color-success-dim: rgba(22, 163, 74, 0.12);
+
+  /* ── Neobrutalism shadows ── */
+  --shadow-brutal: 4px 4px 0px #1C293C;
+  --shadow-brutal-sm: 2px 2px 0px #1C293C;
+  --shadow-brutal-accent: 4px 4px 0px #FDC800;
+  --shadow-sm: 0 1px 4px rgba(0, 0, 0, 0.6);
+  --shadow-md: 0 4px 20px rgba(0, 0, 0, 0.7);
+  --shadow-lg: 0 8px 40px rgba(0, 0, 0, 0.8);
+  --shadow-accent: 0 0 20px rgba(253, 200, 0, 0.18);
 
   /* ── Layout ── */
   --nav-height: 60px;
@@ -46,15 +62,15 @@
   --sidebar-width-sm: 64px;
   --sidebar-width-lg: 200px;
 
-  /* ── Radius ── */
-  --radius-xs: 4px;
-  --radius-sm: 8px;
-  --radius-md: 10px;
-  --radius-lg: 14px;
-  --radius-xl: 20px;
+  /* ── Radius (minimal — neobrutalism is square) ── */
+  --radius-xs: 2px;
+  --radius-sm: 2px;
+  --radius-md: 2px;
+  --radius-lg: 4px;
+  --radius-xl: 4px;
   --radius-full: 9999px;
 
-  /* ── Spacing ── */
+  /* ── Spacing scale ── */
   --space-1: 4px;
   --space-2: 8px;
   --space-3: 12px;
@@ -64,8 +80,6 @@
   --space-8: 32px;
   --space-10: 40px;
   --space-12: 48px;
-
-  /* Backward-compat aliases */
   --spacing-xs: var(--space-1);
   --spacing-sm: var(--space-2);
   --spacing-md: var(--space-4);
@@ -76,34 +90,24 @@
   /* ── Typography ── */
   --font-base: 'Inter', system-ui, sans-serif;
   --font-mono: 'JetBrains Mono', 'Fira Code', monospace;
-  /* No separate heading font — Inter Heavy does the job */
-
-  /* ── Shadows ── */
-  --shadow-sm: 0 1px 4px rgba(0, 0, 0, 0.6);
-  --shadow-md: 0 4px 20px rgba(0, 0, 0, 0.7);
-  --shadow-lg: 0 8px 40px rgba(0, 0, 0, 0.8);
-  --shadow-accent: 0 0 24px rgba(166, 255, 77, 0.15);
+  --font-head: 'Inter', system-ui, sans-serif;
 
   /* ── Transitions ── */
   --t-fast: 0.10s ease;
   --t-normal: 0.20s ease;
   --t-slow: 0.36s cubic-bezier(0.4, 0, 0.2, 1);
 
-  /* Back-compat */
+  /* Back-compat aliases */
   --color-primary: var(--accent);
   --color-primary-dim: var(--accent-dim);
   --color-primary-glow: var(--accent-glow);
-  --color-success: var(--accent);
-  --color-success-dim: var(--accent-dim);
-  --color-success-glow: var(--accent-glow);
-  --color-purple: var(--accent);
-  --color-purple-dim: var(--accent-dim);
+  --color-purple: var(--secondary);
+  --color-purple-dim: var(--secondary-dim);
   --bg-glass: var(--bg-card);
   --border-primary: var(--border-accent);
   --shadow-glow: var(--shadow-accent);
   --shadow-success: var(--shadow-accent);
-  --shadow-danger: 0 0 24px rgba(255, 71, 87, 0.15);
-  --font-head: var(--font-base);
+  --shadow-danger: 0 0 20px rgba(220, 38, 38, 0.18);
 }
 
 /* ═══════════════════════════════════════════════════════

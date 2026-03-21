@@ -20,6 +20,9 @@ import { ToastContainer } from '@/components/ui/Toast';
 import { supabase } from '@/lib/supabase';
 import { fullSync, pushAccountSettings, pushTrades } from '@/lib/supabaseSync';
 
+// Force dynamic rendering — prevents prerender failures when Supabase env vars absent on deploy
+export const dynamic = 'force-dynamic';
+
 const pageVariants = {
   enter: { opacity: 0, y: 10 },
   center: { opacity: 1, y: 0 },
