@@ -3190,7 +3190,9 @@ export default function AnalyticsPage() {
                                                             </div>
                                                         </div>
                                                         <div style={{ textAlign: 'right' }}>
-                                                            <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#6b7280', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 4 }}>BEHAVIORAL COST</div>
+                                                            <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#6b7280', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 4 }}>
+                                                                {p.name === 'Early Exit' ? 'EST. BEHAVIORAL COST' : 'BEHAVIORAL COST'}
+                                                            </div>
                                                             <div style={{ fontFamily: 'var(--font-mono)', fontSize: 26, fontWeight: 800, color: '#ff4757' }}>-${Math.abs(p.impact).toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}</div>
                                                         </div>
                                                     </div>
@@ -4518,11 +4520,23 @@ export default function AnalyticsPage() {
                             );
                         }
                         if (nextRules.length < 3 && forensics.patterns.length > 0) {
-                            const top = forensics.patterns[0];
-                            nextRules.push(lang === 'fr'
-                                ? `Pause obligatoire de 5 minutes après chaque perte — ${top.freq} entrées en état de tilt détectées ce cycle (${top.name}). Le coût est de $${Math.abs(top.impact).toFixed(0)}.`
-                                : `Mandatory 5-min break after every loss — ${top.freq} tilt-state entries detected this cycle (${top.name}), costing $${Math.abs(top.impact).toFixed(0)}.`
-                            );
+                            const top = forensics.patterns[0]; // most costly pattern (sorted asc by impact)
+                            const topRule = top.name === 'Held Losers'
+                                ? (lang === 'fr'
+                                    ? `Stopper les perdants à temps — ${top.freq} trades retenus trop longtemps détectés, coût $${Math.abs(top.impact).toFixed(0)}. Règle : si un trade dépasse la durée moyenne d'un gagnant, fermer sans exception.`
+                                    : `Kill held losers on time — ${top.freq} trades held too long detected, costing $${Math.abs(top.impact).toFixed(0)}. Rule: if a trade exceeds avg win duration, close it — no exceptions.`)
+                                : top.name === 'Early Exit'
+                                ? (lang === 'fr'
+                                    ? `Tenir les gagnants jusqu'à la cible — ${top.freq} sorties précoces détectées, coût estimé $${Math.abs(top.impact).toFixed(0)}. Attendre la structure avant de fermer.`
+                                    : `Hold winners to target — ${top.freq} early exits detected, estimated cost $${Math.abs(top.impact).toFixed(0)}. Wait for structure before closing.`)
+                                : top.name === 'Revenge Trading'
+                                ? (lang === 'fr'
+                                    ? `Pause obligatoire de 5 min après chaque perte — ${top.freq} séquence${top.freq > 1 ? 's' : ''} de tilt détectée${top.freq > 1 ? 's' : ''} (${top.name}), coût $${Math.abs(top.impact).toFixed(0)}.`
+                                    : `Mandatory 5-min break after every loss — ${top.freq} tilt sequence${top.freq > 1 ? 's' : ''} detected (${top.name}), costing $${Math.abs(top.impact).toFixed(0)}.`)
+                                : (lang === 'fr'
+                                    ? `Corriger le motif principal : ${top.name} — ${top.freq} occurrence${top.freq > 1 ? 's' : ''} détectée${top.freq > 1 ? 's' : ''}, coût $${Math.abs(top.impact).toFixed(0)}.`
+                                    : `Address top pattern: ${top.name} — ${top.freq} occurrence${top.freq > 1 ? 's' : ''} detected, costing $${Math.abs(top.impact).toFixed(0)}.`);
+                            nextRules.push(topRule);
                         }
                         if (nextRules.length < 3) {
                             nextRules.push(lang === 'fr'

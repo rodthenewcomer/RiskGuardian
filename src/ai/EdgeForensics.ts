@@ -128,9 +128,27 @@ export function generateForensics(trades: Trade[], accountData: any) {
     }
 
     // Early Exit — wins closed in under 40% of average loss duration
+    // Impact = actual foregone profit: (avgWinAmt - earlyWin.pnl) per trade
     const earlyWins = wins.filter(t => (t.durationSeconds ?? 0) > 0 && t.durationSeconds! < avgLossDur * 0.4);
     if (earlyWins.length >= 3) {
-        patterns.push({ name: 'Early Exit', freq: earlyWins.length, impact: -earlyWins.length * avgLossAmt * 0.5, severity: 'WARNING', desc: 'Cutting winners before structural targets.', evidence: [`Avg Win Duration: ${Math.floor(avgWinDur / 60)}m`, `Avg Loss Duration: ${Math.floor(avgLossDur / 60)}m`] });
+        const earlyWinAvgPnl = earlyWins.reduce((s, t) => s + (t.pnl ?? 0), 0) / earlyWins.length;
+        // Only penalise if early exits actually underperformed the average winner
+        const forgonePerTrade = Math.max(0, avgWinAmt - earlyWinAvgPnl);
+        const earlyImpact = -(forgonePerTrade * earlyWins.length);
+        if (forgonePerTrade > 0) {
+            patterns.push({
+                name: 'Early Exit',
+                freq: earlyWins.length,
+                impact: earlyImpact,
+                severity: Math.abs(earlyImpact) > 500 ? 'HIGH' : 'WARNING',
+                desc: 'Cutting winners before structural targets.',
+                evidence: [
+                    `Early exit avg: $${earlyWinAvgPnl.toFixed(0)} vs full avg: $${avgWinAmt.toFixed(0)}`,
+                    `Forgone per trade: $${forgonePerTrade.toFixed(0)}`,
+                    `Avg hold: ${Math.floor(avgWinDur / 60)}m win · ${Math.floor(avgLossDur / 60)}m loss`,
+                ],
+            });
+        }
     }
 
     // Spike Vulnerability
