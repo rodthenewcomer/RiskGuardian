@@ -9,7 +9,8 @@ import { generateForensics } from '@/ai/EdgeForensics';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
     PieChart, Pie, Cell, ResponsiveContainer, BarChart, Bar, XAxis, Tooltip, YAxis, ReferenceLine,
-    AreaChart, Area, CartesianGrid, ScatterChart, Scatter, ZAxis
+    AreaChart, Area, CartesianGrid, ScatterChart, Scatter, ZAxis,
+    RadarChart, Radar, PolarGrid, PolarAngleAxis, Legend,
 } from 'recharts';
 import { Target, AlertTriangle, Download, Link2, Check, Info, TrendingUp, TrendingDown, Activity, Clock } from 'lucide-react';
 import ComposedDailyChart, { addRollingAvg } from '@/components/charts/ComposedDailyChart';
@@ -5259,6 +5260,38 @@ export default function AnalyticsPage() {
                                     </div>
                                 </div>
 
+                                {/* ── CHART 1: PERFORMANCE RADAR A vs B ── */}
+                                <div>
+                                    <div style={{ ...SL, color: '#FDC800', marginBottom: 12 }}>{lang === 'fr' ? 'PROFIL PERFORMANCE A vs B' : 'PERFORMANCE PROFILE A vs B'}</div>
+                                    <div style={{ background: '#0d1117', border: '1px solid #1a1c24', padding: '16px 8px 4px' }}>
+                                        {(() => {
+                                            const radarData = [
+                                                { metric: 'WIN RATE', a: snapA.winRate, b: compB.winRate },
+                                                { metric: 'PF', a: Math.min(snapA.profitFactor > 90 ? 100 : snapA.profitFactor / 3 * 100, 100), b: Math.min(compB.profitFactor > 90 ? 100 : compB.profitFactor / 3 * 100, 100) },
+                                                { metric: 'GRADE', a: snapA.gradeScore, b: compB.gradeScore },
+                                                { metric: 'SAFETY', a: 100 - snapA.riskScore, b: 100 - compB.riskScore },
+                                                { metric: 'W/L', a: Math.min(snapA.wlRatio / 3 * 100, 100), b: Math.min(compB.wlRatio / 3 * 100, 100) },
+                                                { metric: 'EXPECT', a: Math.max(0, Math.min(snapA.expectancy / 5, 100)), b: Math.max(0, Math.min(compB.expectancy / 5, 100)) },
+                                            ];
+                                            return (
+                                                <ResponsiveContainer width="100%" height={220}>
+                                                    <RadarChart data={radarData} margin={{ top: 8, right: 28, left: 28, bottom: 4 }}>
+                                                        <PolarGrid stroke="#1a1c24" />
+                                                        <PolarAngleAxis dataKey="metric" tick={{ fontFamily: 'var(--font-mono)', fontSize: 9, fill: '#8b949e' }} />
+                                                        <Radar name="A" dataKey="a" stroke="#6b7280" fill="#6b7280" fillOpacity={0.2} strokeWidth={2} dot={false} />
+                                                        <Radar name="B" dataKey="b" stroke="#FDC800" fill="#FDC800" fillOpacity={0.15} strokeWidth={2} dot={false} />
+                                                        <Legend iconType="line" iconSize={16} wrapperStyle={{ fontFamily: 'var(--font-mono)', fontSize: 9, paddingTop: 2 }} formatter={(v) => v === 'A' ? `A · ${fmtSnap(snapA.savedAt)}` : `B · ${fmtSnap(compB.savedAt)}`} />
+                                                        <Tooltip contentStyle={{ background: '#0d1117', border: '1px solid #1a1c24', borderRadius: 0, fontFamily: 'var(--font-mono)', fontSize: 10 }} formatter={(v: number | undefined) => v == null ? ['—', ''] : [`${v.toFixed(1)}/100`, '']} />
+                                                    </RadarChart>
+                                                </ResponsiveContainer>
+                                            );
+                                        })()}
+                                    </div>
+                                    <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#4b5563', marginTop: 4 }}>
+                                        {lang === 'fr' ? 'Métriques normalisées /100. PF plafonné 3x · Espérance plafonnée $500 · SAFETY = 100 − Score de risque' : 'All metrics normalized /100. PF capped at 3x · Expectancy capped $500 · SAFETY = 100 − Risk Score'}
+                                    </div>
+                                </div>
+
                                 {/* Delta comparison table */}
                                 <div>
                                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12, flexWrap: 'wrap' as const, gap: 8 }}>
@@ -5313,9 +5346,55 @@ export default function AnalyticsPage() {
                                     </div>
                                 </div>
 
+                                {/* ── CHART 2: KEY METRICS GROUPED BAR A vs B ── */}
+                                <div>
+                                    <div style={{ ...SL, color: '#FDC800', marginBottom: 12 }}>{lang === 'fr' ? 'MÉTRIQUES CLÉS A vs B' : 'KEY METRICS A vs B'}</div>
+                                    <div style={{ background: '#0d1117', border: '1px solid #1a1c24', padding: '12px 0 4px' }}>
+                                        {(() => {
+                                            const grouped = [
+                                                { name: 'NET P&L', a: snapA.netPnl, b: compB.netPnl },
+                                                { name: lang === 'fr' ? 'MOY. GAIN' : 'AVG WIN', a: snapA.avgWin, b: compB.avgWin },
+                                                { name: lang === 'fr' ? 'MOY. PERTE' : 'AVG LOSS', a: -snapA.avgLoss, b: -compB.avgLoss },
+                                                { name: lang === 'fr' ? 'ESPÉR.' : 'EXPECT.', a: snapA.expectancy, b: compB.expectancy },
+                                            ];
+                                            return (
+                                                <ResponsiveContainer width="100%" height={180}>
+                                                    <BarChart data={grouped} margin={{ top: 4, right: 16, left: 0, bottom: 0 }} barGap={2} barCategoryGap="25%">
+                                                        <CartesianGrid strokeDasharray="3 3" stroke="#1a1c24" vertical={false} />
+                                                        <XAxis dataKey="name" tick={{ fontFamily: 'var(--font-mono)', fontSize: 8, fill: '#4b5563' }} tickLine={false} axisLine={false} />
+                                                        <YAxis tick={{ fontFamily: 'var(--font-mono)', fontSize: 8, fill: '#4b5563' }} tickLine={false} axisLine={false} tickFormatter={(v) => `$${v >= 0 ? '' : '-'}${Math.abs(v) >= 1000 ? (Math.abs(v) / 1000).toFixed(1) + 'k' : Math.abs(v).toFixed(0)}`} width={48} />
+                                                        <ReferenceLine y={0} stroke="#3d4451" />
+                                                        <Tooltip contentStyle={{ background: '#0d1117', border: '1px solid #1a1c24', borderRadius: 0, fontFamily: 'var(--font-mono)', fontSize: 10 }} formatter={(v: number | undefined, name: string | undefined) => v == null ? ['—', name ?? ''] : [`${v >= 0 ? '+' : ''}$${v.toFixed(0)}`, name === 'A' ? `A · ${fmtSnap(snapA.savedAt)}` : `B · ${fmtSnap(compB.savedAt)}`]} />
+                                                        <Bar name="A" dataKey="a" fill="#4b5563" fillOpacity={0.9} maxBarSize={28} radius={0} />
+                                                        <Bar name="B" dataKey="b" fill="#FDC800" fillOpacity={0.88} maxBarSize={28} radius={0} />
+                                                        <Legend iconType="square" iconSize={10} wrapperStyle={{ fontFamily: 'var(--font-mono)', fontSize: 9, paddingTop: 4 }} formatter={(v) => v === 'A' ? `A · ${fmtSnap(snapA.savedAt)}` : `B · ${fmtSnap(compB.savedAt)}`} />
+                                                    </BarChart>
+                                                </ResponsiveContainer>
+                                            );
+                                        })()}
+                                    </div>
+                                </div>
+
                                 {/* Multi-period comparison */}
                                 <div>
                                     <div style={{ ...SL, color: '#FDC800', marginBottom: 12 }}>{lang === 'fr' ? 'COMPARAISON MULTI-PÉRIODES' : 'MULTI-PERIOD COMPARISON'}</div>
+                                    {/* ── CHART 3: MULTI-PERIOD P&L BAR ── */}
+                                    <div style={{ background: '#0d1117', border: '1px solid #1a1c24', padding: '12px 0 4px', marginBottom: 2 }}>
+                                        <ResponsiveContainer width="100%" height={110}>
+                                            <BarChart data={multiPeriods} margin={{ top: 4, right: 16, left: 0, bottom: 0 }}>
+                                                <CartesianGrid strokeDasharray="3 3" stroke="#1a1c24" vertical={false} />
+                                                <XAxis dataKey="label" tick={{ fontFamily: 'var(--font-mono)', fontSize: 9, fill: '#8b949e' }} tickLine={false} axisLine={false} />
+                                                <YAxis tick={{ fontFamily: 'var(--font-mono)', fontSize: 8, fill: '#4b5563' }} tickLine={false} axisLine={false} tickFormatter={(v) => `$${v >= 0 ? '' : '-'}${Math.abs(v) >= 1000 ? (Math.abs(v) / 1000).toFixed(1) + 'k' : Math.abs(v).toFixed(0)}`} width={48} />
+                                                <ReferenceLine y={0} stroke="#3d4451" />
+                                                <Tooltip contentStyle={{ background: '#0d1117', border: '1px solid #1a1c24', borderRadius: 0, fontFamily: 'var(--font-mono)', fontSize: 10 }} formatter={(v: number | undefined) => v == null ? ['—', ''] : [`${v >= 0 ? '+' : ''}$${v.toFixed(0)}`, lang === 'fr' ? 'P&L net' : 'Net P&L']} />
+                                                <Bar dataKey="pnl" maxBarSize={64} radius={0}>
+                                                    {multiPeriods.map((p, i) => (
+                                                        <Cell key={i} fill={p.pnl >= 0 ? '#FDC800' : '#ff4757'} fillOpacity={0.85} />
+                                                    ))}
+                                                </Bar>
+                                            </BarChart>
+                                        </ResponsiveContainer>
+                                    </div>
                                     <div style={{ overflowX: 'auto' }}>
                                         <table style={{ width: '100%', borderCollapse: 'collapse', fontFamily: QF }}>
                                             <thead><tr style={{ borderBottom: '1px solid #1a1c24' }}>
