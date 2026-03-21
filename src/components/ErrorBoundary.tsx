@@ -37,7 +37,7 @@ export class ErrorBoundary extends Component<Props, State> {
           </pre>
           <button
             onClick={() => this.setState({ hasError: false })}
-            style={{ marginTop: '24px', padding: '10px 20px', background: '#A6FF4D', color: '#000', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 800, textTransform: 'uppercase' }}
+            style={{ marginTop: '24px', padding: '10px 20px', background: '#FDC800', color: '#000', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 800, textTransform: 'uppercase' }}
           >
             Try again
           </button>

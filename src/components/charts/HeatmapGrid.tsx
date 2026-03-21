@@ -35,7 +35,7 @@ function cellBg(pnl: number, maxAbs: number): string {
     if (maxAbs === 0) return 'rgba(255,255,255,0.03)';
     const ratio = Math.min(Math.abs(pnl) / maxAbs, 1);
     const alpha = 0.18 + ratio * 0.72;
-    if (pnl > 0) return `rgba(166,255,77,${alpha.toFixed(2)})`;
+    if (pnl > 0) return `rgba(253,200,0,${alpha.toFixed(2)})`;
     if (pnl < 0) return `rgba(255,71,87,${alpha.toFixed(2)})`;
     return 'rgba(255,255,255,0.03)';
 }
@@ -140,8 +140,8 @@ export default function HeatmapGrid({ data, minTrades = 0 }: Props) {
                     <span style={{ color: '#ff4757' }}>Loss</span>
                 </div>
                 <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
-                    <div style={{ width: 12, height: 12, background: 'rgba(166,255,77,0.85)' }} />
-                    <span style={{ color: '#A6FF4D' }}>Profit</span>
+                    <div style={{ width: 12, height: 12, background: 'rgba(253,200,0,0.85)' }} />
+                    <span style={{ color: '#FDC800' }}>Profit</span>
                 </div>
                 <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
                     <div style={{ width: 12, height: 12, background: 'rgba(255,255,255,0.025)', border: '1px solid #2d3748' }} />

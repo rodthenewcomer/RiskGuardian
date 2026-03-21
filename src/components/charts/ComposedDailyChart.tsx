@@ -72,7 +72,7 @@ export default function ComposedDailyChart({ data, height = 280, rollingWindow =
                 />
                 <Bar dataKey="pnl" radius={[2, 2, 0, 0]}>
                     {enriched.map((d, i) => (
-                        <Cell key={i} fill={d.pnl >= 0 ? 'rgba(166,255,77,0.85)' : 'rgba(255,71,87,0.85)'} />
+                        <Cell key={i} fill={d.pnl >= 0 ? 'rgba(253,200,0,0.85)' : 'rgba(255,71,87,0.85)'} />
                     ))}
                 </Bar>
                 <Line

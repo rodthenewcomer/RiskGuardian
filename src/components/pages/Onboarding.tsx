@@ -349,7 +349,7 @@ export default function Onboarding() {
                                             <div style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 4 }}>{lang === 'fr' ? `Drawdown maximum glissant (${selectedFirm?.maxDrawPct}%)` : `Max Trailing Drawdown (${selectedFirm?.maxDrawPct}%)`}</div>
                                             <div style={{ fontSize: 32, fontWeight: 800, color: 'var(--color-danger)' }}>${derivedMaxDrawdown.toLocaleString()}</div>
                                         </div>
-                                        <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12, padding: 16, background: 'rgba(166,255,77,0.05)', border: '1px solid var(--border-accent)', borderRadius: 8 }}>
+                                        <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12, padding: 16, background: 'rgba(253,200,0,0.05)', border: '1px solid var(--border-accent)', borderRadius: 8 }}>
                                             <AlertTriangle size={16} className="text-accent" style={{ marginTop: 2, flexShrink: 0 }} />
                                             <p style={{ fontSize: 12, color: 'var(--text-primary)', textAlign: 'left', margin: 0, lineHeight: 1.5 }}>
                                                 {lang === 'fr'
@@ -414,10 +414,10 @@ export default function Onboarding() {
                                         animate={{ opacity: 1, scale: 1 }}
                                         style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12, padding: '24px 0' }}
                                     >
-                                        <div style={{ width: 56, height: 56, borderRadius: '50%', background: 'rgba(166,255,77,0.12)', border: '1px solid rgba(166,255,77,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                                            <Check size={28} color="#A6FF4D" strokeWidth={2.5} />
+                                        <div style={{ width: 56, height: 56, borderRadius: '50%', background: 'rgba(253,200,0,0.12)', border: '1px solid rgba(253,200,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                            <Check size={28} color="#FDC800" strokeWidth={2.5} />
                                         </div>
-                                        <p style={{ fontFamily: 'var(--font-mono)', fontSize: 13, color: '#A6FF4D', fontWeight: 700, textAlign: 'center' }}>{dxProgress}</p>
+                                        <p style={{ fontFamily: 'var(--font-mono)', fontSize: 13, color: '#FDC800', fontWeight: 700, textAlign: 'center' }}>{dxProgress}</p>
                                         <p style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: '#6b7280', textAlign: 'center' }}>{lang === 'fr' ? 'Configuration de votre tableau de bord…' : 'Setting up your dashboard…'}</p>
                                     </motion.div>
                                 ) : (
@@ -479,9 +479,9 @@ export default function Onboarding() {
 
                                         {/* Progress / Error */}
                                         {dxConnecting && dxProgress && (
-                                            <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 12px', background: 'rgba(166,255,77,0.05)', border: '1px solid rgba(166,255,77,0.15)', borderRadius: 6 }}>
-                                                <Loader2 size={12} color="#A6FF4D" style={{ animation: 'spin 1s linear infinite' }} />
-                                                <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: '#A6FF4D' }}>{dxProgress}</span>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 12px', background: 'rgba(253,200,0,0.05)', border: '1px solid rgba(253,200,0,0.15)', borderRadius: 6 }}>
+                                                <Loader2 size={12} color="#FDC800" style={{ animation: 'spin 1s linear infinite' }} />
+                                                <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: '#FDC800' }}>{dxProgress}</span>
                                             </div>
                                         )}
                                         {dxError && (
@@ -496,7 +496,7 @@ export default function Onboarding() {
                                             onClick={handleDXConnect}
                                             disabled={dxConnecting || !dxUsername || !dxPassword}
                                             style={{
-                                                padding: '14px', background: dxConnecting ? 'rgba(166,255,77,0.15)' : '#A6FF4D',
+                                                padding: '14px', background: dxConnecting ? 'rgba(253,200,0,0.15)' : '#FDC800',
                                                 border: 'none', borderRadius: 6, cursor: dxConnecting ? 'not-allowed' : 'pointer',
                                                 fontFamily: 'var(--font-mono)', fontSize: 12, fontWeight: 800, color: '#000',
                                                 letterSpacing: '0.08em', textTransform: 'uppercase',

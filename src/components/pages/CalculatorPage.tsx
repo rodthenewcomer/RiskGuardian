@@ -183,7 +183,7 @@ export default function CalculatorPage() {
 
     // ── Guard state ───────────────────────────────────────────────
     const dailyLeftPct = account.dailyLossLimit > 0 ? remainingToday / account.dailyLossLimit : 1;
-    const guardColor   = dailyLeftPct > 0.5 ? '#A6FF4D' : dailyLeftPct > 0.25 ? '#EAB308' : '#ff4757';
+    const guardColor   = dailyLeftPct > 0.5 ? '#FDC800' : dailyLeftPct > 0.25 ? '#EAB308' : '#ff4757';
     const guardLabel   = dailyLeftPct > 0.5 ? 'SAFE' : dailyLeftPct > 0.25 ? 'CAUTION' : 'DANGER';
 
     // ── Today's trades ────────────────────────────────────────────
@@ -282,7 +282,7 @@ export default function CalculatorPage() {
     const currentFSpec = currentAssetType === 'futures' ? getFuturesSpec(asset.split('/')[0]) : null;
 
     // ── Grade colour ───────────────────────────────────────────────
-    const gradeColor = (g: string) => g.startsWith('A') ? '#A6FF4D' : g.startsWith('B') ? '#EAB308' : '#ff4757';
+    const gradeColor = (g: string) => g.startsWith('A') ? '#FDC800' : g.startsWith('B') ? '#EAB308' : '#ff4757';
 
     return (
         <div
@@ -293,7 +293,7 @@ export default function CalculatorPage() {
             {/* ── HEADER ──────────────────────────────────────────────── */}
             <div style={{ padding: isMobile ? '10px 14px' : '12px 20px', borderBottom: divider, display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <Terminal size={14} color="#A6FF4D" />
+                    <Terminal size={14} color="#FDC800" />
                     <span style={{ ...mono, fontSize: 13, fontWeight: 900, color: '#fff', letterSpacing: '0.04em' }}>RISK ENGINE</span>
                     <span style={{ ...lbl, display: 'inline', marginLeft: 4 }}>— position sizer</span>
                 </div>
@@ -362,7 +362,7 @@ export default function CalculatorPage() {
                     <button onClick={() => setIsShort(false)} style={{
                         ...mono, fontSize: 10, fontWeight: 800, letterSpacing: '0.06em', padding: '8px 14px',
                         border: 'none', cursor: 'pointer', transition: 'all 0.12s',
-                        background: !isShort ? '#A6FF4D' : 'transparent',
+                        background: !isShort ? '#FDC800' : 'transparent',
                         color: !isShort ? '#000' : '#4b5563',
                         display: 'flex', alignItems: 'center', gap: 5,
                     }}>
@@ -381,7 +381,7 @@ export default function CalculatorPage() {
 
                 {/* Quick command */}
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, flex: 1, borderLeft: divider, paddingLeft: 12, minWidth: 0 }}>
-                    <Zap size={12} color="#A6FF4D" style={{ flexShrink: 0 }} />
+                    <Zap size={12} color="#FDC800" style={{ flexShrink: 0 }} />
                     <input
                         style={{ ...mono, flex: 1, background: 'transparent', border: 'none', outline: 'none', fontSize: 16, color: '#e2e8f0', minWidth: 0 }}
                         placeholder={isMobile ? 'nq 21450 21400 500' : 'Quick mode: asset entry stop risk — e.g. nq 21450 21400 500 · type help for syntax'}
@@ -403,7 +403,7 @@ export default function CalculatorPage() {
                 {isHelp && (
                     <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }}
                         style={{ overflow: 'hidden', borderBottom: divider, background: '#0a0a0a', padding: '14px 20px' }}>
-                        <span style={{ ...mono, fontSize: 10, fontWeight: 800, color: '#A6FF4D', display: 'block', marginBottom: 10, letterSpacing: '0.06em' }}>
+                        <span style={{ ...mono, fontSize: 10, fontWeight: 800, color: '#FDC800', display: 'block', marginBottom: 10, letterSpacing: '0.06em' }}>
                             QUICK COMMAND SYNTAX — asset entry stop [risk]
                         </span>
                         <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: '6px 24px' }}>
@@ -416,7 +416,7 @@ export default function CalculatorPage() {
                                 ['eurusd 1.0820 1.0800',  'EURUSD forex — 20-pip stop'],
                             ].map(([cmd, desc]) => (
                                 <div key={cmd} style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
-                                    <span style={{ ...mono, fontSize: 10, color: '#A6FF4D', flexShrink: 0, minWidth: isMobile ? 140 : 160 }}>{cmd}</span>
+                                    <span style={{ ...mono, fontSize: 10, color: '#FDC800', flexShrink: 0, minWidth: isMobile ? 140 : 160 }}>{cmd}</span>
                                     <span style={{ ...mono, fontSize: 10, color: '#4b5563', lineHeight: 1.5 }}>{desc}</span>
                                 </div>
                             ))}
@@ -491,7 +491,7 @@ export default function CalculatorPage() {
                                                     <span style={{ ...mono, fontSize: 13, fontWeight: 700, color: '#e2e8f0' }}>{sym}</span>
                                                     <span style={{ ...mono, fontSize: 10, color: '#4b5563', marginLeft: 8 }}>{a.name}</span>
                                                 </div>
-                                                <span style={{ ...mono, fontSize: 8, fontWeight: 800, letterSpacing: '0.06em', padding: '2px 7px', color: isFut ? '#EAB308' : '#A6FF4D', border: `1px solid ${isFut ? 'rgba(234,179,8,0.3)' : 'rgba(166,255,77,0.25)'}`, background: isFut ? 'rgba(234,179,8,0.07)' : 'rgba(166,255,77,0.05)' }}>
+                                                <span style={{ ...mono, fontSize: 8, fontWeight: 800, letterSpacing: '0.06em', padding: '2px 7px', color: isFut ? '#EAB308' : '#FDC800', border: `1px solid ${isFut ? 'rgba(234,179,8,0.3)' : 'rgba(253,200,0,0.25)'}`, background: isFut ? 'rgba(234,179,8,0.07)' : 'rgba(253,200,0,0.05)' }}>
                                                     {isFut ? `$${fS?.pointValue}/pt` : `${a.leverage}x`}
                                                 </span>
                                             </button>
@@ -544,7 +544,7 @@ export default function CalculatorPage() {
                     <span style={{ ...lbl, display: 'block', marginBottom: 4 }}>Target (Optional)</span>
                     <input
                         type="number" inputMode="decimal" pattern="[0-9]*"
-                        style={{ ...mono, width: '100%', background: 'transparent', border: 'none', outline: 'none', fontSize: isMobile ? 18 : 22, fontWeight: 900, color: '#A6FF4D', padding: 0 }}
+                        style={{ ...mono, width: '100%', background: 'transparent', border: 'none', outline: 'none', fontSize: isMobile ? 18 : 22, fontWeight: 900, color: '#FDC800', padding: 0 }}
                         value={targetInput}
                         onChange={e => { setTargetInput(e.target.value); setCommand(''); }}
                         placeholder="Auto 2R"
@@ -563,14 +563,14 @@ export default function CalculatorPage() {
                             <button onClick={() => setInputMode('risk')} style={{
                                 ...mono, fontSize: 9, fontWeight: 800, padding: '5px 10px', minHeight: 30,
                                 border: 'none', cursor: 'pointer', letterSpacing: '0.05em',
-                                background: inputMode === 'risk' ? '#A6FF4D' : 'transparent',
+                                background: inputMode === 'risk' ? '#FDC800' : 'transparent',
                                 color: inputMode === 'risk' ? '#000' : '#4b5563',
                                 transition: 'all 0.12s',
                             }}>RISK $</button>
                             <button onClick={() => setInputMode('size')} style={{
                                 ...mono, fontSize: 9, fontWeight: 800, padding: '5px 10px', minHeight: 30,
                                 border: 'none', borderLeft: '1px solid #1a1c24', cursor: 'pointer', letterSpacing: '0.05em',
-                                background: inputMode === 'size' ? '#A6FF4D' : 'transparent',
+                                background: inputMode === 'size' ? '#FDC800' : 'transparent',
                                 color: inputMode === 'size' ? '#000' : '#4b5563',
                                 transition: 'all 0.12s',
                             }}>SIZE</button>
@@ -579,7 +579,7 @@ export default function CalculatorPage() {
                     {inputMode === 'risk' ? (
                         <input
                             type="number" inputMode="decimal" pattern="[0-9]*"
-                            style={{ ...mono, width: '100%', background: 'transparent', border: 'none', outline: 'none', fontSize: isMobile ? 18 : 22, fontWeight: 900, color: '#A6FF4D', padding: 0 }}
+                            style={{ ...mono, width: '100%', background: 'transparent', border: 'none', outline: 'none', fontSize: isMobile ? 18 : 22, fontWeight: 900, color: '#FDC800', padding: 0 }}
                             value={riskAmount || ''}
                             onChange={e => {
                                 const v = parseFloat(e.target.value);
@@ -591,7 +591,7 @@ export default function CalculatorPage() {
                     ) : (
                         <input
                             type="number" inputMode="decimal" pattern="[0-9]*"
-                            style={{ ...mono, width: '100%', background: 'transparent', border: 'none', outline: 'none', fontSize: isMobile ? 18 : 22, fontWeight: 900, color: '#A6FF4D', padding: 0 }}
+                            style={{ ...mono, width: '100%', background: 'transparent', border: 'none', outline: 'none', fontSize: isMobile ? 18 : 22, fontWeight: 900, color: '#FDC800', padding: 0 }}
                             value={sizeInput || ''}
                             onChange={e => {
                                 setSizeInput(e.target.value);
@@ -607,9 +607,9 @@ export default function CalculatorPage() {
                                 <button key={p.label} onClick={() => setRiskAmount(p.val)}
                                     style={{
                                         ...mono, fontSize: 8, fontWeight: 700, padding: '2px 6px',
-                                        border: `1px solid ${riskAmount === p.val ? '#A6FF4D' : '#1a1c24'}`,
-                                        background: riskAmount === p.val ? 'rgba(166,255,77,0.1)' : 'transparent',
-                                        color: riskAmount === p.val ? '#A6FF4D' : '#4b5563',
+                                        border: `1px solid ${riskAmount === p.val ? '#FDC800' : '#1a1c24'}`,
+                                        background: riskAmount === p.val ? 'rgba(253,200,0,0.1)' : 'transparent',
+                                        color: riskAmount === p.val ? '#FDC800' : '#4b5563',
                                         cursor: 'pointer', letterSpacing: '0.04em',
                                     }}>
                                     {p.label}
@@ -656,7 +656,7 @@ export default function CalculatorPage() {
                                             : calc.size.toFixed(6)
                                         }
                                     </span>
-                                    <span style={{ ...mono, fontSize: 14, fontWeight: 800, color: '#A6FF4D', letterSpacing: '0.06em' }}>
+                                    <span style={{ ...mono, fontSize: 14, fontWeight: 800, color: '#FDC800', letterSpacing: '0.06em' }}>
                                         {calc.unit.toUpperCase()}
                                     </span>
                                 </div>
@@ -673,7 +673,7 @@ export default function CalculatorPage() {
                             </div>
                             <div style={{ textAlign: 'right', flexShrink: 0 }}>
                                 <span style={{ ...lbl, display: 'block', marginBottom: 6 }}>{calc.isCustomTarget ? 'Custom Target' : 'Potential 2R'}</span>
-                                <span style={{ ...mono, fontSize: isMobile ? 26 : 32, fontWeight: 900, color: '#A6FF4D', letterSpacing: '-0.03em' }}>
+                                <span style={{ ...mono, fontSize: isMobile ? 26 : 32, fontWeight: 900, color: '#FDC800', letterSpacing: '-0.03em' }}>
                                     +${calc.isCustomTarget ? calc.customProfit.toFixed(0) : calc.profit2R.toFixed(0)}
                                 </span>
                                 <span style={{ ...mono, fontSize: 9, color: '#4b5563', display: 'block', marginTop: 4 }}>
@@ -687,7 +687,7 @@ export default function CalculatorPage() {
                             {[
                                 { k: 'Stop Loss',      v: fmt(calc.slNum),  c: '#ff4757', s: `risk $${calc.rsk.toFixed(0)} if hit` },
                                 { k: 'Entry',          v: fmt(calc.eNum),   c: '#e2e8f0', s: `${isShort ? 'SHORT' : 'LONG'} · 1R: ${fmt(calc.tp1R)}` },
-                                { k: 'Take Profit 2R', v: fmt(calc.tp2R),   c: '#A6FF4D', s: `3R target: ${fmt(calc.tp3R)}` },
+                                { k: 'Take Profit 2R', v: fmt(calc.tp2R),   c: '#FDC800', s: `3R target: ${fmt(calc.tp3R)}` },
                             ].map((s, i) => (
                                 <div key={i} style={{ padding: isMobile ? '12px 12px' : '14px 16px', borderRight: i < 2 ? divider : 'none' }}>
                                     <span style={{ ...lbl, display: 'block', marginBottom: 4 }}>{s.k}</span>
@@ -700,7 +700,7 @@ export default function CalculatorPage() {
                         {/* Metadata 4-col */}
                         <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'repeat(2,1fr)' : 'repeat(4,1fr)', borderBottom: divider }}>
                             {[
-                                { k: 'R:R Ratio',   v: '2.00R',   c: '#A6FF4D',  s: 'minimum standard' },
+                                { k: 'R:R Ratio',   v: '2.00R',   c: '#FDC800',  s: 'minimum standard' },
                                 { k: 'Notional',    v: calc.notional >= 1000000 ? `$${(calc.notional/1000000).toFixed(2)}M` : calc.notional >= 1000 ? `$${(calc.notional/1000).toFixed(1)}K` : `$${calc.notional.toFixed(0)}`, c: '#e2e8f0', s: calc.atype === 'futures' ? 'contract notional' : 'position value' },
                                 { k: 'Commission',  v: calc.comm > 0 ? `$${calc.comm.toFixed(2)}` : 'N/A', c: calc.comm > 0 ? '#EAB308' : '#4b5563', s: calc.atype === 'crypto' ? '0.04% Tradeify' : 'flat per contract' },
                                 { k: 'Risk / Unit', v: calc.riskPerUnit < 0.01 ? `$${calc.riskPerUnit.toFixed(4)}` : `$${calc.riskPerUnit.toFixed(2)}`, c: '#e2e8f0', s: `per ${calc.unit.replace(/s$/, '')}` },
@@ -720,15 +720,15 @@ export default function CalculatorPage() {
                         {/* VERDICT — renamed to RISK RULES */}
                         <div style={{
                             padding: isMobile ? '14px 14px' : '16px 20px', borderBottom: divider,
-                            borderLeft: `3px solid ${calc.approved ? '#A6FF4D' : '#ff4757'}`,
-                            background: calc.approved ? 'rgba(166,255,77,0.03)' : 'rgba(255,71,87,0.04)',
+                            borderLeft: `3px solid ${calc.approved ? '#FDC800' : '#ff4757'}`,
+                            background: calc.approved ? 'rgba(253,200,0,0.03)' : 'rgba(255,71,87,0.04)',
                             display: 'flex', alignItems: 'flex-start', gap: 12,
                         }}>
                             {calc.approved
-                                ? <ShieldCheck size={20} color="#A6FF4D" style={{ flexShrink: 0, marginTop: 1 }} />
+                                ? <ShieldCheck size={20} color="#FDC800" style={{ flexShrink: 0, marginTop: 1 }} />
                                 : <AlertTriangle size={20} color="#ff4757" style={{ flexShrink: 0, marginTop: 1 }} />}
                             <div style={{ flex: 1 }}>
-                                <span style={{ ...mono, fontSize: 12, fontWeight: 900, letterSpacing: '0.08em', display: 'block', color: calc.approved ? '#A6FF4D' : '#ff4757' }}>
+                                <span style={{ ...mono, fontSize: 12, fontWeight: 900, letterSpacing: '0.08em', display: 'block', color: calc.approved ? '#FDC800' : '#ff4757' }}>
                                     {calc.approved ? 'RISK RULES: PASS' : 'TRADE REJECTED'}
                                 </span>
                                 <span style={{ ...mono, fontSize: 11, color: '#8b949e', display: 'block', marginTop: 3, lineHeight: 1.65 }}>
@@ -764,9 +764,9 @@ export default function CalculatorPage() {
                                     {tradeQuality.breakdown.map((b, i) => (
                                         <span key={i} style={{
                                             ...mono, fontSize: 9, fontWeight: 700, padding: '3px 7px', letterSpacing: '0.04em',
-                                            background: b.status === 'good' ? 'rgba(166,255,77,0.08)' : b.status === 'warn' ? 'rgba(234,179,8,0.08)' : 'rgba(255,71,87,0.08)',
-                                            color: b.status === 'good' ? '#A6FF4D' : b.status === 'warn' ? '#EAB308' : '#ff4757',
-                                            border: `1px solid ${b.status === 'good' ? 'rgba(166,255,77,0.2)' : b.status === 'warn' ? 'rgba(234,179,8,0.2)' : 'rgba(255,71,87,0.2)'}`,
+                                            background: b.status === 'good' ? 'rgba(253,200,0,0.08)' : b.status === 'warn' ? 'rgba(234,179,8,0.08)' : 'rgba(255,71,87,0.08)',
+                                            color: b.status === 'good' ? '#FDC800' : b.status === 'warn' ? '#EAB308' : '#ff4757',
+                                            border: `1px solid ${b.status === 'good' ? 'rgba(253,200,0,0.2)' : b.status === 'warn' ? 'rgba(234,179,8,0.2)' : 'rgba(255,71,87,0.2)'}`,
                                         }}>
                                             {b.status === 'good' ? '✓' : b.status === 'warn' ? '⚠' : '✗'} {b.label}
                                         </span>
@@ -789,15 +789,15 @@ export default function CalculatorPage() {
                                     {tpTiers.tiers.slice(0, 5).map((t, i) => (
                                         <div key={i} style={{
                                             padding: '6px 10px', border: `1px solid ${
-                                                t.recommendation === 'optimal' ? 'rgba(166,255,77,0.3)'
+                                                t.recommendation === 'optimal' ? 'rgba(253,200,0,0.3)'
                                                 : t.recommendation === 'viable' ? 'rgba(234,179,8,0.2)'
                                                 : 'rgba(255,71,87,0.15)'}`,
-                                            background: t.recommendation === 'optimal' ? 'rgba(166,255,77,0.05)' : 'transparent',
+                                            background: t.recommendation === 'optimal' ? 'rgba(253,200,0,0.05)' : 'transparent',
                                             flex: 1, minWidth: 70, textAlign: 'center',
                                         }}>
-                                            <span style={{ ...mono, fontSize: 12, fontWeight: 900, color: t.recommendation === 'optimal' ? '#A6FF4D' : '#e2e8f0', display: 'block' }}>{t.label}</span>
+                                            <span style={{ ...mono, fontSize: 12, fontWeight: 900, color: t.recommendation === 'optimal' ? '#FDC800' : '#e2e8f0', display: 'block' }}>{t.label}</span>
                                             <span style={{ ...mono, fontSize: 9, color: '#4b5563', display: 'block', marginTop: 2 }}>{t.estimatedProbability}% prob</span>
-                                            <span style={{ ...mono, fontSize: 9, color: t.expectedValue >= 0 ? '#A6FF4D' : '#ff4757', display: 'block' }}>
+                                            <span style={{ ...mono, fontSize: 9, color: t.expectedValue >= 0 ? '#FDC800' : '#ff4757', display: 'block' }}>
                                                 EV: ${t.expectedValue >= 0 ? '+' : ''}{t.expectedValue.toFixed(0)}
                                             </span>
                                         </div>
@@ -815,12 +815,12 @@ export default function CalculatorPage() {
                                 style={{
                                     ...mono, width: '100%', padding: isMobile ? '14px' : '16px',
                                     border: 'none', cursor: calc.approved ? 'pointer' : 'not-allowed',
-                                    background: logged ? '#16a34a' : calc.approved ? '#A6FF4D' : '#0d1117',
+                                    background: logged ? '#16a34a' : calc.approved ? '#FDC800' : '#0d1117',
                                     color: calc.approved ? '#000' : '#4b5563',
                                     fontSize: 12, fontWeight: 900, letterSpacing: '0.1em',
                                     textTransform: 'uppercase', transition: 'all 0.2s',
                                     display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-                                    boxShadow: calc.approved && !logged ? '0 0 24px rgba(166,255,77,0.15)' : 'none',
+                                    boxShadow: calc.approved && !logged ? '0 0 24px rgba(253,200,0,0.15)' : 'none',
                                 }}
                             >
                                 {logged
@@ -853,7 +853,7 @@ export default function CalculatorPage() {
                             `Type "help" for full syntax`,
                         ].map((t, i) => (
                             <div key={i} style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                                <span style={{ ...mono, fontSize: 10, color: i === 0 ? '#A6FF4D' : '#4b5563' }}>
+                                <span style={{ ...mono, fontSize: 10, color: i === 0 ? '#FDC800' : '#4b5563' }}>
                                     {i === 0 ? '⚡' : '·'}
                                 </span>
                                 <span style={{ ...mono, fontSize: 10, color: i === 0 ? '#8b949e' : '#4b5563' }}>{t}</span>

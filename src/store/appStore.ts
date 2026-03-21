@@ -16,16 +16,16 @@ export interface PropFirmPreset {
 export const PROP_FIRMS: PropFirmPreset[] = [
     // ── Tradeify Crypto ────────────────────────────────────────────
     // 1-Step: EOT (End-of-Trade) trailing drawdown — floor moves after every closed trade
-    { name: 'Tradeify 1-Step Eval', short: 'Trdfy1S', dailyPct: 3, maxDrawPct: 6, color: '#A6FF4D', propFirmType: '1-Step Evaluation', drawdownType: 'Trailing' },
+    { name: 'Tradeify 1-Step Eval', short: 'Trdfy1S', dailyPct: 3, maxDrawPct: 6, color: '#FDC800', propFirmType: '1-Step Evaluation', drawdownType: 'Trailing' },
     // 2-Step: Static drawdown — floor fixed at starting balance − 6%, never moves
-    { name: 'Tradeify 2-Step Eval', short: 'Trdfy2S', dailyPct: 3, maxDrawPct: 6, color: '#A6FF4D', propFirmType: '2-Step Evaluation', drawdownType: 'Static' },
+    { name: 'Tradeify 2-Step Eval', short: 'Trdfy2S', dailyPct: 3, maxDrawPct: 6, color: '#FDC800', propFirmType: '2-Step Evaluation', drawdownType: 'Static' },
     // Instant Funding: EOD (End-of-Day) trailing drawdown — snapshots at 17:00 EST
     // No profit target, no min days. Consistency ≤ 20% required to request payout.
-    { name: 'Tradeify Instant Funding', short: 'TrdfyIF', dailyPct: 3, maxDrawPct: 6, color: '#A6FF4D', propFirmType: 'Instant Funding', drawdownType: 'EOD' },
+    { name: 'Tradeify Instant Funding', short: 'TrdfyIF', dailyPct: 3, maxDrawPct: 6, color: '#FDC800', propFirmType: 'Instant Funding', drawdownType: 'EOD' },
     // ── Other firms ────────────────────────────────────────────────
-    { name: 'Funding Pips', short: 'FPips', dailyPct: 5, maxDrawPct: 10, color: '#A6FF4D', propFirmType: '2-Step Evaluation', drawdownType: 'Static' },
-    { name: 'FTMO', short: 'FTMO', dailyPct: 5, maxDrawPct: 10, color: '#A6FF4D', propFirmType: '2-Step Evaluation', drawdownType: 'Static' },
-    { name: 'The5%ers', short: '5%ers', dailyPct: 4, maxDrawPct: 6, color: '#A6FF4D', propFirmType: '2-Step Evaluation', drawdownType: 'Static' },
+    { name: 'Funding Pips', short: 'FPips', dailyPct: 5, maxDrawPct: 10, color: '#FDC800', propFirmType: '2-Step Evaluation', drawdownType: 'Static' },
+    { name: 'FTMO', short: 'FTMO', dailyPct: 5, maxDrawPct: 10, color: '#FDC800', propFirmType: '2-Step Evaluation', drawdownType: 'Static' },
+    { name: 'The5%ers', short: '5%ers', dailyPct: 4, maxDrawPct: 6, color: '#FDC800', propFirmType: '2-Step Evaluation', drawdownType: 'Static' },
     { name: 'Custom (Build your own)', short: 'Custom', dailyPct: 0, maxDrawPct: 0, color: '#888', drawdownType: 'Static' },
 ];
 

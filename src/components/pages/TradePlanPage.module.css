@@ -44,7 +44,7 @@
 }
 
 .rrBig {
-    background: rgba(166, 255, 77, 0.1);
+    background: rgba(253, 200, 0, 0.1);
     border: 1px solid var(--accent);
     padding: 12px 20px;
     border-radius: var(--radius-md);
@@ -176,7 +176,7 @@
 }
 
 .emptyContent {
-    background: rgba(166, 255, 77, 0.02);
+    background: rgba(253, 200, 0, 0.02);
     border: 1px dashed var(--accent);
     padding: var(--space-8);
     border-radius: var(--radius-xl);
@@ -187,7 +187,7 @@
 .emptyIcon {
     width: 64px;
     height: 64px;
-    background: rgba(166, 255, 77, 0.1);
+    background: rgba(253, 200, 0, 0.1);
     color: var(--accent);
     border-radius: var(--radius-round);
     display: flex;

@@ -96,9 +96,9 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    background: rgba(166, 255, 77, 0.08);
-    border: 1px solid rgba(166, 255, 77, 0.2);
-    color: #A6FF4D;
+    background: rgba(253, 200, 0, 0.08);
+    border: 1px solid rgba(253, 200, 0, 0.2);
+    color: #FDC800;
 }
 
 .stepIconRisk {
@@ -120,9 +120,9 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    background: rgba(166, 255, 77, 0.08);
-    border: 1px solid rgba(166, 255, 77, 0.2);
-    color: #A6FF4D;
+    background: rgba(253, 200, 0, 0.08);
+    border: 1px solid rgba(253, 200, 0, 0.2);
+    color: #FDC800;
 }
 
 .stepTitle {
@@ -273,7 +273,7 @@
     border-radius: 50%;
     background: var(--accent);
     border: 3px solid var(--bg-base);
-    box-shadow: 0 0 12px rgba(166, 255, 77, 0.4);
+    box-shadow: 0 0 12px rgba(253, 200, 0, 0.4);
     cursor: pointer;
 }
 

@@ -36,7 +36,7 @@
 .pageIcon {
     width: 40px;
     height: 40px;
-    background: rgba(166, 255, 77, 0.1);
+    background: rgba(253, 200, 0, 0.1);
     border: 1px solid var(--accent);
     border-radius: var(--radius-md);
     display: flex;
@@ -66,7 +66,7 @@
 
 .summaryProfit {
     border-color: var(--accent);
-    background: rgba(166, 255, 77, 0.05);
+    background: rgba(253, 200, 0, 0.05);
 }
 
 .summaryLoss {
@@ -128,9 +128,9 @@
 }
 
 .win {
-    background: rgba(166, 255, 77, 0.12);
+    background: rgba(253, 200, 0, 0.12);
     color: var(--accent);
-    border: 1px solid rgba(166, 255, 77, 0.3);
+    border: 1px solid rgba(253, 200, 0, 0.3);
 }
 
 .loss {
@@ -195,8 +195,8 @@
 /* Trade note textarea */
 .tradeNote {
     width: 100%;
-    background: rgba(166, 255, 77, 0.03);
-    border: 1px solid rgba(166, 255, 77, 0.15);
+    background: rgba(253, 200, 0, 0.03);
+    border: 1px solid rgba(253, 200, 0, 0.15);
     border-radius: var(--radius-sm);
     padding: 8px 10px;
     font-size: 12px;
@@ -211,7 +211,7 @@
 .tradeNote:focus {
     border-color: var(--accent);
     color: var(--text-primary);
-    background: rgba(166, 255, 77, 0.06);
+    background: rgba(253, 200, 0, 0.06);
 }
 
 .tradeNote::placeholder {
@@ -253,7 +253,7 @@
 }
 
 .toggleBtnActive {
-    background: rgba(166, 255, 77, 0.1);
+    background: rgba(253, 200, 0, 0.1);
     border-color: var(--accent);
     color: var(--accent);
 }
@@ -366,7 +366,7 @@
 }
 
 .pnlPositiveFill {
-    background: rgba(166, 255, 77, 0.10);
+    background: rgba(253, 200, 0, 0.10);
 }
 
 .pnlNegativeFill {
@@ -396,7 +396,7 @@
 
 .calendarCellToday {
     border: 1px solid var(--accent);
-    box-shadow: 0 0 0 1px rgba(166, 255, 77, 0.2);
+    box-shadow: 0 0 0 1px rgba(253, 200, 0, 0.2);
     z-index: 1;
 }
 

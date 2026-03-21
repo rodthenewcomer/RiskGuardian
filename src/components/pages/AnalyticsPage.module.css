@@ -42,7 +42,7 @@
 }
 
 .dateInput:focus {
-    border-color: #A6FF4D;
+    border-color: #FDC800;
 }
 
 .dateClear {
@@ -64,7 +64,7 @@
 .dateCount {
     margin-left: auto;
     font-size: 11px;
-    color: #A6FF4D;
+    color: #FDC800;
     font-weight: 700;
     letter-spacing: 0.05em;
 }
@@ -106,7 +106,7 @@
 
 .tabActive {
     color: #ffffff;
-    border-bottom: 2px solid #A6FF4D;
+    border-bottom: 2px solid #FDC800;
 }
 
 .content {
@@ -170,8 +170,8 @@
 
 /* Text Colors */
 .textGreen {
-    color: #A6FF4D;
-    text-shadow: 0 0 10px rgba(166, 255, 77, 0.2);
+    color: #FDC800;
+    text-shadow: 0 0 10px rgba(253, 200, 0, 0.2);
 }
 
 .textRed {
@@ -229,7 +229,7 @@
     display: inline-block;
     width: 2px;
     height: 12px;
-    background: #A6FF4D;
+    background: #FDC800;
 }
 
 .findingsBox {
@@ -294,8 +294,8 @@
 }
 
 .flagClean {
-    color: #A6FF4D;
-    border-color: rgba(166, 255, 77, 0.4);
+    color: #FDC800;
+    border-color: rgba(253, 200, 0, 0.4);
 }
 
 .flagRevenge {

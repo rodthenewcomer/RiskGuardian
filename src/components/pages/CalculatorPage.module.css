@@ -68,12 +68,12 @@
     border: 2px solid var(--accent);
     border-radius: var(--radius-lg);
     padding: var(--space-2) var(--space-3);
-    box-shadow: 0 0 15px rgba(166, 255, 77, 0.1);
+    box-shadow: 0 0 15px rgba(253, 200, 0, 0.1);
     transition: all 0.2s;
 }
 
 .commandRow:focus-within {
-    box-shadow: 0 0 25px rgba(166, 255, 77, 0.25);
+    box-shadow: 0 0 25px rgba(253, 200, 0, 0.25);
     transform: scale(1.01);
 }
 
@@ -161,8 +161,8 @@
 }
 
 .quickBtn {
-    background: rgba(166, 255, 77, 0.1);
-    border: 1px solid rgba(166, 255, 77, 0.2);
+    background: rgba(253, 200, 0, 0.1);
+    border: 1px solid rgba(253, 200, 0, 0.2);
     color: var(--accent);
     font-family: var(--font-mono);
     font-size: 11px;
@@ -174,7 +174,7 @@
 }
 
 .quickBtn:hover {
-    background: rgba(166, 255, 77, 0.2);
+    background: rgba(253, 200, 0, 0.2);
     transform: translateY(-1px);
 }
 

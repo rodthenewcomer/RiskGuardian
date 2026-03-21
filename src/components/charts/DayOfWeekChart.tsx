@@ -66,8 +66,8 @@ export default function DayOfWeekChart({ data, height = 160, metric = 'pnl' }: P
                     {ordered.map((d, i) => {
                         const val = d[metric as keyof typeof d] as number;
                         const color = metric === 'pnl'
-                            ? (val >= 0 ? 'rgba(166,255,77,0.85)' : 'rgba(255,71,87,0.85)')
-                            : (val >= 60 ? '#A6FF4D' : val >= 50 ? 'rgba(166,255,77,0.6)' : val >= 40 ? '#EAB308' : '#ff4757');
+                            ? (val >= 0 ? 'rgba(253,200,0,0.85)' : 'rgba(255,71,87,0.85)')
+                            : (val >= 60 ? '#FDC800' : val >= 50 ? 'rgba(253,200,0,0.6)' : val >= 40 ? '#EAB308' : '#ff4757');
                         return <Cell key={i} fill={color} />;
                     })}
                 </Bar>

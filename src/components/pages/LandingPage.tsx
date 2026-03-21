@@ -265,9 +265,9 @@ export default function LandingPage() {
                     <button onClick={() => setLang(l => l === 'en' ? 'fr' : 'en')}
                         style={{ ...mono, fontSize: 11, fontWeight: 700, padding: '5px 10px', background: 'transparent', border: '1px solid rgba(255,255,255,0.1)', cursor: 'pointer', color: 'rgba(255,255,255,0.5)', letterSpacing: '0.08em', display: 'flex', alignItems: 'center', gap: 4 }}
                         title={isFr ? 'Switch to English' : 'Passer en français'}>
-                        <span style={{ color: !isFr ? '#A6FF4D' : 'rgba(255,255,255,0.3)' }}>EN</span>
+                        <span style={{ color: !isFr ? '#FDC800' : 'rgba(255,255,255,0.3)' }}>EN</span>
                         <span style={{ color: 'rgba(255,255,255,0.2)' }}>|</span>
-                        <span style={{ color: isFr ? '#A6FF4D' : 'rgba(255,255,255,0.3)' }}>FR</span>
+                        <span style={{ color: isFr ? '#FDC800' : 'rgba(255,255,255,0.3)' }}>FR</span>
                     </button>
 
                     <div className={styles.navCta}>
@@ -380,13 +380,13 @@ export default function LandingPage() {
             </section>
 
             {/* EMAIL CAPTURE */}
-            <section style={{ background:'rgba(166,255,77,0.04)', borderTop:'1px solid rgba(166,255,77,0.12)', borderBottom:'1px solid rgba(166,255,77,0.12)', padding:'32px 20px' }}>
+            <section style={{ background:'rgba(253,200,0,0.04)', borderTop:'1px solid rgba(253,200,0,0.12)', borderBottom:'1px solid rgba(253,200,0,0.12)', padding:'32px 20px' }}>
                 <div style={{ maxWidth:560, margin:'0 auto', textAlign:'center' }}>
-                    <div style={{ ...mono, fontSize:10, fontWeight:700, color:'#A6FF4D', letterSpacing:'0.14em', textTransform:'uppercase', marginBottom:10 }}>{T.waitlistLabel}</div>
+                    <div style={{ ...mono, fontSize:10, fontWeight:700, color:'#FDC800', letterSpacing:'0.14em', textTransform:'uppercase', marginBottom:10 }}>{T.waitlistLabel}</div>
                     <h2 style={{ ...mono, fontSize:22, fontWeight:900, color:'#fff', marginBottom:8, letterSpacing:'-0.03em' }}>{T.waitlistTitle}</h2>
                     <p style={{ ...mono, fontSize:12, color:'#8b949e', marginBottom:20 }}>{T.waitlistSub}</p>
                     {(waitlistStatus==='success'||waitlistStatus==='already') ? (
-                        <div style={{ ...mono, fontSize:13, fontWeight:700, color:'#A6FF4D', padding:'12px 20px', background:'rgba(166,255,77,0.08)', border:'1px solid rgba(166,255,77,0.3)' }}>
+                        <div style={{ ...mono, fontSize:13, fontWeight:700, color:'#FDC800', padding:'12px 20px', background:'rgba(253,200,0,0.08)', border:'1px solid rgba(253,200,0,0.3)' }}>
                             ✓ {waitlistStatus==='already' ? T.waitlistAlready : T.waitlistSuccess}
                         </div>
                     ) : (
@@ -394,7 +394,7 @@ export default function LandingPage() {
                             <input type="email" required placeholder={T.waitlistPlaceholder} value={email} onChange={e=>setEmail(e.target.value)}
                                 style={{ flex:1, ...mono, fontSize:13, color:'#fff', background:'#0d1117', border:'1px solid #1a1c24', borderRight:'none', padding:'10px 14px', outline:'none' }}/>
                             <button type="submit" disabled={waitlistStatus==='loading'}
-                                style={{ ...mono, fontSize:11, fontWeight:700, padding:'10px 18px', background:'#A6FF4D', color:'#090909', border:'none', cursor:waitlistStatus==='loading'?'not-allowed':'pointer', letterSpacing:'0.06em', textTransform:'uppercase', whiteSpace:'nowrap', opacity:waitlistStatus==='loading'?0.7:1 }}>
+                                style={{ ...mono, fontSize:11, fontWeight:700, padding:'10px 18px', background:'#FDC800', color:'#090909', border:'none', cursor:waitlistStatus==='loading'?'not-allowed':'pointer', letterSpacing:'0.06em', textTransform:'uppercase', whiteSpace:'nowrap', opacity:waitlistStatus==='loading'?0.7:1 }}>
                                 {waitlistStatus==='loading'?'...':T.waitlistBtn}
                             </button>
                         </form>
@@ -467,7 +467,7 @@ export default function LandingPage() {
             <section style={{ padding:'64px 20px', background:'#090909' }} id="pricing">
                 <div style={{ maxWidth:900, margin:'0 auto' }}>
                     <div style={{ textAlign:'center', marginBottom:40 }}>
-                        <div style={{ ...mono, fontSize:10, fontWeight:700, color:'#A6FF4D', letterSpacing:'0.14em', textTransform:'uppercase', marginBottom:10 }}>{T.pricingLabel}</div>
+                        <div style={{ ...mono, fontSize:10, fontWeight:700, color:'#FDC800', letterSpacing:'0.14em', textTransform:'uppercase', marginBottom:10 }}>{T.pricingLabel}</div>
                         <h2 style={{ ...mono, fontSize:28, fontWeight:900, color:'#fff', letterSpacing:'-0.03em', marginBottom:10 }}>{T.pricingTitle}</h2>
                         <p style={{ ...mono, fontSize:13, color:'#8b949e' }}>{T.pricingSub}</p>
                     </div>
@@ -479,25 +479,25 @@ export default function LandingPage() {
                             <ul style={{ listStyle:'none', padding:0, margin:'0 0 28px', display:'flex', flexDirection:'column', gap:10 }}>
                                 {T.freeFeatures.map(f=>(
                                     <li key={f} style={{ ...mono, fontSize:12, color:'#c9d1d9', display:'flex', gap:10, alignItems:'center' }}>
-                                        <span style={{ color:'#A6FF4D' }}>✓</span>{f}
+                                        <span style={{ color:'#FDC800' }}>✓</span>{f}
                                     </li>
                                 ))}
                             </ul>
                             <Link href="/app" style={{ display:'block', textAlign:'center', ...mono, fontSize:12, fontWeight:700, padding:'12px', background:'transparent', border:'1px solid #1a1c24', color:'#8b949e', letterSpacing:'0.06em', textTransform:'uppercase', textDecoration:'none' }}>{T.freeBtn}</Link>
                         </div>
-                        <div style={{ background:'#0d1117', padding:'32px 28px', border:'1px solid rgba(166,255,77,0.3)', position:'relative' }}>
-                            <div style={{ position:'absolute', top:-12, left:'50%', transform:'translateX(-50%)', background:'#A6FF4D', color:'#090909', ...mono, fontSize:9, fontWeight:900, padding:'3px 12px', letterSpacing:'0.1em' }}>{T.proPopular}</div>
-                            <div style={{ ...mono, fontSize:10, color:'#A6FF4D', letterSpacing:'0.12em', textTransform:'uppercase', marginBottom:10 }}>{T.proTier}</div>
+                        <div style={{ background:'#0d1117', padding:'32px 28px', border:'1px solid rgba(253,200,0,0.3)', position:'relative' }}>
+                            <div style={{ position:'absolute', top:-12, left:'50%', transform:'translateX(-50%)', background:'#FDC800', color:'#090909', ...mono, fontSize:9, fontWeight:900, padding:'3px 12px', letterSpacing:'0.1em' }}>{T.proPopular}</div>
+                            <div style={{ ...mono, fontSize:10, color:'#FDC800', letterSpacing:'0.12em', textTransform:'uppercase', marginBottom:10 }}>{T.proTier}</div>
                             <div style={{ ...mono, fontSize:36, fontWeight:900, color:'#fff', marginBottom:4 }}>$19<span style={{ fontSize:14, color:'#6b7280', fontWeight:400 }}>{T.proPer}</span></div>
                             <div style={{ ...mono, fontSize:12, color:'#6b7280', marginBottom:24 }}>{T.proDesc}</div>
                             <ul style={{ listStyle:'none', padding:0, margin:'0 0 28px', display:'flex', flexDirection:'column', gap:10 }}>
                                 {T.proFeatures.map(f=>(
                                     <li key={f} style={{ ...mono, fontSize:12, color:'#c9d1d9', display:'flex', gap:10, alignItems:'center' }}>
-                                        <span style={{ color:'#A6FF4D' }}>✓</span>{f}
+                                        <span style={{ color:'#FDC800' }}>✓</span>{f}
                                     </li>
                                 ))}
                             </ul>
-                            <Link href="/app" style={{ display:'block', textAlign:'center', ...mono, fontSize:12, fontWeight:700, padding:'12px', background:'#A6FF4D', border:'none', color:'#090909', letterSpacing:'0.06em', textTransform:'uppercase', textDecoration:'none' }}>{T.proBtn}</Link>
+                            <Link href="/app" style={{ display:'block', textAlign:'center', ...mono, fontSize:12, fontWeight:700, padding:'12px', background:'#FDC800', border:'none', color:'#090909', letterSpacing:'0.06em', textTransform:'uppercase', textDecoration:'none' }}>{T.proBtn}</Link>
                         </div>
                     </div>
                 </div>
@@ -524,7 +524,7 @@ export default function LandingPage() {
             <footer className={styles.footer}>
                 <div className={styles.footerInner}>
                     <div className={styles.footerLogo}>
-                        <span style={{ fontWeight:800, fontSize:16, letterSpacing:'-0.5px', color:'#fff' }}>Risk<span style={{ color:'#A6FF4D' }}>Guardian</span></span>
+                        <span style={{ fontWeight:800, fontSize:16, letterSpacing:'-0.5px', color:'#fff' }}>Risk<span style={{ color:'#FDC800' }}>Guardian</span></span>
                         <p className={styles.footerTagline}>{T.footerTagline}</p>
                     </div>
                     <div className={styles.footerLinks}>

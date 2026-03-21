@@ -31,7 +31,7 @@ interface Props {
     height?: number;
 }
 
-const COLORS = ['#A6FF4D', '#00D4FF', '#EAB308', '#ff4757', '#fb923c'];
+const COLORS = ['#FDC800', '#00D4FF', '#EAB308', '#ff4757', '#fb923c'];
 const FONT = 'var(--font-mono)';
 
 function normalize(val: number, min: number, max: number): number {

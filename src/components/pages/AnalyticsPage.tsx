@@ -193,9 +193,9 @@ export default function AnalyticsPage() {
     const SESSION_WINDOWS = [
         { label: 'FUTURES PRE-MARKET', range: '00:00–06:00', hours: [0,1,2,3,4,5], color: '#38bdf8' },
         { label: 'FUTURES OPEN', range: '06:00–09:30', hours: [6,7,8,9], color: '#fb923c' },
-        { label: 'NYSE OPEN', range: '09:30–11:00', hours: [9,10], color: '#A6FF4D' },
+        { label: 'NYSE OPEN', range: '09:30–11:00', hours: [9,10], color: '#FDC800' },
         { label: 'LUNCH GRIND', range: '11:00–14:00', hours: [11,12,13], color: '#EAB308' },
-        { label: 'NY AFTERNOON', range: '14:00–16:00', hours: [14,15], color: '#A6FF4D' },
+        { label: 'NY AFTERNOON', range: '14:00–16:00', hours: [14,15], color: '#FDC800' },
         { label: 'AFTER HOURS', range: '16:00–20:00', hours: [16,17,18,19], color: '#8b5cf6' },
         { label: 'EVENING', range: '20:00–23:59', hours: [20,21,22,23], color: '#6b7280' },
     ];
@@ -640,7 +640,7 @@ export default function AnalyticsPage() {
     // Instrument pnl for horizontal bars
     const maxAbsInstPnl = instrumentArray.length > 0 ? Math.max(...instrumentArray.map(i => Math.abs(i.pnl))) : 1;
 
-    const PIE_COLORS = ['#A6FF4D', '#00D4FF', '#EAB308', '#ff4757', '#fb923c'];
+    const PIE_COLORS = ['#FDC800', '#00D4FF', '#EAB308', '#ff4757', '#fb923c'];
 
     return (
         <div className={styles.page}>
@@ -680,7 +680,7 @@ export default function AnalyticsPage() {
                             {closed.length > 0 && (
                                 <>
                                     <span style={{ color: '#1a1c24' }}>·</span>
-                                    <span style={{ fontFamily: 'var(--font-mono)', fontSize: 13, fontWeight: 700, color: netPnl >= 0 ? '#A6FF4D' : '#ff4757' }}>
+                                    <span style={{ fontFamily: 'var(--font-mono)', fontSize: 13, fontWeight: 700, color: netPnl >= 0 ? '#FDC800' : '#ff4757' }}>
                                         {netPnl >= 0 ? '+' : ''}${netPnl.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} {lang === 'fr' ? 'P&L net' : 'net P&L'}
                                     </span>
                                 </>
@@ -707,7 +707,7 @@ export default function AnalyticsPage() {
                                 border: '1px solid #1a1c24', color: '#8b949e', cursor: 'pointer',
                                 transition: 'all 0.15s',
                             }}
-                            onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.borderColor = '#A6FF4D'; (e.currentTarget as HTMLButtonElement).style.color = '#A6FF4D'; }}
+                            onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.borderColor = '#FDC800'; (e.currentTarget as HTMLButtonElement).style.color = '#FDC800'; }}
                             onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.borderColor = '#1a1c24'; (e.currentTarget as HTMLButtonElement).style.color = '#8b949e'; }}
                         >
                             <Download size={12} /> {lang === 'fr' ? 'EXPORTER PDF' : 'EXPORT PDF'}
@@ -718,9 +718,9 @@ export default function AnalyticsPage() {
                                 display: 'flex', alignItems: 'center', gap: 6,
                                 fontFamily: 'var(--font-mono)', fontSize: 11, fontWeight: 700, letterSpacing: '0.06em',
                                 padding: '8px 14px',
-                                background: copied ? 'rgba(166,255,77,0.1)' : 'transparent',
-                                border: `1px solid ${copied ? 'rgba(166,255,77,0.4)' : '#1a1c24'}`,
-                                color: copied ? '#A6FF4D' : '#8b949e', cursor: 'pointer',
+                                background: copied ? 'rgba(253,200,0,0.1)' : 'transparent',
+                                border: `1px solid ${copied ? 'rgba(253,200,0,0.4)' : '#1a1c24'}`,
+                                color: copied ? '#FDC800' : '#8b949e', cursor: 'pointer',
                                 transition: 'all 0.15s',
                             }}
                         >
@@ -821,14 +821,14 @@ export default function AnalyticsPage() {
                             <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'repeat(2, 1fr)' : 'repeat(4, 1fr)', borderTop: '1px solid #1a1c24', borderLeft: '1px solid #1a1c24' }}>
                                 {/* Row 1 */}
                                 {[
-                                    { label: 'NET P&L (AFTER FEES)', value: `${netPnl >= 0 ? '+' : '-'}$${Math.abs(netPnl).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, color: netPnl >= 0 ? '#A6FF4D' : '#ff4757', sub: `Gross $${grossProfit.toFixed(0)} · Loss $${grossLoss.toFixed(0)}` },
-                                    { label: 'WIN RATE', value: `${winRate.toFixed(1)}%`, color: winRate >= 50 ? '#A6FF4D' : '#EAB308', sub: `${wins.length}W / ${losses.length}L of ${closed.length} trades` },
-                                    { label: 'PROFIT FACTOR', value: profitFactor === 99 ? '∞' : profitFactor.toFixed(2), color: profitFactor >= 2 ? '#A6FF4D' : profitFactor >= 1.2 ? '#EAB308' : '#ff4757', sub: `Won $${grossProfit.toFixed(0)} / Lost $${grossLoss.toFixed(0)}` },
-                                    { label: 'EXPECTANCY / TRADE', value: `${expectancy >= 0 ? '+' : ''}$${expectancy.toFixed(2)}`, color: expectancy >= 0 ? '#A6FF4D' : '#ff4757', sub: `Avg W $${avgWin.toFixed(0)} · Avg L $${avgLoss.toFixed(0)}` },
+                                    { label: 'NET P&L (AFTER FEES)', value: `${netPnl >= 0 ? '+' : '-'}$${Math.abs(netPnl).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, color: netPnl >= 0 ? '#FDC800' : '#ff4757', sub: `Gross $${grossProfit.toFixed(0)} · Loss $${grossLoss.toFixed(0)}` },
+                                    { label: 'WIN RATE', value: `${winRate.toFixed(1)}%`, color: winRate >= 50 ? '#FDC800' : '#EAB308', sub: `${wins.length}W / ${losses.length}L of ${closed.length} trades` },
+                                    { label: 'PROFIT FACTOR', value: profitFactor === 99 ? '∞' : profitFactor.toFixed(2), color: profitFactor >= 2 ? '#FDC800' : profitFactor >= 1.2 ? '#EAB308' : '#ff4757', sub: `Won $${grossProfit.toFixed(0)} / Lost $${grossLoss.toFixed(0)}` },
+                                    { label: 'EXPECTANCY / TRADE', value: `${expectancy >= 0 ? '+' : ''}$${expectancy.toFixed(2)}`, color: expectancy >= 0 ? '#FDC800' : '#ff4757', sub: `Avg W $${avgWin.toFixed(0)} · Avg L $${avgLoss.toFixed(0)}` },
                                     { label: 'MAX DRAWDOWN', value: maxDd > 0 ? `-$${maxDd.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '—', color: '#ff4757', sub: 'Peak to trough' },
-                                    { label: 'MAX RUN-UP', value: maxRunup > 0 ? `+$${maxRunup.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '—', color: '#A6FF4D', sub: 'Trough to peak' },
+                                    { label: 'MAX RUN-UP', value: maxRunup > 0 ? `+$${maxRunup.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '—', color: '#FDC800', sub: 'Trough to peak' },
                                     { label: 'AVG TRADE DURATION', value: fmtDuration((avgWinDuration * wins.length + avgLossDuration * losses.length) / Math.max(1, closed.length)), color: '#c9d1d9', sub: `${wins.length + losses.length} closed trades` },
-                                    { label: 'W/L DOLLAR RATIO', value: wlRatio > 0 ? `${wlRatio.toFixed(2)}:1` : '—', color: wlRatio >= 1.5 ? '#A6FF4D' : wlRatio >= 1 ? '#EAB308' : '#ff4757', sub: `$${avgWin.toFixed(0)} avg win · $${avgLoss.toFixed(0)} avg loss` },
+                                    { label: 'W/L DOLLAR RATIO', value: wlRatio > 0 ? `${wlRatio.toFixed(2)}:1` : '—', color: wlRatio >= 1.5 ? '#FDC800' : wlRatio >= 1 ? '#EAB308' : '#ff4757', sub: `$${avgWin.toFixed(0)} avg win · $${avgLoss.toFixed(0)} avg loss` },
                                 ].map((k, i) => (
                                     <div key={i} style={{ padding: isMobile ? '14px 14px' : '20px 24px', borderBottom: '1px solid #1a1c24', borderRight: '1px solid #1a1c24', background: '#0d1117', display: 'flex', flexDirection: 'column', gap: 6 }}>
                                         <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#6b7280', letterSpacing: '0.1em', textTransform: 'uppercase' }}>{k.label}</span>
@@ -848,9 +848,9 @@ export default function AnalyticsPage() {
                                     {/* SVG Waterfall */}
                                     <div style={{ display: 'flex', alignItems: 'flex-end', gap: 4, height: 100, padding: '0 8px', position: 'relative' }}>
                                         {[
-                                            { label: 'GROSS', val: grossProfit, color: '#A6FF4D' },
+                                            { label: 'GROSS', val: grossProfit, color: '#FDC800' },
                                             { label: 'LOSS', val: -grossLoss, color: '#ff4757' },
-                                            { label: 'NET', val: netPnl, color: netPnl >= 0 ? '#A6FF4D' : '#ff4757' },
+                                            { label: 'NET', val: netPnl, color: netPnl >= 0 ? '#FDC800' : '#ff4757' },
                                         ].map((bar, i) => {
                                             const maxV = Math.max(grossProfit, grossLoss, Math.abs(netPnl), 1);
                                             const h = Math.max(4, (Math.abs(bar.val) / maxV) * 80);
@@ -876,13 +876,13 @@ export default function AnalyticsPage() {
                                     <div style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: '#6b7280', marginBottom: 20 }}>Segmented composition reads faster than a donut here and keeps the trade counts explicit.</div>
                                     <div style={{ height: 12, background: '#1a1c24', borderRadius: 2, overflow: 'hidden', marginBottom: 16 }}>
                                         {closed.length > 0 && (
-                                            <motion.div initial={{ width: 0 }} animate={{ width: `${winRate}%` }} style={{ height: '100%', background: '#A6FF4D', borderRadius: '2px 0 0 2px' }} />
+                                            <motion.div initial={{ width: 0 }} animate={{ width: `${winRate}%` }} style={{ height: '100%', background: '#FDC800', borderRadius: '2px 0 0 2px' }} />
                                         )}
                                     </div>
                                     <div style={{ display: 'flex', gap: 32 }}>
                                         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                                            <div style={{ width: 8, height: 8, background: '#A6FF4D', borderRadius: '50%' }} />
-                                            <span style={{ fontFamily: 'var(--font-mono)', fontSize: 12, color: '#A6FF4D' }}>{wins.length} trades</span>
+                                            <div style={{ width: 8, height: 8, background: '#FDC800', borderRadius: '50%' }} />
+                                            <span style={{ fontFamily: 'var(--font-mono)', fontSize: 12, color: '#FDC800' }}>{wins.length} trades</span>
                                         </div>
                                         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                                             <div style={{ width: 8, height: 8, background: '#ff4757', borderRadius: '50%' }} />
@@ -905,12 +905,12 @@ export default function AnalyticsPage() {
                                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 6 }}>
                                             <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#6b7280', letterSpacing: '0.1em', textTransform: 'uppercase' }}>PROFIT FACTOR</span>
                                         </div>
-                                        <div style={{ fontFamily: 'var(--font-mono)', fontSize: 28, fontWeight: 700, color: profitFactor >= 1.5 ? '#A6FF4D' : profitFactor >= 1 ? '#EAB308' : '#ff4757', marginBottom: 10 }}>
+                                        <div style={{ fontFamily: 'var(--font-mono)', fontSize: 28, fontWeight: 700, color: profitFactor >= 1.5 ? '#FDC800' : profitFactor >= 1 ? '#EAB308' : '#ff4757', marginBottom: 10 }}>
                                             {profitFactor === 99 ? '∞' : `${profitFactor.toFixed(2)}x`}
                                         </div>
                                         <div style={{ position: 'relative', height: 6, background: '#1a1c24', borderRadius: 3, marginBottom: 8 }}>
-                                            <div style={{ position: 'absolute', top: 0, left: 0, height: '100%', background: 'linear-gradient(to right, #ff4757 0%, #EAB308 40%, #A6FF4D 70%)', borderRadius: 3, width: '100%', opacity: 0.3 }} />
-                                            <motion.div initial={{ left: 0 }} animate={{ left: `${Math.min(95, (Math.min(profitFactor, 3) / 3) * 100)}%` }} style={{ position: 'absolute', top: -3, width: 12, height: 12, background: profitFactor >= 1.5 ? '#A6FF4D' : '#EAB308', borderRadius: '50%', transform: 'translateX(-50%)' }} />
+                                            <div style={{ position: 'absolute', top: 0, left: 0, height: '100%', background: 'linear-gradient(to right, #ff4757 0%, #EAB308 40%, #FDC800 70%)', borderRadius: 3, width: '100%', opacity: 0.3 }} />
+                                            <motion.div initial={{ left: 0 }} animate={{ left: `${Math.min(95, (Math.min(profitFactor, 3) / 3) * 100)}%` }} style={{ position: 'absolute', top: -3, width: 12, height: 12, background: profitFactor >= 1.5 ? '#FDC800' : '#EAB308', borderRadius: '50%', transform: 'translateX(-50%)' }} />
                                         </div>
                                         <div style={{ display: 'flex', justifyContent: 'space-between', fontFamily: 'var(--font-mono)', fontSize: 9, color: '#6b7280' }}>
                                             <span>0–0.9x LOSS</span><span>1–1.4x FLAT</span><span>1.5–1.9x PLAYABLE</span><span>2x+ EDGE</span>
@@ -920,15 +920,15 @@ export default function AnalyticsPage() {
                                     {/* Expectancy slider */}
                                     <div>
                                         <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#6b7280', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 6 }}>EXPECTANCY / TRADE</div>
-                                        <div style={{ fontFamily: 'var(--font-mono)', fontSize: 24, fontWeight: 700, color: expectancy >= 0 ? '#A6FF4D' : '#ff4757', marginBottom: 10 }}>
+                                        <div style={{ fontFamily: 'var(--font-mono)', fontSize: 24, fontWeight: 700, color: expectancy >= 0 ? '#FDC800' : '#ff4757', marginBottom: 10 }}>
                                             {expectancy >= 0 ? '+' : ''}${expectancy.toFixed(2)}
                                         </div>
                                         <div style={{ position: 'relative', height: 6, background: '#1a1c24', borderRadius: 3, marginBottom: 8 }}>
-                                            <div style={{ position: 'absolute', top: 0, left: 0, height: '100%', background: 'linear-gradient(to right, #ff4757 0%, #EAB308 40%, #A6FF4D 70%)', borderRadius: 3, width: '100%', opacity: 0.3 }} />
+                                            <div style={{ position: 'absolute', top: 0, left: 0, height: '100%', background: 'linear-gradient(to right, #ff4757 0%, #EAB308 40%, #FDC800 70%)', borderRadius: 3, width: '100%', opacity: 0.3 }} />
                                             <motion.div
                                                 initial={{ left: '50%' }}
                                                 animate={{ left: `${Math.min(95, Math.max(5, 50 + (expectancy / Math.max(avgWin, 1)) * 40))}%` }}
-                                                style={{ position: 'absolute', top: -3, width: 12, height: 12, background: expectancy >= 0 ? '#A6FF4D' : '#ff4757', borderRadius: '50%', transform: 'translateX(-50%)' }}
+                                                style={{ position: 'absolute', top: -3, width: 12, height: 12, background: expectancy >= 0 ? '#FDC800' : '#ff4757', borderRadius: '50%', transform: 'translateX(-50%)' }}
                                             />
                                         </div>
                                         <div style={{ display: 'flex', justifyContent: 'space-between', fontFamily: 'var(--font-mono)', fontSize: 9, color: '#6b7280' }}>
@@ -946,14 +946,14 @@ export default function AnalyticsPage() {
                                         <div>
                                             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
                                                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                                                    <div style={{ width: 8, height: 8, background: '#A6FF4D', borderRadius: '50%' }} />
-                                                    <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: '#A6FF4D' }}>Avg win</span>
-                                                    <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: '#A6FF4D', opacity: 0.65 }}>{wins.length} winning trades</span>
+                                                    <div style={{ width: 8, height: 8, background: '#FDC800', borderRadius: '50%' }} />
+                                                    <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: '#FDC800' }}>Avg win</span>
+                                                    <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: '#FDC800', opacity: 0.65 }}>{wins.length} winning trades</span>
                                                 </div>
-                                                <span style={{ fontFamily: 'var(--font-mono)', fontSize: 14, fontWeight: 700, color: '#A6FF4D' }}>+${avgWin.toFixed(2)}</span>
+                                                <span style={{ fontFamily: 'var(--font-mono)', fontSize: 14, fontWeight: 700, color: '#FDC800' }}>+${avgWin.toFixed(2)}</span>
                                             </div>
                                             <div style={{ height: 10, background: '#1a1c24', borderRadius: 2 }}>
-                                                <motion.div initial={{ width: 0 }} animate={{ width: `${avgLoss > 0 ? Math.min(100, (avgWin / Math.max(avgWin, avgLoss)) * 100) : 100}%` }} style={{ height: '100%', background: '#A6FF4D', borderRadius: 2 }} />
+                                                <motion.div initial={{ width: 0 }} animate={{ width: `${avgLoss > 0 ? Math.min(100, (avgWin / Math.max(avgWin, avgLoss)) * 100) : 100}%` }} style={{ height: '100%', background: '#FDC800', borderRadius: 2 }} />
                                             </div>
                                         </div>
                                         <div>
@@ -980,7 +980,7 @@ export default function AnalyticsPage() {
                                 <div style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: '#6b7280', marginBottom: 24 }}>Average duration alone hides the real coaching signal. The split below shows whether losers are lingering longer than winners.</div>
                                 <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
                                     {[
-                                        { label: 'Winners', sub: 'Average hold time', dur: avgWinDuration, color: '#A6FF4D' },
+                                        { label: 'Winners', sub: 'Average hold time', dur: avgWinDuration, color: '#FDC800' },
                                         { label: 'Losers', sub: 'Average hold time', dur: avgLossDuration, color: '#ff4757' },
                                     ].map((row, i) => {
                                         const maxDur = Math.max(avgWinDuration, avgLossDuration, 1);
@@ -1021,7 +1021,7 @@ export default function AnalyticsPage() {
                                     </div>
                                     <div style={{ textAlign: 'right' }}>
                                         <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#6b7280', letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 4 }}>WITHOUT TOXIC PATTERNS</div>
-                                        <div style={{ fontFamily: 'var(--font-mono)', fontSize: 28, fontWeight: 700, color: '#A6FF4D' }}>
+                                        <div style={{ fontFamily: 'var(--font-mono)', fontSize: 28, fontWeight: 700, color: '#FDC800' }}>
                                             +${withoutToxicPatterns.toLocaleString(undefined, { minimumFractionDigits: 0 })}
                                         </div>
                                         <div style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: '#6b7280', marginTop: 4 }}>potential</div>
@@ -1040,8 +1040,8 @@ export default function AnalyticsPage() {
                                             <AreaChart data={equityCurve} margin={{ top: 8, right: 8, bottom: 0, left: 0 }}>
                                                 <defs>
                                                     <linearGradient id="eqGrad" x1="0" y1="0" x2="0" y2="1">
-                                                        <stop offset="5%" stopColor={netPnl >= 0 ? '#A6FF4D' : '#ff4757'} stopOpacity={0.25} />
-                                                        <stop offset="95%" stopColor={netPnl >= 0 ? '#A6FF4D' : '#ff4757'} stopOpacity={0} />
+                                                        <stop offset="5%" stopColor={netPnl >= 0 ? '#FDC800' : '#ff4757'} stopOpacity={0.25} />
+                                                        <stop offset="95%" stopColor={netPnl >= 0 ? '#FDC800' : '#ff4757'} stopOpacity={0} />
                                                     </linearGradient>
                                                 </defs>
                                                 <CartesianGrid stroke="#1a1c24" strokeDasharray="3 3" vertical={false} />
@@ -1053,7 +1053,7 @@ export default function AnalyticsPage() {
                                                     formatter={(v: number | undefined) => v !== undefined ? [`${v >= 0 ? '+' : ''}$${Math.abs(v).toFixed(2)}`, 'Cumulative P&L'] : ['—', 'Cumulative P&L']}
                                                     labelFormatter={(l: unknown) => `Trade #${l}`}
                                                 />
-                                                <Area type="monotone" dataKey="pnl" stroke={netPnl >= 0 ? '#A6FF4D' : '#ff4757'} strokeWidth={2} fill="url(#eqGrad)" dot={false} activeDot={{ r: 4, fill: netPnl >= 0 ? '#A6FF4D' : '#ff4757' }} />
+                                                <Area type="monotone" dataKey="pnl" stroke={netPnl >= 0 ? '#FDC800' : '#ff4757'} strokeWidth={2} fill="url(#eqGrad)" dot={false} activeDot={{ r: 4, fill: netPnl >= 0 ? '#FDC800' : '#ff4757' }} />
                                             </AreaChart>
                                         </ResponsiveContainer>
                                     ) : (
@@ -1063,18 +1063,18 @@ export default function AnalyticsPage() {
                                 {equityCurve.length > 1 && (
                                     <div style={{ display: 'flex', gap: 24, marginTop: 12, flexWrap: 'wrap' }}>
                                         <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: '#ff4757' }}>Max drawdown: -${maxDd.toFixed(0)}</span>
-                                        <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: '#A6FF4D' }}>Max run-up: +${maxRunup.toFixed(0)}</span>
+                                        <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: '#FDC800' }}>Max run-up: +${maxRunup.toFixed(0)}</span>
                                         <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: '#6b7280' }}>Trades: {closed.length}</span>
-                                        <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: netPnl >= 0 ? '#A6FF4D' : '#ff4757' }}>Final: {netPnl >= 0 ? '+' : ''}${netPnl.toFixed(0)}</span>
+                                        <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: netPnl >= 0 ? '#FDC800' : '#ff4757' }}>Final: {netPnl >= 0 ? '+' : ''}${netPnl.toFixed(0)}</span>
                                     </div>
                                 )}
                                 {equityCurve.length > 1 && (
                                     <div style={{ marginTop: 16, display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 12 }}>
-                                        <div style={{ padding: '14px 16px', background: 'rgba(166,255,77,0.04)', border: '1px solid rgba(166,255,77,0.12)', borderLeft: '3px solid #A6FF4D' }}>
-                                            <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#A6FF4D', letterSpacing: '0.1em', textTransform: 'uppercase', fontWeight: 700, marginBottom: 6 }}>WHAT THIS MEANS</div>
+                                        <div style={{ padding: '14px 16px', background: 'rgba(253,200,0,0.04)', border: '1px solid rgba(253,200,0,0.12)', borderLeft: '3px solid #FDC800' }}>
+                                            <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#FDC800', letterSpacing: '0.1em', textTransform: 'uppercase', fontWeight: 700, marginBottom: 6 }}>WHAT THIS MEANS</div>
                                             <p style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: '#c9d1d9', lineHeight: 1.8, margin: 0 }}>
                                                 {netPnl >= 0
-                                                    ? <>Equity is <strong style={{ color: '#A6FF4D' }}>net positive</strong>. Max drawdown was <strong style={{ color: '#ff4757' }}>-${maxDd.toFixed(0)}</strong> — a {maxRunup > 0 ? ((maxDd / maxRunup) * 100).toFixed(0) : 0}% retracement of your peak. A smooth rising curve = consistent edge. A jagged one = high variance — you may be getting lucky with large outlier wins.</>
+                                                    ? <>Equity is <strong style={{ color: '#FDC800' }}>net positive</strong>. Max drawdown was <strong style={{ color: '#ff4757' }}>-${maxDd.toFixed(0)}</strong> — a {maxRunup > 0 ? ((maxDd / maxRunup) * 100).toFixed(0) : 0}% retracement of your peak. A smooth rising curve = consistent edge. A jagged one = high variance — you may be getting lucky with large outlier wins.</>
                                                     : <>Equity is <strong style={{ color: '#ff4757' }}>net negative</strong> at ${netPnl.toFixed(0)}. The curve shape tells you whether losses are concentrated (a few blowouts) or systematic (steady bleed). Max drawdown hit <strong style={{ color: '#ff4757' }}>-${maxDd.toFixed(0)}</strong>.</>}
                                             </p>
                                         </div>
@@ -1102,7 +1102,7 @@ export default function AnalyticsPage() {
                                         <ResponsiveContainer width="100%" height="100%">
                                             <PieChart>
                                                 <Pie data={[{ n: 'W', v: wins.length }, { n: 'L', v: losses.length }]} innerRadius={30} outerRadius={50} dataKey="v" stroke="none" startAngle={90} endAngle={-270}>
-                                                    <Cell fill="#A6FF4D" />
+                                                    <Cell fill="#FDC800" />
                                                     <Cell fill="#ff4757" />
                                                 </Pie>
                                             </PieChart>
@@ -1110,8 +1110,8 @@ export default function AnalyticsPage() {
                                     </div>
                                     <div style={{ display: 'flex', gap: 16, marginTop: 8, justifyContent: 'center' }}>
                                         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                                            <div style={{ width: 8, height: 8, background: '#A6FF4D', borderRadius: '50%' }} />
-                                            <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: '#A6FF4D' }}>{wins.length} trades</span>
+                                            <div style={{ width: 8, height: 8, background: '#FDC800', borderRadius: '50%' }} />
+                                            <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: '#FDC800' }}>{wins.length} trades</span>
                                         </div>
                                         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                                             <div style={{ width: 8, height: 8, background: '#ff4757', borderRadius: '50%' }} />
@@ -1131,7 +1131,7 @@ export default function AnalyticsPage() {
                                                 <div style={{ flex: 1, height: 6, background: '#1a1c24', borderRadius: 2 }}>
                                                     <motion.div initial={{ width: 0 }} animate={{ width: `${(Math.abs(inst.pnl) / maxAbsInstPnl) * 100}%` }} style={{ height: '100%', background: inst.pnl >= 0 ? PIE_COLORS[i % PIE_COLORS.length] : '#ff4757', borderRadius: 2 }} />
                                                 </div>
-                                                <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, fontWeight: 700, color: inst.pnl >= 0 ? '#A6FF4D' : '#ff4757', width: 60, textAlign: 'right' }}>
+                                                <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, fontWeight: 700, color: inst.pnl >= 0 ? '#FDC800' : '#ff4757', width: 60, textAlign: 'right' }}>
                                                     {inst.pnl >= 0 ? '+' : '-'}${Math.abs(inst.pnl).toFixed(0)}
                                                 </span>
                                             </div>
@@ -1149,7 +1149,7 @@ export default function AnalyticsPage() {
                                     {/* Linear bar risk score */}
                                     {(() => {
                                         const rs = forensics.riskScore;
-                                        const riskColor = rs > 75 ? '#ff4757' : rs > 50 ? '#F97316' : rs > 30 ? '#EAB308' : '#A6FF4D';
+                                        const riskColor = rs > 75 ? '#ff4757' : rs > 50 ? '#F97316' : rs > 30 ? '#EAB308' : '#FDC800';
                                         const riskLabel = rs > 75 ? 'CRITICAL' : rs > 50 ? 'HIGH' : rs > 30 ? 'ELEVATED' : 'HEALTHY';
                                         return (
                                             <div style={{ width: '100%' }}>
@@ -1158,7 +1158,7 @@ export default function AnalyticsPage() {
                                                     <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: '#6b7280' }}>/100</span>
                                                 </div>
                                                 <div style={{ height: 6, background: '#1a1c24', borderRadius: 3, marginBottom: 8, overflow: 'hidden' }}>
-                                                    <motion.div initial={{ width: 0 }} animate={{ width: `${rs}%` }} style={{ height: '100%', background: `linear-gradient(to right, #A6FF4D, ${riskColor})`, borderRadius: 3 }} />
+                                                    <motion.div initial={{ width: 0 }} animate={{ width: `${rs}%` }} style={{ height: '100%', background: `linear-gradient(to right, #FDC800, ${riskColor})`, borderRadius: 3 }} />
                                                 </div>
                                                 <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, letterSpacing: '0.1em', color: riskColor, fontWeight: 700, border: `1px solid ${riskColor}33`, background: `${riskColor}11`, padding: '3px 8px', display: 'inline-block' }}>
                                                     {riskLabel} RISK
@@ -1185,7 +1185,7 @@ export default function AnalyticsPage() {
                                             label: 'Behavior Patterns',
                                             score: revScore,
                                             max: 60,
-                                            color: revScore > 40 ? '#ff4757' : revScore > 20 ? '#EAB308' : '#A6FF4D',
+                                            color: revScore > 40 ? '#ff4757' : revScore > 20 ? '#EAB308' : '#FDC800',
                                             desc: `+${revScore > 0 ? revScore : 0} if critical · +${revScore > 20 ? Math.floor(revScore / 2) : 0} warning · +${0} info`,
                                             sub: `Max: 60 pts`,
                                         },
@@ -1193,7 +1193,7 @@ export default function AnalyticsPage() {
                                             label: 'Financial Damage',
                                             score: financialScore,
                                             max: 25,
-                                            color: financialScore > 15 ? '#ff4757' : financialScore > 0 ? '#EAB308' : '#A6FF4D',
+                                            color: financialScore > 15 ? '#ff4757' : financialScore > 0 ? '#EAB308' : '#FDC800',
                                             desc: `+${financialScore > 15 ? financialScore : 0} if losses >5% of gross · +${financialScore > 5 && financialScore <= 15 ? financialScore : 0} if 1–5% · +0 if <1%`,
                                             sub: `Max: 25 pts`,
                                         },
@@ -1201,7 +1201,7 @@ export default function AnalyticsPage() {
                                             label: 'Win Rate Erosion',
                                             score: wrErosion,
                                             max: 15,
-                                            color: wrErosion > 10 ? '#ff4757' : wrErosion > 0 ? '#EAB308' : '#A6FF4D',
+                                            color: wrErosion > 10 ? '#ff4757' : wrErosion > 0 ? '#EAB308' : '#FDC800',
                                             desc: `+${wrErosion > 10 ? wrErosion : 0} if win rate <30% & negative expectancy · +${wrErosion > 0 && wrErosion <= 10 ? wrErosion : 0} if 30–35% negative`,
                                             sub: `Max: 15 pts`,
                                         },
@@ -1220,7 +1220,7 @@ export default function AnalyticsPage() {
                                     ))}
                                 </div>
                                 <div style={{ display: 'flex', gap: 4, marginTop: 20 }}>
-                                    {[{ r: '0-30', l: 'LOW', c: '#A6FF4D' }, { r: '31-55', l: 'MODERATE', c: '#EAB308' }, { r: '56-75', l: 'HIGH', c: '#F97316' }, { r: '76-100', l: 'CRITICAL', c: '#ff4757', active: forensics.riskScore > 75 }].map((z, i) => (
+                                    {[{ r: '0-30', l: 'LOW', c: '#FDC800' }, { r: '31-55', l: 'MODERATE', c: '#EAB308' }, { r: '56-75', l: 'HIGH', c: '#F97316' }, { r: '76-100', l: 'CRITICAL', c: '#ff4757', active: forensics.riskScore > 75 }].map((z, i) => (
                                         <div key={i} style={{ fontFamily: 'var(--font-mono)', fontSize: 9, padding: '4px 10px', border: `1px solid ${z.c}44`, color: z.c, background: z.active ? `${z.c}15` : 'transparent' }}>{z.r}<br />{z.l}</div>
                                     ))}
                                     <div style={{ marginLeft: 'auto', fontFamily: 'var(--font-mono)', fontSize: 9, padding: '4px 12px', border: '2px solid #EAB308', color: '#EAB308', background: 'rgba(234,179,8,0.08)' }}>
@@ -1243,11 +1243,11 @@ export default function AnalyticsPage() {
                                         </thead>
                                         <tbody>
                                             {[
-                                                { metric: 'Win Rate', yours: `${winRate.toFixed(1)}%`, median: '42%', top25: '55%', rank: winRate >= 55 ? 'Top 25% (76+)' : winRate >= 42 ? 'Above Avg (51+)' : 'Below Avg', rankColor: winRate >= 55 ? '#A6FF4D' : winRate >= 42 ? '#EAB308' : '#ff4757' },
-                                                { metric: 'Profit Factor', yours: profitFactor === 99 ? '∞' : profitFactor.toFixed(2), median: '1.21', top25: '1.90', rank: profitFactor >= 1.9 ? 'Above Avg (81+)' : profitFactor >= 1.2 ? 'Above Avg (61+)' : 'Below Avg (38%)', rankColor: profitFactor >= 1.9 ? '#A6FF4D' : profitFactor >= 1.2 ? '#EAB308' : '#ff4757' },
-                                                { metric: 'Expectancy / Trade ($)', yours: `${expectancy >= 0 ? '+' : ''}$${expectancy.toFixed(2)}`, median: '$4', top25: '$75', rank: expectancy >= 75 ? 'Above Avg (79+)' : expectancy >= 4 ? 'Above Avg (56+)' : 'Below Avg', rankColor: expectancy >= 75 ? '#A6FF4D' : expectancy >= 4 ? '#EAB308' : '#ff4757' },
-                                                { metric: 'Max Drawdown ($)', yours: `-$${maxDd.toFixed(0)}`, median: '$1390', top25: '$160', rank: maxDd <= 160 ? 'Top 25% (78+)' : maxDd <= 1390 ? 'Above Avg (39+)' : 'Below Avg', rankColor: maxDd <= 160 ? '#A6FF4D' : maxDd <= 1390 ? '#EAB308' : '#ff4757' },
-                                                { metric: 'Behavioral Risk Score', yours: `${forensics.riskScore.toFixed(0)}`, median: '58', top25: '26', rank: forensics.riskScore <= 26 ? 'Top 25% (>75)' : forensics.riskScore <= 58 ? 'Above Avg (>50)' : 'Below 25% (35th)', rankColor: forensics.riskScore <= 26 ? '#A6FF4D' : forensics.riskScore <= 58 ? '#EAB308' : '#ff4757' },
+                                                { metric: 'Win Rate', yours: `${winRate.toFixed(1)}%`, median: '42%', top25: '55%', rank: winRate >= 55 ? 'Top 25% (76+)' : winRate >= 42 ? 'Above Avg (51+)' : 'Below Avg', rankColor: winRate >= 55 ? '#FDC800' : winRate >= 42 ? '#EAB308' : '#ff4757' },
+                                                { metric: 'Profit Factor', yours: profitFactor === 99 ? '∞' : profitFactor.toFixed(2), median: '1.21', top25: '1.90', rank: profitFactor >= 1.9 ? 'Above Avg (81+)' : profitFactor >= 1.2 ? 'Above Avg (61+)' : 'Below Avg (38%)', rankColor: profitFactor >= 1.9 ? '#FDC800' : profitFactor >= 1.2 ? '#EAB308' : '#ff4757' },
+                                                { metric: 'Expectancy / Trade ($)', yours: `${expectancy >= 0 ? '+' : ''}$${expectancy.toFixed(2)}`, median: '$4', top25: '$75', rank: expectancy >= 75 ? 'Above Avg (79+)' : expectancy >= 4 ? 'Above Avg (56+)' : 'Below Avg', rankColor: expectancy >= 75 ? '#FDC800' : expectancy >= 4 ? '#EAB308' : '#ff4757' },
+                                                { metric: 'Max Drawdown ($)', yours: `-$${maxDd.toFixed(0)}`, median: '$1390', top25: '$160', rank: maxDd <= 160 ? 'Top 25% (78+)' : maxDd <= 1390 ? 'Above Avg (39+)' : 'Below Avg', rankColor: maxDd <= 160 ? '#FDC800' : maxDd <= 1390 ? '#EAB308' : '#ff4757' },
+                                                { metric: 'Behavioral Risk Score', yours: `${forensics.riskScore.toFixed(0)}`, median: '58', top25: '26', rank: forensics.riskScore <= 26 ? 'Top 25% (>75)' : forensics.riskScore <= 58 ? 'Above Avg (>50)' : 'Below 25% (35th)', rankColor: forensics.riskScore <= 26 ? '#FDC800' : forensics.riskScore <= 58 ? '#EAB308' : '#ff4757' },
                                             ].map((row, i) => (
                                                 <tr key={i} style={{ borderBottom: '1px solid #1a1c24' }}
                                                     onMouseEnter={e => (e.currentTarget as HTMLTableRowElement).style.background = '#0d1117cc'}
@@ -1291,14 +1291,14 @@ export default function AnalyticsPage() {
                                 </div>
                                 <div style={{ background: '#0d1117', padding: isMobile ? '14px' : '24px' }}>
                                     <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
-                                        <TrendingUp size={12} color="#A6FF4D" />
-                                        <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#A6FF4D', letterSpacing: '0.12em', textTransform: 'uppercase', fontWeight: 700 }}>STRENGTH ZONES</span>
+                                        <TrendingUp size={12} color="#FDC800" />
+                                        <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#FDC800', letterSpacing: '0.12em', textTransform: 'uppercase', fontWeight: 700 }}>STRENGTH ZONES</span>
                                     </div>
                                     <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                                         {strengthZones.length > 0 ? strengthZones.map((z: { h: number; pnl: number }, i: number) => (
-                                            <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 12px', background: 'rgba(166,255,77,0.04)', border: '1px solid rgba(166,255,77,0.15)' }}>
+                                            <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 12px', background: 'rgba(253,200,0,0.04)', border: '1px solid rgba(253,200,0,0.15)' }}>
                                                 <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: '#8b949e' }}>{`${String(z.h).padStart(2, '0')}:00–${String(z.h + 1).padStart(2, '0')}:00`} EST</span>
-                                                <span style={{ fontFamily: 'var(--font-mono)', fontSize: 12, fontWeight: 700, color: '#A6FF4D' }}>+${z.pnl.toFixed(0)}</span>
+                                                <span style={{ fontFamily: 'var(--font-mono)', fontSize: 12, fontWeight: 700, color: '#FDC800' }}>+${z.pnl.toFixed(0)}</span>
                                             </div>
                                         )) : (
                                             <div style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: '#6b7280' }}>No positive time zones detected yet</div>
@@ -1309,21 +1309,21 @@ export default function AnalyticsPage() {
 
                             {/* ── SESSION SCORE ── */}
                             {forensics.verdict && (
-                                <div style={{ background: 'rgba(166,255,77,0.04)', border: '1px solid rgba(166,255,77,0.15)', padding: '14px 20px', display: 'flex', alignItems: 'center', gap: 12 }}>
-                                    <Activity size={13} color="#A6FF4D" />
-                                    <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: '#A6FF4D', fontWeight: 600 }}>SESSION SCORE</span>
+                                <div style={{ background: 'rgba(253,200,0,0.04)', border: '1px solid rgba(253,200,0,0.15)', padding: '14px 20px', display: 'flex', alignItems: 'center', gap: 12 }}>
+                                    <Activity size={13} color="#FDC800" />
+                                    <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: '#FDC800', fontWeight: 600 }}>SESSION SCORE</span>
                                     <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: '#8b949e' }}>{forensics.verdict.message} {forensics.verdict.action}</span>
                                 </div>
                             )}
 
                             {/* ── CHALLENGE BANNER ── */}
-                            <div style={{ background: '#0d1117', border: '1px solid rgba(166,255,77,0.2)', padding: '16px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap' }}>
+                            <div style={{ background: '#0d1117', border: '1px solid rgba(253,200,0,0.2)', padding: '16px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap' }}>
                                 <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                                    <div style={{ width: 32, height: 32, background: 'rgba(166,255,77,0.1)', border: '1px solid rgba(166,255,77,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: 2, flexShrink: 0 }}>
-                                        <Target size={14} color="#A6FF4D" />
+                                    <div style={{ width: 32, height: 32, background: 'rgba(253,200,0,0.1)', border: '1px solid rgba(253,200,0,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: 2, flexShrink: 0 }}>
+                                        <Target size={14} color="#FDC800" />
                                     </div>
                                     <div>
-                                        <div style={{ fontFamily: 'var(--font-mono)', fontSize: 13, fontWeight: 700, color: '#A6FF4D' }}>
+                                        <div style={{ fontFamily: 'var(--font-mono)', fontSize: 13, fontWeight: 700, color: '#FDC800' }}>
                                             Your {winRate.toFixed(0)}% edge — Challenge your group to beat it.
                                         </div>
                                         <div style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: '#6b7280', marginTop: 2 }}>
@@ -1331,7 +1331,7 @@ export default function AnalyticsPage() {
                                         </div>
                                     </div>
                                 </div>
-                                <button onClick={handleCopyLink} style={{ fontFamily: 'var(--font-mono)', fontSize: 11, fontWeight: 700, letterSpacing: '0.08em', padding: '10px 20px', background: '#A6FF4D', color: '#000', border: 'none', cursor: 'pointer', flexShrink: 0 }}>
+                                <button onClick={handleCopyLink} style={{ fontFamily: 'var(--font-mono)', fontSize: 11, fontWeight: 700, letterSpacing: '0.08em', padding: '10px 20px', background: '#FDC800', color: '#000', border: 'none', cursor: 'pointer', flexShrink: 0 }}>
                                     {copied ? '✓ COPIED' : '⬡ COPY CHALLENGE'}
                                 </button>
                             </div>
@@ -1360,13 +1360,13 @@ export default function AnalyticsPage() {
                             {/* ── 8-KPI GRID ── */}
                             <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'repeat(2, 1fr)' : 'repeat(4, 1fr)', borderTop: '1px solid #1a1c24', borderLeft: '1px solid #1a1c24' }}>
                                 {[
-                                    { label: 'BEST DAY', value: bestDay > 0 ? `+$${bestDay.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '—', sub: bestDayDate ? new Date(bestDayDate + 'T12:00:00Z').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }) : '—', color: '#A6FF4D' },
+                                    { label: 'BEST DAY', value: bestDay > 0 ? `+$${bestDay.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '—', sub: bestDayDate ? new Date(bestDayDate + 'T12:00:00Z').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }) : '—', color: '#FDC800' },
                                     { label: 'WORST DAY', value: worstDay < 0 ? `-$${Math.abs(worstDay).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '—', sub: worstDayDate ? new Date(worstDayDate + 'T12:00:00Z').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }) : '—', color: '#ff4757' },
-                                    { label: 'AVG DAILY P&L', value: avgDaily !== 0 ? `${avgDaily >= 0 ? '+' : ''}$${Math.abs(avgDaily).toFixed(2)}` : '—', sub: `Median: ${medianDaily >= 0 ? '+' : ''}$${Math.abs(medianDaily).toFixed(2)}`, color: avgDaily >= 0 ? '#A6FF4D' : '#ff4757' },
+                                    { label: 'AVG DAILY P&L', value: avgDaily !== 0 ? `${avgDaily >= 0 ? '+' : ''}$${Math.abs(avgDaily).toFixed(2)}` : '—', sub: `Median: ${medianDaily >= 0 ? '+' : ''}$${Math.abs(medianDaily).toFixed(2)}`, color: avgDaily >= 0 ? '#FDC800' : '#ff4757' },
                                     { label: 'DAILY VOLATILITY', value: dailyVolatility > 0 ? `±$${dailyVolatility.toFixed(0)}` : '—', sub: `${daysWithin1Std}% days within 1σ`, color: '#EAB308' },
-                                    { label: 'GREEN DAYS', value: `${greenDays}`, sub: `${dayWinRate.toFixed(0)}% of ${dailyData.length} days`, color: '#A6FF4D' },
+                                    { label: 'GREEN DAYS', value: `${greenDays}`, sub: `${dayWinRate.toFixed(0)}% of ${dailyData.length} days`, color: '#FDC800' },
                                     { label: 'RED DAYS', value: `${redDays}`, sub: `${(100 - dayWinRate).toFixed(0)}% of ${dailyData.length} days`, color: '#ff4757' },
-                                    { label: 'LONGEST GREEN STREAK', value: `${longestGreenDayStreak}d`, sub: 'Consecutive profitable days', color: '#A6FF4D' },
+                                    { label: 'LONGEST GREEN STREAK', value: `${longestGreenDayStreak}d`, sub: 'Consecutive profitable days', color: '#FDC800' },
                                     { label: 'LONGEST RED STREAK', value: `${longestRedDayStreak}d`, sub: 'Consecutive losing days', color: longestRedDayStreak >= 3 ? '#ff4757' : '#EAB308' },
                                 ].map((k, i) => (
                                     <div key={i} style={{ padding: '20px 24px', borderBottom: '1px solid #1a1c24', borderRight: '1px solid #1a1c24', background: '#0d1117', display: 'flex', flexDirection: 'column', gap: 6 }}>
@@ -1385,7 +1385,7 @@ export default function AnalyticsPage() {
                                         <div style={{ fontFamily: 'var(--font-mono)', fontSize: 13, fontWeight: 600, color: '#c9d1d9' }}>Bars = daily P&L · Yellow dashed = 5-day rolling average</div>
                                     </div>
                                     <div style={{ display: 'flex', gap: 16 }}>
-                                        {[{ color: '#A6FF4D', label: 'Profitable day' }, { color: '#ff4757', label: 'Loss day' }, { color: '#EAB308', label: '5d avg', dash: true }].map((l, i) => (
+                                        {[{ color: '#FDC800', label: 'Profitable day' }, { color: '#ff4757', label: 'Loss day' }, { color: '#EAB308', label: '5d avg', dash: true }].map((l, i) => (
                                             <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                                                 <div style={{ width: 20, height: 2, background: l.color, borderTop: l.dash ? '2px dashed' : undefined, borderColor: l.color }} />
                                                 <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: l.color }}>{l.label}</span>
@@ -1397,11 +1397,11 @@ export default function AnalyticsPage() {
                                 {/* Interpretation */}
                                 {dailyData.length >= 3 && (
                                     <div style={{ marginTop: 16, display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 12 }}>
-                                        <div style={{ padding: '14px 16px', background: 'rgba(166,255,77,0.04)', border: '1px solid rgba(166,255,77,0.12)', borderLeft: '3px solid #A6FF4D' }}>
-                                            <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#A6FF4D', letterSpacing: '0.1em', textTransform: 'uppercase', fontWeight: 700, marginBottom: 6 }}>WHAT THIS MEANS</div>
+                                        <div style={{ padding: '14px 16px', background: 'rgba(253,200,0,0.04)', border: '1px solid rgba(253,200,0,0.12)', borderLeft: '3px solid #FDC800' }}>
+                                            <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#FDC800', letterSpacing: '0.1em', textTransform: 'uppercase', fontWeight: 700, marginBottom: 6 }}>WHAT THIS MEANS</div>
                                             <p style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: '#c9d1d9', lineHeight: 1.8, margin: 0 }}>
                                                 {greenDays > redDays
-                                                    ? <>Your day win rate is <strong style={{ color: '#A6FF4D' }}>{dayWinRate.toFixed(0)}%</strong> ({greenDays} green vs {redDays} red). The 5-day rolling average shows whether your edge is improving or degrading over time — watch its slope, not just daily bars.</>
+                                                    ? <>Your day win rate is <strong style={{ color: '#FDC800' }}>{dayWinRate.toFixed(0)}%</strong> ({greenDays} green vs {redDays} red). The 5-day rolling average shows whether your edge is improving or degrading over time — watch its slope, not just daily bars.</>
                                                     : <>Your day win rate is <strong style={{ color: '#ff4757' }}>{dayWinRate.toFixed(0)}%</strong> ({greenDays} green vs {redDays} red). More red days than green is a structural issue, not variance — look for recurring calendar patterns below.</>}
                                             </p>
                                         </div>
@@ -1438,10 +1438,10 @@ export default function AnalyticsPage() {
                                     const trapDay = dayOfWeekStats.find(d => d.trades >= 3 && (d.wins / d.trades) * 100 < 40);
                                     return (
                                         <div style={{ marginTop: 16, display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 12 }}>
-                                            <div style={{ padding: '14px 16px', background: 'rgba(166,255,77,0.04)', border: '1px solid rgba(166,255,77,0.12)', borderLeft: '3px solid #A6FF4D' }}>
-                                                <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#A6FF4D', letterSpacing: '0.1em', textTransform: 'uppercase', fontWeight: 700, marginBottom: 6 }}>WHAT THIS MEANS</div>
+                                            <div style={{ padding: '14px 16px', background: 'rgba(253,200,0,0.04)', border: '1px solid rgba(253,200,0,0.12)', borderLeft: '3px solid #FDC800' }}>
+                                                <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#FDC800', letterSpacing: '0.1em', textTransform: 'uppercase', fontWeight: 700, marginBottom: 6 }}>WHAT THIS MEANS</div>
                                                 <p style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: '#c9d1d9', lineHeight: 1.8, margin: 0 }}>
-                                                    <strong style={{ color: '#A6FF4D' }}>{best.day}</strong> is your strongest day (+${best.pnl.toFixed(0)} · {best.trades > 0 ? ((best.wins / best.trades) * 100).toFixed(0) : 0}% WR). <strong style={{ color: '#ff4757' }}>{worst.day}</strong> is your worst (${worst.pnl.toFixed(0)}). {trapDay ? <><strong style={{ color: '#ff4757' }}>{trapDay.day}</strong> is a statistical trap with &lt;40% WR over {trapDay.trades} trades.</> : 'No weekday has dropped below 40% WR over 3+ samples.'}
+                                                    <strong style={{ color: '#FDC800' }}>{best.day}</strong> is your strongest day (+${best.pnl.toFixed(0)} · {best.trades > 0 ? ((best.wins / best.trades) * 100).toFixed(0) : 0}% WR). <strong style={{ color: '#ff4757' }}>{worst.day}</strong> is your worst (${worst.pnl.toFixed(0)}). {trapDay ? <><strong style={{ color: '#ff4757' }}>{trapDay.day}</strong> is a statistical trap with &lt;40% WR over {trapDay.trades} trades.</> : 'No weekday has dropped below 40% WR over 3+ samples.'}
                                                 </p>
                                             </div>
                                             <div style={{ padding: '14px 16px', background: 'rgba(234,179,8,0.04)', border: '1px solid rgba(234,179,8,0.15)', borderLeft: '3px solid #EAB308' }}>
@@ -1465,7 +1465,7 @@ export default function AnalyticsPage() {
                                 <PnLHistogram pnlValues={dailyData.map(d => d.pnl)} buckets={16} height={140} />
                                 <div style={{ display: 'flex', gap: 24, marginTop: 12, flexWrap: 'wrap' }}>
                                     {[
-                                        { label: 'BEST SINGLE DAY', v: `+$${bestDay.toFixed(0)}`, c: '#A6FF4D' },
+                                        { label: 'BEST SINGLE DAY', v: `+$${bestDay.toFixed(0)}`, c: '#FDC800' },
                                         { label: 'WORST SINGLE DAY', v: `-$${Math.abs(worstDay).toFixed(0)}`, c: '#ff4757' },
                                         { label: 'RANGE', v: `$${(bestDay - worstDay).toFixed(0)}`, c: '#EAB308' },
                                         { label: 'STD DEV', v: `±$${dailyVolatility.toFixed(0)}`, c: '#c9d1d9' },
@@ -1485,16 +1485,16 @@ export default function AnalyticsPage() {
                                     <div style={{ fontFamily: 'var(--font-mono)', fontSize: 13, fontWeight: 600, color: '#c9d1d9', marginBottom: 16 }}>Net result aggregated by calendar month</div>
                                     <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                                         {monthlyBreakdown.map((m, i) => (
-                                            <div key={i} style={{ flex: '1 1 120px', background: '#0b0e14', border: `1px solid ${m.pnl >= 0 ? 'rgba(166,255,77,0.2)' : 'rgba(255,71,87,0.2)'}`, padding: '12px 14px' }}>
+                                            <div key={i} style={{ flex: '1 1 120px', background: '#0b0e14', border: `1px solid ${m.pnl >= 0 ? 'rgba(253,200,0,0.2)' : 'rgba(255,71,87,0.2)'}`, padding: '12px 14px' }}>
                                                 <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#6b7280', letterSpacing: '0.08em', marginBottom: 4 }}>{m.month}</div>
-                                                <div style={{ fontFamily: 'var(--font-mono)', fontSize: 16, fontWeight: 700, color: m.pnl >= 0 ? '#A6FF4D' : '#ff4757' }}>
+                                                <div style={{ fontFamily: 'var(--font-mono)', fontSize: 16, fontWeight: 700, color: m.pnl >= 0 ? '#FDC800' : '#ff4757' }}>
                                                     {m.pnl >= 0 ? '+' : ''}${Math.abs(m.pnl).toFixed(0)}
                                                 </div>
                                                 <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#6b7280', marginTop: 4 }}>
                                                     {m.trades}T · {m.wr.toFixed(0)}%WR · {m.days}d
                                                 </div>
                                                 <div style={{ marginTop: 6, height: 3, background: '#1a1c24', borderRadius: 1 }}>
-                                                    <div style={{ height: '100%', width: `${m.wr}%`, background: m.pnl >= 0 ? '#A6FF4D' : '#ff4757', borderRadius: 1, opacity: 0.7 }} />
+                                                    <div style={{ height: '100%', width: `${m.wr}%`, background: m.pnl >= 0 ? '#FDC800' : '#ff4757', borderRadius: 1, opacity: 0.7 }} />
                                                 </div>
                                             </div>
                                         ))}
@@ -1523,14 +1523,14 @@ export default function AnalyticsPage() {
                                                         onMouseLeave={e => (e.currentTarget as HTMLTableRowElement).style.background = 'transparent'}>
                                                         <td style={{ padding: '12px 16px', color: '#c9d1d9', fontWeight: 600, whiteSpace: 'nowrap' }}>{w.weekStart} → {w.weekEnd}</td>
                                                         <td style={{ padding: '12px 16px', textAlign: 'right', color: '#6b7280' }}>{w.numDays}</td>
-                                                        <td style={{ padding: '12px 16px', textAlign: 'right', fontWeight: 700, color: w.netPnl >= 0 ? '#A6FF4D' : '#ff4757' }}>
+                                                        <td style={{ padding: '12px 16px', textAlign: 'right', fontWeight: 700, color: w.netPnl >= 0 ? '#FDC800' : '#ff4757' }}>
                                                             {w.netPnl >= 0 ? '+' : ''}${Math.abs(w.netPnl).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                                                         </td>
-                                                        <td style={{ padding: '12px 16px', textAlign: 'right', color: '#A6FF4D' }}>+${w.bestDayPnl.toFixed(0)}</td>
+                                                        <td style={{ padding: '12px 16px', textAlign: 'right', color: '#FDC800' }}>+${w.bestDayPnl.toFixed(0)}</td>
                                                         <td style={{ padding: '12px 16px', textAlign: 'right', color: '#ff4757' }}>-${Math.abs(w.worstDayPnl).toFixed(0)}</td>
-                                                        <td style={{ padding: '12px 16px', textAlign: 'right', fontWeight: 700, color: w.winRate >= 55 ? '#A6FF4D' : w.winRate >= 45 ? '#EAB308' : '#ff4757' }}>{w.winRate.toFixed(1)}%</td>
+                                                        <td style={{ padding: '12px 16px', textAlign: 'right', fontWeight: 700, color: w.winRate >= 55 ? '#FDC800' : w.winRate >= 45 ? '#EAB308' : '#ff4757' }}>{w.winRate.toFixed(1)}%</td>
                                                         <td style={{ padding: '12px 16px', textAlign: 'right' }}>
-                                                            {w.flag && <span style={{ fontSize: 9, fontWeight: 700, padding: '2px 7px', border: `1px solid ${w.flagSev === 'critical' ? 'rgba(255,71,87,0.4)' : w.flagSev === 'warning' ? 'rgba(234,179,8,0.4)' : 'rgba(166,255,77,0.3)'}`, color: w.flagSev === 'critical' ? '#ff4757' : w.flagSev === 'warning' ? '#EAB308' : '#A6FF4D', background: w.flagSev === 'critical' ? 'rgba(255,71,87,0.08)' : w.flagSev === 'warning' ? 'rgba(234,179,8,0.06)' : 'rgba(166,255,77,0.06)', whiteSpace: 'nowrap' }}>{w.flag}</span>}
+                                                            {w.flag && <span style={{ fontSize: 9, fontWeight: 700, padding: '2px 7px', border: `1px solid ${w.flagSev === 'critical' ? 'rgba(255,71,87,0.4)' : w.flagSev === 'warning' ? 'rgba(234,179,8,0.4)' : 'rgba(253,200,0,0.3)'}`, color: w.flagSev === 'critical' ? '#ff4757' : w.flagSev === 'warning' ? '#EAB308' : '#FDC800', background: w.flagSev === 'critical' ? 'rgba(255,71,87,0.08)' : w.flagSev === 'warning' ? 'rgba(234,179,8,0.06)' : 'rgba(253,200,0,0.06)', whiteSpace: 'nowrap' }}>{w.flag}</span>}
                                                         </td>
                                                     </tr>
                                                 ))}
@@ -1546,7 +1546,7 @@ export default function AnalyticsPage() {
                                 <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
                                     {[
                                         { rule: 'RULE 01 — DAILY LOSS LIMIT', detail: `Your worst day was -$${Math.abs(worstDay).toFixed(0)}. Set a hard daily stop at $${Math.round(Math.abs(worstDay) * 0.5)} — 50% of your worst day. Walk away when hit. A single blowout day erases multiple good days.`, icon: '⛔', color: '#ff4757' },
-                                        { rule: 'RULE 02 — TARGET & WALK RULE', detail: `Best day was +$${bestDay.toFixed(0)}. Once you hit ${(bestDay * 0.6).toFixed(0)} in a day, cut position size by half. Don't give back your edge trying to maximize a good day.`, icon: '→', color: '#A6FF4D' },
+                                        { rule: 'RULE 02 — TARGET & WALK RULE', detail: `Best day was +$${bestDay.toFixed(0)}. Once you hit ${(bestDay * 0.6).toFixed(0)} in a day, cut position size by half. Don't give back your edge trying to maximize a good day.`, icon: '→', color: '#FDC800' },
                                         {
                                             rule: `RULE 03 — ${dayOfWeekStats.sort((a, b) => a.pnl - b.pnl)[0]?.day ?? 'WORST DAY'} CAUTION`,
                                             detail: `${dayOfWeekStats.sort((a, b) => a.pnl - b.pnl)[0]?.day ?? 'Your worst weekday'} is your statistically worst day. Trade reduced size or skip this day entirely until win rate exceeds 50% over 20+ samples.`,
@@ -1586,7 +1586,7 @@ export default function AnalyticsPage() {
                             <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'repeat(2, 1fr)' : 'repeat(4, 1fr)', borderTop: '1px solid #1a1c24', borderLeft: '1px solid #1a1c24' }}>
                                 {[
                                     { label: 'INSTRUMENTS TRADED', value: `${instrumentDeep.length}`, sub: `${instrumentDeep.filter(i => i.pnl >= 0).length} profitable`, color: '#c9d1d9' },
-                                    { label: 'BEST INSTRUMENT', value: instrumentDeep[0]?.asset ?? '—', sub: instrumentDeep[0] ? `+$${instrumentDeep[0].pnl.toFixed(0)} net` : '—', color: '#A6FF4D' },
+                                    { label: 'BEST INSTRUMENT', value: instrumentDeep[0]?.asset ?? '—', sub: instrumentDeep[0] ? `+$${instrumentDeep[0].pnl.toFixed(0)} net` : '—', color: '#FDC800' },
                                     { label: 'WORST INSTRUMENT', value: instrumentDeep[instrumentDeep.length - 1]?.asset ?? '—', sub: instrumentDeep[instrumentDeep.length - 1]?.pnl < 0 ? `-$${Math.abs(instrumentDeep[instrumentDeep.length - 1].pnl).toFixed(0)} net` : '—', color: '#ff4757' },
                                     { label: 'MOST TRADED', value: [...instrumentDeep].sort((a, b) => b.tradeList.length - a.tradeList.length)[0]?.asset ?? '—', sub: `${[...instrumentDeep].sort((a, b) => b.tradeList.length - a.tradeList.length)[0]?.tradeList.length ?? 0} trades`, color: '#c9d1d9' },
                                 ].map((k, i) => (
@@ -1625,7 +1625,7 @@ export default function AnalyticsPage() {
                                                 />
                                                 <Bar dataKey="pnl" radius={[0, 2, 2, 0]}>
                                                     {instrumentDeep.slice(0, 8).map((inst, i) => (
-                                                        <Cell key={i} fill={inst.pnl >= 0 ? 'rgba(166,255,77,0.85)' : 'rgba(255,71,87,0.85)'} />
+                                                        <Cell key={i} fill={inst.pnl >= 0 ? 'rgba(253,200,0,0.85)' : 'rgba(255,71,87,0.85)'} />
                                                     ))}
                                                 </Bar>
                                             </BarChart>
@@ -1649,7 +1649,7 @@ export default function AnalyticsPage() {
                                         <tbody>
                                             {instrumentDeep.map((inst, i) => {
                                                 const verdict = inst.pnl > 0 && inst.winRate >= 55 && inst.profitFactor >= 1.5 ? 'EDGE' : inst.pnl > 0 && inst.winRate >= 45 ? 'PLAYABLE' : inst.pnl > 0 ? 'MARGINAL' : inst.winRate >= 50 ? 'MIXED' : 'CUT';
-                                                const vColor = verdict === 'EDGE' ? '#A6FF4D' : verdict === 'PLAYABLE' ? 'rgba(166,255,77,0.6)' : verdict === 'MARGINAL' ? '#EAB308' : verdict === 'MIXED' ? '#fb923c' : '#ff4757';
+                                                const vColor = verdict === 'EDGE' ? '#FDC800' : verdict === 'PLAYABLE' ? 'rgba(253,200,0,0.6)' : verdict === 'MARGINAL' ? '#EAB308' : verdict === 'MIXED' ? '#fb923c' : '#ff4757';
                                                 return (
                                                     <tr key={inst.asset} style={{ borderBottom: '1px solid #1a1c24', cursor: 'pointer' }}
                                                         onClick={() => toggleInstrument(inst.asset)}
@@ -1660,16 +1660,16 @@ export default function AnalyticsPage() {
                                                             <span style={{ marginLeft: 6, fontFamily: 'var(--font-mono)', fontSize: 9, color: '#6b7280' }}>{expandedInstruments.has(inst.asset) ? '▲' : '▼'}</span>
                                                         </td>
                                                         <td style={{ padding: '12px 12px', textAlign: 'right', color: '#6b7280' }}>{inst.tradeList.length}</td>
-                                                        <td style={{ padding: '12px 12px', textAlign: 'right', fontWeight: 700, color: inst.winRate >= 55 ? '#A6FF4D' : inst.winRate >= 45 ? '#EAB308' : '#ff4757' }}>{inst.winRate.toFixed(0)}%</td>
-                                                        <td style={{ padding: '12px 12px', textAlign: 'right', fontWeight: 700, color: inst.pnl >= 0 ? '#A6FF4D' : '#ff4757' }}>
+                                                        <td style={{ padding: '12px 12px', textAlign: 'right', fontWeight: 700, color: inst.winRate >= 55 ? '#FDC800' : inst.winRate >= 45 ? '#EAB308' : '#ff4757' }}>{inst.winRate.toFixed(0)}%</td>
+                                                        <td style={{ padding: '12px 12px', textAlign: 'right', fontWeight: 700, color: inst.pnl >= 0 ? '#FDC800' : '#ff4757' }}>
                                                             {inst.pnl >= 0 ? '+' : '-'}${Math.abs(inst.pnl).toFixed(2)}
                                                         </td>
-                                                        <td style={{ padding: '12px 12px', textAlign: 'right', color: inst.profitFactor >= 1.5 ? '#A6FF4D' : inst.profitFactor >= 1 ? '#EAB308' : '#ff4757' }}>
+                                                        <td style={{ padding: '12px 12px', textAlign: 'right', color: inst.profitFactor >= 1.5 ? '#FDC800' : inst.profitFactor >= 1 ? '#EAB308' : '#ff4757' }}>
                                                             {inst.profitFactor === 99 ? '∞' : inst.profitFactor.toFixed(2)}
                                                         </td>
-                                                        <td style={{ padding: '12px 12px', textAlign: 'right', color: '#A6FF4D' }}>+${inst.avgWin.toFixed(0)}</td>
+                                                        <td style={{ padding: '12px 12px', textAlign: 'right', color: '#FDC800' }}>+${inst.avgWin.toFixed(0)}</td>
                                                         <td style={{ padding: '12px 12px', textAlign: 'right', color: '#ff4757' }}>-${inst.avgLoss.toFixed(0)}</td>
-                                                        <td style={{ padding: '12px 12px', textAlign: 'right', color: inst.expectancy >= 0 ? '#A6FF4D' : '#ff4757' }}>
+                                                        <td style={{ padding: '12px 12px', textAlign: 'right', color: inst.expectancy >= 0 ? '#FDC800' : '#ff4757' }}>
                                                             {inst.expectancy >= 0 ? '+' : ''}${inst.expectancy.toFixed(2)}
                                                         </td>
                                                         <td style={{ padding: '12px 12px', textAlign: 'right', color: '#6b7280', fontSize: 10 }}>
@@ -1688,7 +1688,7 @@ export default function AnalyticsPage() {
 
                             {/* ── EXPANDED INSTRUMENT DRILL-DOWN ── */}
                             {instrumentDeep.filter(inst => expandedInstruments.has(inst.asset)).map((inst, idx) => (
-                                <div key={inst.asset} style={{ background: '#0d1117', border: '1px solid rgba(166,255,77,0.15)', overflow: 'hidden' }}>
+                                <div key={inst.asset} style={{ background: '#0d1117', border: '1px solid rgba(253,200,0,0.15)', overflow: 'hidden' }}>
                                     <div style={{ padding: '16px 24px', background: '#0b0e14', borderBottom: '1px solid #1a1c24', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
                                         <div style={{ fontFamily: 'var(--font-mono)', fontSize: 16, fontWeight: 700, color: '#fff' }}>{inst.asset} — Deep Dive</div>
                                         <button onClick={() => toggleInstrument(inst.asset)} style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: '#6b7280', background: 'none', border: '1px solid #1a1c24', padding: '4px 10px', cursor: 'pointer' }}>COLLAPSE ▲</button>
@@ -1697,12 +1697,12 @@ export default function AnalyticsPage() {
                                         {/* 6-metric mini grid */}
                                         <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'repeat(3, 1fr)' : 'repeat(6, 1fr)', gap: 1, background: '#1a1c24' }}>
                                             {[
-                                                { label: 'BEST TRADE', value: `+$${inst.maxWin.toFixed(0)}`, color: '#A6FF4D' },
+                                                { label: 'BEST TRADE', value: `+$${inst.maxWin.toFixed(0)}`, color: '#FDC800' },
                                                 { label: 'WORST TRADE', value: `-$${inst.maxLoss.toFixed(0)}`, color: '#ff4757' },
                                                 { label: 'AVG DURATION', value: fmtDuration(inst.avgDuration), color: '#c9d1d9' },
                                                 { label: 'LONG TRADES', value: `${inst.longTrades}`, color: '#fb923c' },
                                                 { label: 'SHORT TRADES', value: `${inst.shortTrades}`, color: '#38bdf8' },
-                                                { label: 'W/L RATIO', value: inst.wlRatio > 0 ? `${inst.wlRatio.toFixed(2)}:1` : '—', color: inst.wlRatio >= 1.5 ? '#A6FF4D' : inst.wlRatio >= 1 ? '#EAB308' : '#ff4757' },
+                                                { label: 'W/L RATIO', value: inst.wlRatio > 0 ? `${inst.wlRatio.toFixed(2)}:1` : '—', color: inst.wlRatio >= 1.5 ? '#FDC800' : inst.wlRatio >= 1 ? '#EAB308' : '#ff4757' },
                                             ].map((k, i) => (
                                                 <div key={i} style={{ padding: '12px 14px', background: '#0d1117', display: 'flex', flexDirection: 'column', gap: 4 }}>
                                                     <span style={{ fontFamily: 'var(--font-mono)', fontSize: 8, color: '#6b7280', letterSpacing: '0.1em', textTransform: 'uppercase' }}>{k.label}</span>
@@ -1719,12 +1719,12 @@ export default function AnalyticsPage() {
                                                     <AreaChart data={inst.equityCurve} margin={{ top: 4, right: 4, bottom: 0, left: 0 }}>
                                                         <defs>
                                                             <linearGradient id={`ig${idx}`} x1="0" y1="0" x2="0" y2="1">
-                                                                <stop offset="5%" stopColor={inst.pnl >= 0 ? '#A6FF4D' : '#ff4757'} stopOpacity={0.2} />
-                                                                <stop offset="95%" stopColor={inst.pnl >= 0 ? '#A6FF4D' : '#ff4757'} stopOpacity={0} />
+                                                                <stop offset="5%" stopColor={inst.pnl >= 0 ? '#FDC800' : '#ff4757'} stopOpacity={0.2} />
+                                                                <stop offset="95%" stopColor={inst.pnl >= 0 ? '#FDC800' : '#ff4757'} stopOpacity={0} />
                                                             </linearGradient>
                                                         </defs>
                                                         <ReferenceLine y={0} stroke="rgba(255,255,255,0.08)" />
-                                                        <Area type="monotone" dataKey="pnl" stroke={inst.pnl >= 0 ? '#A6FF4D' : '#ff4757'} strokeWidth={1.5} fill={`url(#ig${idx})`} dot={false} />
+                                                        <Area type="monotone" dataKey="pnl" stroke={inst.pnl >= 0 ? '#FDC800' : '#ff4757'} strokeWidth={1.5} fill={`url(#ig${idx})`} dot={false} />
                                                         <Tooltip contentStyle={{ backgroundColor: '#0b0e14', border: '1px solid #1a1c24', fontFamily: 'var(--font-mono)', fontSize: 10, borderRadius: 0 }} formatter={(v: number | undefined) => v !== undefined ? [`${v >= 0 ? '+' : ''}$${Math.abs(v).toFixed(2)}`, 'Running P&L'] : ['—', 'Running P&L']} labelFormatter={(l: unknown) => `Trade ${l}`} />
                                                     </AreaChart>
                                                 </ResponsiveContainer>
@@ -1738,8 +1738,8 @@ export default function AnalyticsPage() {
                                         </div>
 
                                         {/* Coaching */}
-                                        <div style={{ background: 'rgba(166,255,77,0.03)', border: '1px solid rgba(166,255,77,0.12)', padding: '14px 16px' }}>
-                                            <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#A6FF4D', letterSpacing: '0.1em', textTransform: 'uppercase', fontWeight: 700, marginBottom: 6 }}>COACHING ACTION — {inst.asset}</div>
+                                        <div style={{ background: 'rgba(253,200,0,0.03)', border: '1px solid rgba(253,200,0,0.12)', padding: '14px 16px' }}>
+                                            <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#FDC800', letterSpacing: '0.1em', textTransform: 'uppercase', fontWeight: 700, marginBottom: 6 }}>COACHING ACTION — {inst.asset}</div>
                                             <div style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: '#8b949e', lineHeight: 1.8 }}>
                                                 {inst.pnl > 0 && inst.winRate >= 55 && inst.profitFactor >= 1.5
                                                     ? `→ ${inst.asset} is your strongest instrument across all metrics (${inst.winRate.toFixed(0)}% WR, ${inst.profitFactor.toFixed(2)} PF). Allocate your highest conviction sizing here. Consider adding to your session plan specifically when ${inst.asset} is in structure.`
@@ -1763,7 +1763,7 @@ export default function AnalyticsPage() {
                                         {
                                             rule: `RULE 01 — FOCUS ON YOUR EDGE`,
                                             detail: `${instrumentDeep[0]?.asset ?? 'Your best instrument'} is your highest-edge instrument. Minimum 60% of session allocation should go here until you demonstrate consistent edge in other instruments.`,
-                                            icon: '→', color: '#A6FF4D',
+                                            icon: '→', color: '#FDC800',
                                         },
                                         {
                                             rule: `RULE 02 — CUT DEAD INSTRUMENTS`,
@@ -1812,13 +1812,13 @@ export default function AnalyticsPage() {
                             <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'repeat(2, 1fr)' : 'repeat(4, 1fr)', borderTop: '1px solid #1a1c24', borderLeft: '1px solid #1a1c24' }}>
                                 {[
                                     { label: 'TOTAL SESSIONS', value: `${sessionMetrics.length}`, sub: `${greenSessions} green · ${redSessions} red`, color: '#c9d1d9' },
-                                    { label: 'SESSION WIN RATE', value: sessionMetrics.length > 0 ? `${((greenSessions / sessionMetrics.length) * 100).toFixed(0)}%` : '—', sub: `${greenSessions} profitable sessions`, color: greenSessions >= redSessions ? '#A6FF4D' : '#ff4757' },
-                                    { label: 'AVG SESSION P&L', value: avgSessionPnl !== 0 ? `${avgSessionPnl >= 0 ? '+' : ''}$${avgSessionPnl.toFixed(0)}` : '—', sub: 'Per session average', color: avgSessionPnl >= 0 ? '#A6FF4D' : '#ff4757' },
+                                    { label: 'SESSION WIN RATE', value: sessionMetrics.length > 0 ? `${((greenSessions / sessionMetrics.length) * 100).toFixed(0)}%` : '—', sub: `${greenSessions} profitable sessions`, color: greenSessions >= redSessions ? '#FDC800' : '#ff4757' },
+                                    { label: 'AVG SESSION P&L', value: avgSessionPnl !== 0 ? `${avgSessionPnl >= 0 ? '+' : ''}$${avgSessionPnl.toFixed(0)}` : '—', sub: 'Per session average', color: avgSessionPnl >= 0 ? '#FDC800' : '#ff4757' },
                                     { label: 'AVG TRADES / SESSION', value: avgSessionTrades > 0 ? avgSessionTrades.toFixed(1) : '—', sub: avgSessionTrades > 15 ? 'Overtrading risk' : 'Within normal range', color: avgSessionTrades > 15 ? '#ff4757' : '#c9d1d9' },
-                                    { label: 'BEST SESSION', value: bestSession ? `+$${bestSession.pnl.toFixed(0)}` : '—', sub: bestSession ? bestSession.fmtDate(bestSession.startTime) : '—', color: '#A6FF4D' },
+                                    { label: 'BEST SESSION', value: bestSession ? `+$${bestSession.pnl.toFixed(0)}` : '—', sub: bestSession ? bestSession.fmtDate(bestSession.startTime) : '—', color: '#FDC800' },
                                     { label: 'WORST SESSION', value: worstSession && worstSession.pnl < 0 ? `-$${Math.abs(worstSession.pnl).toFixed(0)}` : '—', sub: worstSession ? worstSession.fmtDate(worstSession.startTime) : '—', color: '#ff4757' },
-                                    { label: 'CRITICAL SESSIONS', value: `${sessionMetrics.filter((s: any) => s.tag === 'CRITICAL').length}`, sub: 'Loss > $1,000 threshold', color: sessionMetrics.filter((s: any) => s.tag === 'CRITICAL').length > 0 ? '#ff4757' : '#A6FF4D' },
-                                    { label: 'REVENGE SESSIONS', value: `${sessionMetrics.filter((s: any) => s.tag === 'REVENGE').length}`, sub: 'Rapid re-entry after loss', color: sessionMetrics.filter((s: any) => s.tag === 'REVENGE').length > 0 ? '#EAB308' : '#A6FF4D' },
+                                    { label: 'CRITICAL SESSIONS', value: `${sessionMetrics.filter((s: any) => s.tag === 'CRITICAL').length}`, sub: 'Loss > $1,000 threshold', color: sessionMetrics.filter((s: any) => s.tag === 'CRITICAL').length > 0 ? '#ff4757' : '#FDC800' },
+                                    { label: 'REVENGE SESSIONS', value: `${sessionMetrics.filter((s: any) => s.tag === 'REVENGE').length}`, sub: 'Rapid re-entry after loss', color: sessionMetrics.filter((s: any) => s.tag === 'REVENGE').length > 0 ? '#EAB308' : '#FDC800' },
                                 ].map((k, i) => (
                                     <div key={i} style={{ padding: '20px 24px', borderBottom: '1px solid #1a1c24', borderRight: '1px solid #1a1c24', background: '#0d1117', display: 'flex', flexDirection: 'column', gap: 6 }}>
                                         <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#6b7280', letterSpacing: '0.1em', textTransform: 'uppercase' }}>{k.label}</span>
@@ -1848,7 +1848,7 @@ export default function AnalyticsPage() {
                                                 />
                                                 <Bar dataKey="pnl" radius={[2, 2, 0, 0]}>
                                                     {sessionMetrics.map((s: any, i: number) => (
-                                                        <Cell key={i} fill={s.pnl >= 0 ? (s.tag === 'CLEAN' ? '#A6FF4D' : 'rgba(166,255,77,0.6)') : (s.tag === 'CRITICAL' ? '#ff4757' : 'rgba(255,71,87,0.7)')} />
+                                                        <Cell key={i} fill={s.pnl >= 0 ? (s.tag === 'CLEAN' ? '#FDC800' : 'rgba(253,200,0,0.6)') : (s.tag === 'CRITICAL' ? '#ff4757' : 'rgba(255,71,87,0.7)')} />
                                                     ))}
                                                 </Bar>
                                             </BarChart>
@@ -1861,8 +1861,8 @@ export default function AnalyticsPage() {
                                         const cleanSessions = sessionMetrics.filter((s: any) => s.pnl > 0);
                                         return (
                                             <div style={{ marginTop: 16, display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 12 }}>
-                                                <div style={{ padding: '14px 16px', background: 'rgba(166,255,77,0.04)', border: '1px solid rgba(166,255,77,0.12)', borderLeft: '3px solid #A6FF4D' }}>
-                                                    <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#A6FF4D', letterSpacing: '0.1em', textTransform: 'uppercase', fontWeight: 700, marginBottom: 6 }}>WHAT THIS MEANS</div>
+                                                <div style={{ padding: '14px 16px', background: 'rgba(253,200,0,0.04)', border: '1px solid rgba(253,200,0,0.12)', borderLeft: '3px solid #FDC800' }}>
+                                                    <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#FDC800', letterSpacing: '0.1em', textTransform: 'uppercase', fontWeight: 700, marginBottom: 6 }}>WHAT THIS MEANS</div>
                                                     <p style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: '#c9d1d9', lineHeight: 1.8, margin: 0 }}>
                                                         {cleanSessions.length} of {sessionMetrics.length} sessions were profitable ({((cleanSessions.length / sessionMetrics.length) * 100).toFixed(0)}% session win rate).
                                                         {critSessions.length > 0 && <> <strong style={{ color: '#ff4757' }}>{critSessions.length} CRITICAL</strong> session{critSessions.length !== 1 ? 's' : ''} exceeded blowout threshold.</>}
@@ -1890,7 +1890,7 @@ export default function AnalyticsPage() {
                                 </div>
                             )}
                             {sessionMetrics.map((s: any, idx: number) => {
-                                const tagColor = s.tag === 'CLEAN' ? '#A6FF4D' : s.tag === 'CRITICAL' ? '#ff4757' : s.tag === 'REVENGE' ? '#EAB308' : s.tag === 'OVERTRADING' ? '#F97316' : '#38bdf8';
+                                const tagColor = s.tag === 'CLEAN' ? '#FDC800' : s.tag === 'CRITICAL' ? '#ff4757' : s.tag === 'REVENGE' ? '#EAB308' : s.tag === 'OVERTRADING' ? '#F97316' : '#38bdf8';
                                 const isExpanded = expandedSessions.has(s.id);
                                 const seq = s.trades.map((t: any) => (t.pnl ?? 0) >= 0 ? 'W' : 'L');
                                 const sessionWr = s.trades.length > 0 ? (s.trades.filter((t: any) => (t.pnl ?? 0) > 0).length / s.trades.length) * 100 : 0;
@@ -1916,12 +1916,12 @@ export default function AnalyticsPage() {
                                                 {/* Mini sequence dots */}
                                                 <div style={{ display: 'flex', gap: 3, alignItems: 'center' }}>
                                                     {seq.slice(0, 20).map((r: string, i: number) => (
-                                                        <div key={i} style={{ width: 8, height: 8, borderRadius: '50%', background: r === 'W' ? '#A6FF4D' : '#ff4757', opacity: 0.85 }} />
+                                                        <div key={i} style={{ width: 8, height: 8, borderRadius: '50%', background: r === 'W' ? '#FDC800' : '#ff4757', opacity: 0.85 }} />
                                                     ))}
                                                     {seq.length > 20 && <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#6b7280' }}>+{seq.length - 20}</span>}
                                                 </div>
                                                 <div style={{ textAlign: 'right' }}>
-                                                    <div style={{ fontFamily: 'var(--font-mono)', fontSize: 20, fontWeight: 700, color: s.pnl >= 0 ? '#A6FF4D' : '#ff4757' }}>
+                                                    <div style={{ fontFamily: 'var(--font-mono)', fontSize: 20, fontWeight: 700, color: s.pnl >= 0 ? '#FDC800' : '#ff4757' }}>
                                                         {s.pnl >= 0 ? '+' : '-'}${Math.abs(s.pnl).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                                                     </div>
                                                     <div style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: '#6b7280', marginTop: 2 }}>{s.trades.length} trades · {sessionWr.toFixed(0)}% WR</div>
@@ -1943,11 +1943,11 @@ export default function AnalyticsPage() {
                                                         <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'repeat(3, 1fr)' : 'repeat(6, 1fr)', gap: 1, background: '#1a1c24' }}>
                                                             {[
                                                                 { label: 'TRADES', value: s.trades.length, color: '#c9d1d9' },
-                                                                { label: 'WIN RATE', value: `${sessionWr.toFixed(0)}%`, color: sessionWr >= 55 ? '#A6FF4D' : sessionWr >= 45 ? '#EAB308' : '#ff4757' },
-                                                                { label: 'PROFIT FACTOR', value: s.pf === 99 ? '∞' : s.pf.toFixed(2), color: s.pf >= 1.5 ? '#A6FF4D' : s.pf >= 1 ? '#EAB308' : '#ff4757' },
-                                                                { label: 'AVG WIN', value: s.sAvgWin > 0 ? `+$${s.sAvgWin.toFixed(0)}` : '—', color: '#A6FF4D' },
+                                                                { label: 'WIN RATE', value: `${sessionWr.toFixed(0)}%`, color: sessionWr >= 55 ? '#FDC800' : sessionWr >= 45 ? '#EAB308' : '#ff4757' },
+                                                                { label: 'PROFIT FACTOR', value: s.pf === 99 ? '∞' : s.pf.toFixed(2), color: s.pf >= 1.5 ? '#FDC800' : s.pf >= 1 ? '#EAB308' : '#ff4757' },
+                                                                { label: 'AVG WIN', value: s.sAvgWin > 0 ? `+$${s.sAvgWin.toFixed(0)}` : '—', color: '#FDC800' },
                                                                 { label: 'AVG LOSS', value: s.sAvgLoss > 0 ? `-$${s.sAvgLoss.toFixed(0)}` : '—', color: '#ff4757' },
-                                                                { label: 'MAX CONSEC LOSS', value: s.maxConsecLoss > 0 ? `${s.maxConsecLoss}` : '0', color: s.maxConsecLoss >= 3 ? '#ff4757' : s.maxConsecLoss >= 2 ? '#EAB308' : '#A6FF4D' },
+                                                                { label: 'MAX CONSEC LOSS', value: s.maxConsecLoss > 0 ? `${s.maxConsecLoss}` : '0', color: s.maxConsecLoss >= 3 ? '#ff4757' : s.maxConsecLoss >= 2 ? '#EAB308' : '#FDC800' },
                                                             ].map((k, i) => (
                                                                 <div key={i} style={{ padding: '12px 16px', background: '#0d1117', display: 'flex', flexDirection: 'column', gap: 4 }}>
                                                                     <span style={{ fontFamily: 'var(--font-mono)', fontSize: 8, color: '#6b7280', letterSpacing: '0.1em', textTransform: 'uppercase' }}>{k.label}</span>
@@ -1965,12 +1965,12 @@ export default function AnalyticsPage() {
                                                                         <AreaChart data={s.cumPnl} margin={{ top: 4, right: 4, bottom: 0, left: 0 }}>
                                                                             <defs>
                                                                                 <linearGradient id={`sg${idx}`} x1="0" y1="0" x2="0" y2="1">
-                                                                                    <stop offset="5%" stopColor={s.pnl >= 0 ? '#A6FF4D' : '#ff4757'} stopOpacity={0.2} />
-                                                                                    <stop offset="95%" stopColor={s.pnl >= 0 ? '#A6FF4D' : '#ff4757'} stopOpacity={0} />
+                                                                                    <stop offset="5%" stopColor={s.pnl >= 0 ? '#FDC800' : '#ff4757'} stopOpacity={0.2} />
+                                                                                    <stop offset="95%" stopColor={s.pnl >= 0 ? '#FDC800' : '#ff4757'} stopOpacity={0} />
                                                                                 </linearGradient>
                                                                             </defs>
                                                                             <ReferenceLine y={0} stroke="rgba(255,255,255,0.08)" />
-                                                                            <Area type="monotone" dataKey="pnl" stroke={s.pnl >= 0 ? '#A6FF4D' : '#ff4757'} strokeWidth={1.5} fill={`url(#sg${idx})`} dot={false} />
+                                                                            <Area type="monotone" dataKey="pnl" stroke={s.pnl >= 0 ? '#FDC800' : '#ff4757'} strokeWidth={1.5} fill={`url(#sg${idx})`} dot={false} />
                                                                             <Tooltip
                                                                                 contentStyle={{ backgroundColor: '#13151a', border: '1px solid #2d3748', fontFamily: 'var(--font-mono)', fontSize: 10, borderRadius: 0, color: '#c9d1d9' }}
                                                                                 formatter={(v: number | undefined) => v !== undefined ? [`${v >= 0 ? '+' : ''}$${Math.abs(v).toFixed(2)}`, 'Running P&L'] : ['—', 'Running P&L']}
@@ -1982,9 +1982,9 @@ export default function AnalyticsPage() {
                                                             </div>
                                                             <div style={{ display: 'flex', flexDirection: 'column', gap: 8, minWidth: 160 }}>
                                                                 {s.bestTrade && (
-                                                                    <div style={{ padding: '10px 14px', background: 'rgba(166,255,77,0.04)', border: '1px solid rgba(166,255,77,0.15)' }}>
-                                                                        <div style={{ fontFamily: 'var(--font-mono)', fontSize: 8, color: '#A6FF4D', letterSpacing: '0.1em', marginBottom: 3 }}>BEST TRADE</div>
-                                                                        <div style={{ fontFamily: 'var(--font-mono)', fontSize: 16, fontWeight: 700, color: '#A6FF4D' }}>+${(s.bestTrade.pnl ?? 0).toFixed(2)}</div>
+                                                                    <div style={{ padding: '10px 14px', background: 'rgba(253,200,0,0.04)', border: '1px solid rgba(253,200,0,0.15)' }}>
+                                                                        <div style={{ fontFamily: 'var(--font-mono)', fontSize: 8, color: '#FDC800', letterSpacing: '0.1em', marginBottom: 3 }}>BEST TRADE</div>
+                                                                        <div style={{ fontFamily: 'var(--font-mono)', fontSize: 16, fontWeight: 700, color: '#FDC800' }}>+${(s.bestTrade.pnl ?? 0).toFixed(2)}</div>
                                                                         <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#6b7280', marginTop: 2 }}>{s.bestTrade.asset} · {s.fmtEstTime(s.bestTrade.closedAt ?? s.bestTrade.createdAt)}</div>
                                                                     </div>
                                                                 )}
@@ -2001,7 +2001,7 @@ export default function AnalyticsPage() {
                                                         {/* Win/Loss P&L bars */}
                                                         <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 12 }}>
                                                             {[
-                                                                { label: 'GROSS PROFIT', val: s.gross, total: s.gross + s.lossAbs, color: '#A6FF4D' },
+                                                                { label: 'GROSS PROFIT', val: s.gross, total: s.gross + s.lossAbs, color: '#FDC800' },
                                                                 { label: 'GROSS LOSS', val: s.lossAbs, total: s.gross + s.lossAbs, color: '#ff4757' },
                                                             ].map((bar, i) => (
                                                                 <div key={i}>
@@ -2033,8 +2033,8 @@ export default function AnalyticsPage() {
                                                         </div>
 
                                                         {/* Coaching action */}
-                                                        <div style={{ background: 'rgba(166,255,77,0.03)', border: '1px solid rgba(166,255,77,0.12)', padding: '14px 16px' }}>
-                                                            <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#A6FF4D', letterSpacing: '0.1em', textTransform: 'uppercase', fontWeight: 700, marginBottom: 6 }}>COACHING ACTION</div>
+                                                        <div style={{ background: 'rgba(253,200,0,0.03)', border: '1px solid rgba(253,200,0,0.12)', padding: '14px 16px' }}>
+                                                            <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#FDC800', letterSpacing: '0.1em', textTransform: 'uppercase', fontWeight: 700, marginBottom: 6 }}>COACHING ACTION</div>
                                                             <div style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: '#8b949e', lineHeight: 1.8 }}>
                                                                 {s.tag === 'REVENGE' && `→ After any losing trade, mandatory 5-min break before next entry. Journal the feeling before the next trade. Re-entry within 2min of a loss is statistically proven to be a losing behavior in your data.`}
                                                                 {s.tag === 'CRITICAL' && `→ Implement a session hard-stop at -$${Math.round(Math.abs(s.pnl) * 0.5)} (50% of this session's damage). Walk away. The data shows continued trading after a critical threshold deepens the loss every time.`}
@@ -2064,7 +2064,7 @@ export default function AnalyticsPage() {
                                                                             const timeSincePrev = prevTrade ? (new Date(t.closedAt ?? t.createdAt).getTime() - new Date(prevTrade.closedAt ?? prevTrade.createdAt).getTime()) / 1000 : null;
                                                                             const isRevenge = prevTrade && (prevTrade.pnl ?? 0) < 0 && timeSincePrev !== null && timeSincePrev < 300;
                                                                             const flag = isRevenge ? 'REVENGE' : (t.pnl ?? 0) >= 0 ? '' : (t.durationSeconds ?? 0) > 1800 ? 'HELD LONG' : '';
-                                                                            const flagColor = flag === 'REVENGE' ? '#ff4757' : flag === 'HELD LONG' ? '#EAB308' : '#A6FF4D';
+                                                                            const flagColor = flag === 'REVENGE' ? '#ff4757' : flag === 'HELD LONG' ? '#EAB308' : '#FDC800';
                                                                             return (
                                                                                 <tr key={t.id} style={{ borderBottom: '1px solid rgba(26,28,36,0.6)' }}
                                                                                     onMouseEnter={e => (e.currentTarget as HTMLTableRowElement).style.background = '#0f1420'}
@@ -2073,13 +2073,13 @@ export default function AnalyticsPage() {
                                                                                     <td style={{ padding: '10px 12px', color: '#6b7280' }}>{s.fmtEstTime(t.closedAt ?? t.createdAt)}</td>
                                                                                     <td style={{ padding: '10px 12px', textAlign: 'right', color: '#c9d1d9', fontWeight: 600 }}>{t.asset}</td>
                                                                                     <td style={{ padding: '10px 12px', textAlign: 'right', color: t.isShort ? '#38bdf8' : '#fb923c', fontSize: 9, fontWeight: 700 }}>{t.isShort ? 'SHORT' : 'LONG'}</td>
-                                                                                    <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: 700, color: (t.pnl ?? 0) >= 0 ? '#A6FF4D' : '#ff4757' }}>
+                                                                                    <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: 700, color: (t.pnl ?? 0) >= 0 ? '#FDC800' : '#ff4757' }}>
                                                                                         {(t.pnl ?? 0) >= 0 ? '+' : '-'}${Math.abs(t.pnl ?? 0).toFixed(2)}
                                                                                     </td>
                                                                                     <td style={{ padding: '10px 12px', textAlign: 'right', color: '#6b7280' }}>
                                                                                         {fmtDuration(t.durationSeconds ?? 0)}
                                                                                     </td>
-                                                                                    <td style={{ padding: '10px 12px', textAlign: 'right', color: running >= 0 ? '#A6FF4D' : '#ff4757', fontWeight: 600 }}>
+                                                                                    <td style={{ padding: '10px 12px', textAlign: 'right', color: running >= 0 ? '#FDC800' : '#ff4757', fontWeight: 600 }}>
                                                                                         {running >= 0 ? '+' : ''}${running.toFixed(0)}
                                                                                     </td>
                                                                                     <td style={{ padding: '10px 12px', textAlign: 'right' }}>
@@ -2114,7 +2114,7 @@ export default function AnalyticsPage() {
                                             const stdDev = Math.sqrt(variance);
                                             const consistency = stdDev > 0 ? Math.max(0, 100 - Math.min(100, (stdDev / Math.max(Math.abs(mean), 1)) * 50)) : 100;
                                             return [
-                                                { label: 'CONSISTENCY SCORE', value: `${consistency.toFixed(0)}/100`, color: consistency >= 70 ? '#A6FF4D' : consistency >= 50 ? '#EAB308' : '#ff4757' },
+                                                { label: 'CONSISTENCY SCORE', value: `${consistency.toFixed(0)}/100`, color: consistency >= 70 ? '#FDC800' : consistency >= 50 ? '#EAB308' : '#ff4757' },
                                                 { label: 'STD DEV P&L', value: `±$${stdDev.toFixed(0)}`, color: '#c9d1d9' },
                                                 { label: 'SESSIONS WITHIN 1σ', value: `${pnls.filter((p: number) => Math.abs(p - mean) <= stdDev).length}/${pnls.length}`, color: '#c9d1d9' },
                                             ].map((k, i) => (
@@ -2132,7 +2132,7 @@ export default function AnalyticsPage() {
                                             const maxAbs = Math.max(...sessionMetrics.map((x: any) => Math.abs(x.pnl)), 1);
                                             const h = Math.max(4, (Math.abs(s.pnl) / maxAbs) * 48);
                                             return (
-                                                <div key={i} title={`Session ${i+1}: ${s.pnl >= 0 ? '+' : ''}$${s.pnl.toFixed(0)}`} style={{ width: 12, height: h, background: s.pnl >= 0 ? '#A6FF4D' : '#ff4757', opacity: 0.8, borderRadius: 1, cursor: 'default' }} />
+                                                <div key={i} title={`Session ${i+1}: ${s.pnl >= 0 ? '+' : ''}$${s.pnl.toFixed(0)}`} style={{ width: 12, height: h, background: s.pnl >= 0 ? '#FDC800' : '#ff4757', opacity: 0.8, borderRadius: 1, cursor: 'default' }} />
                                             );
                                         })}
                                     </div>
@@ -2180,7 +2180,7 @@ export default function AnalyticsPage() {
                                         {
                                             rule: 'RULE 04 — REPLICATE BEST SESSION',
                                             detail: bestSession ? `Best session: $${bestSession.pnl.toFixed(0)} on ${bestSession.fmtDate(bestSession.startTime)} — ${bestSession.trades.length} trades, started at ${bestSession.fmtEstTime(bestSession.startTime)} EST. Identify what was different that day and systemize it.` : 'Log more sessions to identify your best session pattern.',
-                                            icon: '✓', color: '#A6FF4D',
+                                            icon: '✓', color: '#FDC800',
                                             show: true,
                                         },
                                     ].filter((r: any) => r.show).map((r, i) => (
@@ -2219,7 +2219,7 @@ export default function AnalyticsPage() {
                                 </div>
                                 <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
                                     {[
-                                        { label: 'BEST HOUR', value: `${String(forensics.timeStats.bestHour).padStart(2,'0')}:00`, color: '#A6FF4D' },
+                                        { label: 'BEST HOUR', value: `${String(forensics.timeStats.bestHour).padStart(2,'0')}:00`, color: '#FDC800' },
                                         { label: 'WORST HOUR', value: `${String(forensics.timeStats.worstHour).padStart(2,'0')}:00`, color: '#ff4757' },
                                         { label: 'ACTIVE HOURS', value: `${hourlyStats.filter(s => s.trades > 0).length}/24`, color: '#c9d1d9' },
                                     ].map((k, i) => (
@@ -2244,10 +2244,10 @@ export default function AnalyticsPage() {
                                     })).sort((a, b) => b.pnl - a.pnl)[0];
                                     const profitableHours = activeH.filter(s => s.pnl > 0);
                                     return [
-                                        { label: 'BEST HOUR P&L', value: bestH ? `+$${bestH.pnl.toFixed(0)}` : '—', sub: `${String(forensics.timeStats.bestHour).padStart(2,'0')}:00 EST · ${bestH?.trades ?? 0} trades`, color: '#A6FF4D' },
+                                        { label: 'BEST HOUR P&L', value: bestH ? `+$${bestH.pnl.toFixed(0)}` : '—', sub: `${String(forensics.timeStats.bestHour).padStart(2,'0')}:00 EST · ${bestH?.trades ?? 0} trades`, color: '#FDC800' },
                                         { label: 'WORST HOUR P&L', value: worstH ? `-$${Math.abs(worstH.pnl).toFixed(0)}` : '—', sub: `${String(forensics.timeStats.worstHour).padStart(2,'0')}:00 EST · ${worstH?.trades ?? 0} trades`, color: '#ff4757' },
-                                        { label: 'PEAK SESSION WINDOW', value: topSession?.pnl > 0 ? `+$${topSession.pnl.toFixed(0)}` : '—', sub: topSession ? `${topSession.label} · ${topSession.trades} trades` : '—', color: '#A6FF4D' },
-                                        { label: 'PROFITABLE HOURS', value: activeH.length > 0 ? `${profitableHours.length}/${activeH.length}` : '—', sub: `${activeH.length > 0 ? ((profitableHours.length / activeH.length) * 100).toFixed(0) : 0}% of active hours are green`, color: profitableHours.length > activeH.length / 2 ? '#A6FF4D' : '#EAB308' },
+                                        { label: 'PEAK SESSION WINDOW', value: topSession?.pnl > 0 ? `+$${topSession.pnl.toFixed(0)}` : '—', sub: topSession ? `${topSession.label} · ${topSession.trades} trades` : '—', color: '#FDC800' },
+                                        { label: 'PROFITABLE HOURS', value: activeH.length > 0 ? `${profitableHours.length}/${activeH.length}` : '—', sub: `${activeH.length > 0 ? ((profitableHours.length / activeH.length) * 100).toFixed(0) : 0}% of active hours are green`, color: profitableHours.length > activeH.length / 2 ? '#FDC800' : '#EAB308' },
                                     ].map((k, i) => (
                                         <div key={i} style={{ padding: '20px 24px', borderBottom: '1px solid #1a1c24', borderRight: '1px solid #1a1c24', background: '#0d1117', display: 'flex', flexDirection: 'column', gap: 6 }}>
                                             <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#6b7280', letterSpacing: '0.1em', textTransform: 'uppercase' }}>{k.label}</span>
@@ -2279,8 +2279,8 @@ export default function AnalyticsPage() {
                                             </div>
                                             <div style={{ display: 'flex', gap: 14, alignItems: 'center' }}>
                                                 <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                                                    <div style={{ width: 10, height: 10, background: '#A6FF4D' }} />
-                                                    <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#A6FF4D' }}>Profitable hour</span>
+                                                    <div style={{ width: 10, height: 10, background: '#FDC800' }} />
+                                                    <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#FDC800' }}>Profitable hour</span>
                                                 </div>
                                                 <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                                                     <div style={{ width: 10, height: 10, background: '#ff4757' }} />
@@ -2314,7 +2314,7 @@ export default function AnalyticsPage() {
                                                     <Bar dataKey="pnl" radius={[2, 2, 0, 0]}>
                                                         {hourlyData.map((d, i) => {
                                                             const intensity = Math.max(0.35, Math.min(1, Math.abs(d.pnl) / maxPnl));
-                                                            return <Cell key={i} fill={d.trades === 0 ? 'rgba(26,28,36,0.4)' : d.pnl >= 0 ? `rgba(166,255,77,${intensity})` : `rgba(255,71,87,${intensity})`} />;
+                                                            return <Cell key={i} fill={d.trades === 0 ? 'rgba(26,28,36,0.4)' : d.pnl >= 0 ? `rgba(253,200,0,${intensity})` : `rgba(255,71,87,${intensity})`} />;
                                                         })}
                                                     </Bar>
                                                 </BarChart>
@@ -2323,10 +2323,10 @@ export default function AnalyticsPage() {
                                         {/* Interpretation */}
                                         {activeH.length > 0 && (
                                             <div style={{ marginTop: 16, display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 12 }}>
-                                                <div style={{ padding: '14px 16px', background: 'rgba(166,255,77,0.04)', border: '1px solid rgba(166,255,77,0.12)', borderLeft: '3px solid #A6FF4D' }}>
-                                                    <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#A6FF4D', letterSpacing: '0.1em', textTransform: 'uppercase', fontWeight: 700, marginBottom: 6 }}>WHAT THIS MEANS</div>
+                                                <div style={{ padding: '14px 16px', background: 'rgba(253,200,0,0.04)', border: '1px solid rgba(253,200,0,0.12)', borderLeft: '3px solid #FDC800' }}>
+                                                    <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#FDC800', letterSpacing: '0.1em', textTransform: 'uppercase', fontWeight: 700, marginBottom: 6 }}>WHAT THIS MEANS</div>
                                                     <p style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: '#c9d1d9', lineHeight: 1.8, margin: 0 }}>
-                                                        Your top 3 profitable hours ({top3.map(h => `${String(h.h).padStart(2,'0')}:00`).join(', ')}) account for <strong style={{ color: '#A6FF4D' }}>{top3Pct}%</strong> of all hourly profit. Meanwhile, your {trapHours.length} loss hour{trapHours.length !== 1 ? 's' : ''} collectively cost <strong style={{ color: '#ff4757' }}>${Math.abs(trapCost).toFixed(0)}</strong>. Your edge is concentrated — not spread evenly.
+                                                        Your top 3 profitable hours ({top3.map(h => `${String(h.h).padStart(2,'0')}:00`).join(', ')}) account for <strong style={{ color: '#FDC800' }}>{top3Pct}%</strong> of all hourly profit. Meanwhile, your {trapHours.length} loss hour{trapHours.length !== 1 ? 's' : ''} collectively cost <strong style={{ color: '#ff4757' }}>${Math.abs(trapCost).toFixed(0)}</strong>. Your edge is concentrated — not spread evenly.
                                                     </p>
                                                 </div>
                                                 <div style={{ padding: '14px 16px', background: 'rgba(234,179,8,0.04)', border: '1px solid rgba(234,179,8,0.15)', borderLeft: '3px solid #EAB308' }}>
@@ -2353,7 +2353,7 @@ export default function AnalyticsPage() {
                                             <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#6b7280', letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 2 }}>CHART 2 OF 4 — WIN RATE BY HOUR</div>
                                             <div style={{ fontFamily: 'var(--font-mono)', fontSize: 14, fontWeight: 700, color: '#c9d1d9' }}>Probability of winning per clock hour (active hours only)</div>
                                             <div style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: '#8b949e', marginTop: 4 }}>
-                                                <span style={{ color: '#A6FF4D', fontWeight: 700 }}>Green zone ≥60%</span> = strong edge &nbsp;·&nbsp;
+                                                <span style={{ color: '#FDC800', fontWeight: 700 }}>Green zone ≥60%</span> = strong edge &nbsp;·&nbsp;
                                                 <span style={{ color: '#EAB308', fontWeight: 700 }}>Yellow 40–59%</span> = marginal &nbsp;·&nbsp;
                                                 <span style={{ color: '#ff4757', fontWeight: 700 }}>Red &lt;40%</span> = statistical trap — this hour costs money
                                             </div>
@@ -2364,8 +2364,8 @@ export default function AnalyticsPage() {
                                                     {/* Background zone fill: green above 60, yellow 40-60, red below 40 */}
                                                     <defs>
                                                         <linearGradient id="wrZoneGrad" x1="0" y1="0" x2="0" y2="1">
-                                                            <stop offset="0%" stopColor="rgba(166,255,77,0.07)" />
-                                                            <stop offset="40%" stopColor="rgba(166,255,77,0.04)" />
+                                                            <stop offset="0%" stopColor="rgba(253,200,0,0.07)" />
+                                                            <stop offset="40%" stopColor="rgba(253,200,0,0.04)" />
                                                             <stop offset="60%" stopColor="rgba(234,179,8,0.04)" />
                                                             <stop offset="100%" stopColor="rgba(255,71,87,0.07)" />
                                                         </linearGradient>
@@ -2373,7 +2373,7 @@ export default function AnalyticsPage() {
                                                     <CartesianGrid stroke="#1a1c24" strokeDasharray="3 3" vertical={false} />
                                                     <XAxis dataKey="hour" tick={{ fontSize: 9, fill: '#8b949e', fontFamily: 'var(--font-mono)' }} axisLine={false} tickLine={false} />
                                                     <YAxis domain={[0, 100]} tick={{ fontSize: 9, fill: '#8b949e', fontFamily: 'var(--font-mono)' }} axisLine={false} tickLine={false} tickFormatter={(v: number) => `${v}%`} width={36} />
-                                                    <ReferenceLine y={60} stroke="rgba(166,255,77,0.3)" strokeDasharray="4 2" label={{ value: '60% EDGE', fill: '#A6FF4D', fontSize: 8, fontFamily: 'var(--font-mono)', fontWeight: 700 }} />
+                                                    <ReferenceLine y={60} stroke="rgba(253,200,0,0.3)" strokeDasharray="4 2" label={{ value: '60% EDGE', fill: '#FDC800', fontSize: 8, fontFamily: 'var(--font-mono)', fontWeight: 700 }} />
                                                     <ReferenceLine y={50} stroke="rgba(255,255,255,0.15)" strokeDasharray="4 4" label={{ value: '50%', fill: '#8b949e', fontSize: 8, fontFamily: 'var(--font-mono)' }} />
                                                     <ReferenceLine y={40} stroke="rgba(255,71,87,0.3)" strokeDasharray="4 2" label={{ value: '40% TRAP', fill: '#ff4757', fontSize: 8, fontFamily: 'var(--font-mono)', fontWeight: 700 }} />
                                                     <Tooltip
@@ -2390,7 +2390,7 @@ export default function AnalyticsPage() {
                                                     />
                                                     <Bar dataKey="wr" radius={[3, 3, 0, 0]} maxBarSize={40}>
                                                         {hourlyData.filter(d => d.trades > 0).map((d, i) => (
-                                                            <Cell key={i} fill={d.wr >= 60 ? '#A6FF4D' : d.wr >= 50 ? 'rgba(166,255,77,0.55)' : d.wr >= 40 ? '#EAB308' : '#ff4757'} />
+                                                            <Cell key={i} fill={d.wr >= 60 ? '#FDC800' : d.wr >= 50 ? 'rgba(253,200,0,0.55)' : d.wr >= 40 ? '#EAB308' : '#ff4757'} />
                                                         ))}
                                                     </Bar>
                                                 </BarChart>
@@ -2399,10 +2399,10 @@ export default function AnalyticsPage() {
                                         {/* Interpretation */}
                                         {activeH.length > 0 && (
                                             <div style={{ marginTop: 16, display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 12 }}>
-                                                <div style={{ padding: '14px 16px', background: 'rgba(166,255,77,0.04)', border: '1px solid rgba(166,255,77,0.12)', borderLeft: '3px solid #A6FF4D' }}>
-                                                    <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#A6FF4D', letterSpacing: '0.1em', textTransform: 'uppercase', fontWeight: 700, marginBottom: 6 }}>WHAT THIS MEANS</div>
+                                                <div style={{ padding: '14px 16px', background: 'rgba(253,200,0,0.04)', border: '1px solid rgba(253,200,0,0.12)', borderLeft: '3px solid #FDC800' }}>
+                                                    <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#FDC800', letterSpacing: '0.1em', textTransform: 'uppercase', fontWeight: 700, marginBottom: 6 }}>WHAT THIS MEANS</div>
                                                     <p style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: '#c9d1d9', lineHeight: 1.8, margin: 0 }}>
-                                                        You have <strong style={{ color: '#A6FF4D' }}>{strongEdgeHours.length} strong-edge hour{strongEdgeHours.length !== 1 ? 's' : ''}</strong> (≥60% WR) and <strong style={{ color: '#ff4757' }}>{trapHours.length} statistical trap{trapHours.length !== 1 ? 's' : ''}</strong> (&lt;40% WR). Your overall active-hour average is <strong style={{ color: '#EAB308' }}>{avgWR.toFixed(1)}%</strong>. Win rate below 40% is not variance — it&apos;s structural.
+                                                        You have <strong style={{ color: '#FDC800' }}>{strongEdgeHours.length} strong-edge hour{strongEdgeHours.length !== 1 ? 's' : ''}</strong> (≥60% WR) and <strong style={{ color: '#ff4757' }}>{trapHours.length} statistical trap{trapHours.length !== 1 ? 's' : ''}</strong> (&lt;40% WR). Your overall active-hour average is <strong style={{ color: '#EAB308' }}>{avgWR.toFixed(1)}%</strong>. Win rate below 40% is not variance — it&apos;s structural.
                                                     </p>
                                                 </div>
                                                 <div style={{ padding: '14px 16px', background: 'rgba(234,179,8,0.04)', border: '1px solid rgba(234,179,8,0.15)', borderLeft: '3px solid #EAB308' }}>
@@ -2436,16 +2436,16 @@ export default function AnalyticsPage() {
                                         <HeatmapGrid data={heatmapData} minTrades={1} />
                                         {/* Interpretation */}
                                         <div style={{ marginTop: 16, display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 12 }}>
-                                            <div style={{ padding: '14px 16px', background: 'rgba(166,255,77,0.04)', border: '1px solid rgba(166,255,77,0.12)', borderLeft: '3px solid #A6FF4D' }}>
-                                                <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#A6FF4D', letterSpacing: '0.1em', textTransform: 'uppercase', fontWeight: 700, marginBottom: 6 }}>WHAT THIS MEANS</div>
+                                            <div style={{ padding: '14px 16px', background: 'rgba(253,200,0,0.04)', border: '1px solid rgba(253,200,0,0.12)', borderLeft: '3px solid #FDC800' }}>
+                                                <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#FDC800', letterSpacing: '0.1em', textTransform: 'uppercase', fontWeight: 700, marginBottom: 6 }}>WHAT THIS MEANS</div>
                                                 <p style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: '#c9d1d9', lineHeight: 1.8, margin: 0 }}>
-                                                    Your best slot is <strong style={{ color: '#A6FF4D' }}>{bestCell.day} {fmtH(bestCell.hour)}</strong> (+${bestCell.pnl.toFixed(0)} avg · {bestCell.trades} trades). Your worst slot is <strong style={{ color: '#ff4757' }}>{worstCell.day} {fmtH(worstCell.hour)}</strong> (${worstCell.pnl.toFixed(0)} avg · {worstCell.trades} trades). Red clusters on the same day-of-week point to structural market conditions, not random variance.
+                                                    Your best slot is <strong style={{ color: '#FDC800' }}>{bestCell.day} {fmtH(bestCell.hour)}</strong> (+${bestCell.pnl.toFixed(0)} avg · {bestCell.trades} trades). Your worst slot is <strong style={{ color: '#ff4757' }}>{worstCell.day} {fmtH(worstCell.hour)}</strong> (${worstCell.pnl.toFixed(0)} avg · {worstCell.trades} trades). Red clusters on the same day-of-week point to structural market conditions, not random variance.
                                                 </p>
                                             </div>
                                             <div style={{ padding: '14px 16px', background: 'rgba(255,71,87,0.04)', border: '1px solid rgba(255,71,87,0.12)', borderLeft: '3px solid #ff4757' }}>
                                                 <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#ff4757', letterSpacing: '0.1em', textTransform: 'uppercase', fontWeight: 700, marginBottom: 6 }}>ACTION</div>
                                                 <p style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: '#8b949e', lineHeight: 1.8, margin: 0 }}>
-                                                    Double your size on <strong style={{ color: '#A6FF4D' }}>{bestCell.day} {fmtH(bestCell.hour)}</strong> when that slot has ≥3 prior occurrences. Block calendar entries for <strong style={{ color: '#ff4757' }}>{worstCell.day} {fmtH(worstCell.hour)}</strong> — set a reminder to not trade during that window.
+                                                    Double your size on <strong style={{ color: '#FDC800' }}>{bestCell.day} {fmtH(bestCell.hour)}</strong> when that slot has ≥3 prior occurrences. Block calendar entries for <strong style={{ color: '#ff4757' }}>{worstCell.day} {fmtH(worstCell.hour)}</strong> — set a reminder to not trade during that window.
                                                 </p>
                                             </div>
                                         </div>
@@ -2464,7 +2464,7 @@ export default function AnalyticsPage() {
                                             <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#6b7280', letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 2 }}>CHART 4 OF 4 — INDIVIDUAL TRADE SCATTER · HOUR vs P&L</div>
                                             <div style={{ fontFamily: 'var(--font-mono)', fontSize: 14, fontWeight: 700, color: '#c9d1d9' }}>Every single trade plotted by time and dollar outcome</div>
                                             <div style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: '#8b949e', marginTop: 4 }}>
-                                                Each dot = one trade · <span style={{ color: '#A6FF4D' }}>Green = win</span> · <span style={{ color: '#ff4757' }}>Red = loss</span> · Dot size proportional to P&L magnitude · Time in EST
+                                                Each dot = one trade · <span style={{ color: '#FDC800' }}>Green = win</span> · <span style={{ color: '#ff4757' }}>Red = loss</span> · Dot size proportional to P&L magnitude · Time in EST
                                             </div>
                                         </div>
                                         <TradeScatterChart
@@ -2475,10 +2475,10 @@ export default function AnalyticsPage() {
                                         />
                                         {/* Interpretation */}
                                         <div style={{ marginTop: 16, display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 12 }}>
-                                            <div style={{ padding: '14px 16px', background: 'rgba(166,255,77,0.04)', border: '1px solid rgba(166,255,77,0.12)', borderLeft: '3px solid #A6FF4D' }}>
-                                                <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#A6FF4D', letterSpacing: '0.1em', textTransform: 'uppercase', fontWeight: 700, marginBottom: 6 }}>HOW TO READ THIS</div>
+                                            <div style={{ padding: '14px 16px', background: 'rgba(253,200,0,0.04)', border: '1px solid rgba(253,200,0,0.12)', borderLeft: '3px solid #FDC800' }}>
+                                                <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#FDC800', letterSpacing: '0.1em', textTransform: 'uppercase', fontWeight: 700, marginBottom: 6 }}>HOW TO READ THIS</div>
                                                 <p style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: '#c9d1d9', lineHeight: 1.8, margin: 0 }}>
-                                                    Look for <strong style={{ color: '#A6FF4D' }}>green clusters</strong> — time windows where wins dominate. Look for <strong style={{ color: '#ff4757' }}>red clusters or large red dots</strong> — those are your blowup windows. Vertical clustering at a specific hour = that hour has a consistent behavioral outcome for you.
+                                                    Look for <strong style={{ color: '#FDC800' }}>green clusters</strong> — time windows where wins dominate. Look for <strong style={{ color: '#ff4757' }}>red clusters or large red dots</strong> — those are your blowup windows. Vertical clustering at a specific hour = that hour has a consistent behavioral outcome for you.
                                                 </p>
                                             </div>
                                             <div style={{ padding: '14px 16px', background: 'rgba(234,179,8,0.04)', border: '1px solid rgba(234,179,8,0.15)', borderLeft: '3px solid #EAB308' }}>
@@ -2513,12 +2513,12 @@ export default function AnalyticsPage() {
                                                     <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#6b7280', marginTop: 2 }}>{sw.range} EST</div>
                                                 </div>
                                                 <div style={{ position: 'relative', height: 6, background: '#1a1c24', borderRadius: 2 }}>
-                                                    <motion.div initial={{ width: 0 }} animate={{ width: `${barW}%` }} style={{ height: '100%', background: swPnl >= 0 ? '#A6FF4D' : '#ff4757', borderRadius: 2, opacity: 0.8 }} />
+                                                    <motion.div initial={{ width: 0 }} animate={{ width: `${barW}%` }} style={{ height: '100%', background: swPnl >= 0 ? '#FDC800' : '#ff4757', borderRadius: 2, opacity: 0.8 }} />
                                                 </div>
-                                                <div style={{ fontFamily: 'var(--font-mono)', fontSize: 12, fontWeight: 700, color: swPnl >= 0 ? '#A6FF4D' : '#ff4757', textAlign: 'right' }}>
+                                                <div style={{ fontFamily: 'var(--font-mono)', fontSize: 12, fontWeight: 700, color: swPnl >= 0 ? '#FDC800' : '#ff4757', textAlign: 'right' }}>
                                                     {swPnl >= 0 ? '+' : '-'}${Math.abs(swPnl).toFixed(0)}
                                                 </div>
-                                                <div style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: swWr >= 50 ? '#A6FF4D' : swWr >= 40 ? '#EAB308' : '#ff4757', textAlign: 'right', fontWeight: 600 }}>
+                                                <div style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: swWr >= 50 ? '#FDC800' : swWr >= 40 ? '#EAB308' : '#ff4757', textAlign: 'right', fontWeight: 600 }}>
                                                     {swWr.toFixed(0)}% WR
                                                 </div>
                                                 <div style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: '#6b7280', textAlign: 'right' }}>
@@ -2547,20 +2547,20 @@ export default function AnalyticsPage() {
                                                 const session = SESSION_WINDOWS.find(sw => sw.hours.includes(s.h));
                                                 const wr = (s.wins / s.trades) * 100;
                                                 const signal = s.pnl > 0 && wr >= 60 ? 'STRONG EDGE' : s.pnl > 0 && wr >= 50 ? 'PLAYABLE' : s.pnl > 0 && wr < 50 ? 'MARGINAL' : wr >= 50 ? 'MIXED' : 'AVOID';
-                                                const sigColor = signal === 'STRONG EDGE' ? '#A6FF4D' : signal === 'PLAYABLE' ? 'rgba(166,255,77,0.6)' : signal === 'MARGINAL' ? '#EAB308' : signal === 'MIXED' ? '#fb923c' : '#ff4757';
+                                                const sigColor = signal === 'STRONG EDGE' ? '#FDC800' : signal === 'PLAYABLE' ? 'rgba(253,200,0,0.6)' : signal === 'MARGINAL' ? '#EAB308' : signal === 'MIXED' ? '#fb923c' : '#ff4757';
                                                 return (
                                                     <tr key={i} style={{ borderBottom: '1px solid #1a1c24' }}
                                                         onMouseEnter={e => (e.currentTarget as HTMLTableRowElement).style.background = '#0f1420'}
                                                         onMouseLeave={e => (e.currentTarget as HTMLTableRowElement).style.background = 'transparent'}>
                                                         <td style={{ padding: '12px 16px', color: '#c9d1d9', fontWeight: 700 }}>
                                                             {String(s.h).padStart(2,'0')}:00 – {String(s.h+1).padStart(2,'0')}:00
-                                                            {s.h === forensics.timeStats.bestHour && <span style={{ marginLeft: 8, fontSize: 8, color: '#A6FF4D', border: '1px solid rgba(166,255,77,0.3)', padding: '1px 5px' }}>BEST</span>}
+                                                            {s.h === forensics.timeStats.bestHour && <span style={{ marginLeft: 8, fontSize: 8, color: '#FDC800', border: '1px solid rgba(253,200,0,0.3)', padding: '1px 5px' }}>BEST</span>}
                                                             {s.h === forensics.timeStats.worstHour && <span style={{ marginLeft: 8, fontSize: 8, color: '#ff4757', border: '1px solid rgba(255,71,87,0.3)', padding: '1px 5px' }}>WORST</span>}
                                                         </td>
                                                         <td style={{ padding: '12px 16px', textAlign: 'right', color: session?.color ?? '#6b7280', fontSize: 9, letterSpacing: '0.06em' }}>{session?.label ?? '—'}</td>
                                                         <td style={{ padding: '12px 16px', textAlign: 'right', color: '#6b7280' }}>{s.trades}</td>
-                                                        <td style={{ padding: '12px 16px', textAlign: 'right', fontWeight: 600, color: wr >= 55 ? '#A6FF4D' : wr >= 45 ? '#EAB308' : '#ff4757' }}>{wr.toFixed(0)}%</td>
-                                                        <td style={{ padding: '12px 16px', textAlign: 'right', fontWeight: 700, color: s.pnl >= 0 ? '#A6FF4D' : '#ff4757' }}>
+                                                        <td style={{ padding: '12px 16px', textAlign: 'right', fontWeight: 600, color: wr >= 55 ? '#FDC800' : wr >= 45 ? '#EAB308' : '#ff4757' }}>{wr.toFixed(0)}%</td>
+                                                        <td style={{ padding: '12px 16px', textAlign: 'right', fontWeight: 700, color: s.pnl >= 0 ? '#FDC800' : '#ff4757' }}>
                                                             {s.pnl >= 0 ? '+' : '-'}${Math.abs(s.pnl).toFixed(2)}
                                                         </td>
                                                         <td style={{ padding: '12px 16px', textAlign: 'right' }}>
@@ -2580,15 +2580,15 @@ export default function AnalyticsPage() {
                             {/* ── STRENGTH + DANGER ZONE DETAILED CARDS ── */}
                             <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 1, background: '#1a1c24' }}>
                                 {/* Strength */}
-                                <div style={{ background: 'rgba(166,255,77,0.03)', border: '1px solid rgba(166,255,77,0.12)', padding: '24px' }}>
+                                <div style={{ background: 'rgba(253,200,0,0.03)', border: '1px solid rgba(253,200,0,0.12)', padding: '24px' }}>
                                     <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-                                        <TrendingUp size={13} color="#A6FF4D" />
-                                        <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#A6FF4D', letterSpacing: '0.12em', textTransform: 'uppercase', fontWeight: 700 }}>STRENGTH ZONE</span>
+                                        <TrendingUp size={13} color="#FDC800" />
+                                        <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#FDC800', letterSpacing: '0.12em', textTransform: 'uppercase', fontWeight: 700 }}>STRENGTH ZONE</span>
                                     </div>
                                     <div style={{ fontFamily: 'var(--font-mono)', fontSize: 28, fontWeight: 700, color: '#fff', marginBottom: 4 }}>
                                         {String(forensics.timeStats.bestHour).padStart(2,'0')}:00 – {String(forensics.timeStats.bestHour + 1).padStart(2,'0')}:00 <span style={{ fontSize: 11, color: '#6b7280', fontWeight: 400 }}>EST</span>
                                     </div>
-                                    <div style={{ fontFamily: 'var(--font-mono)', fontSize: 22, fontWeight: 700, color: '#A6FF4D', marginBottom: 12 }}>
+                                    <div style={{ fontFamily: 'var(--font-mono)', fontSize: 22, fontWeight: 700, color: '#FDC800', marginBottom: 12 }}>
                                         +${hourlyStats[forensics.timeStats.bestHour]?.pnl.toFixed(0) ?? '0'}
                                     </div>
                                     <div style={{ display: 'flex', gap: 20, marginBottom: 16 }}>
@@ -2598,7 +2598,7 @@ export default function AnalyticsPage() {
                                         </div>
                                         <div>
                                             <div style={{ fontFamily: 'var(--font-mono)', fontSize: 8, color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 2 }}>WIN RATE</div>
-                                            <div style={{ fontFamily: 'var(--font-mono)', fontSize: 14, fontWeight: 600, color: '#A6FF4D' }}>
+                                            <div style={{ fontFamily: 'var(--font-mono)', fontSize: 14, fontWeight: 600, color: '#FDC800' }}>
                                                 {hourlyStats[forensics.timeStats.bestHour]?.trades > 0 ? ((hourlyStats[forensics.timeStats.bestHour].wins / hourlyStats[forensics.timeStats.bestHour].trades) * 100).toFixed(0) : 0}%
                                             </div>
                                         </div>
@@ -2609,8 +2609,8 @@ export default function AnalyticsPage() {
                                             </div>
                                         </div>
                                     </div>
-                                    <div style={{ background: 'rgba(166,255,77,0.06)', border: '1px solid rgba(166,255,77,0.15)', padding: '12px 14px' }}>
-                                        <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#A6FF4D', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 4, fontWeight: 700 }}>COACHING ACTION</div>
+                                    <div style={{ background: 'rgba(253,200,0,0.06)', border: '1px solid rgba(253,200,0,0.15)', padding: '12px 14px' }}>
+                                        <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#FDC800', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 4, fontWeight: 700 }}>COACHING ACTION</div>
                                         <div style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: '#8b949e', lineHeight: 1.7 }}>
                                             Protect this window. Arrive flat — no carry-forward losses from earlier sessions. Use larger conviction sizing only during this hour. This is where your statistical edge lives.
                                         </div>
@@ -2664,7 +2664,7 @@ export default function AnalyticsPage() {
                                         {
                                             rule: `RULE 01 — BEST HOUR PRIORITY`,
                                             detail: `Focus maximum position sizing and highest conviction setups between ${String(forensics.timeStats.bestHour).padStart(2,'0')}:00–${String(forensics.timeStats.bestHour+1).padStart(2,'0')}:00 EST. This is your statistically proven peak edge window.`,
-                                            icon: '→', color: '#A6FF4D',
+                                            icon: '→', color: '#FDC800',
                                         },
                                         {
                                             rule: `RULE 02 — DANGER HOUR BLOCK`,
@@ -2713,11 +2713,11 @@ export default function AnalyticsPage() {
                             {/* ── 6-KPI GRID ── */}
                             <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'repeat(2, 1fr)' : 'repeat(3, 1fr)', borderTop: '1px solid #1a1c24', borderLeft: '1px solid #1a1c24' }}>
                                 {[
-                                    { label: 'MAX WIN STREAK', value: `${forensics.maxWinStreak}`, sub: 'Consecutive winning trades', color: '#A6FF4D' },
+                                    { label: 'MAX WIN STREAK', value: `${forensics.maxWinStreak}`, sub: 'Consecutive winning trades', color: '#FDC800' },
                                     { label: 'MAX LOSS STREAK', value: `${forensics.maxLossStreak}`, sub: 'Consecutive losing trades', color: forensics.maxLossStreak >= 4 ? '#ff4757' : forensics.maxLossStreak >= 3 ? '#EAB308' : '#c9d1d9' },
                                     { label: 'TOTAL STREAK RUNS', value: `${streakRuns.length}`, sub: `${streakRuns.filter(r => r.type === 'W').length}W runs · ${streakRuns.filter(r => r.type === 'L').length}L runs`, color: '#c9d1d9' },
-                                    { label: 'WIN RATE', value: `${winRate.toFixed(1)}%`, sub: `${wins.length}W · ${losses.length}L`, color: winRate >= 55 ? '#A6FF4D' : winRate >= 45 ? '#EAB308' : '#ff4757' },
-                                    { label: 'EXPECTANCY', value: expectancy !== 0 ? `${expectancy >= 0 ? '+' : ''}$${Math.abs(expectancy).toFixed(2)}` : '—', sub: 'Per trade average', color: expectancy >= 0 ? '#A6FF4D' : '#ff4757' },
+                                    { label: 'WIN RATE', value: `${winRate.toFixed(1)}%`, sub: `${wins.length}W · ${losses.length}L`, color: winRate >= 55 ? '#FDC800' : winRate >= 45 ? '#EAB308' : '#ff4757' },
+                                    { label: 'EXPECTANCY', value: expectancy !== 0 ? `${expectancy >= 0 ? '+' : ''}$${Math.abs(expectancy).toFixed(2)}` : '—', sub: 'Per trade average', color: expectancy >= 0 ? '#FDC800' : '#ff4757' },
                                     { label: 'WORST STREAK COST', value: worstStreakInfo ? `-$${Math.abs(worstStreakInfo.pnl).toFixed(0)}` : '—', sub: worstStreakInfo ? `${worstStreakInfo.count} losses · ${worstStreakInfo.date}` : 'No data', color: '#ff4757' },
                                 ].map((k, i) => (
                                     <div key={i} style={{ padding: '20px 24px', borderBottom: '1px solid #1a1c24', borderRight: '1px solid #1a1c24', background: '#0d1117', display: 'flex', flexDirection: 'column', gap: 6 }}>
@@ -2746,7 +2746,7 @@ export default function AnalyticsPage() {
                                                     title={`${run.type === 'W' ? 'Win' : 'Loss'} streak × ${run.length} · ${run.pnl >= 0 ? '+' : ''}$${run.pnl.toFixed(0)}`}
                                                     style={{
                                                         flex: `0 0 ${Math.max(pct, 0.4)}%`,
-                                                        background: isWin ? `rgba(166,255,77,${0.4 + Math.min(run.length / 8, 0.55)})` : `rgba(255,71,87,${0.4 + Math.min(run.length / 8, 0.55)})`,
+                                                        background: isWin ? `rgba(253,200,0,${0.4 + Math.min(run.length / 8, 0.55)})` : `rgba(255,71,87,${0.4 + Math.min(run.length / 8, 0.55)})`,
                                                         display: 'flex', alignItems: 'center', justifyContent: 'center',
                                                         fontSize: run.length >= 3 ? 9 : 0,
                                                         fontFamily: 'var(--font-mono)',
@@ -2766,16 +2766,16 @@ export default function AnalyticsPage() {
                                         {forensics.streaksSequence.map((res: string, i: number) => (
                                             <div key={i} style={{
                                                 width: 10, height: 10, borderRadius: '50%', flexShrink: 0,
-                                                background: res === 'W' ? '#A6FF4D' : '#ff4757',
+                                                background: res === 'W' ? '#FDC800' : '#ff4757',
                                                 opacity: 0.8,
-                                                boxShadow: res === 'W' ? '0 0 3px rgba(166,255,77,0.5)' : '0 0 3px rgba(255,71,87,0.5)',
+                                                boxShadow: res === 'W' ? '0 0 3px rgba(253,200,0,0.5)' : '0 0 3px rgba(255,71,87,0.5)',
                                             }} />
                                         ))}
                                     </div>
                                     <div style={{ display: 'flex', gap: 20, alignItems: 'center' }}>
                                         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                                            <div style={{ width: 12, height: 12, background: 'rgba(166,255,77,0.7)' }} />
-                                            <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#A6FF4D' }}>Win streak (darker = longer)</span>
+                                            <div style={{ width: 12, height: 12, background: 'rgba(253,200,0,0.7)' }} />
+                                            <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#FDC800' }}>Win streak (darker = longer)</span>
                                         </div>
                                         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                                             <div style={{ width: 12, height: 12, background: 'rgba(255,71,87,0.7)' }} />
@@ -2823,15 +2823,15 @@ export default function AnalyticsPage() {
                                                         formatter={(v: number | undefined, name: string | undefined) => v !== undefined ? [`${v} streak${v !== 1 ? 's' : ''}`, name === 'wins' ? 'Win Streaks' : 'Loss Streaks'] : ['—', name ?? '']}
                                                         labelFormatter={(l: unknown) => `Length ${l}`}
                                                     />
-                                                    <Bar dataKey="wins" name="wins" fill="rgba(166,255,77,0.8)" radius={[2, 2, 0, 0]} />
+                                                    <Bar dataKey="wins" name="wins" fill="rgba(253,200,0,0.8)" radius={[2, 2, 0, 0]} />
                                                     <Bar dataKey="losses" name="losses" fill="rgba(255,71,87,0.8)" radius={[2, 2, 0, 0]} />
                                                 </BarChart>
                                             </ResponsiveContainer>
                                         </div>
                                         <div style={{ display: 'flex', gap: 16, marginTop: 8 }}>
                                             <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                                                <div style={{ width: 10, height: 10, background: 'rgba(166,255,77,0.8)' }} />
-                                                <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#A6FF4D' }}>Win streaks</span>
+                                                <div style={{ width: 10, height: 10, background: 'rgba(253,200,0,0.8)' }} />
+                                                <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#FDC800' }}>Win streaks</span>
                                             </div>
                                             <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                                                 <div style={{ width: 10, height: 10, background: 'rgba(255,71,87,0.8)' }} />
@@ -2862,7 +2862,7 @@ export default function AnalyticsPage() {
                                                     />
                                                     <Bar dataKey="pnl" radius={[0, 2, 2, 0]}>
                                                         {streakImpactData.map((d, i) => (
-                                                            <Cell key={i} fill={d.pnl >= 0 ? 'rgba(166,255,77,0.85)' : 'rgba(255,71,87,0.85)'} />
+                                                            <Cell key={i} fill={d.pnl >= 0 ? 'rgba(253,200,0,0.85)' : 'rgba(255,71,87,0.85)'} />
                                                         ))}
                                                     </Bar>
                                                 </BarChart>
@@ -2880,7 +2880,7 @@ export default function AnalyticsPage() {
                                     <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'repeat(2, 1fr)' : 'repeat(5, 1fr)', gap: 1, background: '#1a1c24', marginBottom: 20 }}>
                                         {recoveryProbTable.map((row, i) => {
                                             const pct = row.recoveryProb ?? 0;
-                                            const color = pct >= 65 ? '#A6FF4D' : pct >= 50 ? '#EAB308' : '#ff4757';
+                                            const color = pct >= 65 ? '#FDC800' : pct >= 50 ? '#EAB308' : '#ff4757';
                                             return (
                                                 <div key={i} style={{ padding: '20px 16px', background: '#0d1117', display: 'flex', flexDirection: 'column', gap: 8, alignItems: 'center', textAlign: 'center' }}>
                                                     <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#6b7280', letterSpacing: '0.1em', textTransform: 'uppercase' }}>AFTER {row.n} LOSSES</span>
@@ -2940,7 +2940,7 @@ export default function AnalyticsPage() {
                                                             <p style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: '#8b949e', lineHeight: 1.7, margin: 0 }}>{ps.trigger}</p>
                                                         </div>
                                                         <div style={{ padding: '16px 20px', background: 'rgba(255,255,255,0.01)' }}>
-                                                            <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#A6FF4D', letterSpacing: '0.1em', textTransform: 'uppercase', fontWeight: 700, marginBottom: 8 }}>PRESCRIBED RESPONSE</div>
+                                                            <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#FDC800', letterSpacing: '0.1em', textTransform: 'uppercase', fontWeight: 700, marginBottom: 8 }}>PRESCRIBED RESPONSE</div>
                                                             <p style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: '#c9d1d9', lineHeight: 1.7, margin: 0 }}>{ps.response}</p>
                                                         </div>
                                                     </div>
@@ -2974,7 +2974,7 @@ export default function AnalyticsPage() {
 
                             {forensics.patterns.length === 0 ? (
                                 <div style={{ background: '#0d1117', border: '1px solid #1a1c24', padding: '48px', textAlign: 'center' }}>
-                                    <div style={{ fontFamily: 'var(--font-mono)', fontSize: 22, fontWeight: 700, color: '#A6FF4D', marginBottom: 8 }}>✓ CLEAN</div>
+                                    <div style={{ fontFamily: 'var(--font-mono)', fontSize: 22, fontWeight: 700, color: '#FDC800', marginBottom: 8 }}>✓ CLEAN</div>
                                     <div style={{ fontFamily: 'var(--font-mono)', fontSize: 13, color: '#8b949e' }}>No behavioral patterns detected in your data. Log more trades for deeper analysis.</div>
                                 </div>
                             ) : (
@@ -2984,7 +2984,7 @@ export default function AnalyticsPage() {
                                         {[
                                             { label: 'PATTERNS DETECTED', value: `${forensics.patterns.length}`, sub: `${forensics.patterns.filter((p: any) => p.severity === 'CRITICAL').length} critical`, color: forensics.patterns.some((p: any) => p.severity === 'CRITICAL') ? '#ff4757' : '#EAB308' },
                                             { label: 'TOTAL BEHAVIORAL COST', value: behavioralCost < 0 ? `-$${Math.abs(behavioralCost).toFixed(0)}` : '$0', sub: 'Avoidable losses', color: '#ff4757' },
-                                            { label: 'PROJECTED NET P&L', value: withoutToxicPatterns !== 0 ? `${withoutToxicPatterns >= 0 ? '+' : ''}$${Math.abs(withoutToxicPatterns).toFixed(0)}` : '—', sub: 'If all patterns corrected', color: withoutToxicPatterns > netPnl ? '#A6FF4D' : '#c9d1d9' },
+                                            { label: 'PROJECTED NET P&L', value: withoutToxicPatterns !== 0 ? `${withoutToxicPatterns >= 0 ? '+' : ''}$${Math.abs(withoutToxicPatterns).toFixed(0)}` : '—', sub: 'If all patterns corrected', color: withoutToxicPatterns > netPnl ? '#FDC800' : '#c9d1d9' },
                                             { label: 'BEHAVIORAL EFFICIENCY', value: (grossProfit + grossLoss) > 0 ? `${(100 - (Math.abs(behavioralCost) / (grossProfit + grossLoss)) * 100).toFixed(0)}%` : '—', sub: 'Capital not lost to behavior', color: '#c9d1d9' },
                                         ].map((k, i) => (
                                             <div key={i} style={{ padding: '20px 24px', borderBottom: '1px solid #1a1c24', borderRight: '1px solid #1a1c24', background: '#0d1117', display: 'flex', flexDirection: 'column', gap: 6 }}>
@@ -3110,8 +3110,8 @@ export default function AnalyticsPage() {
                                                                 {!['Revenge Trading','Held Losers','Spike Vulnerability','Early Exit','Micro Overtrading'].includes(p.name) && `Recurring pattern detected ${p.freq} time${p.freq > 1 ? 's' : ''} across your trade history. See evidence above for specific instances.`}
                                                             </p>
                                                         </div>
-                                                        <div style={{ padding: '16px 24px', background: 'rgba(166,255,77,0.02)' }}>
-                                                            <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#A6FF4D', letterSpacing: '0.1em', textTransform: 'uppercase', fontWeight: 700, marginBottom: 8 }}>PRESCRIPTION</div>
+                                                        <div style={{ padding: '16px 24px', background: 'rgba(253,200,0,0.02)' }}>
+                                                            <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#FDC800', letterSpacing: '0.1em', textTransform: 'uppercase', fontWeight: 700, marginBottom: 8 }}>PRESCRIPTION</div>
                                                             <p style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: '#c9d1d9', lineHeight: 1.7, margin: 0 }}>{prescription}</p>
                                                         </div>
                                                     </div>
@@ -3146,8 +3146,8 @@ export default function AnalyticsPage() {
                                                     );
                                                 })}
                                         </div>
-                                        <div style={{ marginTop: 20, padding: '14px 16px', background: 'rgba(166,255,77,0.03)', border: '1px solid rgba(166,255,77,0.12)', borderLeft: '3px solid #A6FF4D' }}>
-                                            <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#A6FF4D', letterSpacing: '0.1em', textTransform: 'uppercase', fontWeight: 700, marginBottom: 6 }}>FOCUS ORDER</div>
+                                        <div style={{ marginTop: 20, padding: '14px 16px', background: 'rgba(253,200,0,0.03)', border: '1px solid rgba(253,200,0,0.12)', borderLeft: '3px solid #FDC800' }}>
+                                            <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#FDC800', letterSpacing: '0.1em', textTransform: 'uppercase', fontWeight: 700, marginBottom: 6 }}>FOCUS ORDER</div>
                                             <div style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: '#8b949e', lineHeight: 1.8 }}>
                                                 Fix {forensics.patterns[0]?.name ?? 'your top pattern'} first — it costs the most. Do not attempt to address multiple patterns simultaneously. Master one rule change per 2 weeks. Sequence matters.
                                                 {behavioralCost < 0 && ` Correcting all patterns would recover approximately $${Math.abs(behavioralCost).toFixed(0)}, turning your net P&L from ${netPnl >= 0 ? '+' : ''}$${netPnl.toFixed(0)} to ${withoutToxicPatterns >= 0 ? '+' : ''}$${withoutToxicPatterns.toFixed(0)}.`}
@@ -3163,7 +3163,7 @@ export default function AnalyticsPage() {
                     {activeTab === 'BEHAVIOR' && (() => {
                         // ── Pre-compute all enriched scorecard values ──
                         const sc = forensics.scorecard; // [{metric, grade, desc}]
-                        const gradeColor = (g: string) => g === 'A' ? '#A6FF4D' : g === 'B' ? '#00D4FF' : g === 'C' ? '#EAB308' : g === '—' ? '#6b7280' : '#ff4757';
+                        const gradeColor = (g: string) => g === 'A' ? '#FDC800' : g === 'B' ? '#00D4FF' : g === 'C' ? '#EAB308' : g === '—' ? '#6b7280' : '#ff4757';
                         const gradeScore = (g: string) => g === 'A' ? 100 : g === 'B' ? 75 : g === 'C' ? 50 : g === '—' ? 50 : 20;
                         const compositeScore = sc.length > 0 ? Math.round(sc.reduce((s: number, x: any) => s + gradeScore(x.grade), 0) / sc.length) : 0;
                         const compositeGrade = compositeScore >= 90 ? 'A' : compositeScore >= 75 ? 'B' : compositeScore >= 55 ? 'C' : compositeScore >= 35 ? 'D' : 'F';
@@ -3203,7 +3203,7 @@ export default function AnalyticsPage() {
                                 actualValue: maxLossTrade > 0 ? `-$${maxLossTrade.toFixed(0)}` : '—',
                                 actualSub: maxLossPct > 0 ? `${maxLossPct.toFixed(1)}% of starting balance` : 'No losses recorded',
                                 barPct: Math.min(100, (maxLossPct / 6) * 100),
-                                barColor: maxLossPct < 1 ? '#A6FF4D' : maxLossPct < 2 ? '#00D4FF' : maxLossPct < 4 ? '#EAB308' : '#ff4757',
+                                barColor: maxLossPct < 1 ? '#FDC800' : maxLossPct < 2 ? '#00D4FF' : maxLossPct < 4 ? '#EAB308' : '#ff4757',
                                 interpretation: maxLossTrade > 0
                                     ? `Your largest single trade loss was $${maxLossTrade.toFixed(0)} (${maxLossPct.toFixed(1)}% of starting balance). ${maxLossPct < 1 ? 'Under 1% — tight risk control. Elite-level discipline on position sizing.' : maxLossPct < 2 ? 'Between 1–2% — within the standard guideline. Acceptable, but tighten toward 1%.' : maxLossPct < 4 ? 'Between 2–4% — above the 2% guideline. This trade took a meaningful bite of capital on a single entry.' : 'Above 4% — one trade risked a disproportionate share of your account. This must be corrected immediately.'}`
                                     : 'No loss data available yet. Log closed trades to see risk per trade analysis.',
@@ -3219,7 +3219,7 @@ export default function AnalyticsPage() {
                                 actualValue: `${revCount}`,
                                 actualSub: revCount > 0 ? `${revPattern?.freq} occurrences · Est. cost -$${Math.abs(revPattern?.impact ?? 0).toFixed(0)}` : 'Zero revenge sequences',
                                 barPct: Math.min(100, revCount * 25),
-                                barColor: revCount === 0 ? '#A6FF4D' : revCount === 1 ? '#EAB308' : revCount <= 3 ? '#F97316' : '#ff4757',
+                                barColor: revCount === 0 ? '#FDC800' : revCount === 1 ? '#EAB308' : revCount <= 3 ? '#F97316' : '#ff4757',
                                 interpretation: revCount === 0
                                     ? 'No revenge trading patterns detected. You are not immediately re-entering after losses — this means your emotional regulation is working. This is one of the hardest disciplines to maintain.'
                                     : `${revCount} revenge sequence${revCount > 1 ? 's' : ''} detected. Revenge trading is rapid re-entry within minutes of a loss, driven by the urge to recover — not by new market structure. The entry thesis after a revenge entry is nearly always the same broken thesis that caused the original loss.`,
@@ -3233,7 +3233,7 @@ export default function AnalyticsPage() {
                                 actualValue: htRatio !== null ? `${htRatio.toFixed(2)}x` : '—',
                                 actualSub: `Winners: ${fmtDuration(avgWinDuration)} · Losers: ${fmtDuration(avgLossDuration)}`,
                                 barPct: htRatio !== null ? Math.min(100, (htRatio / 2) * 100) : 50,
-                                barColor: htRatio === null ? '#6b7280' : htRatio >= 1.2 ? '#A6FF4D' : htRatio >= 0.9 ? '#00D4FF' : htRatio >= 0.6 ? '#EAB308' : '#ff4757',
+                                barColor: htRatio === null ? '#6b7280' : htRatio >= 1.2 ? '#FDC800' : htRatio >= 0.9 ? '#00D4FF' : htRatio >= 0.6 ? '#EAB308' : '#ff4757',
                                 interpretation: htRatio === null
                                     ? 'Insufficient trade history to compute hold time asymmetry. Log at least one win and one loss with timestamps to unlock this metric.'
                                     : htRatio >= 1.2
@@ -3253,7 +3253,7 @@ export default function AnalyticsPage() {
                                 actualValue: wlRatio > 0 ? `${wlRatio.toFixed(2)}:1` : '—',
                                 actualSub: `Avg win $${avgWin.toFixed(0)} · Avg loss $${avgLoss.toFixed(0)}`,
                                 barPct: Math.min(100, (wlRatio / 3) * 100),
-                                barColor: wlRatio >= 1.5 ? '#A6FF4D' : wlRatio >= 1 ? '#EAB308' : '#ff4757',
+                                barColor: wlRatio >= 1.5 ? '#FDC800' : wlRatio >= 1 ? '#EAB308' : '#ff4757',
                                 interpretation: wlRatio === 0
                                     ? 'No complete win/loss data. Log both wins and losses to compute the payoff ratio.'
                                     : wlRatio >= 1.5
@@ -3273,7 +3273,7 @@ export default function AnalyticsPage() {
                                 actualValue: microAssets.length > 0 ? `${microPnl >= 0 ? '+' : ''}$${microPnl.toFixed(0)}` : '—',
                                 actualSub: microAssets.length > 0 ? `${microAssets.length} micro instrument${microAssets.length !== 1 ? 's' : ''} traded` : 'No micro contracts detected',
                                 barPct: microAssets.length === 0 ? 100 : Math.min(100, (Math.abs(microPnl) / Math.max(Math.abs(netPnl), 1)) * 100),
-                                barColor: microAssets.length === 0 || microPnl >= 0 ? '#A6FF4D' : '#ff4757',
+                                barColor: microAssets.length === 0 || microPnl >= 0 ? '#FDC800' : '#ff4757',
                                 interpretation: microAssets.length === 0
                                     ? 'No micro contracts detected in your trade history. This metric monitors whether smaller-size practice trades are costing you through commission bleed.'
                                     : microPnl >= 0
@@ -3289,7 +3289,7 @@ export default function AnalyticsPage() {
                                 actualValue: firstHourStats.trades > 0 ? `${firstHourStats.trades}T · ${firstHourWR.toFixed(0)}% WR` : 'None',
                                 actualSub: firstHourStats.trades > 0 ? `Net P&L: ${firstHourStats.pnl >= 0 ? '+' : ''}$${firstHourStats.pnl.toFixed(0)} before 10:00 EST` : 'No trades logged before 10:00 EST',
                                 barPct: firstHourStats.trades === 0 ? 100 : Math.min(100, firstHourWR),
-                                barColor: firstHourWR >= 50 && firstHourStats.pnl >= 0 ? '#A6FF4D' : firstHourWR >= 40 ? '#EAB308' : '#ff4757',
+                                barColor: firstHourWR >= 50 && firstHourStats.pnl >= 0 ? '#FDC800' : firstHourWR >= 40 ? '#EAB308' : '#ff4757',
                                 interpretation: firstHourStats.trades === 0
                                     ? 'No first-hour trades detected. The open is the most volatile and spread-widest period — avoiding it is a valid edge strategy.'
                                     : firstHourWR >= 50 && firstHourStats.pnl >= 0
@@ -3307,7 +3307,7 @@ export default function AnalyticsPage() {
                                 actualValue: maxSessionTrades > 0 ? `${maxSessionTrades} trades` : '—',
                                 actualSub: `Avg per session: ${avgSessionTrades.toFixed(1)} trades · ${sessionMetrics.length} sessions total`,
                                 barPct: Math.min(100, (maxSessionTrades / 25) * 100),
-                                barColor: maxSessionTrades <= 10 ? '#A6FF4D' : maxSessionTrades <= 15 ? '#00D4FF' : maxSessionTrades <= 20 ? '#EAB308' : '#ff4757',
+                                barColor: maxSessionTrades <= 10 ? '#FDC800' : maxSessionTrades <= 15 ? '#00D4FF' : maxSessionTrades <= 20 ? '#EAB308' : '#ff4757',
                                 interpretation: maxSessionTrades === 0
                                     ? 'No session data available yet. Log trades across multiple sessions to track session cap discipline.'
                                     : maxSessionTrades <= 10
@@ -3327,7 +3327,7 @@ export default function AnalyticsPage() {
                                 actualValue: `${instCount}`,
                                 actualSub: instCount > 0 ? instrumentArray.slice(0, 4).map(i => i.asset).join(' · ') + (instCount > 4 ? ` +${instCount - 4} more` : '') : 'No trades logged',
                                 barPct: Math.min(100, Math.max(0, 100 - ((instCount - 1) / 5) * 100)),
-                                barColor: instCount <= 2 ? '#A6FF4D' : instCount <= 4 ? '#EAB308' : '#ff4757',
+                                barColor: instCount <= 2 ? '#FDC800' : instCount <= 4 ? '#EAB308' : '#ff4757',
                                 interpretation: instCount === 0
                                     ? 'No instrument data yet.'
                                     : instCount <= 2
@@ -3371,9 +3371,9 @@ export default function AnalyticsPage() {
                                 <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'repeat(2, 1fr)' : 'repeat(4, 1fr)', borderTop: '1px solid #1a1c24', borderLeft: '1px solid #1a1c24' }}>
                                     {[
                                         { label: 'COMPOSITE SCORE', value: `${compositeScore}`, sub: `Out of 100 · Grade ${compositeGrade}`, color: gradeColor(compositeGrade) },
-                                        { label: 'METRICS PASSING', value: `${passing}/8`, sub: `${(passing / 8 * 100).toFixed(0)}% pass rate (A or B)`, color: passing >= 6 ? '#A6FF4D' : passing >= 4 ? '#EAB308' : '#ff4757' },
-                                        { label: 'FAILING METRICS', value: `${failing}`, sub: failing === 0 ? 'No critical issues' : `${failing} need immediate attention`, color: failing === 0 ? '#A6FF4D' : failing <= 2 ? '#EAB308' : '#ff4757' },
-                                        { label: 'BEHAVIORAL RISK', value: `${forensics.riskScore.toFixed(0)}/100`, sub: forensics.riskScore > 60 ? 'CRITICAL — address immediately' : forensics.riskScore > 35 ? 'Elevated — monitor closely' : 'Healthy', color: forensics.riskScore > 60 ? '#ff4757' : forensics.riskScore > 35 ? '#EAB308' : '#A6FF4D' },
+                                        { label: 'METRICS PASSING', value: `${passing}/8`, sub: `${(passing / 8 * 100).toFixed(0)}% pass rate (A or B)`, color: passing >= 6 ? '#FDC800' : passing >= 4 ? '#EAB308' : '#ff4757' },
+                                        { label: 'FAILING METRICS', value: `${failing}`, sub: failing === 0 ? 'No critical issues' : `${failing} need immediate attention`, color: failing === 0 ? '#FDC800' : failing <= 2 ? '#EAB308' : '#ff4757' },
+                                        { label: 'BEHAVIORAL RISK', value: `${forensics.riskScore.toFixed(0)}/100`, sub: forensics.riskScore > 60 ? 'CRITICAL — address immediately' : forensics.riskScore > 35 ? 'Elevated — monitor closely' : 'Healthy', color: forensics.riskScore > 60 ? '#ff4757' : forensics.riskScore > 35 ? '#EAB308' : '#FDC800' },
                                     ].map((k, i) => (
                                         <div key={i} style={{ padding: '20px 24px', borderBottom: '1px solid #1a1c24', borderRight: '1px solid #1a1c24', background: '#0d1117', display: 'flex', flexDirection: 'column', gap: 6 }}>
                                             <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#6b7280', letterSpacing: '0.1em', textTransform: 'uppercase' }}>{k.label}</span>
@@ -3451,8 +3451,8 @@ export default function AnalyticsPage() {
 
                                                 {/* Interpretation + Action */}
                                                 <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: 8 }}>
-                                                    <div style={{ padding: '12px 14px', background: `rgba(${isFailing ? '255,71,87' : '166,255,77'},0.04)`, border: `1px solid rgba(${isFailing ? '255,71,87' : '166,255,77'},0.12)`, borderLeft: `3px solid ${isFailing ? '#ff4757' : '#A6FF4D'}` }}>
-                                                        <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: isFailing ? '#ff4757' : '#A6FF4D', letterSpacing: '0.1em', textTransform: 'uppercase', fontWeight: 700, marginBottom: 5 }}>WHAT THIS MEANS</div>
+                                                    <div style={{ padding: '12px 14px', background: `rgba(${isFailing ? '255,71,87' : '166,255,77'},0.04)`, border: `1px solid rgba(${isFailing ? '255,71,87' : '166,255,77'},0.12)`, borderLeft: `3px solid ${isFailing ? '#ff4757' : '#FDC800'}` }}>
+                                                        <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: isFailing ? '#ff4757' : '#FDC800', letterSpacing: '0.1em', textTransform: 'uppercase', fontWeight: 700, marginBottom: 5 }}>WHAT THIS MEANS</div>
                                                         <p style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: '#c9d1d9', lineHeight: 1.8, margin: 0 }}>{m.interpretation}</p>
                                                     </div>
                                                     <div style={{ padding: '12px 14px', background: 'rgba(234,179,8,0.04)', border: '1px solid rgba(234,179,8,0.12)', borderLeft: '3px solid #EAB308' }}>
@@ -3490,8 +3490,8 @@ export default function AnalyticsPage() {
                                             })}
                                         </div>
                                     ) : (
-                                        <div style={{ padding: '20px', background: 'rgba(166,255,77,0.04)', border: '1px solid rgba(166,255,77,0.15)', borderLeft: '3px solid #A6FF4D' }}>
-                                            <div style={{ fontFamily: 'var(--font-mono)', fontSize: 13, fontWeight: 700, color: '#A6FF4D', marginBottom: 6 }}>All metrics passing — elite execution discipline.</div>
+                                        <div style={{ padding: '20px', background: 'rgba(253,200,0,0.04)', border: '1px solid rgba(253,200,0,0.15)', borderLeft: '3px solid #FDC800' }}>
+                                            <div style={{ fontFamily: 'var(--font-mono)', fontSize: 13, fontWeight: 700, color: '#FDC800', marginBottom: 6 }}>All metrics passing — elite execution discipline.</div>
                                             <p style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: '#8b949e', lineHeight: 1.7, margin: 0 }}>
                                                 Zero failing grades means your behavioral foundations are solid. Focus on incremental improvement: review C-grade metrics and target one area per month. Consistency compounds faster than breakthroughs.
                                             </p>
@@ -3503,7 +3503,7 @@ export default function AnalyticsPage() {
                                 <div style={{ background: '#0d1117', border: '1px solid #1a1c24', padding: '16px 24px', display: 'flex', gap: 24, flexWrap: 'wrap', alignItems: 'center' }}>
                                     <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#6b7280', letterSpacing: '0.1em', textTransform: 'uppercase' }}>GRADE SCALE</span>
                                     {[
-                                        { g: 'A', label: '≥90 · Passing', c: '#A6FF4D' },
+                                        { g: 'A', label: '≥90 · Passing', c: '#FDC800' },
                                         { g: 'B', label: '75–89 · Good', c: '#00D4FF' },
                                         { g: 'C', label: '50–74 · Marginal', c: '#EAB308' },
                                         { g: 'D', label: '20–49 · Failing', c: '#F97316' },
@@ -3643,7 +3643,7 @@ export default function AnalyticsPage() {
 
                         // Helpers
                         const fmtQ = (v: number) => `${v >= 0 ? '+' : ''}$${Math.abs(v) >= 1000 ? `${(v / 1000).toFixed(1)}k` : Math.abs(v).toFixed(0)}`;
-                        const rc = (v: number, good: number, ok: number) => v >= good ? '#A6FF4D' : v >= ok ? '#EAB308' : '#ff4757';
+                        const rc = (v: number, good: number, ok: number) => v >= good ? '#FDC800' : v >= ok ? '#EAB308' : '#ff4757';
 
                         return (
                             <motion.div key="quant" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} style={{ display: 'flex', flexDirection: 'column', gap: 24, marginBottom: 48 }}>
@@ -3675,7 +3675,7 @@ export default function AnalyticsPage() {
                                         { label: 'CALMAR RATIO', val: maxDd > 0 && nD >= 2 ? calmar.toFixed(2) : '—', color: rc(calmar, 1, 0.3), formula: 'μ×252 / MaxDD', sub: 'Annual return / max DD' },
                                         { label: 'OMEGA RATIO', val: nD >= 2 ? (omega >= 99 ? '∞' : omega.toFixed(2)) : '—', color: rc(omega, 2, 1), formula: '∑gains / ∑|losses|', sub: 'Total gain vs total loss' },
                                         { label: 'RECOVERY FACTOR', val: maxDd > 0 ? recovFactor.toFixed(2) : '—', color: rc(recovFactor, 3, 1), formula: 'Net P&L / MaxDD', sub: 'How well you recover' },
-                                        { label: 'KELLY %', val: kellyFull > 0 ? `${kellyPct.toFixed(1)}%` : 'No edge', color: kellyFull > 0 ? '#A6FF4D' : '#ff4757', formula: 'W − (1−W)/R', sub: 'Optimal risk per trade' },
+                                        { label: 'KELLY %', val: kellyFull > 0 ? `${kellyPct.toFixed(1)}%` : 'No edge', color: kellyFull > 0 ? '#FDC800' : '#ff4757', formula: 'W − (1−W)/R', sub: 'Optimal risk per trade' },
                                         { label: 'PROFIT FACTOR', val: profitFactor >= 99 ? '∞' : profitFactor.toFixed(2), color: rc(profitFactor, 2, 1.2), formula: 'ΣWins / Σ|Losses|', sub: 'Gross wins / gross losses' },
                                         { label: 'EFFICIENCY %', val: nT > 0 ? `${efficiency.toFixed(1)}%` : '—', color: rc(efficiency, 30, 10), formula: '|Net| / (W+L)', sub: 'Net vs total throughput' },
                                     ].map((k, i) => (
@@ -3693,16 +3693,16 @@ export default function AnalyticsPage() {
                                     <div style={{ fontFamily: QF, fontSize: 9, color: '#6b7280', letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 12 }}>RATIO BENCHMARK GUIDE</div>
                                     <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 16 }}>
                                         <div style={{ fontFamily: QF, fontSize: 10, color: '#c9d1d9', lineHeight: 2 }}>
-                                            <span style={{ color: '#A6FF4D', fontWeight: 700 }}>Sharpe &gt;1.0</span> — Institutional quality. Each risk unit earns &gt;1 unit of return annually.<br/>
+                                            <span style={{ color: '#FDC800', fontWeight: 700 }}>Sharpe &gt;1.0</span> — Institutional quality. Each risk unit earns &gt;1 unit of return annually.<br/>
                                             <span style={{ color: '#EAB308', fontWeight: 700 }}>Sharpe 0.5–1.0</span> — Acceptable. Most retail traders sit here.<br/>
                                             <span style={{ color: '#ff4757', fontWeight: 700 }}>Sharpe &lt;0.5</span> — Volatility is outpacing return generation.<br/>
-                                            <span style={{ color: '#A6FF4D', fontWeight: 700 }}>Sortino &gt;1.5</span> — Superior downside management vs upside capture.
+                                            <span style={{ color: '#FDC800', fontWeight: 700 }}>Sortino &gt;1.5</span> — Superior downside management vs upside capture.
                                         </div>
                                         <div style={{ fontFamily: QF, fontSize: 10, color: '#c9d1d9', lineHeight: 2 }}>
-                                            <span style={{ color: '#A6FF4D', fontWeight: 700 }}>Omega &gt;2.0</span> — 2× more gained than lost in absolute terms. Strong edge.<br/>
-                                            <span style={{ color: '#A6FF4D', fontWeight: 700 }}>Calmar &gt;1.0</span> — Annualized return exceeds the max drawdown incurred.<br/>
+                                            <span style={{ color: '#FDC800', fontWeight: 700 }}>Omega &gt;2.0</span> — 2× more gained than lost in absolute terms. Strong edge.<br/>
+                                            <span style={{ color: '#FDC800', fontWeight: 700 }}>Calmar &gt;1.0</span> — Annualized return exceeds the max drawdown incurred.<br/>
                                             <span style={{ color: '#00D4FF', fontWeight: 700 }}>Kelly</span> — Full Kelly is aggressive. Use half-Kelly ({(kellyPct * 0.5).toFixed(1)}%) for drawdown safety.<br/>
-                                            <span style={{ color: '#A6FF4D', fontWeight: 700 }}>Recovery &gt;3.0</span> — Net profit is 3× your worst drawdown. Excellent resilience.
+                                            <span style={{ color: '#FDC800', fontWeight: 700 }}>Recovery &gt;3.0</span> — Net profit is 3× your worst drawdown. Excellent resilience.
                                         </div>
                                     </div>
                                 </div>
@@ -3710,7 +3710,7 @@ export default function AnalyticsPage() {
                                 {/* ── PERSONALIZED RATIO READING ── */}
                                 <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 1, background: '#1a1c24' }}>
                                     <div style={{ background: '#0d1117', padding: '20px 24px' }}>
-                                        <div style={{ fontFamily: QF, fontSize: 9, color: '#A6FF4D', letterSpacing: '0.12em', textTransform: 'uppercase', fontWeight: 700, marginBottom: 10 }}>WHAT YOUR RATIOS SAY</div>
+                                        <div style={{ fontFamily: QF, fontSize: 9, color: '#FDC800', letterSpacing: '0.12em', textTransform: 'uppercase', fontWeight: 700, marginBottom: 10 }}>WHAT YOUR RATIOS SAY</div>
                                         <p style={{ fontFamily: QF, fontSize: 10, color: '#c9d1d9', lineHeight: 1.9, margin: 0 }}>
                                             {nD >= 2 ? (
                                                 sharpe >= 1
@@ -3780,7 +3780,7 @@ export default function AnalyticsPage() {
                                                 recovFactor >= 1,
                                                 efficiency >= 15,
                                             ].every(Boolean) && (
-                                                <p style={{ fontFamily: QF, fontSize: 10, color: '#A6FF4D', lineHeight: 1.7, margin: 0 }}>All major ratio thresholds passing. Focus on increasing trade sample to validate statistical significance of your edge.</p>
+                                                <p style={{ fontFamily: QF, fontSize: 10, color: '#FDC800', lineHeight: 1.7, margin: 0 }}>All major ratio thresholds passing. Focus on increasing trade sample to validate statistical significance of your edge.</p>
                                             )}
                                         </div>
                                     </div>
@@ -3796,8 +3796,8 @@ export default function AnalyticsPage() {
                                         </div>
                                         <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 6 }}>
                                             {[
-                                                { label: 'MEAN TRADE', val: fmtQ(meanT), color: meanT >= 0 ? '#A6FF4D' : '#ff4757' },
-                                                { label: 'MEDIAN TRADE', val: fmtQ(qp50), color: qp50 >= 0 ? '#A6FF4D' : '#ff4757' },
+                                                { label: 'MEAN TRADE', val: fmtQ(meanT), color: meanT >= 0 ? '#FDC800' : '#ff4757' },
+                                                { label: 'MEDIAN TRADE', val: fmtQ(qp50), color: qp50 >= 0 ? '#FDC800' : '#ff4757' },
                                                 { label: 'STD DEV', val: `$${stdT.toFixed(0)}`, color: '#c9d1d9' },
                                                 { label: 'SAMPLE SIZE', val: `${nT}`, color: '#c9d1d9' },
                                             ].map((s, i) => (
@@ -3819,7 +3819,7 @@ export default function AnalyticsPage() {
                                             <Bar dataKey="count" radius={[2, 2, 0, 0]}>
                                                 {histBuckets.map((b, idx) => {
                                                     const intensity = 0.3 + Math.min(0.7, (b.count / maxHistCnt) * 0.7);
-                                                    return <Cell key={idx} fill={b.center >= 0 ? `rgba(166,255,77,${intensity.toFixed(2)})` : `rgba(255,71,87,${intensity.toFixed(2)})`} />;
+                                                    return <Cell key={idx} fill={b.center >= 0 ? `rgba(253,200,0,${intensity.toFixed(2)})` : `rgba(255,71,87,${intensity.toFixed(2)})`} />;
                                                 })}
                                             </Bar>
                                         </BarChart>
@@ -3831,7 +3831,7 @@ export default function AnalyticsPage() {
                                             {
                                                 label: 'SKEWNESS',
                                                 val: skew.toFixed(2),
-                                                color: skew > 0.5 ? '#A6FF4D' : skew < -0.5 ? '#ff4757' : '#EAB308',
+                                                color: skew > 0.5 ? '#FDC800' : skew < -0.5 ? '#ff4757' : '#EAB308',
                                                 desc: skew > 0.5
                                                     ? 'Right-skewed. Rare large wins pull the mean right. Favorable structure — occasional outsized winners offset frequent small losses.'
                                                     : skew < -0.5
@@ -3841,7 +3841,7 @@ export default function AnalyticsPage() {
                                             {
                                                 label: 'EXCESS KURTOSIS',
                                                 val: exKurt.toFixed(2),
-                                                color: exKurt > 3 ? '#ff4757' : exKurt > 1 ? '#EAB308' : '#A6FF4D',
+                                                color: exKurt > 3 ? '#ff4757' : exKurt > 1 ? '#EAB308' : '#FDC800',
                                                 desc: exKurt > 3
                                                     ? 'Highly leptokurtic. Fat tails — extreme trades (both huge wins and catastrophic losses) are far more common than a normal distribution predicts. VaR models will underestimate your real tail risk.'
                                                     : exKurt > 1
@@ -3851,7 +3851,7 @@ export default function AnalyticsPage() {
                                             {
                                                 label: 'RIGHT TAIL (P95)',
                                                 val: `+$${qp95 >= 0 ? qp95.toFixed(0) : '—'}`,
-                                                color: '#A6FF4D',
+                                                color: '#FDC800',
                                                 desc: `Top 5% of your trades returned +$${qp95.toFixed(0)} or more. The larger this is relative to your median, the more your P&L depends on outlier wins.`,
                                             },
                                             {
@@ -3872,8 +3872,8 @@ export default function AnalyticsPage() {
 
                                 {/* ── DISTRIBUTION WHAT THIS MEANS + ACTION ── */}
                                 <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 1, background: '#1a1c24' }}>
-                                    <div style={{ background: '#0d1117', padding: '18px 20px', borderLeft: `3px solid ${skew < -0.5 ? '#ff4757' : skew > 0.5 ? '#A6FF4D' : '#EAB308'}` }}>
-                                        <div style={{ fontFamily: QF, fontSize: 9, color: skew < -0.5 ? '#ff4757' : skew > 0.5 ? '#A6FF4D' : '#EAB308', letterSpacing: '0.12em', textTransform: 'uppercase', fontWeight: 700, marginBottom: 8 }}>WHAT THIS DISTRIBUTION MEANS</div>
+                                    <div style={{ background: '#0d1117', padding: '18px 20px', borderLeft: `3px solid ${skew < -0.5 ? '#ff4757' : skew > 0.5 ? '#FDC800' : '#EAB308'}` }}>
+                                        <div style={{ fontFamily: QF, fontSize: 9, color: skew < -0.5 ? '#ff4757' : skew > 0.5 ? '#FDC800' : '#EAB308', letterSpacing: '0.12em', textTransform: 'uppercase', fontWeight: 700, marginBottom: 8 }}>WHAT THIS DISTRIBUTION MEANS</div>
                                         <p style={{ fontFamily: QF, fontSize: 10, color: '#c9d1d9', lineHeight: 1.9, margin: 0 }}>
                                             {skew > 0.5 && exKurt <= 1
                                                 ? `Right-skewed, thin-tailed distribution — the best profile for a retail trader. You have more small losses than small wins, but your wins are meaningfully larger. Positive skew means a few exceptional trades are carrying the P&L. This profile can sustain a sub-50% win rate and still be profitable.`
@@ -3923,7 +3923,7 @@ export default function AnalyticsPage() {
                                             )}
                                             {skew > 0.3 && exKurt <= 1 && (
                                                 <div style={{ display: 'flex', gap: 8 }}>
-                                                    <span style={{ color: '#A6FF4D', fontFamily: QF, fontSize: 10, flexShrink: 0 }}>✓</span>
+                                                    <span style={{ color: '#FDC800', fontFamily: QF, fontSize: 10, flexShrink: 0 }}>✓</span>
                                                     <p style={{ fontFamily: QF, fontSize: 10, color: '#8b949e', lineHeight: 1.7, margin: 0 }}>
                                                         Distribution shape is healthy. Protect your right tail: do not exit P95 trades early. Those {fmtQ(qp95)}+ winners are structurally important — they are what makes your mean higher than your median.
                                                     </p>
@@ -3946,8 +3946,8 @@ export default function AnalyticsPage() {
                                         <div style={{ fontFamily: QF, fontSize: 9, color: '#6b7280', letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 14 }}>PERCENTILE BREAKDOWN</div>
                                         <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
                                             {[
-                                                { p: 'P95', val: qp95, label: 'Top 5% outcome', color: '#A6FF4D' },
-                                                { p: 'P75', val: qp75, label: 'Upper quartile', color: '#A6FF4D' },
+                                                { p: 'P95', val: qp95, label: 'Top 5% outcome', color: '#FDC800' },
+                                                { p: 'P75', val: qp75, label: 'Upper quartile', color: '#FDC800' },
                                                 { p: 'P50', val: qp50, label: 'Median trade', color: qp50 >= 0 ? '#c9d1d9' : '#EAB308' },
                                                 { p: 'P25', val: qp25, label: 'Lower quartile', color: qp25 >= 0 ? '#EAB308' : '#ff4757' },
                                                 { p: 'P10', val: qp10, label: 'Bottom decile', color: '#ff4757' },
@@ -4110,7 +4110,7 @@ export default function AnalyticsPage() {
                                                         </p>
                                                     )}
                                                     {recovFactor >= 3 && (
-                                                        <p style={{ fontFamily: QF, fontSize: 10, color: '#A6FF4D', lineHeight: 1.7, margin: 0 }}>
+                                                        <p style={{ fontFamily: QF, fontSize: 10, color: '#FDC800', lineHeight: 1.7, margin: 0 }}>
                                                             Recovery factor {recovFactor.toFixed(2)} exceeds the 3.0 benchmark. Drawdown management is working. Maintain the same stop discipline — this metric will degrade if you loosen exits.
                                                         </p>
                                                     )}
@@ -4127,10 +4127,10 @@ export default function AnalyticsPage() {
                                         <div style={{ fontFamily: QF, fontSize: 9, color: '#6b7280', letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 14 }}>STATISTICAL EDGE SIGNIFICANCE</div>
                                         <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 1, background: '#1a1c24', marginBottom: 12 }}>
                                             {[
-                                                { label: 'T-STATISTIC', val: tStat.toFixed(2), color: Math.abs(tStat) >= tCrit ? '#A6FF4D' : '#ff4757', sub: `Need |t| ≥ ${tCrit.toFixed(1)}` },
+                                                { label: 'T-STATISTIC', val: tStat.toFixed(2), color: Math.abs(tStat) >= tCrit ? '#FDC800' : '#ff4757', sub: `Need |t| ≥ ${tCrit.toFixed(1)}` },
                                                 { label: 'CRITICAL VALUE', val: `±${tCrit.toFixed(1)}`, color: '#00D4FF', sub: '95% two-tailed' },
-                                                { label: 'EDGE STATUS', val: isSignificant ? 'CONFIRMED' : 'NOT SIG.', color: isSignificant ? '#A6FF4D' : '#ff4757', sub: isSignificant ? 'At 95% confidence' : 'Need more trades' },
-                                                { label: 'MIN SAMPLE', val: `${Math.min(minN4Sig, 9999)}`, color: nT >= minN4Sig ? '#A6FF4D' : '#EAB308', sub: `You have ${nT} of ${minN4Sig}` },
+                                                { label: 'EDGE STATUS', val: isSignificant ? 'CONFIRMED' : 'NOT SIG.', color: isSignificant ? '#FDC800' : '#ff4757', sub: isSignificant ? 'At 95% confidence' : 'Need more trades' },
+                                                { label: 'MIN SAMPLE', val: `${Math.min(minN4Sig, 9999)}`, color: nT >= minN4Sig ? '#FDC800' : '#EAB308', sub: `You have ${nT} of ${minN4Sig}` },
                                             ].map((s, i) => (
                                                 <div key={i} style={{ background: '#0d1117', padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: 4 }}>
                                                     <span style={{ fontFamily: QF, fontSize: 8, color: '#6b7280', letterSpacing: '0.08em' }}>{s.label}</span>
@@ -4139,8 +4139,8 @@ export default function AnalyticsPage() {
                                                 </div>
                                             ))}
                                         </div>
-                                        <div style={{ padding: '12px 14px', background: `rgba(${isSignificant ? '166,255,77' : '255,71,87'},0.05)`, border: `1px solid rgba(${isSignificant ? '166,255,77' : '255,71,87'},0.15)`, borderLeft: `3px solid ${isSignificant ? '#A6FF4D' : '#ff4757'}` }}>
-                                            <div style={{ fontFamily: QF, fontSize: 9, color: isSignificant ? '#A6FF4D' : '#ff4757', letterSpacing: '0.1em', marginBottom: 4 }}>
+                                        <div style={{ padding: '12px 14px', background: `rgba(${isSignificant ? '166,255,77' : '255,71,87'},0.05)`, border: `1px solid rgba(${isSignificant ? '166,255,77' : '255,71,87'},0.15)`, borderLeft: `3px solid ${isSignificant ? '#FDC800' : '#ff4757'}` }}>
+                                            <div style={{ fontFamily: QF, fontSize: 9, color: isSignificant ? '#FDC800' : '#ff4757', letterSpacing: '0.1em', marginBottom: 4 }}>
                                                 {isSignificant ? 'EDGE CONFIRMED AT 95% CONFIDENCE' : 'INSUFFICIENT STATISTICAL EVIDENCE'}
                                             </div>
                                             <p style={{ fontFamily: QF, fontSize: 10, color: '#c9d1d9', lineHeight: 1.7, margin: 0 }}>
@@ -4191,9 +4191,9 @@ export default function AnalyticsPage() {
                                                 <div style={{ fontFamily: QF, fontSize: 9, color: '#2d3748', marginTop: 4 }}>x̄ ± t·(σ/√n) = ${meanT.toFixed(0)} ± ${ciHalf.toFixed(0)}</div>
                                             </div>
                                             {[
-                                                { label: 'NEXT 10 TRADES', val: fmtQ(meanT * 10), sub: `10 × ${fmtQ(meanT)} expected value`, color: meanT >= 0 ? '#A6FF4D' : '#ff4757' },
-                                                { label: 'NEXT 50 TRADES', val: fmtQ(meanT * 50), sub: `50 × ${fmtQ(meanT)} mean`, color: meanT >= 0 ? '#A6FF4D' : '#ff4757' },
-                                                { label: 'ANNUALIZED (252d)', val: fmtQ(annReturn), sub: `${nD} days sampled, extrapolated to 252`, color: annReturn >= 0 ? '#A6FF4D' : '#ff4757' },
+                                                { label: 'NEXT 10 TRADES', val: fmtQ(meanT * 10), sub: `10 × ${fmtQ(meanT)} expected value`, color: meanT >= 0 ? '#FDC800' : '#ff4757' },
+                                                { label: 'NEXT 50 TRADES', val: fmtQ(meanT * 50), sub: `50 × ${fmtQ(meanT)} mean`, color: meanT >= 0 ? '#FDC800' : '#ff4757' },
+                                                { label: 'ANNUALIZED (252d)', val: fmtQ(annReturn), sub: `${nD} days sampled, extrapolated to 252`, color: annReturn >= 0 ? '#FDC800' : '#ff4757' },
                                             ].map((s, i) => (
                                                 <div key={i} style={{ padding: '10px 14px', background: '#0b0e14', border: '1px solid #1a1c24', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
                                                     <div>
@@ -4236,9 +4236,9 @@ export default function AnalyticsPage() {
                                             {[
                                                 { label: 'BEAR CASE (P10)', val: fmtQ(mcResults.p10), color: mcResults.p10 >= 0 ? '#EAB308' : '#ff4757', sub: 'Worst 10% of runs' },
                                                 { label: 'CAUTIOUS (P25)', val: fmtQ(mcResults.p25), color: mcResults.p25 >= 0 ? '#EAB308' : '#ff4757', sub: 'Bottom quartile' },
-                                                { label: 'BASE CASE (P50)', val: fmtQ(mcResults.p50), color: mcResults.p50 >= 0 ? '#A6FF4D' : '#ff4757', sub: 'Median simulation' },
-                                                { label: 'OPTIMISTIC (P75)', val: fmtQ(mcResults.p75), color: '#A6FF4D', sub: 'Top quartile' },
-                                                { label: 'BULL CASE (P90)', val: fmtQ(mcResults.p90), color: '#A6FF4D', sub: 'Best 10% of runs' },
+                                                { label: 'BASE CASE (P50)', val: fmtQ(mcResults.p50), color: mcResults.p50 >= 0 ? '#FDC800' : '#ff4757', sub: 'Median simulation' },
+                                                { label: 'OPTIMISTIC (P75)', val: fmtQ(mcResults.p75), color: '#FDC800', sub: 'Top quartile' },
+                                                { label: 'BULL CASE (P90)', val: fmtQ(mcResults.p90), color: '#FDC800', sub: 'Best 10% of runs' },
                                             ].map((s, i) => (
                                                 <div key={i} style={{ background: '#0d1117', padding: '14px 16px', display: 'flex', flexDirection: 'column', gap: 4 }}>
                                                     <span style={{ fontFamily: QF, fontSize: 8, color: '#6b7280', letterSpacing: '0.1em' }}>{s.label}</span>
@@ -4257,7 +4257,7 @@ export default function AnalyticsPage() {
                                                 <ReferenceLine x="$0" stroke="rgba(255,255,255,0.2)" strokeWidth={1} />
                                                 <Bar dataKey="count" radius={[2, 2, 0, 0]}>
                                                     {mcResults.buckets.map((b, i) => (
-                                                        <Cell key={i} fill={b.center >= 0 ? 'rgba(166,255,77,0.7)' : 'rgba(255,71,87,0.7)'} />
+                                                        <Cell key={i} fill={b.center >= 0 ? 'rgba(253,200,0,0.7)' : 'rgba(255,71,87,0.7)'} />
                                                     ))}
                                                 </Bar>
                                             </BarChart>
@@ -4267,8 +4267,8 @@ export default function AnalyticsPage() {
                                         <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'repeat(2, 1fr)' : 'repeat(3, 1fr)', gap: 1, marginTop: 12, background: '#1a1c24' }}>
                                             {[
                                                 { label: 'PROB. PROFITABLE', val: `${mcResults.posProb.toFixed(0)}%`, color: rc(mcResults.posProb, 70, 50), sub: `${mcResults.posProb.toFixed(0)}% of simulated ${MC_TRADES}-trade runs end in profit` },
-                                                { label: 'PROB. OF RUIN (>10% DD)', val: `${mcResults.ruinProb.toFixed(1)}%`, color: mcResults.ruinProb < 5 ? '#A6FF4D' : mcResults.ruinProb < 20 ? '#EAB308' : '#ff4757', sub: 'Probability of drawing down 10%+ of starting balance' },
-                                                { label: 'MEDIAN OUTCOME', val: fmtQ(mcResults.p50), color: mcResults.p50 >= 0 ? '#A6FF4D' : '#ff4757', sub: 'Half of all simulated futures beat this number after 50 trades' },
+                                                { label: 'PROB. OF RUIN (>10% DD)', val: `${mcResults.ruinProb.toFixed(1)}%`, color: mcResults.ruinProb < 5 ? '#FDC800' : mcResults.ruinProb < 20 ? '#EAB308' : '#ff4757', sub: 'Probability of drawing down 10%+ of starting balance' },
+                                                { label: 'MEDIAN OUTCOME', val: fmtQ(mcResults.p50), color: mcResults.p50 >= 0 ? '#FDC800' : '#ff4757', sub: 'Half of all simulated futures beat this number after 50 trades' },
                                             ].map((s, i) => (
                                                 <div key={i} style={{ background: '#0d1117', padding: '16px', display: 'flex', flexDirection: 'column', gap: 4 }}>
                                                     <span style={{ fontFamily: QF, fontSize: 8, color: '#6b7280', letterSpacing: '0.1em' }}>{s.label}</span>
@@ -4339,7 +4339,7 @@ export default function AnalyticsPage() {
                         if (closed.length > 0 && profitFactor < 1) gradeScore -= 20;
                         gradeScore = Math.max(0, gradeScore);
                         const grade = gradeScore >= 90 ? 'A' : gradeScore >= 75 ? 'B' : gradeScore >= 55 ? 'C' : 'D';
-                        const gradeColor = grade === 'A' ? '#A6FF4D' : grade === 'B' ? '#00D4FF' : grade === 'C' ? '#EAB308' : '#ff4757';
+                        const gradeColor = grade === 'A' ? '#FDC800' : grade === 'B' ? '#00D4FF' : grade === 'C' ? '#EAB308' : '#ff4757';
                         const gradeDesc = grade === 'A' ? 'Solid execution' : grade === 'B' ? 'Minor leakage' : grade === 'C' ? 'Needs work' : 'Significant issues';
 
                         // ── Prescriptions from patterns ──
@@ -4403,11 +4403,11 @@ export default function AnalyticsPage() {
                                                         </div>
                                                     </div>
                                                     <div className="flex items-center gap-4 border-t border-[#1a1c24] pt-3">
-                                                        <span className={`text-[9px] font-black px-2 py-1 tracking-widest border rounded-sm ${rx.badge === 'CRITICAL' ? 'text-[#ff4757] border-[#ff4757]/40 bg-[#ff4757]/10' : rx.badge === 'HIGH' ? 'text-[#EAB308] border-[#EAB308]/40 bg-[#EAB308]/10' : 'text-[#A6FF4D] border-[#A6FF4D]/30 bg-[#A6FF4D]/05'}`}>
+                                                        <span className={`text-[9px] font-black px-2 py-1 tracking-widest border rounded-sm ${rx.badge === 'CRITICAL' ? 'text-[#ff4757] border-[#ff4757]/40 bg-[#ff4757]/10' : rx.badge === 'HIGH' ? 'text-[#EAB308] border-[#EAB308]/40 bg-[#EAB308]/10' : 'text-[#FDC800] border-[#FDC800]/30 bg-[#FDC800]/05'}`}>
                                                             {rx.badge}
                                                         </span>
                                                         <span className="text-[11px] text-[#6b7280]">
-                                                            Impact: <span className="font-bold" style={{ color: '#A6FF4D' }}>+${rx.impact.toLocaleString()}/session</span>
+                                                            Impact: <span className="font-bold" style={{ color: '#FDC800' }}>+${rx.impact.toLocaleString()}/session</span>
                                                         </span>
                                                     </div>
                                                 </div>
@@ -4426,7 +4426,7 @@ export default function AnalyticsPage() {
                                         <div className="flex gap-3 items-center">
                                             <div className="flex-1 bg-[#0d1117] border border-[#1a1c24] p-5 flex flex-col gap-2" style={{ borderRadius: 4 }}>
                                                 <span className="text-[9px] uppercase tracking-[0.15em] font-bold" style={{ color: '#6b7280' }}>Current (with behavioral errors)</span>
-                                                <span className="text-[36px] font-black font-mono" style={{ color: netPnl >= 0 ? '#A6FF4D' : '#ff4757' }}>
+                                                <span className="text-[36px] font-black font-mono" style={{ color: netPnl >= 0 ? '#FDC800' : '#ff4757' }}>
                                                     {netPnl >= 0 ? '+' : '-'}${Math.abs(netPnl).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                                                 </span>
                                                 <span className="text-[11px]" style={{ color: '#6b7280' }}>{tradeCount} trades · {sessionCount} sessions</span>
@@ -4434,14 +4434,14 @@ export default function AnalyticsPage() {
                                             <div className="flex items-center justify-center text-[#6b7280]" style={{ fontSize: 20 }}>→</div>
                                             <div className="flex-1 bg-[#0d1117] border border-[#1a1c24] p-5 flex flex-col gap-2" style={{ borderRadius: 4 }}>
                                                 <span className="text-[9px] uppercase tracking-[0.15em] font-bold" style={{ color: '#6b7280' }}>Projected (with corrections)</span>
-                                                <span className="text-[36px] font-black font-mono" style={{ color: projectedPnl >= 0 ? '#A6FF4D' : '#ff4757' }}>
+                                                <span className="text-[36px] font-black font-mono" style={{ color: projectedPnl >= 0 ? '#FDC800' : '#ff4757' }}>
                                                     {projectedPnl >= 0 ? '+' : '-'}${Math.abs(projectedPnl).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                                                 </span>
                                                 <span className="text-[11px]" style={{ color: '#6b7280' }}>~{tradeCount} trades · Behavioral fixes applied</span>
                                             </div>
                                         </div>
                                         <div className="mt-4 pt-4 border-t border-[#1a1c24] text-center text-[12px] font-mono" style={{ color: '#6b7280' }}>
-                                            POTENTIAL IMPROVEMENT: <span className="font-black" style={{ color: '#A6FF4D' }}>+${totalRecovery.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                                            POTENTIAL IMPROVEMENT: <span className="font-black" style={{ color: '#FDC800' }}>+${totalRecovery.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                                         </div>
                                     </div>
                                 )}
@@ -4508,7 +4508,7 @@ export default function AnalyticsPage() {
                         ];
 
                         const trend = r30Metrics.pnl > priorMetrics.pnl && priorMetrics.count > 0 ? '↑ Improving' : r30Metrics.pnl < priorMetrics.pnl && priorMetrics.count > 0 ? '↓ Declining' : '— Stable';
-                        const trendColor = trend.startsWith('↑') ? '#A6FF4D' : trend.startsWith('↓') ? '#ff4757' : '#EAB308';
+                        const trendColor = trend.startsWith('↑') ? '#FDC800' : trend.startsWith('↓') ? '#ff4757' : '#EAB308';
 
                         return (
                             <motion.div key="compare" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="flex flex-col gap-0">

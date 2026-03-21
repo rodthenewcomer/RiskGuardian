@@ -154,7 +154,7 @@
     color: var(--accent);
 }
 .authBtnActive {
-    border-color: rgba(166, 255, 77, 0.3);
+    border-color: rgba(253, 200, 0, 0.3);
     color: var(--accent);
 }
 

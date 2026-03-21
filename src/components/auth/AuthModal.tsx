@@ -166,7 +166,7 @@ export default function AuthModal({ onClose, onSuccess }: AuthModalProps) {
                     width: '100%', maxWidth: 420,
                     background: '#0d1117',
                     border: '1px solid #1a1c24',
-                    borderTop: '2px solid #A6FF4D',
+                    borderTop: '2px solid #FDC800',
                     padding: '28px 28px 24px',
                     position: 'relative',
                 }}
@@ -181,12 +181,12 @@ export default function AuthModal({ onClose, onSuccess }: AuthModalProps) {
 
                 {/* Logo + title */}
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 20 }}>
-                    <div style={{ width: 32, height: 32, background: 'rgba(166,255,77,0.1)', border: '1px solid rgba(166,255,77,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                        <Shield size={16} color="#A6FF4D" />
+                    <div style={{ width: 32, height: 32, background: 'rgba(253,200,0,0.1)', border: '1px solid rgba(253,200,0,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                        <Shield size={16} color="#FDC800" />
                     </div>
                     <div>
                         <div style={{ fontFamily: mono, fontSize: 14, fontWeight: 800, color: '#fff', letterSpacing: '-0.02em' }}>
-                            Risk<span style={{ color: '#A6FF4D' }}>Guardian</span>
+                            Risk<span style={{ color: '#FDC800' }}>Guardian</span>
                         </div>
                         <div style={{ fontFamily: mono, fontSize: 10, color: '#6b7280' }}>{T.subtitle}</div>
                     </div>
@@ -283,7 +283,7 @@ export default function AuthModal({ onClose, onSuccess }: AuthModalProps) {
                         {success && (
                             <motion.div
                                 initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
-                                style={{ fontFamily: mono, fontSize: 11, color: '#A6FF4D', background: 'rgba(166,255,77,0.08)', border: '1px solid rgba(166,255,77,0.2)', padding: '8px 12px' }}
+                                style={{ fontFamily: mono, fontSize: 11, color: '#FDC800', background: 'rgba(253,200,0,0.08)', border: '1px solid rgba(253,200,0,0.2)', padding: '8px 12px' }}
                             >
                                 {success}
                             </motion.div>
@@ -296,7 +296,7 @@ export default function AuthModal({ onClose, onSuccess }: AuthModalProps) {
                         style={{
                             width: '100%', fontFamily: mono, fontSize: 12, fontWeight: 700,
                             letterSpacing: '0.06em', textTransform: 'uppercase',
-                            padding: '12px', background: '#A6FF4D', border: 'none',
+                            padding: '12px', background: '#FDC800', border: 'none',
                             color: '#090909', cursor: loading ? 'not-allowed' : 'pointer',
                             opacity: loading || !!success ? 0.7 : 1,
                             display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
@@ -319,7 +319,7 @@ export default function AuthModal({ onClose, onSuccess }: AuthModalProps) {
                             <span style={{ fontFamily: mono, fontSize: 11, color: '#4b5563' }}>
                                 {T.noAccount}{' '}
                                 <button onClick={() => { setMode('signup'); setError(''); setSuccess(''); }}
-                                    style={{ fontFamily: mono, fontSize: 11, color: '#A6FF4D', background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline' }}>
+                                    style={{ fontFamily: mono, fontSize: 11, color: '#FDC800', background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline' }}>
                                     {T.signup}
                                 </button>
                             </span>
@@ -329,7 +329,7 @@ export default function AuthModal({ onClose, onSuccess }: AuthModalProps) {
                         <span style={{ fontFamily: mono, fontSize: 11, color: '#4b5563' }}>
                             {T.hasAccount}{' '}
                             <button onClick={() => { setMode('signin'); setError(''); setSuccess(''); }}
-                                style={{ fontFamily: mono, fontSize: 11, color: '#A6FF4D', background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline' }}>
+                                style={{ fontFamily: mono, fontSize: 11, color: '#FDC800', background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline' }}>
                                 {T.signin}
                             </button>
                         </span>

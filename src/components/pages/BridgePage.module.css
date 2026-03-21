@@ -217,7 +217,7 @@
     width: 64px;
     height: 64px;
     border-radius: 50%;
-    border: 1.5px solid rgba(166, 255, 77, 0.3);
+    border: 1.5px solid rgba(253, 200, 0, 0.3);
     animation: sonarExpand 2.1s ease-out infinite;
 }
 
@@ -257,7 +257,7 @@
     gap: 10px;
 }
 
-.posSafe    { background: rgba(166, 255, 77, 0.03); border-color: rgba(166, 255, 77, 0.12); }
+.posSafe    { background: rgba(253, 200, 0, 0.03); border-color: rgba(253, 200, 0, 0.12); }
 .posCaution { background: rgba(245, 158, 11, 0.04); border-color: rgba(245, 158, 11, 0.18); }
 .posDanger  { background: rgba(248, 113, 113, 0.04); border-color: rgba(248, 113, 113, 0.2); }
 

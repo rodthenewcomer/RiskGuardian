@@ -24,7 +24,7 @@ export default function EquityCurveChart({ data, height = 180, showGrid = true, 
         );
     }
     const lastPnl = data[data.length - 1]?.pnl ?? 0;
-    const color = lastPnl >= 0 ? '#A6FF4D' : '#ff4757';
+    const color = lastPnl >= 0 ? '#FDC800' : '#ff4757';
 
     return (
         <ResponsiveContainer width="100%" height={height}>

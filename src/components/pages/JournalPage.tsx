@@ -266,7 +266,7 @@ export default function JournalPage() {
     }, [trades, filter, assetFilter]);
 
     const totalShown = groupedByDay.reduce((s, g) => s + g.trades.length, 0);
-    const pnlColor = totalPnl >= 0 ? '#A6FF4D' : '#ff4757';
+    const pnlColor = totalPnl >= 0 ? '#FDC800' : '#ff4757';
 
     return (
         <div style={{ display: 'flex', flexDirection: 'column', background: '#090909', minHeight: '100vh' }}>
@@ -283,7 +283,7 @@ export default function JournalPage() {
                     <button
                         onClick={() => pdfRef.current?.click()}
                         disabled={pdfStatus.loading}
-                        style={{ ...mono, display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, fontWeight: 700, padding: '7px 14px', background: '#A6FF4D', color: '#000', border: 'none', cursor: 'pointer', letterSpacing: '0.06em' }}
+                        style={{ ...mono, display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, fontWeight: 700, padding: '7px 14px', background: '#FDC800', color: '#000', border: 'none', cursor: 'pointer', letterSpacing: '0.06em' }}
                     >
                         {pdfStatus.loading ? <Loader2 size={12} style={{ animation: 'spin 1s linear infinite' }} /> : <FileText size={12} />}
                         {lang === 'fr' ? 'Importer PDF' : 'Import PDF'}
@@ -312,10 +312,10 @@ export default function JournalPage() {
                         style={{
                             padding: '10px 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
                             borderBottom: divider,
-                            background: pdfStatus.msg.startsWith('Imported') ? 'rgba(166,255,77,0.06)' : 'rgba(255,71,87,0.06)',
-                            borderLeft: `3px solid ${pdfStatus.msg.startsWith('Imported') ? '#A6FF4D' : '#ff4757'}`,
+                            background: pdfStatus.msg.startsWith('Imported') ? 'rgba(253,200,0,0.06)' : 'rgba(255,71,87,0.06)',
+                            borderLeft: `3px solid ${pdfStatus.msg.startsWith('Imported') ? '#FDC800' : '#ff4757'}`,
                         }}>
-                        <span style={{ ...mono, fontSize: 12, color: pdfStatus.msg.startsWith('Imported') ? '#A6FF4D' : '#ff4757', fontWeight: 600 }}>{pdfStatus.msg}</span>
+                        <span style={{ ...mono, fontSize: 12, color: pdfStatus.msg.startsWith('Imported') ? '#FDC800' : '#ff4757', fontWeight: 600 }}>{pdfStatus.msg}</span>
                         <button onClick={() => setPdfStatus({ loading: false, msg: '' })} style={{ background: 'none', border: 'none', color: '#4b5563', cursor: 'pointer', fontSize: 16, lineHeight: 1 }}>×</button>
                     </motion.div>
                 )}
@@ -331,12 +331,12 @@ export default function JournalPage() {
                     },
                     {
                         lbl: 'Win Rate', val: closedTrades.length > 0 ? `${winRate}%` : '—',
-                        clr: winRate >= 55 ? '#A6FF4D' : winRate >= 45 ? '#EAB308' : closedTrades.length > 0 ? '#ff4757' : '#4b5563',
+                        clr: winRate >= 55 ? '#FDC800' : winRate >= 45 ? '#EAB308' : closedTrades.length > 0 ? '#ff4757' : '#4b5563',
                         sub: closedTrades.length > 0 ? `${closedTrades.length} closed` : '—'
                     },
                     {
                         lbl: 'Profit Factor', val: closedTrades.length > 0 ? (profitFactor > 90 ? '∞' : profitFactor.toFixed(2)) : '—',
-                        clr: profitFactor >= 1.5 ? '#A6FF4D' : profitFactor >= 1 ? '#EAB308' : closedTrades.length > 0 ? '#ff4757' : '#4b5563',
+                        clr: profitFactor >= 1.5 ? '#FDC800' : profitFactor >= 1 ? '#EAB308' : closedTrades.length > 0 ? '#ff4757' : '#4b5563',
                         sub: avgLossAmt > 0 ? `avg W $${avgWinAmt.toFixed(0)} / L $${avgLossAmt.toFixed(0)}` : '—'
                     },
                     {
@@ -365,9 +365,9 @@ export default function JournalPage() {
                         <button key={f} onClick={() => setFilter(f)} style={{
                             ...mono, fontSize: 10, fontWeight: 700, letterSpacing: '0.08em', padding: '5px 12px',
                             border: '1px solid', cursor: 'pointer', textTransform: 'uppercase', transition: 'all 0.15s',
-                            background: filter === f ? (f === 'win' ? '#A6FF4D' : f === 'loss' ? '#ff4757' : f === 'open' ? '#EAB308' : '#e2e8f0') : 'transparent',
+                            background: filter === f ? (f === 'win' ? '#FDC800' : f === 'loss' ? '#ff4757' : f === 'open' ? '#EAB308' : '#e2e8f0') : 'transparent',
                             color: filter === f ? '#000' : '#6b7280',
-                            borderColor: filter === f ? (f === 'win' ? '#A6FF4D' : f === 'loss' ? '#ff4757' : f === 'open' ? '#EAB308' : '#e2e8f0') : '#1a1c24',
+                            borderColor: filter === f ? (f === 'win' ? '#FDC800' : f === 'loss' ? '#ff4757' : f === 'open' ? '#EAB308' : '#e2e8f0') : '#1a1c24',
                         }}>
                             {f === 'all' ? `${lang === 'fr' ? 'Tous' : 'All'} (${trades.length})` : f === 'win' ? `${lang === 'fr' ? 'Gains' : 'Wins'} (${wins.length})` : f === 'loss' ? `${lang === 'fr' ? 'Pertes' : 'Losses'} (${losses.length})` : `${lang === 'fr' ? 'Ouvert' : 'Open'} (${trades.filter(t => t.outcome === 'open').length})`}
                         </button>
@@ -378,7 +378,7 @@ export default function JournalPage() {
                         <select
                             value={assetFilter}
                             onChange={e => setAssetFilter(e.target.value)}
-                            style={{ ...mono, fontSize: 10, fontWeight: 700, padding: '5px 10px', background: '#0d1117', border: '1px solid #1a1c24', color: assetFilter ? '#A6FF4D' : '#6b7280', cursor: 'pointer', outline: 'none' }}
+                            style={{ ...mono, fontSize: 10, fontWeight: 700, padding: '5px 10px', background: '#0d1117', border: '1px solid #1a1c24', color: assetFilter ? '#FDC800' : '#6b7280', cursor: 'pointer', outline: 'none' }}
                         >
                             <option value="">{lang === 'fr' ? 'Tous les actifs' : 'All Assets'}</option>
                             {uniqueAssets.map(a => <option key={a} value={a}>{a}</option>)}
@@ -413,7 +413,7 @@ export default function JournalPage() {
                     <button
                         onClick={() => pdfRef.current?.click()}
                         disabled={pdfStatus.loading}
-                        style={{ ...mono, marginTop: 8, padding: '12px 24px', background: '#A6FF4D', color: '#000', border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: 800, letterSpacing: '0.06em', display: 'flex', alignItems: 'center', gap: 8 }}
+                        style={{ ...mono, marginTop: 8, padding: '12px 24px', background: '#FDC800', color: '#000', border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: 800, letterSpacing: '0.06em', display: 'flex', alignItems: 'center', gap: 8 }}
                     >
                         {pdfStatus.loading ? <Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} /> : <FileText size={14} />}
                         {lang === 'fr' ? 'Importer PDF Tradeify' : 'Import Tradeify PDF'}
@@ -447,7 +447,7 @@ export default function JournalPage() {
                                     </span>
                                     <span style={{ ...mono, fontSize: 10, color: '#4b5563' }}>{dayTrades.length} trade{dayTrades.length !== 1 ? 's' : ''}</span>
                                     {dayTrades.some(t => t.outcome !== 'open') && (
-                                        <span style={{ ...mono, fontSize: 12, fontWeight: 700, color: dayPnl >= 0 ? '#A6FF4D' : '#ff4757' }}>
+                                        <span style={{ ...mono, fontSize: 12, fontWeight: 700, color: dayPnl >= 0 ? '#FDC800' : '#ff4757' }}>
                                             {dayPnl >= 0 ? '+' : ''}${dayPnl.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                                         </span>
                                     )}
@@ -455,9 +455,9 @@ export default function JournalPage() {
                                     {(dayWins + dayLosses) > 0 && (
                                         <span style={{
                                             ...mono, fontSize: 9, fontWeight: 700, padding: '2px 7px',
-                                            background: dayWins > dayLosses ? 'rgba(166,255,77,0.08)' : 'rgba(255,71,87,0.08)',
-                                            border: `1px solid ${dayWins > dayLosses ? 'rgba(166,255,77,0.2)' : 'rgba(255,71,87,0.2)'}`,
-                                            color: dayWins > dayLosses ? '#A6FF4D' : '#ff4757',
+                                            background: dayWins > dayLosses ? 'rgba(253,200,0,0.08)' : 'rgba(255,71,87,0.08)',
+                                            border: `1px solid ${dayWins > dayLosses ? 'rgba(253,200,0,0.2)' : 'rgba(255,71,87,0.2)'}`,
+                                            color: dayWins > dayLosses ? '#FDC800' : '#ff4757',
                                         }}>
                                             {dayWins}W {dayLosses}L
                                         </span>
@@ -467,7 +467,7 @@ export default function JournalPage() {
                                         {dayTrades.slice(0, isMobile ? 10 : 30).map((t, i) => (
                                             <div key={i} title={t.outcome === 'win' ? 'Win' : t.outcome === 'loss' ? 'Loss' : 'Open'} style={{
                                                 width: 8, height: 8, borderRadius: '50%', flexShrink: 0,
-                                                background: t.outcome === 'win' ? '#A6FF4D' : t.outcome === 'loss' ? '#ff4757' : '#4b5563',
+                                                background: t.outcome === 'win' ? '#FDC800' : t.outcome === 'loss' ? '#ff4757' : '#4b5563',
                                                 opacity: 0.9,
                                             }} />
                                         ))}
@@ -481,7 +481,7 @@ export default function JournalPage() {
                                 {dayTrades.map((trade) => {
                                     const isWin = trade.outcome === 'win';
                                     const isLoss = trade.outcome === 'loss';
-                                    const accentColor = isWin ? '#A6FF4D' : isLoss ? '#ff4757' : '#EAB308';
+                                    const accentColor = isWin ? '#FDC800' : isLoss ? '#ff4757' : '#EAB308';
                                     const pnlVal = trade.pnl ?? 0;
                                     const holdStr = calcHoldTime(trade.createdAt, trade.closedAt);
                                     const isExpanded = expandedId === trade.id;
@@ -507,9 +507,9 @@ export default function JournalPage() {
                                                     {/* LONG/SHORT badge */}
                                                     <span style={{
                                                         ...mono, fontSize: 9, fontWeight: 800, letterSpacing: '0.08em', padding: '3px 8px', flexShrink: 0,
-                                                        background: trade.isShort ? 'rgba(255,71,87,0.1)' : 'rgba(166,255,77,0.08)',
-                                                        color: trade.isShort ? '#ff4757' : '#A6FF4D',
-                                                        border: `1px solid ${trade.isShort ? 'rgba(255,71,87,0.3)' : 'rgba(166,255,77,0.2)'}`,
+                                                        background: trade.isShort ? 'rgba(255,71,87,0.1)' : 'rgba(253,200,0,0.08)',
+                                                        color: trade.isShort ? '#ff4757' : '#FDC800',
+                                                        border: `1px solid ${trade.isShort ? 'rgba(255,71,87,0.3)' : 'rgba(253,200,0,0.2)'}`,
                                                     }}>
                                                         {trade.isShort ? 'SHORT' : 'LONG'}
                                                     </span>
@@ -521,7 +521,7 @@ export default function JournalPage() {
                                                     <span style={{
                                                         ...mono, fontSize: 9, fontWeight: 800, letterSpacing: '0.08em', padding: '2px 7px', flexShrink: 0,
                                                         color: accentColor,
-                                                        border: `1px solid ${isWin ? 'rgba(166,255,77,0.25)' : isLoss ? 'rgba(255,71,87,0.3)' : 'rgba(234,179,8,0.3)'}`,
+                                                        border: `1px solid ${isWin ? 'rgba(253,200,0,0.25)' : isLoss ? 'rgba(255,71,87,0.3)' : 'rgba(234,179,8,0.3)'}`,
                                                     }}>
                                                         {(trade.outcome ?? 'OPEN').toUpperCase()}
                                                     </span>
@@ -589,7 +589,7 @@ export default function JournalPage() {
                                                                     setInlineOutcomeId(null);
                                                                     setInlineWinInput(prev => { const n = { ...prev }; delete n[trade.id]; return n; });
                                                                 }}
-                                                                style={{ ...mono, fontSize: 9, fontWeight: 800, padding: '4px 7px', background: 'rgba(166,255,77,0.1)', color: '#A6FF4D', border: '1px solid rgba(166,255,77,0.3)', cursor: 'pointer', letterSpacing: '0.04em', flexShrink: 0 }}
+                                                                style={{ ...mono, fontSize: 9, fontWeight: 800, padding: '4px 7px', background: 'rgba(253,200,0,0.1)', color: '#FDC800', border: '1px solid rgba(253,200,0,0.3)', cursor: 'pointer', letterSpacing: '0.04em', flexShrink: 0 }}
                                                             >✓ {lang === 'fr' ? 'GAIN' : 'WIN'}</button>
                                                             <button
                                                                 title="Mark as Lost"
@@ -647,7 +647,7 @@ export default function JournalPage() {
                                                             {[
                                                                 { k: lang === 'fr' ? 'Entrée' : 'Entry', v: trade.entry > 0 ? trade.entry.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 5 }) : '—', c: '#e2e8f0' },
                                                                 { k: 'Stop Loss', v: trade.stopLoss > 0 ? trade.stopLoss.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 5 }) : '—', c: '#ff4757' },
-                                                                { k: 'Take Profit', v: trade.takeProfit > 0 ? trade.takeProfit.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 5 }) : '—', c: '#A6FF4D' },
+                                                                { k: 'Take Profit', v: trade.takeProfit > 0 ? trade.takeProfit.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 5 }) : '—', c: '#FDC800' },
                                                                 { k: lang === 'fr' ? 'Risque/Récompense' : 'Risk : Reward', v: trade.rr > 0 ? `${trade.rr.toFixed(2)}R` : '—', c: '#00D4FF' },
                                                                 { k: lang === 'fr' ? 'Taille' : 'Size', v: trade.lotSize > 0 ? trade.lotSize.toLocaleString() : '—', c: '#e2e8f0' },
                                                             ].map((m, i, arr) => {
@@ -695,7 +695,7 @@ export default function JournalPage() {
                                                                      const val = parseFloat(editPnls[trade.id] ?? String(Math.abs(trade.pnl ?? 0)));
                                                                      if (!isNaN(val)) setTrades(trades.map(t => t.id === trade.id ? { ...t, outcome: 'win', pnl: Math.abs(val), closedAt: t.closedAt || new Date().toISOString(), durationSeconds: Math.floor(holdMs / 1000) } : t));
                                                                 }}
-                                                                style={{ ...mono, fontSize: 11, fontWeight: 700, padding: '7px 12px', background: 'rgba(166,255,77,0.1)', color: '#A6FF4D', border: '1px solid rgba(166,255,77,0.3)', cursor: 'pointer' }}
+                                                                style={{ ...mono, fontSize: 11, fontWeight: 700, padding: '7px 12px', background: 'rgba(253,200,0,0.1)', color: '#FDC800', border: '1px solid rgba(253,200,0,0.3)', cursor: 'pointer' }}
                                                             >{lang === 'fr' ? 'Marquer Gain' : 'Mark Won'}</button>
                                                             <button
                                                                 onClick={() => {
@@ -728,7 +728,7 @@ export default function JournalPage() {
                                                                     marginTop: 6, lineHeight: 1.6, minHeight: 72, boxSizing: 'border-box',
                                                                     transition: 'border-color 0.15s',
                                                                 }}
-                                                                onFocus={e => (e.currentTarget.style.borderColor = '#A6FF4D')}
+                                                                onFocus={e => (e.currentTarget.style.borderColor = '#FDC800')}
                                                                 onBlur={e => (e.currentTarget.style.borderColor = '#1a1c24')}
                                                             />
                                                         </div>

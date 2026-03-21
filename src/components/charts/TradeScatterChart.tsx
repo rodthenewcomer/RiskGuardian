@@ -84,8 +84,8 @@ export default function TradeScatterChart({ data, xLabel = 'Hour', height = 220,
                 <Scatter
                     name="Win"
                     data={wins}
-                    fill="rgba(166,255,77,0.7)"
-                    stroke="rgba(166,255,77,0.3)"
+                    fill="rgba(253,200,0,0.7)"
+                    stroke="rgba(253,200,0,0.3)"
                     strokeWidth={1}
                 />
                 {/* Losing trades — red */}

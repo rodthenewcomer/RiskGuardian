@@ -227,19 +227,20 @@ export default function DashboardPage() {
     const animBuffer      = useCountUp(mounted ? Math.max(0, drawdownInfo.buffer) : 0, 900);
 
     // ── Stat colors ────────────────────────────────────────────
-    const pnlColor    = totalPnl >= 0 ? '#A6FF4D' : '#ff4757';
-    const wrColor     = winRate >= 55 ? '#A6FF4D' : winRate >= 45 ? '#EAB308' : '#ff4757';
-    const streakColor = streakType === 'W' ? '#A6FF4D' : '#ff4757';
-    const pfColor     = profitFactor >= 1.5 ? '#A6FF4D' : profitFactor >= 1 ? '#EAB308' : '#ff4757';
+    const pnlColor    = totalPnl >= 0 ? '#FDC800' : '#ff4757';
+    const wrColor     = winRate >= 55 ? '#FDC800' : winRate >= 45 ? '#EAB308' : '#ff4757';
+    const streakColor = streakType === 'W' ? '#FDC800' : '#ff4757';
+    const pfColor     = profitFactor >= 1.5 ? '#FDC800' : profitFactor >= 1 ? '#EAB308' : '#ff4757';
 
     const mono: React.CSSProperties = { fontFamily: 'var(--font-mono)' };
     const lbl: React.CSSProperties  = { ...mono, fontSize: 9, color: '#4b5563', letterSpacing: '0.1em', textTransform: 'uppercase' as const, display: 'block' };
     const divider = '1px solid #1a1c24';
     const card: React.CSSProperties = {
         margin: isMobile ? '0 0 8px' : '0 12px 8px',
-        background: '#0c0e13',
-        borderRadius: isMobile ? 0 : 8,
-        border: divider,
+        background: '#0d1117',
+        borderRadius: 0,
+        border: '2px solid #1a1c24',
+        boxShadow: '4px 4px 0 #000',
         overflow: 'hidden',
     };
 
@@ -258,7 +259,7 @@ export default function DashboardPage() {
                     </p>
                     <button
                         onClick={() => setActiveTab('settings')}
-                        style={{ padding: '12px 24px', background: '#A6FF4D', color: '#000', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em' }}
+                        style={{ padding: '12px 24px', background: '#FDC800', color: '#000', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em' }}
                     >
                         {lang === 'fr' ? 'Aller aux Paramètres' : 'Go to Settings'}
                     </button>
@@ -278,14 +279,14 @@ export default function DashboardPage() {
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0, y: -20 }}
                     style={{
-                        background: 'rgba(166,255,77,0.08)',
-                        border: '1px solid rgba(166,255,77,0.3)',
-                        borderLeft: '3px solid #A6FF4D',
+                        background: 'rgba(253,200,0,0.08)',
+                        border: '1px solid rgba(253,200,0,0.3)',
+                        borderLeft: '3px solid #FDC800',
                         padding: '10px 16px',
                         fontFamily: 'var(--font-mono)',
                         fontSize: 12,
                         fontWeight: 700,
-                        color: '#A6FF4D',
+                        color: '#FDC800',
                         letterSpacing: '0.04em',
                     }}
                 >
@@ -304,9 +305,9 @@ export default function DashboardPage() {
                         <motion.div
                             animate={{ scale: [1, 2.4, 1], opacity: [0.6, 0, 0.6] }}
                             transition={{ duration: 2, repeat: Infinity, ease: 'easeOut' }}
-                            style={{ position: 'absolute', inset: 0, borderRadius: '50%', background: '#A6FF4D' }}
+                            style={{ position: 'absolute', inset: 0, borderRadius: '50%', background: '#FDC800' }}
                         />
-                        <div style={{ position: 'absolute', inset: 2, borderRadius: '50%', background: '#A6FF4D', boxShadow: '0 0 8px #A6FF4D' }} />
+                        <div style={{ position: 'absolute', inset: 2, borderRadius: '50%', background: '#FDC800', boxShadow: '0 0 8px #FDC800' }} />
                     </div>
                     <span style={{ ...mono, fontSize: 10, color: '#4b5563', letterSpacing: '0.08em', textTransform: 'uppercase' }}>LIVE</span>
                     <span style={{ ...mono, fontSize: 10, color: '#4b5563' }}>
@@ -315,7 +316,7 @@ export default function DashboardPage() {
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                     {account.propFirm && (
-                        <span style={{ ...mono, fontSize: 10, color: '#A6FF4D', letterSpacing: '0.06em', textTransform: 'uppercase' }}>
+                        <span style={{ ...mono, fontSize: 10, color: '#FDC800', letterSpacing: '0.06em', textTransform: 'uppercase' }}>
                             {account.propFirm}
                         </span>
                     )}
@@ -329,7 +330,7 @@ export default function DashboardPage() {
             <motion.div variants={fadeUp} style={{ padding: isMobile ? '16px 14px' : '24px 20px 20px', borderBottom: divider }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
                     <span style={lbl}>Account Balance</span>
-                    <span style={{ ...mono, fontSize: 8, padding: '2px 6px', background: 'rgba(166,255,77,0.1)', color: '#A6FF4D', borderRadius: 4, letterSpacing: '0.04em', border: '1px solid rgba(166,255,77,0.2)' }}>AUTO-COMPUTED</span>
+                    <span style={{ ...mono, fontSize: 8, padding: '2px 6px', background: 'rgba(253,200,0,0.1)', color: '#FDC800', borderRadius: 4, letterSpacing: '0.04em', border: '1px solid rgba(253,200,0,0.2)' }}>AUTO-COMPUTED</span>
                 </div>
                 <div style={{ display: 'flex', alignItems: 'baseline', gap: 14, flexWrap: 'wrap' }}>
                     <motion.span
@@ -400,8 +401,8 @@ export default function DashboardPage() {
                     <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                         <div style={{
                             width: 32, height: 32,
-                            background: streakType === 'W' ? 'rgba(166,255,77,0.12)' : 'rgba(255,71,87,0.12)',
-                            border: `1px solid ${streakType === 'W' ? 'rgba(166,255,77,0.3)' : 'rgba(255,71,87,0.3)'}`,
+                            background: streakType === 'W' ? 'rgba(253,200,0,0.12)' : 'rgba(255,71,87,0.12)',
+                            border: `1px solid ${streakType === 'W' ? 'rgba(253,200,0,0.3)' : 'rgba(255,71,87,0.3)'}`,
                             display: 'flex', alignItems: 'center', justifyContent: 'center',
                             fontSize: 16,
                         }}>
@@ -510,9 +511,9 @@ export default function DashboardPage() {
                         transition={{ duration: 0.9, repeat: Infinity }}
                         style={{
                             ...mono, fontSize: 9, fontWeight: 800, letterSpacing: '0.08em', padding: '3px 8px', textTransform: 'uppercase', borderRadius: 3,
-                            color: isDanger ? '#ff4757' : isWarning ? '#EAB308' : '#A6FF4D',
-                            border: `1px solid ${isDanger ? 'rgba(255,71,87,0.5)' : isWarning ? 'rgba(234,179,8,0.4)' : 'rgba(166,255,77,0.3)'}`,
-                            background: isDanger ? 'rgba(255,71,87,0.1)' : isWarning ? 'rgba(234,179,8,0.08)' : 'rgba(166,255,77,0.06)',
+                            color: isDanger ? '#ff4757' : isWarning ? '#EAB308' : '#FDC800',
+                            border: `1px solid ${isDanger ? 'rgba(255,71,87,0.5)' : isWarning ? 'rgba(234,179,8,0.4)' : 'rgba(253,200,0,0.3)'}`,
+                            background: isDanger ? 'rgba(255,71,87,0.1)' : isWarning ? 'rgba(234,179,8,0.08)' : 'rgba(253,200,0,0.06)',
                         }}
                     >
                         {isDanger ? 'DANGER' : isWarning ? 'WARNING' : 'SAFE'}
@@ -521,8 +522,8 @@ export default function DashboardPage() {
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', padding: '14px 16px' }}>
                     {[
                         { lbl: lang === 'fr' ? 'UTILISÉ' : 'USED',           val: `$${animUsed.toFixed(0)}`,      clr: used > 0 ? '#ff4757' : '#4b5563' },
-                        { lbl: lang === 'fr' ? 'RESTANT' : 'REMAINING',     val: `$${animRemaining.toFixed(0)}`, clr: remaining === 0 ? '#ff4757' : '#A6FF4D' },
-                        { lbl: lang === 'fr' ? 'RISQUE MAX SUIVANT' : 'SAFE NEXT', val: `$${animSafeNext.toFixed(0)}`, clr: '#A6FF4D' },
+                        { lbl: lang === 'fr' ? 'RESTANT' : 'REMAINING',     val: `$${animRemaining.toFixed(0)}`, clr: remaining === 0 ? '#ff4757' : '#FDC800' },
+                        { lbl: lang === 'fr' ? 'RISQUE MAX SUIVANT' : 'SAFE NEXT', val: `$${animSafeNext.toFixed(0)}`, clr: '#FDC800' },
                     ].map((s, i) => (
                         <motion.div
                             key={i}
@@ -565,9 +566,9 @@ export default function DashboardPage() {
                             transition={{ duration: 0.9, repeat: Infinity }}
                             style={{
                                 ...mono, fontSize: 9, fontWeight: 800, letterSpacing: '0.08em', padding: '3px 8px', textTransform: 'uppercase', borderRadius: 3,
-                                color: floorDanger ? '#ff4757' : floorWarning ? '#EAB308' : '#A6FF4D',
-                                border: `1px solid ${floorDanger ? 'rgba(255,71,87,0.5)' : floorWarning ? 'rgba(234,179,8,0.4)' : 'rgba(166,255,77,0.3)'}`,
-                                background: floorDanger ? 'rgba(255,71,87,0.1)' : floorWarning ? 'rgba(234,179,8,0.08)' : 'rgba(166,255,77,0.06)',
+                                color: floorDanger ? '#ff4757' : floorWarning ? '#EAB308' : '#FDC800',
+                                border: `1px solid ${floorDanger ? 'rgba(255,71,87,0.5)' : floorWarning ? 'rgba(234,179,8,0.4)' : 'rgba(253,200,0,0.3)'}`,
+                                background: floorDanger ? 'rgba(255,71,87,0.1)' : floorWarning ? 'rgba(234,179,8,0.08)' : 'rgba(253,200,0,0.06)',
                             }}
                         >
                             {floorDanger ? 'DANGER' : floorWarning ? 'WARNING' : 'SAFE'}
@@ -576,8 +577,8 @@ export default function DashboardPage() {
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', padding: '14px 16px' }}>
                         {[
                             { lbl: 'FLOOR',   val: `$${animFloor.toLocaleString('en-US', { maximumFractionDigits: 0 })}`,  clr: '#e2e8f0' },
-                            { lbl: 'BUFFER',  val: `$${animBuffer.toLocaleString('en-US', { maximumFractionDigits: 0 })}`, clr: floorDanger ? '#ff4757' : floorWarning ? '#EAB308' : '#A6FF4D' },
-                            { lbl: 'USED',    val: `${drawdownInfo.usedPct.toFixed(1)}%`, clr: floorDanger ? '#ff4757' : floorWarning ? '#EAB308' : '#A6FF4D' },
+                            { lbl: 'BUFFER',  val: `$${animBuffer.toLocaleString('en-US', { maximumFractionDigits: 0 })}`, clr: floorDanger ? '#ff4757' : floorWarning ? '#EAB308' : '#FDC800' },
+                            { lbl: 'USED',    val: `${drawdownInfo.usedPct.toFixed(1)}%`, clr: floorDanger ? '#ff4757' : floorWarning ? '#EAB308' : '#FDC800' },
                         ].map((s, i) => (
                             <motion.div
                                 key={i}
@@ -631,9 +632,9 @@ export default function DashboardPage() {
                             transition={{ duration: 1.1, repeat: Infinity }}
                             style={{
                                 ...mono, fontSize: 9, fontWeight: 800, letterSpacing: '0.08em', padding: '3px 8px', textTransform: 'uppercase', borderRadius: 3,
-                                color: consistencyPassing ? '#A6FF4D' : '#ff4757',
-                                border: `1px solid ${consistencyPassing ? 'rgba(166,255,77,0.5)' : 'rgba(255,71,87,0.5)'}`,
-                                background: consistencyPassing ? 'rgba(166,255,77,0.06)' : 'rgba(255,71,87,0.1)',
+                                color: consistencyPassing ? '#FDC800' : '#ff4757',
+                                border: `1px solid ${consistencyPassing ? 'rgba(253,200,0,0.5)' : 'rgba(255,71,87,0.5)'}`,
+                                background: consistencyPassing ? 'rgba(253,200,0,0.06)' : 'rgba(255,71,87,0.1)',
                             }}
                         >
                             {consistencyPassing ? 'PASSING' : 'FAILING'}
@@ -642,9 +643,9 @@ export default function DashboardPage() {
 
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', padding: '14px 16px' }}>
                         {[
-                            { lbl: 'Best Day %',   val: `${animBestDayPct.toFixed(1)}%`, clr: consistencyPassing ? '#A6FF4D' : '#ff4757' },
+                            { lbl: 'Best Day %',   val: `${animBestDayPct.toFixed(1)}%`, clr: consistencyPassing ? '#FDC800' : '#ff4757' },
                             { lbl: 'Best Day $',   val: `$${animBestDayAmt.toLocaleString('en-US', { maximumFractionDigits: 0 })}`, clr: '#e2e8f0' },
-                            { lbl: 'Total Profit', val: `$${animTotalProfit.toLocaleString('en-US', { maximumFractionDigits: 0 })}`, clr: '#A6FF4D' },
+                            { lbl: 'Total Profit', val: `$${animTotalProfit.toLocaleString('en-US', { maximumFractionDigits: 0 })}`, clr: '#FDC800' },
                         ].map((s, i) => (
                             <motion.div
                                 key={i}
@@ -668,8 +669,8 @@ export default function DashboardPage() {
                         return (
                             <div style={{
                                 padding: '12px 16px',
-                                background: consistencyPassing ? 'rgba(166,255,77,0.04)' : 'rgba(255,71,87,0.04)',
-                                borderTop: `1px solid ${consistencyPassing ? 'rgba(166,255,77,0.12)' : 'rgba(255,71,87,0.15)'}`,
+                                background: consistencyPassing ? 'rgba(253,200,0,0.04)' : 'rgba(255,71,87,0.04)',
+                                borderTop: `1px solid ${consistencyPassing ? 'rgba(253,200,0,0.12)' : 'rgba(255,71,87,0.15)'}`,
                                 display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12,
                             }}>
                                 <div>
@@ -686,7 +687,7 @@ export default function DashboardPage() {
                                     key={target}
                                     initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }}
                                     transition={{ ease: [0.16, 1, 0.3, 1], duration: 0.4, delay: 0.2 }}
-                                    style={{ ...mono, fontSize: 18, fontWeight: 900, color: consistencyPassing ? '#A6FF4D' : '#EAB308', letterSpacing: '-0.03em', flexShrink: 0 }}
+                                    style={{ ...mono, fontSize: 18, fontWeight: 900, color: consistencyPassing ? '#FDC800' : '#EAB308', letterSpacing: '-0.03em', flexShrink: 0 }}
                                 >
                                     {consistencyPassing
                                         ? `+$${buffer.toLocaleString(undefined, { maximumFractionDigits: 0 })}`
@@ -707,9 +708,9 @@ export default function DashboardPage() {
                     </div>
                     <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr 1fr' : 'repeat(3,1fr)' }}>
                         {[
-                            { icon: <Clock size={14} color="#A6FF4D" />,          lbl: 'Peak Hour',     val: `${bestHour}:00`,              sub: 'highest P&L window' },
+                            { icon: <Clock size={14} color="#FDC800" />,          lbl: 'Peak Hour',     val: `${bestHour}:00`,              sub: 'highest P&L window' },
                             { icon: <TrendingUp size={14} color={streakColor} />, lbl: 'Streak',        val: `${streakCount}${streakType}`,  sub: streakType === 'W' ? 'momentum' : 'reset now' },
-                            { icon: <Shield size={14} color="#A6FF4D" />,         lbl: 'Max Next Risk', val: `$${safeNextRisk.toFixed(0)}`,  sub: `${account.maxRiskPercent}% of bal` },
+                            { icon: <Shield size={14} color="#FDC800" />,         lbl: 'Max Next Risk', val: `$${safeNextRisk.toFixed(0)}`,  sub: `${account.maxRiskPercent}% of bal` },
                         ].map((item, i) => (
                             <motion.div
                                 key={i}
@@ -741,9 +742,9 @@ export default function DashboardPage() {
                         <span style={{
                             marginLeft: 'auto', ...mono, fontSize: 9, fontWeight: 800, letterSpacing: '0.08em',
                             padding: '2px 8px', textTransform: 'uppercase', borderRadius: 3,
-                            color: (isDanger || floorDanger) ? '#ff4757' : '#A6FF4D',
-                            border: `1px solid ${(isDanger || floorDanger) ? 'rgba(255,71,87,0.3)' : 'rgba(166,255,77,0.3)'}`,
-                            background: (isDanger || floorDanger) ? 'rgba(255,71,87,0.06)' : 'rgba(166,255,77,0.04)',
+                            color: (isDanger || floorDanger) ? '#ff4757' : '#FDC800',
+                            border: `1px solid ${(isDanger || floorDanger) ? 'rgba(255,71,87,0.3)' : 'rgba(253,200,0,0.3)'}`,
+                            background: (isDanger || floorDanger) ? 'rgba(255,71,87,0.06)' : 'rgba(253,200,0,0.04)',
                         }}>
                             {(isDanger || floorDanger) ? 'AT RISK' : 'COMPLIANT'}
                         </span>
@@ -811,8 +812,8 @@ export default function DashboardPage() {
                                     : rule.icon === 'clock' ? <Clock size={11} color="#EAB308" />
                                     : <div style={{
                                         width: 5, height: 5, borderRadius: '50%', flexShrink: 0,
-                                        background: rule.dot === 'green' ? '#A6FF4D' : rule.dot === 'yellow' ? '#EAB308' : '#ff4757',
-                                        boxShadow: `0 0 5px ${rule.dot === 'green' ? '#A6FF4D40' : rule.dot === 'yellow' ? '#EAB30840' : '#ff475740'}`,
+                                        background: rule.dot === 'green' ? '#FDC800' : rule.dot === 'yellow' ? '#EAB308' : '#ff4757',
+                                        boxShadow: `0 0 5px ${rule.dot === 'green' ? '#FDC80040' : rule.dot === 'yellow' ? '#EAB30840' : '#ff475740'}`,
                                     }} />}
                                 <span style={{ ...mono, fontSize: 11, color: '#8b949e' }}>{rule.text}</span>
                             </motion.div>
@@ -827,7 +828,7 @@ export default function DashboardPage() {
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', borderBottom: divider }}>
                         <span style={lbl}>{lang === 'fr' ? 'TRADES RÉCENTS' : 'RECENT TRADES'}</span>
                         <button onClick={() => setActiveTab('journal')}
-                            style={{ background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4, ...mono, fontSize: 10, color: '#A6FF4D', letterSpacing: '0.06em', textTransform: 'uppercase', padding: 0 }}>
+                            style={{ background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4, ...mono, fontSize: 10, color: '#FDC800', letterSpacing: '0.06em', textTransform: 'uppercase', padding: 0 }}>
                             {lang === 'fr' ? 'VOIR TOUT' : 'VIEW ALL'} <ChevronRight size={11} />
                         </button>
                     </div>
@@ -850,10 +851,10 @@ export default function DashboardPage() {
                                     <div style={{
                                         width: 32, height: 32, borderRadius: 6, flexShrink: 0,
                                         display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                        background: trade.outcome === 'win' ? 'rgba(166,255,77,0.1)' : trade.outcome === 'loss' ? 'rgba(255,71,87,0.1)' : 'rgba(255,255,255,0.04)',
-                                        border: `1px solid ${trade.outcome === 'win' ? 'rgba(166,255,77,0.2)' : trade.outcome === 'loss' ? 'rgba(255,71,87,0.2)' : 'rgba(255,255,255,0.06)'}`,
+                                        background: trade.outcome === 'win' ? 'rgba(253,200,0,0.1)' : trade.outcome === 'loss' ? 'rgba(255,71,87,0.1)' : 'rgba(255,255,255,0.04)',
+                                        border: `1px solid ${trade.outcome === 'win' ? 'rgba(253,200,0,0.2)' : trade.outcome === 'loss' ? 'rgba(255,71,87,0.2)' : 'rgba(255,255,255,0.06)'}`,
                                     }}>
-                                        {trade.outcome === 'win' ? <TrendingUp size={14} color="#A6FF4D" />
+                                        {trade.outcome === 'win' ? <TrendingUp size={14} color="#FDC800" />
                                             : trade.outcome === 'loss' ? <TrendingDown size={14} color="#ff4757" />
                                                 : <Activity size={14} color="#6b7280" />}
                                     </div>
@@ -866,7 +867,7 @@ export default function DashboardPage() {
                                     </div>
                                 </div>
                                 <div style={{ textAlign: 'right' }}>
-                                    <span style={{ ...mono, fontSize: 14, fontWeight: 800, display: 'block', letterSpacing: '-0.01em', color: trade.outcome === 'win' ? '#A6FF4D' : trade.outcome === 'loss' ? '#ff4757' : '#6b7280' }}>
+                                    <span style={{ ...mono, fontSize: 14, fontWeight: 800, display: 'block', letterSpacing: '-0.01em', color: trade.outcome === 'win' ? '#FDC800' : trade.outcome === 'loss' ? '#ff4757' : '#6b7280' }}>
                                         {trade.outcome === 'win' ? '+' : trade.outcome === 'loss' ? '-' : ''}
                                         ${Math.abs(trade.pnl ?? 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                                     </span>
@@ -898,14 +899,14 @@ export default function DashboardPage() {
                 <motion.button
                     onClick={() => setActiveTab('terminal')}
                     whileTap={{ scale: 0.97 }}
-                    style={{ padding: '18px', background: '#A6FF4D', border: 'none', borderRight: '1px solid #090909', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, ...mono, fontSize: 12, fontWeight: 800, color: '#000', letterSpacing: '0.08em', textTransform: 'uppercase' }}
+                    style={{ padding: '18px', background: '#FDC800', border: 'none', borderRight: '1px solid #090909', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, ...mono, fontSize: 12, fontWeight: 800, color: '#000', letterSpacing: '0.08em', textTransform: 'uppercase' }}
                 >
                     <Calculator size={14} /> Calculate
                 </motion.button>
                 <motion.button
                     onClick={() => setActiveTab('analytics')}
                     whileTap={{ scale: 0.97 }}
-                    style={{ padding: '18px', background: '#0d1117', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, ...mono, fontSize: 12, fontWeight: 800, color: '#A6FF4D', letterSpacing: '0.08em', textTransform: 'uppercase' }}
+                    style={{ padding: '18px', background: '#0d1117', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, ...mono, fontSize: 12, fontWeight: 800, color: '#FDC800', letterSpacing: '0.08em', textTransform: 'uppercase' }}
                 >
                     Analytics <ArrowRight size={14} />
                 </motion.button>

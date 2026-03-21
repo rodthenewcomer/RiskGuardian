@@ -66,7 +66,7 @@ export default function PnLHistogram({ pnlValues, buckets = 20, height = 160 }: 
                 />
                 <Bar dataKey="count" radius={[1, 1, 0, 0]}>
                     {data.map((d, i) => (
-                        <Cell key={i} fill={d.pnl >= 0 ? `rgba(166,255,77,${0.4 + (d.count / maxCount) * 0.5})` : `rgba(255,71,87,${0.4 + (d.count / maxCount) * 0.5})`} />
+                        <Cell key={i} fill={d.pnl >= 0 ? `rgba(253,200,0,${0.4 + (d.count / maxCount) * 0.5})` : `rgba(255,71,87,${0.4 + (d.count / maxCount) * 0.5})`} />
                     ))}
                 </Bar>
             </BarChart>

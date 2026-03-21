@@ -362,7 +362,7 @@
 
 .formInput:focus {
     border-color: var(--accent);
-    background: rgba(166, 255, 77, 0.04);
+    background: rgba(253, 200, 0, 0.04);
 }
 
 .formInput::placeholder {
@@ -390,8 +390,8 @@
 }
 
 .dirBtnBuy {
-    background: rgba(166, 255, 77, 0.12);
-    border-color: rgba(166, 255, 77, 0.4);
+    background: rgba(253, 200, 0, 0.12);
+    border-color: rgba(253, 200, 0, 0.4);
     color: var(--accent);
 }
 
@@ -437,7 +437,7 @@
 
 .emptyHint code {
     color: var(--accent);
-    background: rgba(166, 255, 77, 0.08);
+    background: rgba(253, 200, 0, 0.08);
     padding: 1px 5px;
     border-radius: 3px;
 }

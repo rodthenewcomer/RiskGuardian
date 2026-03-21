@@ -97,8 +97,8 @@
 .firmActiveBanner {
     margin-top: 10px;
     padding: 12px 14px;
-    background: rgba(166, 255, 77, 0.04);
-    border: 1px solid rgba(166, 255, 77, 0.15);
+    background: rgba(253, 200, 0, 0.04);
+    border: 1px solid rgba(253, 200, 0, 0.15);
     border-radius: var(--radius-md);
 }
 
@@ -122,8 +122,8 @@
     letter-spacing: 0.06em;
     text-transform: uppercase;
     color: var(--accent);
-    background: rgba(166, 255, 77, 0.08);
-    border: 1px solid rgba(166, 255, 77, 0.2);
+    background: rgba(253, 200, 0, 0.08);
+    border: 1px solid rgba(253, 200, 0, 0.2);
     padding: 2px 7px;
     border-radius: 3px;
 }
@@ -294,7 +294,7 @@
 }
 
 .toggleOn {
-    background: rgba(166, 255, 77, 0.15);
+    background: rgba(253, 200, 0, 0.15);
     border-color: var(--accent-border);
 }
 
@@ -314,10 +314,10 @@
 .msgSuccess {
     font-family: var(--font-mono);
     font-size: 11px;
-    color: #A6FF4D;
+    color: #FDC800;
     padding: 8px 12px;
-    background: rgba(166, 255, 77, 0.04);
-    border: 1px solid rgba(166, 255, 77, 0.12);
+    background: rgba(253, 200, 0, 0.04);
+    border: 1px solid rgba(253, 200, 0, 0.12);
     border-radius: var(--radius-md);
     line-height: 1.5;
 }
@@ -339,7 +339,7 @@
     gap: 8px;
     font-family: var(--font-mono);
     font-size: 11px;
-    color: #A6FF4D;
+    color: #FDC800;
     line-height: 1.5;
 }
 
@@ -367,16 +367,16 @@
     letter-spacing: 0.08em;
     text-transform: uppercase;
     color: var(--accent);
-    background: rgba(166, 255, 77, 0.08);
-    border: 1px solid rgba(166, 255, 77, 0.25);
+    background: rgba(253, 200, 0, 0.08);
+    border: 1px solid rgba(253, 200, 0, 0.25);
     padding: 2px 8px;
     border-radius: 3px;
 }
 
 .connInfo {
     padding: 12px 14px;
-    background: rgba(166, 255, 77, 0.03);
-    border: 1px solid rgba(166, 255, 77, 0.1);
+    background: rgba(253, 200, 0, 0.03);
+    border: 1px solid rgba(253, 200, 0, 0.1);
     border-radius: var(--radius-md);
     font-family: var(--font-mono);
     font-size: 11px;

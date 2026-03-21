@@ -50,7 +50,7 @@
     width: 7px;
     height: 7px;
     border-radius: 50%;
-    background: #A6FF4D;
+    background: #FDC800;
     animation: pulse 2.4s ease-in-out infinite;
 }
 
@@ -75,7 +75,7 @@
 .typingDots span {
     width: 5px;
     height: 5px;
-    background: #A6FF4D;
+    background: #FDC800;
     border-radius: 50%;
     animation: blink 1.2s ease-in-out infinite;
 }

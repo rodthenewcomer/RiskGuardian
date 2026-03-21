@@ -690,7 +690,7 @@ export default function SettingsPage() {
             {/* ── Language & Localization ───────────────────────────────── */}
             <motion.section variants={sectionVariant} style={{ background: '#0d1117', border: '1px solid #1a1c24', marginBottom: 1 }}>
                 <div style={{ padding: '16px 20px', borderBottom: '1px solid #1a1c24', display: 'flex', alignItems: 'center', gap: 10 }}>
-                    <Settings2 size={14} color="#A6FF4D" />
+                    <Settings2 size={14} color="#FDC800" />
                     <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, fontWeight: 700, color: '#c9d1d9', letterSpacing: '0.08em', textTransform: 'uppercase' }}>
                         {lang === 'fr' ? 'Langue & Localisation' : 'Language & Localization'}
                     </span>
@@ -712,7 +712,7 @@ export default function SettingsPage() {
                                 style={{
                                     fontFamily: 'var(--font-mono)', fontSize: 11, fontWeight: 700,
                                     padding: '8px 16px', border: 'none', cursor: 'pointer',
-                                    background: lang === 'en' ? '#A6FF4D' : '#0b0e14',
+                                    background: lang === 'en' ? '#FDC800' : '#0b0e14',
                                     color: lang === 'en' ? '#090909' : '#6b7280',
                                     letterSpacing: '0.06em',
                                 }}
@@ -724,7 +724,7 @@ export default function SettingsPage() {
                                 style={{
                                     fontFamily: 'var(--font-mono)', fontSize: 11, fontWeight: 700,
                                     padding: '8px 16px', border: 'none', cursor: 'pointer', borderLeft: '1px solid #1a1c24',
-                                    background: lang === 'fr' ? '#A6FF4D' : '#0b0e14',
+                                    background: lang === 'fr' ? '#FDC800' : '#0b0e14',
                                     color: lang === 'fr' ? '#090909' : '#6b7280',
                                     letterSpacing: '0.06em',
                                 }}
@@ -794,8 +794,8 @@ export default function SettingsPage() {
                                 style={{
                                     fontFamily: 'var(--font-mono)', fontSize: 11, fontWeight: 700,
                                     padding: '8px 14px', border: '1px solid #1a1c24', cursor: discordWebhook ? 'pointer' : 'not-allowed',
-                                    background: webhookTestStatus === 'ok' ? 'rgba(166,255,77,0.1)' : webhookTestStatus === 'error' ? 'rgba(255,71,87,0.1)' : '#0b0e14',
-                                    color: webhookTestStatus === 'ok' ? '#A6FF4D' : webhookTestStatus === 'error' ? '#ff4757' : '#8b949e',
+                                    background: webhookTestStatus === 'ok' ? 'rgba(253,200,0,0.1)' : webhookTestStatus === 'error' ? 'rgba(255,71,87,0.1)' : '#0b0e14',
+                                    color: webhookTestStatus === 'ok' ? '#FDC800' : webhookTestStatus === 'error' ? '#ff4757' : '#8b949e',
                                     letterSpacing: '0.06em',
                                     whiteSpace: 'nowrap',
                                 }}

@@ -68,7 +68,7 @@ function ToastItem({ toast, onDismiss }: { toast: Toast; onDismiss: (id: string)
   }, [toast.id, toast.duration, onDismiss]);
 
   const colorMap: Record<ToastType, string> = {
-    success: '#A6FF4D',
+    success: '#FDC800',
     error: '#ff4757',
     warning: '#EAB308',
     info: '#38bdf8',

@@ -71,7 +71,7 @@ const CHIPS = [
 ];
 
 const CAT_COLOR: Record<string, string> = {
-    crypto:  '#A6FF4D',
+    crypto:  '#FDC800',
     futures: '#EAB308',
     forex:   '#60a5fa',
     stocks:  '#c084fc',
@@ -224,7 +224,7 @@ export default function CommandPage() {
         : 0;
     const guardDanger  = dailyUsedPct >= 90;
     const guardWarn    = dailyUsedPct >= 60;
-    const guardColor   = guardDanger ? '#ff4757' : guardWarn ? '#EAB308' : '#A6FF4D';
+    const guardColor   = guardDanger ? '#ff4757' : guardWarn ? '#EAB308' : '#FDC800';
 
     // ── Log trade ───────────────────────────────────────────────────
     const handleLog = () => {
@@ -411,7 +411,7 @@ export default function CommandPage() {
                 padding: '10px 16px', borderBottom: D, gap: 8,
             }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <span style={{ ...mono, fontSize: 11, color: '#A6FF4D', fontWeight: 900, letterSpacing: '0.12em' }}>_ {lang === 'fr' ? 'MOTEUR DE RISQUE' : 'RISK ENGINE'}</span>
+                    <span style={{ ...mono, fontSize: 11, color: '#FDC800', fontWeight: 900, letterSpacing: '0.12em' }}>_ {lang === 'fr' ? 'MOTEUR DE RISQUE' : 'RISK ENGINE'}</span>
                     {aType !== 'crypto' && (
                         <span style={{ ...mono, fontSize: 9, color: CAT_COLOR[aType] ?? '#4b5563', padding: '2px 6px', border: `1px solid ${CAT_COLOR[aType]}30`, borderRadius: 4, letterSpacing: '0.08em', textTransform: 'uppercase' }}>
                             {aType}
@@ -447,7 +447,7 @@ export default function CommandPage() {
             } as React.CSSProperties}>
                 {CHIPS.map(({ sym, cat }) => {
                     const active = asset.toUpperCase() === sym.toUpperCase();
-                    const color  = CAT_COLOR[cat] ?? '#A6FF4D';
+                    const color  = CAT_COLOR[cat] ?? '#FDC800';
                     return (
                         <motion.button
                             key={sym}
@@ -475,7 +475,7 @@ export default function CommandPage() {
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 7 }}>
                     {[false, true].map(short => {
                         const active = isShort === short;
-                        const color  = short ? '#ff4757' : '#A6FF4D';
+                        const color  = short ? '#ff4757' : '#FDC800';
                         const label  = short ? (lang === 'fr' ? 'SHORT' : 'SHORT') : (lang === 'fr' ? 'LONG' : 'LONG');
                         return (
                             <motion.button
@@ -494,7 +494,7 @@ export default function CommandPage() {
                             >
                                 {short
                                     ? <TrendingDown size={15} color={active ? '#ff4757' : '#4b5563'} />
-                                    : <TrendingUp   size={15} color={active ? '#A6FF4D' : '#4b5563'} />
+                                    : <TrendingUp   size={15} color={active ? '#FDC800' : '#4b5563'} />
                                 }
                                 {label}
                             </motion.button>
@@ -578,7 +578,7 @@ export default function CommandPage() {
                             <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
                                 <button
                                     onClick={() => setInputMode(m => m === 'risk' ? 'size' : 'risk')}
-                                    style={{ ...mono, fontSize: 9, color: '#A6FF4D', background: 'transparent', border: '1px solid currentColor', cursor: 'pointer', padding: '2px 5px', borderRadius: 4, letterSpacing: '0.04em' }}
+                                    style={{ ...mono, fontSize: 9, color: '#FDC800', background: 'transparent', border: '1px solid currentColor', cursor: 'pointer', padding: '2px 5px', borderRadius: 4, letterSpacing: '0.04em' }}
                                 >
                                     Toggle Mode
                                 </button>
@@ -621,7 +621,7 @@ export default function CommandPage() {
                             key="result"
                             initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }}
                             transition={{ ease: [0.16, 1, 0.3, 1], duration: 0.32 }}
-                            style={{ ...cardBase, border: result.bad ? '1px solid rgba(255,71,87,0.35)' : result.warnings.length > 0 ? '1px solid rgba(234,179,8,0.3)' : '1px solid rgba(166,255,77,0.2)' }}
+                            style={{ ...cardBase, border: result.bad ? '1px solid rgba(255,71,87,0.35)' : result.warnings.length > 0 ? '1px solid rgba(234,179,8,0.3)' : '1px solid rgba(253,200,0,0.2)' }}
                         >
                             {/* Numbers strip */}
                             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', padding: '14px 14px 10px' }}>
@@ -644,7 +644,7 @@ export default function CommandPage() {
                                         lbl: inputMode === 'size' ? (lang === 'fr' ? 'MONTANT À RISQUER' : 'RISK AMOUNT') : (lang === 'fr' ? 'RISQUE/RÉCOMPENSE' : 'R:R RATIO'),
                                         val: inputMode === 'size' ? `-$${result.riskAmt.toFixed(0)}` : `${result.rr.toFixed(2)}R`,
                                         sub: `+$${result.reward.toFixed(0)}`,
-                                        clr: inputMode === 'size' ? '#ff4757' : (result.rr >= 2 ? '#A6FF4D' : result.rr >= 1.5 ? '#EAB308' : '#ff4757'),
+                                        clr: inputMode === 'size' ? '#ff4757' : (result.rr >= 2 ? '#FDC800' : result.rr >= 1.5 ? '#EAB308' : '#ff4757'),
                                     },
                                 ].map((s, i) => (
                                     <div key={i} style={{
@@ -664,7 +664,7 @@ export default function CommandPage() {
                                 <span style={{ ...mono, fontSize: 10, color: '#4b5563', letterSpacing: '0.08em', textTransform: 'uppercase' }}>
                                     {result.tpAuto ? '2R AUTO TP' : 'TARGET'}
                                 </span>
-                                <span style={{ ...mono, fontSize: 13, fontWeight: 800, color: isShort ? '#ff4757' : '#A6FF4D' }}>
+                                <span style={{ ...mono, fontSize: 13, fontWeight: 800, color: isShort ? '#ff4757' : '#FDC800' }}>
                                     {fmtPrice(result.tp)}
                                 </span>
                             </div>
@@ -734,9 +734,9 @@ export default function CommandPage() {
                                         ? '#0d1a06'
                                         : result.bad
                                             ? '#1a0f0f'
-                                            : '#A6FF4D',
+                                            : '#FDC800',
                                     color: logged
-                                        ? '#A6FF4D'
+                                        ? '#FDC800'
                                         : result.bad
                                             ? '#ff4757'
                                             : '#000',
@@ -809,8 +809,8 @@ export default function CommandPage() {
                         borderBottom: '1px solid #0e1a10',
                         background: 'linear-gradient(90deg, #070d07 0%, #04070a 100%)',
                     }}>
-                        <Terminal size={11} color="#A6FF4D" />
-                        <span style={{ ...mono, fontSize: 9, color: '#A6FF4D', letterSpacing: '0.18em', fontWeight: 900, textTransform: 'uppercase' }}>
+                        <Terminal size={11} color="#FDC800" />
+                        <span style={{ ...mono, fontSize: 9, color: '#FDC800', letterSpacing: '0.18em', fontWeight: 900, textTransform: 'uppercase' }}>
                             NLP COMMAND
                         </span>
                         <span style={{ ...mono, fontSize: 9, color: '#2a4a1e', marginLeft: 4 }}>
@@ -840,17 +840,17 @@ export default function CommandPage() {
                                         style={{
                                             padding: '8px 14px',
                                             borderBottom: '1px solid #0a0f08',
-                                            borderLeft: `3px solid ${l.ok ? '#A6FF4D' : '#ff4757'}`,
-                                            background: idx % 2 === 0 ? 'transparent' : 'rgba(166,255,77,0.01)',
+                                            borderLeft: `3px solid ${l.ok ? '#FDC800' : '#ff4757'}`,
+                                            background: idx % 2 === 0 ? 'transparent' : 'rgba(253,200,0,0.01)',
                                         }}
                                     >
                                         <div style={{ ...mono, fontSize: 11, color: '#2e5220', marginBottom: 3 }}>
-                                            <span style={{ color: '#A6FF4D' }}>&gt;</span> {l.cmd}
+                                            <span style={{ color: '#FDC800' }}>&gt;</span> {l.cmd}
                                         </div>
                                         <div style={{
                                             ...mono, fontSize: 11, lineHeight: 1.6, whiteSpace: 'pre-wrap',
                                             color: l.ok ? '#7dba5a' : '#ff6b6b',
-                                            textShadow: l.ok ? '0 0 8px rgba(166,255,77,0.15)' : '0 0 8px rgba(255,71,87,0.15)',
+                                            textShadow: l.ok ? '0 0 8px rgba(253,200,0,0.15)' : '0 0 8px rgba(255,71,87,0.15)',
                                         }}>
                                             {l.out}
                                         </div>
@@ -871,7 +871,7 @@ export default function CommandPage() {
                         <motion.span
                             animate={{ opacity: [1, 0, 1] }}
                             transition={{ duration: 1, repeat: Infinity, repeatType: 'loop', ease: [0,0,1,1] }}
-                            style={{ ...mono, fontSize: 15, color: '#A6FF4D', fontWeight: 900, marginRight: 10, userSelect: 'none' }}
+                            style={{ ...mono, fontSize: 15, color: '#FDC800', fontWeight: 900, marginRight: 10, userSelect: 'none' }}
                         >
                             &gt;
                         </motion.span>
@@ -880,11 +880,11 @@ export default function CommandPage() {
                             style={{
                                 flex: 1,
                                 ...mono, fontSize: 14, fontWeight: 600,
-                                color: '#A6FF4D',
-                                textShadow: '0 0 12px rgba(166,255,77,0.4)',
+                                color: '#FDC800',
+                                textShadow: '0 0 12px rgba(253,200,0,0.4)',
                                 background: 'transparent', border: 'none', outline: 'none',
                                 padding: '14px 0',
-                                caretColor: '#A6FF4D',
+                                caretColor: '#FDC800',
                             }}
                             placeholder={lang === 'fr' ? 'Tapez : NQ 21450 21400 500 ou remplissez manuellement' : 'Type: NQ 21450 21400 500 or fill manually below'}
                             value={nlpInput}
@@ -900,10 +900,10 @@ export default function CommandPage() {
                             onClick={() => processNLP(nlpInput)}
                             style={{
                                 ...mono, fontSize: 10, fontWeight: 900, letterSpacing: '0.12em',
-                                color: '#A6FF4D', background: 'rgba(166,255,77,0.08)',
-                                border: '1px solid rgba(166,255,77,0.2)', borderRadius: 5,
+                                color: '#FDC800', background: 'rgba(253,200,0,0.08)',
+                                border: '1px solid rgba(253,200,0,0.2)', borderRadius: 5,
                                 cursor: 'pointer', padding: '5px 10px',
-                                textShadow: '0 0 8px rgba(166,255,77,0.3)',
+                                textShadow: '0 0 8px rgba(253,200,0,0.3)',
                             }}
                         >
                             RUN

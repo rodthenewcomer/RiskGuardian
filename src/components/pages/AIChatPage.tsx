@@ -98,7 +98,7 @@ export default function AIChatPage() {
     const todayUsed  = dailyLimit - getDailyRiskRemaining();
     const dailyLeft  = Math.max(0, dailyLimit - todayUsed);
     const dailyLeftPct = dailyLimit > 0 ? dailyLeft / dailyLimit : 1;
-    const dailyColor = dailyLeftPct > 0.5 ? '#A6FF4D' : dailyLeftPct > 0.25 ? '#EAB308' : '#ff4757';
+    const dailyColor = dailyLeftPct > 0.5 ? '#FDC800' : dailyLeftPct > 0.25 ? '#EAB308' : '#ff4757';
 
     const todayStr    = getTradingDay(new Date().toISOString());
     const todayTrades = trades.filter(t => getTradingDay(t.closedAt ?? t.createdAt) === todayStr);
@@ -158,8 +158,8 @@ export default function AIChatPage() {
                 flexShrink: 0,
             }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                    <div style={{ position: 'relative', width: 30, height: 30, background: 'rgba(166,255,77,0.07)', border: '1px solid rgba(166,255,77,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                        <Brain size={15} color="#A6FF4D" />
+                    <div style={{ position: 'relative', width: 30, height: 30, background: 'rgba(253,200,0,0.07)', border: '1px solid rgba(253,200,0,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                        <Brain size={15} color="#FDC800" />
                         <span className={styles.pulseDot} />
                     </div>
                     <div>
@@ -185,7 +185,7 @@ export default function AIChatPage() {
                     { icon: <ShieldCheck size={9} color={dailyColor} />, lbl: lang === 'fr' ? 'Reste jour' : 'Daily Left',  val: `$${dailyLeft.toFixed(0)}`,  clr: dailyColor,   sub: `${Math.round(dailyLeftPct * 100)}% ${lang === 'fr' ? 'de la limite' : 'of limit'}` },
                     { icon: <Zap size={9} color="#4b5563" />,            lbl: lang === 'fr' ? 'Risque sûr' : 'Safe Risk',   val: `$${maxRisk.toFixed(0)}`,    clr: '#e2e8f0',    sub: `${account.maxRiskPercent}% ${lang === 'fr' ? 'par trade' : 'per trade'}` },
                     { icon: <Activity size={9} color="#4b5563" />,       lbl: lang === 'fr' ? 'Solde' : 'Balance',     val: balance >= 1000 ? `$${(balance / 1000).toFixed(1)}K` : `$${balance.toFixed(0)}`, clr: '#e2e8f0', sub: lang === 'fr' ? 'équité du compte' : 'account equity' },
-                    { icon: null,                                         lbl: lang === 'fr' ? 'Aujourd\'hui' : 'Today',       val: todayTrades.length.toString(), clr: todayPnl >= 0 ? '#A6FF4D' : '#ff4757', sub: todayTrades.length > 0 ? `${todayPnl >= 0 ? '+' : ''}$${todayPnl.toFixed(0)} P&L` : (lang === 'fr' ? 'aucun trade' : 'no trades yet') },
+                    { icon: null,                                         lbl: lang === 'fr' ? 'Aujourd\'hui' : 'Today',       val: todayTrades.length.toString(), clr: todayPnl >= 0 ? '#FDC800' : '#ff4757', sub: todayTrades.length > 0 ? `${todayPnl >= 0 ? '+' : ''}$${todayPnl.toFixed(0)} P&L` : (lang === 'fr' ? 'aucun trade' : 'no trades yet') },
                 ] as const).map((s, i) => (
                     <div key={i} className={styles.contextCard}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: 4 }}>
@@ -217,8 +217,8 @@ export default function AIChatPage() {
                                 }}
                             >
                                 {!isUser && (
-                                    <div style={{ width: 22, height: 22, flexShrink: 0, marginTop: 2, background: 'rgba(166,255,77,0.07)', border: '1px solid rgba(166,255,77,0.18)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                                        <Brain size={11} color="#A6FF4D" />
+                                    <div style={{ width: 22, height: 22, flexShrink: 0, marginTop: 2, background: 'rgba(253,200,0,0.07)', border: '1px solid rgba(253,200,0,0.18)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                        <Brain size={11} color="#FDC800" />
                                     </div>
                                 )}
                                 <div className={isUser ? styles.messageContentUser : undefined} style={{ display: 'flex', flexDirection: 'column', gap: 5, flex: isUser ? 'unset' : 1 }}>
@@ -226,11 +226,11 @@ export default function AIChatPage() {
                                         {isUser ? (lang === 'fr' ? 'Vous' : 'You') : (lang === 'fr' ? 'Coach IA' : 'AI Coach')}
                                     </span>
                                     <div className={styles.messageBubble} style={{
-                                        background: isUser ? 'rgba(166,255,77,0.04)' : '#0d1117',
-                                        borderTop: `1px solid ${isUser ? 'rgba(166,255,77,0.12)' : '#1a1c24'}`,
-                                        borderRight: `1px solid ${isUser ? 'rgba(166,255,77,0.12)' : '#1a1c24'}`,
-                                        borderBottom: `1px solid ${isUser ? 'rgba(166,255,77,0.12)' : '#1a1c24'}`,
-                                        borderLeft: `2px solid ${isUser ? '#A6FF4D' : '#1f2937'}`,
+                                        background: isUser ? 'rgba(253,200,0,0.04)' : '#0d1117',
+                                        borderTop: `1px solid ${isUser ? 'rgba(253,200,0,0.12)' : '#1a1c24'}`,
+                                        borderRight: `1px solid ${isUser ? 'rgba(253,200,0,0.12)' : '#1a1c24'}`,
+                                        borderBottom: `1px solid ${isUser ? 'rgba(253,200,0,0.12)' : '#1a1c24'}`,
+                                        borderLeft: `2px solid ${isUser ? '#FDC800' : '#1f2937'}`,
                                     }}>
                                         <p style={{ ...mono, fontSize: 12, color: isUser ? '#d1fae5' : '#8b949e', lineHeight: 1.75, whiteSpace: 'pre-wrap', margin: 0 }}>
                                             {msg.content}
@@ -242,12 +242,12 @@ export default function AIChatPage() {
                                                 <div key={ci} style={{
                                                     display: 'flex', justifyContent: 'space-between', alignItems: 'center',
                                                     padding: '8px 12px', gap: 12,
-                                                    background: card.highlight ? 'rgba(166,255,77,0.04)' : card.danger ? 'rgba(255,71,87,0.04)' : '#0a0a0a',
-                                                    border: `1px solid ${card.highlight ? 'rgba(166,255,77,0.14)' : card.danger ? 'rgba(255,71,87,0.18)' : '#1a1c24'}`,
-                                                    borderLeft: `3px solid ${card.highlight ? '#A6FF4D' : card.danger ? '#ff4757' : '#1f2937'}`,
+                                                    background: card.highlight ? 'rgba(253,200,0,0.04)' : card.danger ? 'rgba(255,71,87,0.04)' : '#0a0a0a',
+                                                    border: `1px solid ${card.highlight ? 'rgba(253,200,0,0.14)' : card.danger ? 'rgba(255,71,87,0.18)' : '#1a1c24'}`,
+                                                    borderLeft: `3px solid ${card.highlight ? '#FDC800' : card.danger ? '#ff4757' : '#1f2937'}`,
                                                 }}>
                                                     <span style={{ ...lbl, flex: 1, letterSpacing: '0.07em' }}>{card.label}</span>
-                                                    <span style={{ ...mono, fontSize: 13, fontWeight: 700, color: card.highlight ? '#A6FF4D' : card.danger ? '#ff4757' : '#e2e8f0', textAlign: 'right', maxWidth: '65%', wordBreak: 'break-all' }}>{card.value}</span>
+                                                    <span style={{ ...mono, fontSize: 13, fontWeight: 700, color: card.highlight ? '#FDC800' : card.danger ? '#ff4757' : '#e2e8f0', textAlign: 'right', maxWidth: '65%', wordBreak: 'break-all' }}>{card.value}</span>
                                                 </div>
                                             ))}
                                         </div>
@@ -263,8 +263,8 @@ export default function AIChatPage() {
                         <motion.div key="loading" initial={{ opacity: 0 }} animate={{ opacity: 1 }}
                             className={styles.messageRow}
                             style={{ display: 'flex', gap: 10, alignItems: 'flex-start', borderBottom: divider }}>
-                            <div style={{ width: 22, height: 22, flexShrink: 0, marginTop: 2, background: 'rgba(166,255,77,0.07)', border: '1px solid rgba(166,255,77,0.18)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                                <Brain size={11} color="#A6FF4D" />
+                            <div style={{ width: 22, height: 22, flexShrink: 0, marginTop: 2, background: 'rgba(253,200,0,0.07)', border: '1px solid rgba(253,200,0,0.18)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                <Brain size={11} color="#FDC800" />
                             </div>
                             <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
                                 <span style={{ ...lbl, display: 'block' }}>{lang === 'fr' ? 'Coach IA' : 'AI Coach'}</span>
@@ -283,7 +283,7 @@ export default function AIChatPage() {
                 {SUGGESTIONS.map((s) => (
                     <button key={s.text} onClick={() => setInput(s.text)}
                         style={{ ...mono, flexShrink: 0, display: 'flex', alignItems: 'center', gap: 6, padding: '7px 12px', background: 'transparent', border: '1px solid #1a1c24', cursor: 'pointer', fontSize: 10, color: '#6b7280', whiteSpace: 'nowrap' }}
-                        onMouseEnter={e => { e.currentTarget.style.borderColor = 'rgba(166,255,77,0.3)'; e.currentTarget.style.color = '#A6FF4D'; e.currentTarget.style.background = 'rgba(166,255,77,0.04)'; }}
+                        onMouseEnter={e => { e.currentTarget.style.borderColor = 'rgba(253,200,0,0.3)'; e.currentTarget.style.color = '#FDC800'; e.currentTarget.style.background = 'rgba(253,200,0,0.04)'; }}
                         onMouseLeave={e => { e.currentTarget.style.borderColor = '#1a1c24'; e.currentTarget.style.color = '#6b7280'; e.currentTarget.style.background = 'transparent'; }}
                     >
                         <span style={{ fontSize: 11 }}>{s.icon}</span>{s.text}
@@ -292,7 +292,7 @@ export default function AIChatPage() {
             </div>
 
             {/* ── INPUT BAR ───────────────────────────────────── */}
-            <div className={styles.inputBar} style={{ borderTop: `1px solid ${input.trim() ? 'rgba(166,255,77,0.2)' : '#1a1c24'}`, display: 'flex', alignItems: 'center', gap: 12, flexShrink: 0, background: '#090909', transition: 'border-color 0.2s' }}>
+            <div className={styles.inputBar} style={{ borderTop: `1px solid ${input.trim() ? 'rgba(253,200,0,0.2)' : '#1a1c24'}`, display: 'flex', alignItems: 'center', gap: 12, flexShrink: 0, background: '#090909', transition: 'border-color 0.2s' }}>
                 <input
                     value={input}
                     onChange={e => setInput(e.target.value)}
@@ -320,7 +320,7 @@ export default function AIChatPage() {
                 <button
                     onClick={() => handleSend()}
                     disabled={!input.trim() || loading}
-                    style={{ width: 44, height: 44, flexShrink: 0, background: input.trim() ? '#A6FF4D' : '#0d1117', border: `1px solid ${input.trim() ? '#A6FF4D' : '#1a1c24'}`, cursor: input.trim() ? 'pointer' : 'default', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.15s', boxShadow: input.trim() ? '0 0 14px rgba(166,255,77,0.22)' : 'none' }}
+                    style={{ width: 44, height: 44, flexShrink: 0, background: input.trim() ? '#FDC800' : '#0d1117', border: `1px solid ${input.trim() ? '#FDC800' : '#1a1c24'}`, cursor: input.trim() ? 'pointer' : 'default', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.15s', boxShadow: input.trim() ? '0 0 14px rgba(253,200,0,0.22)' : 'none' }}
                 >
                     <Send size={14} color={input.trim() ? '#000' : '#2d3748'} />
                 </button>
