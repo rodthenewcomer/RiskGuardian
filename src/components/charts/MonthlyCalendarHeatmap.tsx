@@ -94,10 +94,11 @@ export default function MonthlyCalendarHeatmap({ data, height = 240 }: MonthlyCa
     };
 
     return (
-        <div style={{ position: 'relative', width: '100%', overflowX: 'auto' }}>
+        <div style={{ position: 'relative', width: '100%' }}>
             <svg
-                width={gridW}
-                height={svgH}
+                viewBox={`0 0 ${gridW} ${svgH}`}
+                width="100%"
+                height="auto"
                 style={{ display: 'block' }}
                 onMouseLeave={() => setHoveredDay(null)}
             >

@@ -145,7 +145,7 @@ export default function JournalPage() {
             const oldPdf  = trades.filter(t => t.id.startsWith('tradeify-'));
             const newIds  = new Set(result.trades.map(t => t.id));
             const oldKept = oldPdf.filter(t => !newIds.has(t.id));
-            const newTrades = result.trades.map(t => ({ ...t, note: '' }));
+            const newTrades = result.trades.map(t => ({ ...t, note: '', source: 'pdf' as const }));
             setTrades([...newTrades, ...oldKept, ...nonPdf]); // autoSync fires inside setTrades
             const coverage = result.coverageStart && result.coverageEnd
                 ? ` · ${result.coverageStart} → ${result.coverageEnd}` : '';
@@ -205,7 +205,7 @@ export default function JournalPage() {
                         const reward = Math.abs(tp - entry) * size;
                         // Deterministic ID from content — prevents duplicates on re-import
                         const id = `csv-${cols[1] ?? ''}-${cols[4] ?? ''}-${cols[5] ?? ''}-${(pnl || 0).toFixed(2)}`;
-                        imported.push({ id, asset: cols[4]?.toUpperCase() || 'UNKNOWN', assetType: guessAssetType(cols[4] || ''), entry, stopLoss: sl, takeProfit: tp, lotSize: size, riskUSD: risk, rewardUSD: reward, rr: risk > 0 ? reward / risk : 0, outcome: pnl > 0 ? 'win' : pnl < 0 ? 'loss' : 'open', createdAt: cols[1] || new Date().toISOString(), closedAt: cols[1] || new Date().toISOString(), pnl, isShort: type === 'sell' });
+                        imported.push({ id, asset: cols[4]?.toUpperCase() || 'UNKNOWN', assetType: guessAssetType(cols[4] || ''), entry, stopLoss: sl, takeProfit: tp, lotSize: size, riskUSD: risk, rewardUSD: reward, rr: risk > 0 ? reward / risk : 0, outcome: pnl > 0 ? 'win' : pnl < 0 ? 'loss' : 'open', createdAt: cols[1] || new Date().toISOString(), closedAt: cols[1] || new Date().toISOString(), pnl, isShort: type === 'sell', source: 'csv' as const });
                     } else {
                         const side = cols[2]?.toLowerCase();
                         const entry = parseFloat(cols[4]);
@@ -218,7 +218,7 @@ export default function JournalPage() {
                         const reward = Math.abs((tp || entry * 1.01) - entry) * size;
                         // Deterministic ID from content — prevents duplicates on re-import
                         const id = `csv-${cols[0] ?? ''}-${cols[1] ?? ''}-${cols[4] ?? ''}-${(pnl || 0).toFixed(2)}`;
-                        imported.push({ id, asset: cols[1]?.toUpperCase() || 'UNKNOWN', assetType: guessAssetType(cols[1] || ''), entry, stopLoss: sl || entry * 0.99, takeProfit: tp || entry * 1.01, lotSize: size, riskUSD: risk, rewardUSD: reward, rr: risk > 0 ? reward / risk : 0, outcome: pnl > 0 ? 'win' : pnl < 0 ? 'loss' : 'open', createdAt: cols[0] || new Date().toISOString(), closedAt: cols[0] || new Date().toISOString(), pnl, isShort: side === 'sell' || side === 'short' });
+                        imported.push({ id, asset: cols[1]?.toUpperCase() || 'UNKNOWN', assetType: guessAssetType(cols[1] || ''), entry, stopLoss: sl || entry * 0.99, takeProfit: tp || entry * 1.01, lotSize: size, riskUSD: risk, rewardUSD: reward, rr: risk > 0 ? reward / risk : 0, outcome: pnl > 0 ? 'win' : pnl < 0 ? 'loss' : 'open', createdAt: cols[0] || new Date().toISOString(), closedAt: cols[0] || new Date().toISOString(), pnl, isShort: side === 'sell' || side === 'short', source: 'csv' as const });
                     }
                 } catch { continue; }
             }
@@ -582,10 +582,10 @@ export default function JournalPage() {
 
                                                 {/* Right: P&L + inline outcome for open + expand + delete */}
                                                 <div style={{ display: 'flex', alignItems: 'center', gap: isMobile ? 6 : 10, flexShrink: 1, flexWrap: 'wrap', minWidth: isMobile ? 120 : 200, justifyContent: 'flex-end' }}>
-                                                    <div 
-                                                        style={{ textAlign: 'right', cursor: 'pointer', padding: '4px', borderRadius: 4 }} 
-                                                        onClick={(e) => { e.stopPropagation(); setInlineOutcomeId(trade.id); }}
-                                                        title="Tap to edit outcome/P&L"
+                                                    <div
+                                                        style={{ textAlign: 'right', cursor: trade.source && trade.source !== 'manual' ? 'default' : 'pointer', padding: '4px', borderRadius: 4 }}
+                                                        onClick={(e) => { if (trade.source && trade.source !== 'manual') return; e.stopPropagation(); setInlineOutcomeId(trade.id); }}
+                                                        title={trade.source && trade.source !== 'manual' ? undefined : 'Tap to edit outcome/P&L'}
                                                     >
                                                         <span style={{ ...mono, fontSize: 16, fontWeight: 800, color: accentColor, letterSpacing: '-0.02em', display: 'block' }}>
                                                             {isWin ? '+' : isLoss ? '-' : '~'}${Math.abs(pnlVal).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
@@ -594,8 +594,8 @@ export default function JournalPage() {
                                                             <span style={{ ...mono, fontSize: 9, color: '#6b7280' }}>{trade.rr.toFixed(1)}R</span>
                                                         )}
                                                     </div>
-                                                    {/* Inline WIN/LOSS buttons for open trades */}
-                                                    {(trade.outcome === 'open' || inlineOutcomeId === trade.id) && (
+                                                    {/* Inline WIN/LOSS buttons — manual trades only */}
+                                                    {(!trade.source || trade.source === 'manual') && (trade.outcome === 'open' || inlineOutcomeId === trade.id) && (
                                                         <div style={{ display: 'flex', alignItems: 'center', gap: 4 }} onClick={e => e.stopPropagation()}>
                                                             {inlineOutcomeId === trade.id && (
                                                                 <input

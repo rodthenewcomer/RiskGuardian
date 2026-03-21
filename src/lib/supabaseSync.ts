@@ -3,6 +3,13 @@
 import { supabase } from './supabase';
 import type { TradeSession, AccountSettings, DailySession } from '@/store/appStore';
 
+/** Full account sync payload — includes store-level fields beyond AccountSettings */
+export interface FullAccountSync {
+    account: AccountSettings;
+    tradingDayRollHour: number;
+    language: 'en' | 'fr';
+}
+
 // ── Type adapters ────────────────────────────────────────────────
 
 function tradeToRow(trade: TradeSession, userId: string) {
@@ -130,6 +137,7 @@ export async function pushAccountSettings(
         max_consecutive_losses: account.maxConsecutiveLosses ?? null,
         cool_down_minutes:      account.coolDownMinutes ?? null,
         max_trades_per_day:     account.maxTradesPerDay ?? null,
+        min_hold_time_sec:      account.minHoldTimeSec ?? null,
         payout_lock_active:     account.payoutLockActive ?? false,
         trading_day_roll_hour:  tradingDayRollHour,
         language,
@@ -143,6 +151,15 @@ export async function pushAccountSettings(
 }
 
 export async function pullAccountSettings(userId: string): Promise<AccountSettings | null> {
+    const full = await pullFullAccountSettings(userId);
+    return full?.account ?? null;
+}
+
+/**
+ * Pull account settings + store-level fields (language, tradingDayRollHour).
+ * Returns null if no row exists yet (first-time user).
+ */
+export async function pullFullAccountSettings(userId: string): Promise<FullAccountSync | null> {
     const { data, error } = await supabase
         .from('account_settings')
         .select('*')
@@ -150,25 +167,32 @@ export async function pullAccountSettings(userId: string): Promise<AccountSettin
         .single();
 
     if (error || !data) return null;
+    // Treat a row with startingBalance = 0 as "not yet configured"
+    if (Number(data.starting_balance) === 0) return null;
 
     return {
-        balance:               Number(data.balance),
-        dailyLossLimit:        Number(data.daily_loss_limit),
-        maxRiskPercent:        Number(data.max_risk_percent),
-        assetType:             data.asset_type as AccountSettings['assetType'],
-        currency:              data.currency,
-        propFirm:              data.prop_firm ?? undefined,
-        propFirmType:          data.prop_firm_type as AccountSettings['propFirmType'] ?? undefined,
-        maxDrawdownLimit:      data.max_drawdown_limit != null ? Number(data.max_drawdown_limit) : undefined,
-        drawdownType:          data.drawdown_type as AccountSettings['drawdownType'] ?? 'EOD',
-        leverage:              data.leverage != null ? Number(data.leverage) : 2,
-        startingBalance:       Number(data.starting_balance),
-        highestBalance:        Number(data.highest_balance),
-        isConsistencyActive:   Boolean(data.is_consistency_active),
-        maxConsecutiveLosses:  data.max_consecutive_losses != null ? Number(data.max_consecutive_losses) : undefined,
-        coolDownMinutes:       data.cool_down_minutes != null ? Number(data.cool_down_minutes) : undefined,
-        maxTradesPerDay:       data.max_trades_per_day != null ? Number(data.max_trades_per_day) : undefined,
-        payoutLockActive:      Boolean(data.payout_lock_active),
+        account: {
+            balance:               Number(data.balance),
+            dailyLossLimit:        Number(data.daily_loss_limit),
+            maxRiskPercent:        Number(data.max_risk_percent),
+            assetType:             data.asset_type as AccountSettings['assetType'],
+            currency:              data.currency,
+            propFirm:              data.prop_firm ?? undefined,
+            propFirmType:          data.prop_firm_type as AccountSettings['propFirmType'] ?? undefined,
+            maxDrawdownLimit:      data.max_drawdown_limit != null ? Number(data.max_drawdown_limit) : undefined,
+            drawdownType:          data.drawdown_type as AccountSettings['drawdownType'] ?? 'EOD',
+            leverage:              data.leverage != null ? Number(data.leverage) : 2,
+            startingBalance:       Number(data.starting_balance),
+            highestBalance:        Number(data.highest_balance),
+            isConsistencyActive:   Boolean(data.is_consistency_active),
+            maxConsecutiveLosses:  data.max_consecutive_losses != null ? Number(data.max_consecutive_losses) : undefined,
+            coolDownMinutes:       data.cool_down_minutes != null ? Number(data.cool_down_minutes) : undefined,
+            maxTradesPerDay:       data.max_trades_per_day != null ? Number(data.max_trades_per_day) : undefined,
+            minHoldTimeSec:        data.min_hold_time_sec != null ? Number(data.min_hold_time_sec) : undefined,
+            payoutLockActive:      Boolean(data.payout_lock_active),
+        },
+        tradingDayRollHour: data.trading_day_roll_hour != null ? Number(data.trading_day_roll_hour) : 17,
+        language:           (data.language as 'en' | 'fr') ?? 'en',
     };
 }
 
@@ -183,6 +207,30 @@ export async function joinWaitlist(email: string, lang = 'en'): Promise<'ok' | '
     if (error.code === '23505') return 'already'; // unique violation
     console.error('waitlist error:', error.message);
     return 'error';
+}
+
+// ── Daily sessions sync ──────────────────────────────────────────
+
+/**
+ * Upsert today's daily session to Supabase.
+ * Safe to call on every risk-used change — uses UNIQUE(user_id, date) for idempotency.
+ */
+export async function pushDailySessions(sessions: DailySession[], userId: string): Promise<void> {
+    if (sessions.length === 0) return;
+    const rows = sessions.map(s => ({
+        user_id:         userId,
+        date:            s.date,
+        risk_used:       s.riskUsed,
+        trades_planned:  s.tradesPlanned,
+        guard_triggered: s.guardTriggered,
+    }));
+    // Upsert in batches of 50 (daily sessions are small)
+    for (let i = 0; i < rows.length; i += 50) {
+        const { error } = await supabase
+            .from('daily_sessions')
+            .upsert(rows.slice(i, i + 50), { onConflict: 'user_id,date' });
+        if (error) throw new Error(`pushDailySessions: ${error.message}`);
+    }
 }
 
 // ── Full bidirectional sync ───────────────────────────────────────

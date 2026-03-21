@@ -340,8 +340,8 @@ export function calcSmartPositionSize(params: {
         notional = size * entry;
     }
 
-    // Tradeify 0.04% fee applies only to crypto; futures are flat per-contract
-    const comm = (params.assetType === 'crypto' && includeTradeifyFee) ? notional * 0.0004 : 0;
+    // Tradeify 0.4% per leg × 2 (entry + exit = 0.8% round-trip); crypto only
+    const comm = (params.assetType === 'crypto' && includeTradeifyFee) ? notional * 0.004 * 2 : 0;
 
     return { size, unit, riskUSD, tp2R, tp3R, tpCustomR, notional, comm, stopDistance, stopPct };
 }
@@ -1925,7 +1925,7 @@ export function processNaturalLanguage(
     }
 
     if (isBreakEven && entry > 0) {
-        const commRate = assetType === 'crypto' ? 0.0004 : 0;
+        const commRate = assetType === 'crypto' ? 0.004 : 0; // 0.4% per leg
         const commPerUnit = entry * commRate;
         const be = isShort ? entry - commPerUnit * 2 : entry + commPerUnit * 2;
         return {
@@ -2050,7 +2050,7 @@ export function processNaturalLanguage(
             cards.push({ label: 'Notional',    value: `$${result.notional.toLocaleString(undefined, { maximumFractionDigits: 0 })}` });
         }
         if (assetType === 'crypto') {
-            cards.push({ label: 'Commission (0.04%)', value: `$${result.comm.toFixed(2)}` });
+            cards.push({ label: 'Commission (0.4% × 2)', value: `$${result.comm.toFixed(2)}` });
         }
         cards.push({ label: 'Guardian',      value: guardian.tradeWarning || 'Clear to trade', danger: !!guardian.tradeWarning });
         return { content: `Position sizing for ${isShort ? 'SHORT' : 'LONG'} ${asset} — Entry: ${entry}, SL: ${stopLoss}, Risk: $${riskAmt}:`, cards };

@@ -48,6 +48,7 @@ export interface TradeSession {
     note?: string;  // Manual journal note
     durationSeconds?: number;
     tags?: string[];
+    source?: 'manual' | 'pdf' | 'csv' | 'dxtrade'; // undefined = manual (backward compat)
 }
 
 export interface AccountSettings {
@@ -512,7 +513,7 @@ export function getFuturesSpec(symbol: string): FuturesSpec | null {
 
 // ─── Lot size / contracts calculation ─────────────────────────
 // ─── Market & Fee Constants ───────────────────────────
-export const TRADEIFY_COMMISSION_RATE = 0.0004; // 0.04%
+export const TRADEIFY_COMMISSION_RATE = 0.004; // 0.4% per leg (entry + exit = 0.8% round-trip)
 export const TRADEIFY_CRYPTO_LIST = [
     'BTC', 'ETH', 'SOL', 'PEPE', 'WIF', 'BONK', 'PNUT', 'DOGE', 'SUI', 'AVAX',
     'APT', 'LINK', 'UNI', 'ADA', 'XRP', 'DOT', 'NEAR', 'FET', 'LTC', 'BCH',
@@ -562,9 +563,9 @@ export function calcPositionSize(params: {
     const notional = finalSize * entry * (assetType === 'futures' ? pointVal : 1);
     let comm = 0;
 
-    // Tradeify 0.04% Fee Logic
+    // Tradeify 0.4% per leg × 2 (entry + exit = 0.8% round-trip)
     if (includeFees) {
-        comm = notional * TRADEIFY_COMMISSION_RATE;
+        comm = notional * TRADEIFY_COMMISSION_RATE * 2;
     }
 
     return { size: finalSize, unit, pointValue: pointVal, comm, notional };

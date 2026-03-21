@@ -18,7 +18,7 @@ import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { AnimatePresence, motion } from 'framer-motion';
 import { ToastContainer } from '@/components/ui/Toast';
 import { supabase } from '@/lib/supabase';
-import { fullSync, pushAccountSettings, pushTrades } from '@/lib/supabaseSync';
+import { fullSync, pushAccountSettings, pushDailySessions, pullFullAccountSettings, pushTrades } from '@/lib/supabaseSync';
 
 // Force dynamic rendering — prevents prerender failures when Supabase env vars absent on deploy
 export const dynamic = 'force-dynamic';
@@ -41,9 +41,13 @@ export default function Home() {
     hasOnboarded,
     trades,
     account,
+    dailySessions,
     setTrades,
+    updateAccount,
     language,
     tradingDayRollHour,
+    setLanguage,
+    setTradingDayRollHour,
     userId,
     setUserId,
     setUserEmail,
@@ -93,15 +97,50 @@ export default function Home() {
     return () => clearTimeout(timer);
   }, [trades, userId]);
 
+  // ── Auto-sync account settings on any change (debounced 3s) ──
+  useEffect(() => {
+    if (!userId) return;
+    const timer = setTimeout(() => {
+      pushAccountSettings(account, userId, tradingDayRollHour, language).catch(console.error);
+    }, 3000);
+    return () => clearTimeout(timer);
+  }, [account, userId, tradingDayRollHour, language]);
+
+  // ── Auto-sync daily sessions on change (debounced 5s) ──
+  useEffect(() => {
+    if (!userId || dailySessions.length === 0) return;
+    const timer = setTimeout(() => {
+      pushDailySessions(dailySessions, userId).catch(console.error);
+    }, 5000);
+    return () => clearTimeout(timer);
+  }, [dailySessions, userId]);
+
   // ── Auth success handler ──────────────────────────────────────
   async function handleAuthSuccess(uid: string, email: string) {
     setUserId(uid);
     setUserEmail(email);
     setShowAuthModal(false);
     try {
+      // Sync trades first (bidirectional)
       const merged = await fullSync(trades, uid);
       setTrades(merged);
-      await pushAccountSettings(account, uid, tradingDayRollHour, language);
+
+      // Pull account settings — remote is source of truth on login.
+      // If remote has configured data (startingBalance > 0), apply it to the store.
+      // If remote has nothing, push the current local settings up.
+      const remote = await pullFullAccountSettings(uid);
+      if (remote) {
+        updateAccount(remote.account);
+        if (remote.tradingDayRollHour !== tradingDayRollHour) {
+          setTradingDayRollHour(remote.tradingDayRollHour);
+        }
+        if (remote.language !== language) {
+          setLanguage(remote.language);
+        }
+      } else {
+        // No remote row yet — push local settings to initialise the row
+        await pushAccountSettings(account, uid, tradingDayRollHour, language);
+      }
     } catch (err) {
       console.error('Sync error after sign-in:', err);
     }
