@@ -13,6 +13,7 @@ import AnalyticsPage from '@/components/pages/AnalyticsPage';
 import SettingsPage from '@/components/pages/SettingsPage';
 import JournalPage from '@/components/pages/JournalPage';
 import Onboarding from '@/components/pages/Onboarding';
+import AuthPage from '@/components/auth/AuthPage';
 import AuthModal from '@/components/auth/AuthModal';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { AnimatePresence, motion } from 'framer-motion';
@@ -33,6 +34,8 @@ const VALID_TABS = new Set(['dashboard', 'terminal', 'bridge', 'plan', 'analytic
 
 export default function Home() {
   const [mounted, setMounted] = useState(false);
+  // authChecked = true once we've confirmed the Supabase session status
+  const [authChecked, setAuthChecked] = useState(false);
   const {
     setActiveTab,
     activeTab,
@@ -57,12 +60,14 @@ export default function Home() {
       setActiveTab(param as Parameters<typeof setActiveTab>[0]);
     }
 
-    // Check existing session on mount
+    // Check existing session — resolves before showing any UI to prevent flicker
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (session?.user) {
         setUserId(session.user.id);
         setUserEmail(session.user.email ?? '');
       }
+      setAuthChecked(true);
+      setMounted(true);
     });
 
     // Listen for auth state changes (OAuth callback, sign-out, token refresh)
@@ -76,7 +81,6 @@ export default function Home() {
       }
     });
 
-    setMounted(true);
     return () => subscription.unsubscribe();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -115,12 +119,28 @@ export default function Home() {
     calculator: <CommandPage />,
   };
 
-  // Avoid hydration mismatch — localStorage state only available client-side
-  if (!mounted) {
-    return <div className="app-shell app-shell--loading" />;
+  // Blank shell until Supabase session check completes — prevents flicker
+  if (!mounted || !authChecked) {
+    return (
+      <div style={{
+        minHeight: '100dvh', background: '#090909',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+      }}>
+        <div style={{
+          width: 32, height: 32, background: '#FDC800',
+          animation: 'pulse 1.4s ease-in-out infinite',
+        }} />
+        <style>{`@keyframes pulse { 0%,100%{opacity:.3;transform:scale(.8)} 50%{opacity:1;transform:scale(1)} }`}</style>
+      </div>
+    );
   }
 
-  // New user — run 3-step onboarding
+  // ── AUTH GATE — must be logged in to access the app ──────────
+  if (!userId) {
+    return <AuthPage onSuccess={handleAuthSuccess} />;
+  }
+
+  // ── ONBOARDING — first-time setup after auth ─────────────────
   if (!hasOnboarded) {
     return <Onboarding />;
   }
