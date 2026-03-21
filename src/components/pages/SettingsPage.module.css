@@ -1,46 +1,22 @@
-/* SettingsPage — 2026 redesign */
+/* SettingsPage — dark neobrutalism, 2026 */
 
-.page {
+/* ── Desktop 2-col layout ────────────────────────────────────────────────── */
+.desktopGrid {
     display: flex;
     flex-direction: column;
-    gap: var(--space-4);
+    gap: 0;
 }
 
-/* ── Header ─────────────────────────────────────────────────── */
-.pageHeader {
-    display: flex;
-    align-items: center;
-    gap: var(--space-3);
+@media (min-width: 768px) {
+    .desktopGrid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 0;
+        align-items: start;
+    }
 }
 
-.pageIcon {
-    width: 36px;
-    height: 36px;
-    background: var(--bg-elevated);
-    border: 1px solid var(--border-subtle);
-    border-radius: var(--radius-md);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    color: var(--text-secondary);
-    flex-shrink: 0;
-}
-
-/* ── Section label (above-card label style) ─────────────────── */
-.sectionLabel {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    font-size: 11px;
-    font-weight: 700;
-    letter-spacing: 0.07em;
-    text-transform: uppercase;
-    color: var(--text-muted);
-    margin-bottom: 10px;
-    padding-left: 2px;
-}
-
-/* ── Prop Firm chip rail ─────────────────────────────────────── */
+/* ── Prop firm chip rail ─────────────────────────────────────────────────── */
 .firmRail {
     display: flex;
     gap: 6px;
@@ -48,400 +24,33 @@
     padding-bottom: 4px;
     -webkit-overflow-scrolling: touch;
     scrollbar-width: none;
-}
-.firmRail::-webkit-scrollbar { display: none; }
-
-.firmChip {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    padding: 7px 12px;
-    background: var(--bg-card);
-    border: 1px solid var(--border-subtle);
-    border-radius: 20px;
-    cursor: pointer;
-    white-space: nowrap;
-    flex-shrink: 0;
-    transition: all var(--t-fast);
-    -webkit-tap-highlight-color: transparent;
-    outline: none;
-}
-.firmChip:hover { border-color: var(--border-medium); }
-
-.firmChipActive {
-    background: var(--accent-dim);
-    border-color: var(--accent-border);
+    flex-wrap: nowrap;
 }
 
-.firmChipCustom { opacity: 0.65; }
-
-.firmChipName {
-    font-size: 11px;
-    font-weight: 700;
-    color: var(--text-primary);
-    letter-spacing: -0.01em;
+.firmRail::-webkit-scrollbar {
+    display: none;
 }
 
-.firmChipType {
-    font-size: 9px;
-    font-family: var(--font-mono);
-    font-weight: 700;
-    color: var(--text-muted);
-    background: var(--bg-elevated);
-    padding: 1px 5px;
-    border-radius: 3px;
-    border: 1px solid var(--border-subtle);
-}
-
-/* ── Active firm banner ──────────────────────────────────────── */
-.firmActiveBanner {
-    margin-top: 10px;
-    padding: 12px 14px;
-    background: rgba(253, 200, 0, 0.04);
-    border: 1px solid rgba(253, 200, 0, 0.15);
-    border-radius: var(--radius-md);
-}
-
-.firmBannerRow {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    margin-bottom: 7px;
-}
-
-.firmBannerName {
-    font-size: 12px;
-    font-weight: 700;
-    color: var(--text-primary);
-}
-
-.firmBannerBadge {
-    font-size: 9px;
-    font-family: var(--font-mono);
-    font-weight: 700;
-    letter-spacing: 0.06em;
-    text-transform: uppercase;
-    color: var(--accent);
-    background: rgba(253, 200, 0, 0.08);
-    border: 1px solid rgba(253, 200, 0, 0.2);
-    padding: 2px 7px;
-    border-radius: 3px;
-}
-
-.firmBannerStats {
-    display: flex;
-    gap: 14px;
-    flex-wrap: wrap;
-}
-
-.firmBannerStats span {
-    font-size: 10px;
-    font-family: var(--font-mono);
-    color: var(--text-muted);
-}
-
-.firmBannerStats strong {
-    color: var(--text-primary);
-}
-
-/* ── Section card ────────────────────────────────────────────── */
-.section {
-    padding: var(--space-4);
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-3);
-}
-
-.sectionTitleRow {
-    display: flex;
-    align-items: center;
-    gap: 7px;
-    margin-bottom: 2px;
-}
-
-.sectionTitle {
-    font-size: 12px;
-    font-weight: 700;
-    letter-spacing: 0.06em;
-    text-transform: uppercase;
-    color: var(--text-muted);
-}
-
-/* ── 2-col input grid ────────────────────────────────────────── */
+/* ── 2-col input grid inside sections ───────────────────────────────────── */
 .inputGrid {
     display: grid;
     grid-template-columns: 1fr 1fr;
-    gap: var(--space-3);
-}
-
-@media (max-width: 360px) {
-    .inputGrid { grid-template-columns: 1fr; }
-}
-
-/* ── Asset type buttons ──────────────────────────────────────── */
-.assetBtns {
-    display: grid;
-    grid-template-columns: repeat(4, 1fr);
-    gap: 3px;
-    background: var(--bg-elevated);
-    border: 1px solid var(--border-subtle);
-    border-radius: var(--radius-md);
-    padding: 3px;
-}
-
-.assetBtn {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 4px;
-    padding: 8px 4px;
-    border: 1px solid transparent;
-    border-radius: var(--radius-sm);
-    background: transparent;
-    color: var(--text-muted);
-    font-size: 10px;
-    font-weight: 600;
-    cursor: pointer;
-    transition: all var(--t-fast);
-    -webkit-tap-highlight-color: transparent;
-    outline: none;
-}
-
-.assetBtnActive {
-    background: var(--accent-dim);
-    color: var(--accent);
-    border-color: var(--accent-border);
-}
-
-/* ── Behavioral guards ───────────────────────────────────────── */
-.newBadge {
-    font-size: 8px;
-    font-family: var(--font-mono);
-    font-weight: 800;
-    letter-spacing: 0.1em;
-    text-transform: uppercase;
-    color: #a78bfa;
-    background: rgba(167, 139, 250, 0.1);
-    border: 1px solid rgba(167, 139, 250, 0.22);
-    padding: 1px 6px;
-    border-radius: 3px;
-    margin-left: 4px;
-}
-
-.guardSubtitle {
-    font-size: 11px;
-    font-family: var(--font-mono);
-    color: var(--text-muted);
-    line-height: 1.6;
-    margin-top: -4px;
-}
-
-.guardRow {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
     gap: 12px;
 }
 
-.guardInfo {
-    display: flex;
-    flex-direction: column;
-    gap: 3px;
-    flex: 1;
-    min-width: 0;
+@media (max-width: 360px) {
+    .inputGrid {
+        grid-template-columns: 1fr;
+    }
 }
 
-.guardLabel {
-    font-size: 12px;
-    font-weight: 600;
-    color: var(--text-primary);
+/* ── Mobile-only elements (save bar at bottom) ───────────────────────────── */
+.mobileOnly {
+    display: block;
 }
 
-.guardDesc {
-    font-size: 10px;
-    font-family: var(--font-mono);
-    color: var(--text-muted);
-    line-height: 1.4;
-}
-
-/* ── Toggle switch ───────────────────────────────────────────── */
-.toggle {
-    width: 40px;
-    height: 23px;
-    background: var(--bg-elevated);
-    border: 1px solid var(--border-medium);
-    border-radius: 12px;
-    position: relative;
-    cursor: pointer;
-    flex-shrink: 0;
-    transition: background 0.2s ease, border-color 0.2s ease;
-    -webkit-tap-highlight-color: transparent;
-    outline: none;
-    appearance: none;
-    -webkit-appearance: none;
-}
-
-.toggle::after {
-    content: '';
-    position: absolute;
-    width: 17px;
-    height: 17px;
-    background: #6b7280;
-    border-radius: 50%;
-    top: 2px;
-    left: 2px;
-    transition: transform 0.2s ease, background 0.2s ease;
-}
-
-.toggleOn {
-    background: rgba(253, 200, 0, 0.15);
-    border-color: var(--accent-border);
-}
-
-.toggleOn::after {
-    background: var(--accent);
-    transform: translateX(17px);
-}
-
-/* ── Divider ─────────────────────────────────────────────────── */
-.divider {
-    height: 1px;
-    background: var(--border-subtle);
-    margin: 2px 0;
-}
-
-/* ── Status messages ─────────────────────────────────────────── */
-.msgSuccess {
-    font-family: var(--font-mono);
-    font-size: 11px;
-    color: #FDC800;
-    padding: 8px 12px;
-    background: rgba(253, 200, 0, 0.04);
-    border: 1px solid rgba(253, 200, 0, 0.12);
-    border-radius: var(--radius-md);
-    line-height: 1.5;
-}
-
-.msgError {
-    font-family: var(--font-mono);
-    font-size: 11px;
-    color: #ff4757;
-    padding: 8px 12px;
-    background: rgba(255, 71, 87, 0.06);
-    border: 1px solid rgba(255, 71, 87, 0.2);
-    border-radius: var(--radius-md);
-    line-height: 1.5;
-}
-
-.msgProgress {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    font-family: var(--font-mono);
-    font-size: 11px;
-    color: #FDC800;
-    line-height: 1.5;
-}
-
-/* ── DXTrade connection info ─────────────────────────────────── */
-.pulseDot {
-    display: inline-block;
-    width: 8px;
-    height: 8px;
-    background: #22c55e;
-    border-radius: 50%;
-    flex-shrink: 0;
-    animation: dxPulse 2s ease-in-out infinite;
-}
-
-@keyframes dxPulse {
-    0%, 100% { opacity: 1; transform: scale(1); }
-    50%       { opacity: 0.55; transform: scale(0.82); }
-}
-
-.connectedBadge {
-    margin-left: auto;
-    font-family: var(--font-mono);
-    font-size: 9px;
-    font-weight: 800;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-    color: var(--accent);
-    background: rgba(253, 200, 0, 0.08);
-    border: 1px solid rgba(253, 200, 0, 0.25);
-    padding: 2px 8px;
-    border-radius: 3px;
-}
-
-.connInfo {
-    padding: 12px 14px;
-    background: rgba(253, 200, 0, 0.03);
-    border: 1px solid rgba(253, 200, 0, 0.1);
-    border-radius: var(--radius-md);
-    font-family: var(--font-mono);
-    font-size: 11px;
-}
-
-.connInfoRow {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    margin-bottom: 3px;
-    flex-wrap: wrap;
-}
-
-/* ── Danger Zone ─────────────────────────────────────────────── */
-/* ── Violation report ────────────────────────────────────────────── */
-.violationBox {
-    background: rgba(248, 113, 113, 0.04);
-    border: 1px solid rgba(248, 113, 113, 0.18);
-    border-radius: var(--radius-md);
-    padding: 10px 12px;
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-}
-
-.violationHeader {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    font-family: var(--font-mono);
-    font-size: 11px;
-    font-weight: 700;
-    color: #f87171;
-}
-
-.violationRow {
-    display: flex;
-    gap: 10px;
-    align-items: baseline;
-    padding: 4px 0;
-    border-top: 1px solid var(--border-subtle);
-}
-
-.violationBreach { color: #f87171; }
-.violationWarn   { color: #f59e0b; }
-
-.violationDate {
-    font-family: var(--font-mono);
-    font-size: 9px;
-    font-weight: 700;
-    white-space: nowrap;
-    flex-shrink: 0;
-    opacity: 0.7;
-}
-
-.violationDetail {
-    font-family: var(--font-mono);
-    font-size: 10px;
-    line-height: 1.4;
-}
-
-.dangerSection {
-    border-color: rgba(248, 113, 113, 0.1);
-}
-
-.dangerTitle {
-    color: #f87171 !important;
+@media (min-width: 768px) {
+    .mobileOnly {
+        display: none;
+    }
 }

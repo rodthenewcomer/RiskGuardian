@@ -385,6 +385,33 @@
     font-weight: 800;
 }
 
+.heroFirms {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin-top: 16px;
+}
+
+.heroFirmsLabel {
+    font-size: 10px;
+    font-weight: 700;
+    color: #6B7280;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    margin-right: 4px;
+}
+
+.heroFirmBadge {
+    font-size: 11px;
+    font-weight: 700;
+    color: #1C293C;
+    border: 2px solid #1C293C;
+    padding: 3px 10px;
+    background: transparent;
+    letter-spacing: 0.02em;
+}
+
 /* ─── HERO APP PREVIEW (phone mockup) ─── */
 .heroPreview {
     position: relative;
@@ -578,8 +605,14 @@
 }
 
 /* ─── SECTIONS ─── */
+/* scroll-margin-top prevents fixed nav from covering section anchors */
+:target {
+    scroll-margin-top: 80px;
+}
+
 .section {
     padding: 80px 24px;
+    scroll-margin-top: 80px;
 }
 
 .sectionInner {
@@ -770,10 +803,10 @@
     text-align: center;
     opacity: 0;
     transform: translateY(12px);
-    transition: opacity 0.4s ease, transform 0.4s ease;
+    transition: opacity 0.5s ease, transform 0.5s ease;
 }
 
-.statCard:is(:global(.visible)) {
+.statCardVisible {
     opacity: 1;
     transform: translateY(0);
 }
@@ -1042,6 +1075,7 @@
 .sectionAlt {
     padding: 80px 24px;
     background: #F3F3EF;
+    scroll-margin-top: 80px;
 }
 
 /* ─── STEPS GRID (3 columns for how-it-works) ─── */
@@ -1288,13 +1322,6 @@
 
 .statsSection .sectionTitle {
     color: #fff;
-}
-
-/* statCard inside statsSection gets animated via JS (visible class) */
-.statCard {
-    padding: 28px 20px;
-    border: 1px solid rgba(255,255,255,0.2);
-    text-align: center;
 }
 
 /* ─── HERO MOCKUP UPDATES ─── */

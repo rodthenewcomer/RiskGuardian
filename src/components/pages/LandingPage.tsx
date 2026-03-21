@@ -40,12 +40,13 @@ function useInView(threshold = 0.15) {
     return { ref, inView };
 }
 
-function StatCard({ value, suffix, label }: { value: number; suffix: string; label: string }) {
+function StatCard({ value, suffix, label, divisor = 1 }: { value: number; suffix: string; label: string; divisor?: number }) {
     const { ref, inView } = useInView();
     const count = useCounter(value, 1600, inView);
+    const display = divisor !== 1 ? (count / divisor).toFixed(1) : count.toLocaleString();
     return (
-        <div ref={ref} className={styles.statCard}>
-            <div className={styles.statValue}>{count.toLocaleString()}<span className={styles.statSuffix}>{suffix}</span></div>
+        <div ref={ref} className={`${styles.statCard} ${inView ? styles.statCardVisible : ''}`}>
+            <div className={styles.statValue}>{display}<span className={styles.statSuffix}>{suffix}</span></div>
             <div className={styles.statLabel}>{label}</div>
         </div>
     );
@@ -120,11 +121,11 @@ export default function LandingPage() {
         heroTitle2: isFr ? 'Commencez à trader avec des' : 'Start trading with',
         heroTitleGlow: isFr ? 'règles.' : 'rules.',
         heroSub: isFr
-            ? "RiskGuardian est l'OS de risque professionnel pour les traders actifs. Calculez les tailles de position, appliquez les limites journalières, et suivez chaque trade — en temps réel."
-            : 'RiskGuardian is the professional risk OS for active traders. Calculate position sizes, enforce daily loss limits, and track every trade — in real-time.',
-        heroCta1: isFr ? 'Commencer gratuitement — Sans carte' : 'Start Free — No card required',
+            ? "RiskGuardian bloque vos violations de règles avant qu'elles arrivent. Calcul de position, garde journalière, journal de trading et coach IA — tout pour protéger votre compte funded."
+            : 'RiskGuardian hard-blocks rule violations before they happen. Position sizing, daily guard, trade journal, and AI coach — everything to protect your funded account.',
+        heroCta1: isFr ? 'Protéger mon compte — Gratuit' : 'Protect My Account — Free',
         heroCta2: isFr ? 'Voir comment ça marche →' : 'See how it works →',
-        heroSocial: isFr ? 'traders maîtrisant leur risque quotidien' : 'traders controlling their risk daily',
+        heroSocial: isFr ? 'traders funded protègent leur capital' : 'funded traders protecting their capital',
         navFeatures: isFr ? 'Fonctionnalités' : 'Features',
         navHow: isFr ? 'Comment ça marche' : 'How it works',
         navPricing: isFr ? 'Tarifs' : 'Pricing',
@@ -157,25 +158,25 @@ export default function LandingPage() {
         pricingSub: isFr ? 'Commencez gratuitement, passez à Pro quand vous êtes prêt.' : "Start free. Upgrade when you're ready.",
         freeTier: isFr ? 'GRATUIT' : 'FREE',
         freePer: isFr ? '/mois' : '/month',
-        freeDesc: isFr ? 'Pour les traders individuels' : 'For individual traders',
+        freeDesc: isFr ? '1 compte prop firm, trades illimités' : '1 prop firm account, unlimited trades',
         freeFeatures: isFr
-            ? ["Jusqu'à 50 trades/mois", 'Journal de base', 'Calculateur de risque', 'Garde de perte journalière', 'PWA mobile']
-            : ['Up to 50 trades/month', 'Basic trade journal', 'Risk Calculator', 'Daily loss guard', 'Mobile PWA'],
-        freeBtn: isFr ? 'Commencer →' : 'Get Started →',
+            ? ['Trades illimités', 'Garde de perte journalière', 'Calculateur de risque', 'Journal de trading', 'PWA mobile — sans app store']
+            : ['Unlimited trades', 'Daily loss hard guard', 'Risk calculator', 'Trade journal', 'Mobile PWA — no app store needed'],
+        freeBtn: isFr ? 'Commencer gratuitement →' : 'Start Free →',
         proTier: 'PRO',
         proPer: isFr ? '/mois' : '/month',
         proPrice: '$19',
-        proDesc: isFr ? 'Pour les traders sérieux' : 'For serious traders',
+        proDesc: isFr ? 'Pour les traders qui veulent passer leurs evals' : 'For traders who pass their evals',
         proPopular: isFr ? 'POPULAIRE' : 'POPULAR',
         proFeatures: isFr
-            ? ['Trades illimités', 'Journal complet + tags', 'IA comportementale (15+ patterns)', 'Analytics avancées (10 onglets)', 'Coach IA — règles personnalisées', 'Multi-instruments', 'Support prioritaire']
-            : ['Unlimited trades', 'Full trade journal + tagging', 'Behavioral AI (15+ patterns detected)', 'Deep analytics (10 tabs)', 'AI Coach — personalized rules', 'Multi-instrument support', 'Priority support'],
-        proBtn: isFr ? 'Essai Pro gratuit →' : 'Start Pro Trial →',
-        finalCtaTitle: isFr ? 'Votre prochaine série de pertes est évitable.' : 'Your next losing streak is preventable.',
+            ? ['Tout le plan gratuit', 'IA comportementale (15+ patterns)', 'Analytics avancées — 10 onglets', 'Coach IA — règles personnalisées', 'Tags & sessions avancés', 'Multi-comptes prop firm', 'Support prioritaire']
+            : ['Everything in Free', 'Behavioral AI — 15+ patterns detected', 'Deep analytics — 10 tabs', 'AI Coach — personalized daily rules', 'Advanced tags & session tracking', 'Multi prop firm accounts', 'Priority support'],
+        proBtn: isFr ? 'Essai Pro 7 jours →' : 'Start 7-Day Pro Trial →',
+        finalCtaTitle: isFr ? 'Un compte funded vaut trop pour jouer avec les règles.' : 'A funded account is too valuable to gamble with the rules.',
         finalCtaSub: isFr
-            ? 'Rejoignez 2 400+ traders qui tradent avec des règles, pas des émotions. Gratuit pour commencer. Sans carte bancaire.'
-            : 'Join 2,400+ traders who trade with rules, not emotions. Free to start. No credit card.',
-        finalCtaBtn: isFr ? 'Lancer RiskGuardian Gratuitement →' : 'Launch RiskGuardian Free →',
+            ? 'Rejoignez 2 400+ traders qui protègent leur capital avec des règles, pas des espoirs. Gratuit pour toujours, aucune carte requise.'
+            : 'Join 2,400+ funded traders who protect their capital with rules, not hope. Free forever — no credit card.',
+        finalCtaBtn: isFr ? 'Protéger mon compte maintenant →' : 'Protect My Account Now →',
         footerTagline: isFr ? 'Tradez avec des règles, pas des émotions.' : 'Trade with rules, not emotions.',
         footerProduct: isFr ? 'Produit' : 'Product',
         footerSupport: 'Support',
@@ -298,6 +299,13 @@ export default function LandingPage() {
                         </div>
                         <p className={styles.heroSocialText}><strong>2,400+</strong> {T.heroSocial}</p>
                     </div>
+                    {/* Prop firm trust bar */}
+                    <div className={styles.heroFirms}>
+                        <span className={styles.heroFirmsLabel}>{isFr ? 'Compatible avec' : 'Works with'}</span>
+                        {['Tradeify', 'FTMO', 'Funding Pips', 'The 5%ers'].map(f => (
+                            <span key={f} className={styles.heroFirmBadge}>{f}</span>
+                        ))}
+                    </div>
                 </div>
 
                 <div className={styles.heroPreview}>
@@ -383,7 +391,7 @@ export default function LandingPage() {
                         <StatCard value={2400} suffix="+" label={T.statsUsers} />
                         <StatCard value={98} suffix="%" label={T.statsCompliance} />
                         <StatCard value={12800} suffix="+" label={T.statsTrades} />
-                        <StatCard value={48} suffix="/10" label={T.statsRating} />
+                        <StatCard value={48} suffix="★" label={T.statsRating} divisor={10} />
                     </div>
                 </div>
             </section>
