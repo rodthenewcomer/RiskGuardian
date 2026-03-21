@@ -4451,130 +4451,305 @@ export default function AnalyticsPage() {
                         gradeScore = Math.max(0, gradeScore);
                         const grade = gradeScore >= 90 ? 'A' : gradeScore >= 75 ? 'B' : gradeScore >= 55 ? 'C' : 'D';
                         const gradeColor = grade === 'A' ? '#FDC800' : grade === 'B' ? '#00D4FF' : grade === 'C' ? '#EAB308' : '#ff4757';
-                        const gradeDesc = grade === 'A' ? (lang === 'fr' ? 'Exécution solide' : 'Solid execution') : grade === 'B' ? (lang === 'fr' ? 'Fuites mineures' : 'Minor leakage') : grade === 'C' ? (lang === 'fr' ? 'À améliorer' : 'Needs work') : (lang === 'fr' ? 'Problèmes significatifs' : 'Significant issues');
 
-                        // ── Prescriptions from patterns ──
-                        const prescriptions = forensics.patterns.map((p: any, idx: number) => ({
-                            num: String(idx + 1).padStart(2, '0'),
-                            title: p.name === 'Revenge Trading' ? (lang === 'fr' ? 'Mettre en place un stop anti-tilt' : 'Enforce a Hard Tilt Stop') :
-                                p.name === 'Held Losers' ? (lang === 'fr' ? 'Limiter le temps de détention max sur les perdants' : 'Cap Maximum Hold Time on Losers') :
-                                p.name === 'Spike Vulnerability' ? (lang === 'fr' ? 'Ajouter un stop ferme sur chaque entrée' : 'Add Hard Stop on Every Entry') :
-                                p.name === 'Early Exit' ? (lang === 'fr' ? 'Laisser courir les gagnants jusqu\'à la cible' : 'Let Winners Run to Target') :
-                                p.name === 'Micro Overtrading' ? (lang === 'fr' ? 'Réduire la fréquence des micro-contrats' : 'Reduce Micro Contract Frequency') :
-                                p.name,
-                            desc: p.desc,
-                            badge: p.severity === 'CRITICAL' ? 'CRITICAL' : Math.abs(p.impact) > 200 ? 'HIGH' : 'RECOMMENDED',
-                            impact: Math.abs(p.impact),
-                        }));
+                        // ── Risk score component display ──
+                        const riskComponents = [
+                            { label: lang === 'fr' ? 'Trading revanche' : 'Revenge Trading', score: revScore, max: 60 },
+                            { label: lang === 'fr' ? 'Coût comportemental' : 'Behavioral Cost', score: financialScore, max: 25 },
+                            { label: lang === 'fr' ? 'Érosion taux de réussite' : 'Win Rate Erosion', score: wrErosion, max: 15 },
+                        ];
 
-                        // ── Projected impact ──
+                        // ── Prescriptions sorted by impact ──
+                        const prescriptions = [...forensics.patterns]
+                            .sort((a: any, b: any) => Math.abs(b.impact) - Math.abs(a.impact))
+                            .map((p: any, idx: number) => ({
+                                num: String(idx + 1).padStart(2, '0'),
+                                title: p.name === 'Revenge Trading' ? (lang === 'fr' ? 'Mettre en place un stop anti-tilt' : 'Enforce a Hard Tilt Stop') :
+                                    p.name === 'Held Losers' ? (lang === 'fr' ? 'Limiter le temps de détention max sur les perdants' : 'Cap Maximum Hold Time on Losers') :
+                                    p.name === 'Spike Vulnerability' ? (lang === 'fr' ? 'Ajouter un stop ferme sur chaque entrée' : 'Add Hard Stop on Every Entry') :
+                                    p.name === 'Early Exit' ? (lang === 'fr' ? 'Laisser courir les gagnants jusqu\'à la cible' : 'Let Winners Run to Target') :
+                                    p.name === 'Micro Overtrading' ? (lang === 'fr' ? 'Réduire la fréquence des micro-contrats' : 'Reduce Micro Contract Frequency') :
+                                    p.name,
+                                desc: p.desc,
+                                badge: p.severity === 'CRITICAL' ? 'CRITICAL' : Math.abs(p.impact) > 200 ? 'HIGH' : 'RECOMMENDED',
+                                impact: Math.abs(p.impact),
+                                freq: p.freq,
+                            }));
+
+                        // ── Projected totals ──
                         const totalRecovery = forensics.patterns.reduce((s: number, p: any) => s + Math.abs(p.impact), 0);
                         const projectedPnl = netPnl + totalRecovery;
                         const tradeCount = closed.length;
                         const sessionCount = forensics.sessions?.length || 1;
+                        const htRatio = avgLossDuration > 0 ? avgLossDuration / Math.max(avgWinDuration, 1) : 0;
+
+                        // ── Session quality ──
+                        const greenSess = sessionMetrics.filter((s: any) => s.pnl > 0).length;
+                        const totalSess = sessionMetrics.length;
+                        const sessWinRate = totalSess > 0 ? (greenSess / totalSess) * 100 : 0;
+
+                        // ── Data-derived next session rules ──
+                        const nextRules: string[] = [];
+                        if (dangerZones.length > 0) {
+                            const worst = dangerZones[0];
+                            nextRules.push(lang === 'fr'
+                                ? `Éviter de trader à ${String(worst.h).padStart(2, '0')}h00 EST — zone à ${worst.pnl < 0 ? '-' : '+'}$${Math.abs(worst.pnl).toFixed(0)} de P&L cumulé négatif. C'est votre pire heure.`
+                                : `No entries at ${String(worst.h).padStart(2, '0')}:00 EST — this hour has $${Math.abs(worst.pnl).toFixed(0)} cumulative negative P&L. It is your worst trading hour.`
+                            );
+                        }
+                        if (htRatio > 1.5) {
+                            nextRules.push(lang === 'fr'
+                                ? `Fermer les perdants à ${fmtDuration(Math.max(avgWinDuration * 1.2, 60))} maximum — vos perdants durent ${htRatio.toFixed(1)}x plus longtemps que vos gagnants, signal de "bag holding".`
+                                : `Close losers at ${fmtDuration(Math.max(avgWinDuration * 1.2, 60))} max — losers last ${htRatio.toFixed(1)}x longer than winners, a classic bag-holding signal.`
+                            );
+                        }
+                        if (winRate < 50 && profitFactor > 1) {
+                            nextRules.push(lang === 'fr'
+                                ? `Ne pas augmenter la fréquence — votre edge vient de la qualité (PF ${profitFactor.toFixed(2)}) pas du volume. Chaque trade supplémentaire non-setup dilue l'edge.`
+                                : `Do not increase frequency — your edge is quality-driven (PF ${profitFactor.toFixed(2)}), not volume. Each non-setup entry dilutes it.`
+                            );
+                        } else if (winRate >= 50 && wlRatio < 1) {
+                            nextRules.push(lang === 'fr'
+                                ? `Étendre les cibles de profit — taux de réussite ${winRate.toFixed(0)}% mais ratio G/P ${wlRatio.toFixed(2)}:1. Chaque sortie précoce détruit de l'expectative.`
+                                : `Extend profit targets — ${winRate.toFixed(0)}% win rate but ${wlRatio.toFixed(2)}:1 W/L ratio. Every early exit destroys expectancy.`
+                            );
+                        }
+                        if (nextRules.length < 3 && forensics.patterns.length > 0) {
+                            const top = forensics.patterns[0];
+                            nextRules.push(lang === 'fr'
+                                ? `Pause obligatoire de 5 minutes après chaque perte — ${top.freq} entrées en état de tilt détectées ce cycle (${top.name}). Le coût est de $${Math.abs(top.impact).toFixed(0)}.`
+                                : `Mandatory 5-min break after every loss — ${top.freq} tilt-state entries detected this cycle (${top.name}), costing $${Math.abs(top.impact).toFixed(0)}.`
+                            );
+                        }
+                        if (nextRules.length < 3) {
+                            nextRules.push(lang === 'fr'
+                                ? `Respecter le stop journalier calculé — ${closed.length} trades analysés, aucun motif critique détecté. Maintenir le cap et la consistance.`
+                                : `Honor your calculated daily stop — ${closed.length} trades analyzed, no critical behavioral patterns detected. Maintain consistency.`
+                            );
+                        }
+
+                        const QF = 'var(--font-mono)';
+                        const CARD_S = { background: '#0d1117' as const, border: '1px solid #1a1c24', padding: '20px 24px' };
+                        const SL = { fontFamily: QF, fontSize: 9, color: '#6b7280', letterSpacing: '0.15em' as const, fontWeight: 700, textTransform: 'uppercase' as const, marginBottom: 4 };
 
                         return (
-                            <motion.div key="verdict" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="flex flex-col gap-8">
+                            <motion.div key="verdict" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} style={{ display: 'flex', flexDirection: 'column', gap: 32 }}>
 
-                                {/* ANALYST VERDICT */}
+                                {/* ── SECTION 1: FORENSIC SCORECARD ── */}
                                 <div>
-                                    <span className={styles.sectionTitle} style={{ marginBottom: 16, display: 'flex' }}>ANALYST VERDICT</span>
-                                    <div className="bg-[#0d1117] border border-[#1a1c24]" style={{ borderRadius: 4 }}>
-                                        <div className="flex gap-0">
-                                            {/* Grade Box */}
-                                            <div className="flex flex-col items-center justify-center gap-1 p-6 border-r border-[#1a1c24]" style={{ minWidth: 140 }}>
-                                                <span className="text-[9px] uppercase tracking-[0.15em] font-bold" style={{ color: '#6b7280' }}>Overall Grade</span>
-                                                <span className="text-[64px] font-black leading-none" style={{ color: gradeColor }}>{grade}</span>
-                                                <span className="text-[11px] font-medium text-center" style={{ color: '#8b949e' }}>{gradeDesc}</span>
+                                    <div style={{ fontFamily: QF, fontSize: 9, color: '#FDC800', letterSpacing: '0.15em', fontWeight: 700, marginBottom: 14, display: 'flex', alignItems: 'center', gap: 8 }}>
+                                        {lang === 'fr' ? 'RAPPORT FORENSIQUE' : 'FORENSIC REPORT'}
+                                        <span style={{ background: '#FDC800', color: '#000', fontSize: 8, padding: '2px 6px', fontWeight: 900, letterSpacing: '0.1em' }}>{lang === 'fr' ? 'COMPLET' : 'FULL'}</span>
+                                    </div>
+                                    <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '160px 1fr', ...CARD_S, padding: 0 }}>
+                                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '28px 20px', borderRight: isMobile ? 'none' : '1px solid #1a1c24', borderBottom: isMobile ? '1px solid #1a1c24' : 'none', gap: 4 }}>
+                                            <div style={{ ...SL, marginBottom: 0 }}>{lang === 'fr' ? 'NOTE GLOBALE' : 'OVERALL GRADE'}</div>
+                                            <div style={{ fontSize: 72, fontWeight: 900, lineHeight: 1, color: gradeColor, fontFamily: QF }}>{grade}</div>
+                                            <div style={{ fontFamily: QF, fontSize: 10, color: '#8b949e' }}>{gradeScore}/100</div>
+                                            <div style={{ marginTop: 6, background: gradeColor + '15', border: `1px solid ${gradeColor}30`, padding: '3px 8px' }}>
+                                                <span style={{ fontFamily: QF, fontSize: 9, color: gradeColor, fontWeight: 700 }}>{
+                                                    grade === 'A' ? (lang === 'fr' ? 'EXÉCUTION SOLIDE' : 'SOLID EXECUTION') :
+                                                    grade === 'B' ? (lang === 'fr' ? 'FUITES MINEURES' : 'MINOR LEAKAGE') :
+                                                    grade === 'C' ? (lang === 'fr' ? 'À AMÉLIORER' : 'NEEDS WORK') :
+                                                    (lang === 'fr' ? 'PROBLÈMES CRITIQUES' : 'CRITICAL ISSUES')
+                                                }</span>
                                             </div>
-                                            {/* Narrative */}
-                                            <div className="flex-1 p-6 flex items-center">
-                                                <p className="text-[14px] text-[#c9d1d9] leading-[1.7] font-sans">
-                                                    {forensics.verdict.message}
-                                                    {forensics.patterns.length > 0 && ` The top behavioral leak is ${forensics.patterns[0].name.toLowerCase()}, costing $${Math.abs(forensics.patterns[0].impact).toLocaleString()} across ${forensics.patterns[0].freq} occurrences. `}
-                                                    {forensics.verdict.isCritical ? ' Correcting these specific patterns is the highest-leverage action available to you.' : ' Your fundamentals are sound — the edge exists.'}
-                                                </p>
+                                        </div>
+                                        <div style={{ padding: '20px 24px', display: 'flex', flexDirection: 'column', gap: 16 }}>
+                                            <p style={{ fontFamily: 'var(--font-sans)', fontSize: 13, color: '#c9d1d9', lineHeight: 1.7, margin: 0 }}>
+                                                {forensics.verdict.message}
+                                                {forensics.patterns.length > 0 && ` ${lang === 'fr' ? 'La fuite principale est' : 'Top behavioral leak is'} ${forensics.patterns[0].name.toLowerCase()}, ${lang === 'fr' ? 'coûtant' : 'costing'} $${Math.abs(forensics.patterns[0].impact).toLocaleString()} ${lang === 'fr' ? 'sur' : 'across'} ${forensics.patterns[0].freq} ${lang === 'fr' ? 'occurrences.' : 'occurrences.'}`}
+                                            </p>
+                                            <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 12 }}>
+                                                <ThresholdBullet
+                                                    label={lang === 'fr' ? 'TAUX DE RÉUSSITE' : 'WIN RATE'}
+                                                    value={winRate} unit="%"
+                                                    thresholds={[{ max: 40, label: lang === 'fr' ? 'Danger' : 'Danger', color: '#ff4757' }, { max: 55, label: lang === 'fr' ? 'Prudence' : 'Caution', color: '#EAB308' }, { max: 100, label: lang === 'fr' ? 'Cible' : 'Target', color: '#FDC800' }]}
+                                                />
+                                                <ThresholdBullet
+                                                    label={lang === 'fr' ? 'FACTEUR DE PROFIT' : 'PROFIT FACTOR'}
+                                                    value={Math.min(profitFactor, 5)} unit="x"
+                                                    thresholds={[{ max: 1, label: lang === 'fr' ? 'Perte' : 'Loss', color: '#ff4757' }, { max: 1.5, label: lang === 'fr' ? 'Faible' : 'Weak', color: '#EAB308' }, { max: 5, label: lang === 'fr' ? 'Solide' : 'Solid', color: '#FDC800' }]}
+                                                />
+                                                <ThresholdBullet
+                                                    label={lang === 'fr' ? 'ESPÉRANCE' : 'EXPECTANCY'}
+                                                    value={Math.max(-500, Math.min(expectancy, 1000))} unit="$"
+                                                    thresholds={[{ max: 0, label: lang === 'fr' ? 'Négatif' : 'Negative', color: '#ff4757' }, { max: 100, label: lang === 'fr' ? 'Faible' : 'Weak', color: '#EAB308' }, { max: 1000, label: lang === 'fr' ? 'Bon' : 'Good', color: '#FDC800' }]}
+                                                />
+                                                <ThresholdBullet
+                                                    label={lang === 'fr' ? 'SCORE DE RISQUE' : 'RISK SCORE'}
+                                                    value={forensics.riskScore} unit=""
+                                                    thresholds={[{ max: 30, label: lang === 'fr' ? 'Bas' : 'Low', color: '#FDC800' }, { max: 60, label: lang === 'fr' ? 'Modéré' : 'Moderate', color: '#EAB308' }, { max: 100, label: lang === 'fr' ? 'Critique' : 'Critical', color: '#ff4757' }]}
+                                                />
                                             </div>
                                         </div>
                                     </div>
                                 </div>
 
-                                {/* ACTIONABLE PRESCRIPTIONS */}
-                                {prescriptions.length > 0 && (
+                                {/* ── SECTION 2: TRADE ANATOMY ── */}
+                                <div>
+                                    <div style={{ ...SL, color: '#FDC800', marginBottom: 14 }}>{lang === 'fr' ? 'ANATOMIE DES TRADES' : 'TRADE ANATOMY'}</div>
+                                    <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr 1fr' : 'repeat(4, 1fr)', gap: 1, background: '#1a1c24' }}>
+                                        {[
+                                            { label: lang === 'fr' ? 'GAIN MOY.' : 'AVG WIN', value: `$${avgWin.toFixed(2)}`, color: '#FDC800', sub: `${wins.length} ${lang === 'fr' ? 'trades' : 'trades'}` },
+                                            { label: lang === 'fr' ? 'PERTE MOY.' : 'AVG LOSS', value: `-$${avgLoss.toFixed(2)}`, color: '#ff4757', sub: `${losses.length} ${lang === 'fr' ? 'trades' : 'trades'}` },
+                                            { label: lang === 'fr' ? 'RATIO G/P' : 'W/L RATIO', value: `${wlRatio.toFixed(2)}:1`, color: wlRatio >= 1 ? '#FDC800' : '#EAB308', sub: wlRatio >= 1 ? (lang === 'fr' ? 'Solide' : 'Solid') : (lang === 'fr' ? 'À améliorer' : 'Improve') },
+                                            { label: lang === 'fr' ? 'COÛT COMPORT.' : 'BEHAVIORAL COST', value: behavioralCost < 0 ? `-$${Math.abs(behavioralCost).toFixed(0)}` : '$0', color: behavioralCost < 0 ? '#ff4757' : '#FDC800', sub: lang === 'fr' ? 'Pertes évitables' : 'Avoidable losses' },
+                                        ].map((kpi, i) => (
+                                            <div key={i} style={{ background: '#0d1117', padding: '16px 18px', display: 'flex', flexDirection: 'column', gap: 4 }}>
+                                                <div style={{ ...SL, marginBottom: 0 }}>{kpi.label}</div>
+                                                <div style={{ fontFamily: QF, fontSize: 22, fontWeight: 900, color: kpi.color }}>{kpi.value}</div>
+                                                <div style={{ fontFamily: QF, fontSize: 9, color: '#6b7280' }}>{kpi.sub}</div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                    {/* Hold time bars */}
+                                    <div style={{ ...CARD_S, marginTop: 1, padding: '16px 24px' }}>
+                                        <div style={{ ...SL, marginBottom: 10 }}>{lang === 'fr' ? 'DURÉE DE DÉTENTION : GAGNANTS VS PERDANTS' : 'HOLD TIME: WINNERS VS LOSERS'}</div>
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                                            {([
+                                                { label: lang === 'fr' ? 'Gagnants' : 'Winners', dur: avgWinDuration, color: '#FDC800' },
+                                                { label: lang === 'fr' ? 'Perdants' : 'Losers', dur: avgLossDuration, color: '#ff4757' },
+                                            ] as Array<{ label: string; dur: number; color: string }>).map((row) => {
+                                                const maxDur = Math.max(avgWinDuration, avgLossDuration, 1);
+                                                const pct = Math.min(100, (row.dur / maxDur) * 100);
+                                                return (
+                                                    <div key={row.label} style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                                                        <div style={{ fontFamily: QF, fontSize: 9, color: '#8b949e', width: 60, flexShrink: 0 }}>{row.label}</div>
+                                                        <div style={{ flex: 1, height: 8, background: '#1a1c24', position: 'relative' }}>
+                                                            <div style={{ position: 'absolute', left: 0, top: 0, height: '100%', width: `${pct}%`, background: row.color }} />
+                                                        </div>
+                                                        <div style={{ fontFamily: QF, fontSize: 10, color: row.color, fontWeight: 700, width: 56, textAlign: 'right', flexShrink: 0 }}>{fmtDuration(row.dur)}</div>
+                                                    </div>
+                                                );
+                                            })}
+                                        </div>
+                                        {htRatio > 1.5 && (
+                                            <div style={{ marginTop: 10, padding: '8px 12px', background: 'rgba(255,71,87,0.08)', borderLeft: '3px solid #ff4757' }}>
+                                                <span style={{ fontFamily: QF, fontSize: 10, color: '#ff4757' }}>
+                                                    {lang === 'fr'
+                                                        ? `Perdants maintenus ${htRatio.toFixed(1)}x plus longtemps que les gagnants — signal classique de "bag holding".`
+                                                        : `Losers held ${htRatio.toFixed(1)}x longer than winners — classic bag-holding signal.`}
+                                                </span>
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+
+                                {/* ── SECTION 3: BEHAVIORAL FORENSICS ── */}
+                                {forensics.patterns.length > 0 && (
                                     <div>
-                                        <span className={styles.sectionTitle} style={{ marginBottom: 16, display: 'flex' }}>ACTIONABLE PRESCRIPTION</span>
-                                        <div className="flex flex-col gap-3">
-                                            {prescriptions.map((rx: any) => (
-                                                <div key={rx.num} className="bg-[#0d1117] border border-[#1a1c24] p-5 flex flex-col gap-3" style={{ borderRadius: 4 }}>
-                                                    <div className="flex items-start gap-4">
-                                                        <span className="text-[28px] font-black" style={{ color: '#1e2430', lineHeight: 1, minWidth: 40 }}>{rx.num}</span>
-                                                        <div className="flex flex-col gap-1 flex-1">
-                                                            <span className="text-[15px] font-bold text-white">{rx.title}</span>
-                                                            <p className="text-[12px] text-[#8b949e] leading-relaxed">{rx.desc}</p>
+                                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
+                                            <div style={{ ...SL, color: '#ff4757', marginBottom: 0 }}>{lang === 'fr' ? 'FORENSIQUE COMPORTEMENTALE' : 'BEHAVIORAL FORENSICS'}</div>
+                                            <span style={{ fontFamily: QF, fontSize: 9, color: '#ff4757', background: 'rgba(255,71,87,0.1)', border: '1px solid rgba(255,71,87,0.3)', padding: '2px 8px' }}>
+                                                {forensics.patterns.length} {lang === 'fr' ? 'MOTIFS DÉTECTÉS' : 'PATTERNS DETECTED'}
+                                            </span>
+                                        </div>
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                                            {forensics.patterns.map((p: any, idx: number) => {
+                                                const badgeColor = p.severity === 'CRITICAL' ? '#ff4757' : Math.abs(p.impact) > 200 ? '#EAB308' : '#8b949e';
+                                                const badgeLabel = p.severity === 'CRITICAL' ? 'CRITICAL' : Math.abs(p.impact) > 200 ? 'HIGH' : 'MODERATE';
+                                                const costPct = grossProfit > 0 ? (Math.abs(p.impact) / grossProfit * 100) : 0;
+                                                return (
+                                                    <div key={idx} style={{ background: '#0d1117', border: '1px solid #1a1c24', borderLeft: `3px solid ${badgeColor}` }}>
+                                                        <div style={{ padding: '14px 18px 8px', display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 }}>
+                                                            <div style={{ display: 'flex', flexDirection: 'column', gap: 4, flex: 1 }}>
+                                                                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                                                    <span style={{ fontFamily: QF, fontSize: 9, color: badgeColor, background: badgeColor + '15', border: `1px solid ${badgeColor}30`, padding: '2px 6px', fontWeight: 900, letterSpacing: '0.1em' }}>{badgeLabel}</span>
+                                                                    <span style={{ fontFamily: QF, fontSize: 12, color: '#fff', fontWeight: 700 }}>{p.name}</span>
+                                                                </div>
+                                                                <p style={{ fontFamily: 'var(--font-sans)', fontSize: 11, color: '#8b949e', lineHeight: 1.6, margin: 0 }}>{p.desc}</p>
+                                                            </div>
+                                                            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 2, flexShrink: 0 }}>
+                                                                <div style={{ fontFamily: QF, fontSize: 18, fontWeight: 900, color: '#ff4757' }}>-${Math.abs(p.impact).toLocaleString()}</div>
+                                                                <div style={{ fontFamily: QF, fontSize: 9, color: '#6b7280' }}>{p.freq}x · {costPct.toFixed(1)}% {lang === 'fr' ? 'des profits' : 'of profits'}</div>
+                                                            </div>
+                                                        </div>
+                                                        <div style={{ height: 3, background: '#1a1c24', margin: '0 18px 14px' }}>
+                                                            <div style={{ height: '100%', width: `${Math.min(100, costPct * 2)}%`, background: badgeColor }} />
                                                         </div>
                                                     </div>
-                                                    <div className="flex items-center gap-4 border-t border-[#1a1c24] pt-3">
-                                                        <span className={`text-[9px] font-black px-2 py-1 tracking-widest border rounded-sm ${rx.badge === 'CRITICAL' ? 'text-[#ff4757] border-[#ff4757]/40 bg-[#ff4757]/10' : rx.badge === 'HIGH' ? 'text-[#EAB308] border-[#EAB308]/40 bg-[#EAB308]/10' : 'text-[#FDC800] border-[#FDC800]/30 bg-[#FDC800]/05'}`}>
-                                                            {rx.badge}
-                                                        </span>
-                                                        <span className="text-[11px] text-[#6b7280]">
-                                                            Impact: <span className="font-bold" style={{ color: '#FDC800' }}>+${rx.impact.toLocaleString()}/session</span>
-                                                        </span>
+                                                );
+                                            })}
+                                        </div>
+                                        <div style={{ marginTop: 2, ...CARD_S, background: 'rgba(255,71,87,0.05)', borderColor: 'rgba(255,71,87,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap' as const, gap: 12 }}>
+                                            <div>
+                                                <div style={{ ...SL }}>{lang === 'fr' ? 'COÛT COMPORTEMENTAL TOTAL' : 'TOTAL BEHAVIORAL COST'}</div>
+                                                <div style={{ fontFamily: QF, fontSize: 28, fontWeight: 900, color: '#ff4757' }}>-${Math.abs(behavioralCost).toLocaleString(undefined, { minimumFractionDigits: 0 })}</div>
+                                                <div style={{ fontFamily: QF, fontSize: 9, color: '#6b7280' }}>
+                                                    {lang === 'fr' ? `${Math.abs(behavioralCost / Math.max(grossProfit, 1) * 100).toFixed(1)}% des profits bruts · ${forensics.patterns.length} motifs` : `${Math.abs(behavioralCost / Math.max(grossProfit, 1) * 100).toFixed(1)}% of gross profits · ${forensics.patterns.length} patterns`}
+                                                </div>
+                                            </div>
+                                            <div style={{ textAlign: 'right' as const }}>
+                                                <div style={{ ...SL }}>{lang === 'fr' ? 'P&L SANS ERREURS' : 'P&L WITHOUT ERRORS'}</div>
+                                                <div style={{ fontFamily: QF, fontSize: 28, fontWeight: 900, color: '#FDC800' }}>{withoutToxicPatterns >= 0 ? '+' : ''}${withoutToxicPatterns.toLocaleString(undefined, { minimumFractionDigits: 0 })}</div>
+                                                <div style={{ fontFamily: QF, fontSize: 9, color: '#6b7280' }}>{lang === 'fr' ? 'Estimation théorique' : 'Theoretical estimate'}</div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
+
+                                {/* ── SECTION 4: RISK SCORE ANATOMY ── */}
+                                <div>
+                                    <div style={{ ...SL, color: '#FDC800', marginBottom: 14 }}>{lang === 'fr' ? 'ANATOMIE DU SCORE DE RISQUE' : 'RISK SCORE ANATOMY'}</div>
+                                    <div style={{ ...CARD_S, display: 'flex', flexDirection: 'column', gap: 12 }}>
+                                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                                            <span style={{ fontFamily: QF, fontSize: 9, color: '#8b949e' }}>{lang === 'fr' ? 'SCORE GLOBAL' : 'OVERALL SCORE'}</span>
+                                            <span style={{ fontFamily: QF, fontSize: 22, fontWeight: 900, color: forensics.riskScore >= 60 ? '#ff4757' : forensics.riskScore >= 30 ? '#EAB308' : '#FDC800' }}>{forensics.riskScore}/100</span>
+                                        </div>
+                                        <div style={{ height: 6, background: '#1a1c24', position: 'relative' }}>
+                                            <div style={{ position: 'absolute', left: 0, top: 0, height: '100%', width: `${Math.min(100, forensics.riskScore)}%`, background: forensics.riskScore >= 60 ? '#ff4757' : forensics.riskScore >= 30 ? '#EAB308' : '#FDC800' }} />
+                                            <div style={{ position: 'absolute', left: '30%', top: -3, height: 'calc(100% + 6px)', width: 1, background: '#FDC800', opacity: 0.4 }} />
+                                            <div style={{ position: 'absolute', left: '60%', top: -3, height: 'calc(100% + 6px)', width: 1, background: '#ff4757', opacity: 0.4 }} />
+                                        </div>
+                                        <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: -4 }}>
+                                            <span style={{ fontFamily: QF, fontSize: 8, color: '#6b7280' }}>0 {lang === 'fr' ? '(BAS)' : '(LOW)'}</span>
+                                            <span style={{ fontFamily: QF, fontSize: 8, color: '#FDC800' }}>30</span>
+                                            <span style={{ fontFamily: QF, fontSize: 8, color: '#ff4757' }}>60</span>
+                                            <span style={{ fontFamily: QF, fontSize: 8, color: '#6b7280' }}>100 {lang === 'fr' ? '(CRITIQUE)' : '(CRITICAL)'}</span>
+                                        </div>
+                                        <div style={{ borderTop: '1px solid #1a1c24', paddingTop: 12, display: 'flex', flexDirection: 'column', gap: 8 }}>
+                                            {riskComponents.map((comp) => (
+                                                <div key={comp.label} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                                                    <div style={{ fontFamily: QF, fontSize: 9, color: '#8b949e', width: 170, flexShrink: 0 }}>{comp.label}</div>
+                                                    <div style={{ flex: 1, height: 6, background: '#1a1c24', position: 'relative' }}>
+                                                        <div style={{ position: 'absolute', left: 0, top: 0, height: '100%', width: `${(comp.score / comp.max) * 100}%`, background: comp.score > comp.max * 0.5 ? '#ff4757' : comp.score > comp.max * 0.2 ? '#EAB308' : '#FDC800' }} />
                                                     </div>
+                                                    <div style={{ fontFamily: QF, fontSize: 10, fontWeight: 700, color: comp.score > 0 ? '#ff4757' : '#6b7280', width: 46, textAlign: 'right' as const, flexShrink: 0 }}>{comp.score}/{comp.max}</div>
                                                 </div>
                                             ))}
                                         </div>
                                     </div>
-                                )}
+                                </div>
 
-                                {/* PROJECTED IMPACT */}
-                                {prescriptions.length > 0 && (
+                                {/* ── SECTION 5: SESSION QUALITY ── */}
+                                {sessionMetrics.length > 0 && (
                                     <div>
-                                        <span className={styles.sectionTitle} style={{ marginBottom: 8, display: 'flex' }}>PROJECTED IMPACT IF IMPLEMENTED</span>
-                                        <p className="text-[11px] text-[#6b7280] mb-4 leading-relaxed">
-                                            Projection assumes full elimination of all flagged behavioral patterns. Actual improvement will vary — patterns are modeled independently and may overlap on shared trades.
-                                        </p>
-                                        <div className="flex gap-3 items-center">
-                                            <div className="flex-1 bg-[#0d1117] border border-[#1a1c24] p-5 flex flex-col gap-2" style={{ borderRadius: 4 }}>
-                                                <span className="text-[9px] uppercase tracking-[0.15em] font-bold" style={{ color: '#6b7280' }}>Current (with behavioral errors)</span>
-                                                <span className="text-[36px] font-black font-mono" style={{ color: netPnl >= 0 ? '#FDC800' : '#ff4757' }}>
-                                                    {netPnl >= 0 ? '+' : '-'}${Math.abs(netPnl).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                                                </span>
-                                                <span className="text-[11px]" style={{ color: '#6b7280' }}>{tradeCount} trades · {sessionCount} sessions</span>
-                                            </div>
-                                            <div className="flex items-center justify-center text-[#6b7280]" style={{ fontSize: 20 }}>→</div>
-                                            <div className="flex-1 bg-[#0d1117] border border-[#1a1c24] p-5 flex flex-col gap-2" style={{ borderRadius: 4 }}>
-                                                <span className="text-[9px] uppercase tracking-[0.15em] font-bold" style={{ color: '#6b7280' }}>Projected (with corrections)</span>
-                                                <span className="text-[36px] font-black font-mono" style={{ color: projectedPnl >= 0 ? '#FDC800' : '#ff4757' }}>
-                                                    {projectedPnl >= 0 ? '+' : '-'}${Math.abs(projectedPnl).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                                                </span>
-                                                <span className="text-[11px]" style={{ color: '#6b7280' }}>~{tradeCount} trades · Behavioral fixes applied</span>
-                                            </div>
+                                        <div style={{ ...SL, color: '#FDC800', marginBottom: 14 }}>{lang === 'fr' ? 'QUALITÉ DES SESSIONS' : 'SESSION QUALITY'}</div>
+                                        <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr 1fr' : 'repeat(4, 1fr)', gap: 1, background: '#1a1c24', marginBottom: 2 }}>
+                                            {[
+                                                { label: lang === 'fr' ? 'SESSIONS VERTES' : 'GREEN SESSIONS', value: `${greenSess}/${totalSess}`, color: '#FDC800', sub: `${sessWinRate.toFixed(0)}% ${lang === 'fr' ? 'taux' : 'rate'}` },
+                                                { label: lang === 'fr' ? 'P&L MOY./SESSION' : 'AVG SESSION P&L', value: `${avgSessionPnl >= 0 ? '+' : ''}$${avgSessionPnl.toFixed(0)}`, color: avgSessionPnl >= 0 ? '#FDC800' : '#ff4757', sub: lang === 'fr' ? 'par session' : 'per session' },
+                                                { label: lang === 'fr' ? 'TRADES MOY.' : 'AVG TRADES', value: avgSessionTrades.toFixed(1), color: '#c9d1d9', sub: lang === 'fr' ? 'par session' : 'per session' },
+                                                { label: lang === 'fr' ? 'SÉRIE MAX GAGNANTE' : 'MAX WIN STREAK', value: `${forensics.maxWinStreak || 0}W`, color: '#FDC800', sub: `${forensics.maxLossStreak || 0}L ${lang === 'fr' ? 'série max perdante' : 'max loss streak'}` },
+                                            ].map((kpi, i) => (
+                                                <div key={i} style={{ background: '#0d1117', padding: '14px 18px', display: 'flex', flexDirection: 'column', gap: 4 }}>
+                                                    <div style={{ ...SL, marginBottom: 0 }}>{kpi.label}</div>
+                                                    <div style={{ fontFamily: QF, fontSize: 20, fontWeight: 900, color: kpi.color }}>{kpi.value}</div>
+                                                    <div style={{ fontFamily: QF, fontSize: 9, color: '#6b7280' }}>{kpi.sub}</div>
+                                                </div>
+                                            ))}
                                         </div>
-                                        <div className="mt-4 pt-4 border-t border-[#1a1c24] text-center text-[12px] font-mono" style={{ color: '#6b7280' }}>
-                                            POTENTIAL IMPROVEMENT: <span className="font-black" style={{ color: '#FDC800' }}>+${totalRecovery.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                                        <div style={{ ...CARD_S, padding: '12px 18px' }}>
+                                            <SegmentedBar wins={greenSess} losses={totalSess - greenSess} height={28} showLabels />
+                                            <div style={{ fontFamily: QF, fontSize: 9, color: '#6b7280', marginTop: 6 }}>{lang === 'fr' ? 'Sessions profitables vs déficitaires' : 'Profitable sessions vs losing sessions'}</div>
                                         </div>
                                     </div>
                                 )}
 
-                                {prescriptions.length === 0 && (
-                                    <div className="bg-[#0d1117] border border-[#1a1c24] p-10 text-center flex flex-col items-center gap-3" style={{ borderRadius: 4 }}>
-                                        <span className="text-[42px] font-black" style={{ color: gradeColor }}>{grade}</span>
-                                        <span className="text-[14px] font-bold text-white">
-                                            {closed.length >= 10 ? 'No Critical Patterns Detected' : 'Insufficient Data for Pattern Detection'}
-                                        </span>
-                                        <p className="text-[12px] text-[#6b7280] max-w-xs leading-relaxed">
-                                            {closed.length >= 10
-                                                ? forensics.verdict.message
-                                                : `${closed.length} closed trades logged. Add more trades to unlock deeper forensic analysis. Minimum 10 closed trades recommended.`
-                                            }
-                                        </p>
-                                    </div>
-                                )}
-
-                                {/* ── INSTRUMENT P&L CONTRIBUTION ── */}
+                                {/* ── SECTION 6: INSTRUMENT P&L ── */}
                                 {instrumentArray.length > 0 && (
-                                    <div style={{ marginTop: 16 }}>
+                                    <div>
                                         <ChartCard
                                             title={lang === 'fr' ? 'CONTRIBUTION P&L PAR INSTRUMENT' : 'INSTRUMENT P&L CONTRIBUTION'}
                                             subtitle={lang === 'fr' ? 'P&L net par instrument — barres à droite = profit, gauche = perte' : 'Net P&L per instrument — right = profit, left = loss'}
@@ -4591,22 +4766,101 @@ export default function AnalyticsPage() {
                                     </div>
                                 )}
 
-                                {/* ── OVERALL WIN/LOSS SPLIT ── */}
-                                {closed.length > 0 && (
-                                    <div style={{ marginTop: 16 }}>
-                                        <ChartCard
-                                            title={lang === 'fr' ? 'RÉPARTITION GAINS / PERTES' : 'OVERALL WIN / LOSS SPLIT'}
-                                            subtitle={lang === 'fr' ? 'Proportion de trades gagnants vs perdants sur la période' : 'Proportion of winning vs losing trades over the period'}
-                                        >
-                                            <SegmentedBar
-                                                wins={wins.length}
-                                                losses={losses.length}
-                                                height={36}
-                                                showLabels
-                                            />
-                                        </ChartCard>
+                                {/* ── SECTION 7: ACTIONABLE PRESCRIPTIONS ── */}
+                                {prescriptions.length > 0 ? (
+                                    <div>
+                                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
+                                            <div style={{ ...SL, color: '#FDC800', marginBottom: 0 }}>{lang === 'fr' ? 'PRESCRIPTIONS ACTIONNABLES' : 'ACTIONABLE PRESCRIPTIONS'}</div>
+                                            <span style={{ fontFamily: QF, fontSize: 9, color: '#FDC800', background: 'rgba(253,200,0,0.1)', border: '1px solid rgba(253,200,0,0.3)', padding: '2px 8px' }}>
+                                                {prescriptions.length} {lang === 'fr' ? 'ACTIONS' : 'ACTIONS'}
+                                            </span>
+                                        </div>
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                                            {prescriptions.map((rx: any) => {
+                                                const bc = rx.badge === 'CRITICAL' ? '#ff4757' : rx.badge === 'HIGH' ? '#EAB308' : '#FDC800';
+                                                return (
+                                                    <div key={rx.num} style={{ background: '#0d1117', border: '1px solid #1a1c24' }}>
+                                                        <div style={{ padding: '14px 18px', display: 'flex', alignItems: 'flex-start', gap: 16 }}>
+                                                            <span style={{ fontFamily: QF, fontSize: 32, fontWeight: 900, color: '#1e2430', lineHeight: 1, minWidth: 40, flexShrink: 0 }}>{rx.num}</span>
+                                                            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 4 }}>
+                                                                <span style={{ fontFamily: QF, fontSize: 13, fontWeight: 700, color: '#fff' }}>{rx.title}</span>
+                                                                <p style={{ fontFamily: 'var(--font-sans)', fontSize: 11, color: '#8b949e', lineHeight: 1.6, margin: 0 }}>{rx.desc}</p>
+                                                            </div>
+                                                            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4, flexShrink: 0 }}>
+                                                                <span style={{ fontFamily: QF, fontSize: 9, fontWeight: 900, padding: '2px 6px', letterSpacing: '0.1em', color: bc, border: `1px solid ${bc}40`, background: bc + '15' }}>{rx.badge}</span>
+                                                                <span style={{ fontFamily: QF, fontSize: 10, color: '#FDC800', fontWeight: 700 }}>+${rx.impact.toLocaleString()}</span>
+                                                                <span style={{ fontFamily: QF, fontSize: 8, color: '#6b7280' }}>{rx.freq}x {lang === 'fr' ? 'détecté' : 'detected'}</span>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                );
+                                            })}
+                                        </div>
+                                    </div>
+                                ) : (
+                                    <div style={{ ...CARD_S, textAlign: 'center' as const, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12, padding: '40px 24px' }}>
+                                        <span style={{ fontFamily: QF, fontSize: 48, fontWeight: 900, color: gradeColor, lineHeight: 1 }}>{grade}</span>
+                                        <span style={{ fontFamily: QF, fontSize: 12, fontWeight: 700, color: '#fff' }}>
+                                            {closed.length >= 10 ? (lang === 'fr' ? 'Aucun motif critique détecté' : 'No Critical Patterns Detected') : (lang === 'fr' ? 'Données insuffisantes' : 'Insufficient Data')}
+                                        </span>
+                                        <p style={{ fontFamily: 'var(--font-sans)', fontSize: 12, color: '#6b7280', maxWidth: 320, lineHeight: 1.6 }}>
+                                            {closed.length >= 10
+                                                ? forensics.verdict.message
+                                                : (lang === 'fr' ? `${closed.length} trades clôturés. Minimum 10 requis pour l'analyse forensique complète.` : `${closed.length} closed trades logged. Minimum 10 recommended for full forensic analysis.`)}
+                                        </p>
                                     </div>
                                 )}
+
+                                {/* ── SECTION 8: PROJECTED IMPROVEMENT ── */}
+                                {prescriptions.length > 0 && (
+                                    <div>
+                                        <div style={{ ...SL, color: '#FDC800', marginBottom: 8 }}>{lang === 'fr' ? 'IMPACT PROJETÉ SI IMPLÉMENTÉ' : 'PROJECTED IMPACT IF IMPLEMENTED'}</div>
+                                        <p style={{ fontFamily: 'var(--font-sans)', fontSize: 11, color: '#6b7280', marginBottom: 16, lineHeight: 1.6 }}>
+                                            {lang === 'fr'
+                                                ? 'Projection en supposant l\'élimination complète de tous les motifs comportementaux détectés. L\'amélioration réelle variera selon les chevauchements de trades.'
+                                                : 'Projection assumes full elimination of all flagged patterns. Actual improvement varies — patterns may overlap on shared trades.'}
+                                        </p>
+                                        <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr auto 1fr', gap: isMobile ? 12 : 0, alignItems: 'center' }}>
+                                            <div style={{ ...CARD_S, display: 'flex', flexDirection: 'column', gap: 6 }}>
+                                                <div style={{ ...SL }}>{lang === 'fr' ? 'ACTUEL (avec erreurs)' : 'CURRENT (with errors)'}</div>
+                                                <div style={{ fontFamily: QF, fontSize: 36, fontWeight: 900, color: netPnl >= 0 ? '#FDC800' : '#ff4757' }}>
+                                                    {netPnl >= 0 ? '+' : '-'}${Math.abs(netPnl).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                                </div>
+                                                <div style={{ fontFamily: QF, fontSize: 9, color: '#6b7280' }}>{tradeCount} {lang === 'fr' ? 'trades' : 'trades'} · {sessionCount} {lang === 'fr' ? 'sessions' : 'sessions'}</div>
+                                            </div>
+                                            <div style={{ textAlign: 'center' as const, fontFamily: QF, fontSize: 20, color: '#6b7280', padding: '0 12px' }}>→</div>
+                                            <div style={{ ...CARD_S, display: 'flex', flexDirection: 'column', gap: 6 }}>
+                                                <div style={{ ...SL }}>{lang === 'fr' ? 'PROJETÉ (avec corrections)' : 'PROJECTED (with corrections)'}</div>
+                                                <div style={{ fontFamily: QF, fontSize: 36, fontWeight: 900, color: projectedPnl >= 0 ? '#FDC800' : '#ff4757' }}>
+                                                    {projectedPnl >= 0 ? '+' : '-'}${Math.abs(projectedPnl).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                                </div>
+                                                <div style={{ fontFamily: QF, fontSize: 9, color: '#6b7280' }}>~{tradeCount} {lang === 'fr' ? 'trades' : 'trades'} · {lang === 'fr' ? 'Corrections appliquées' : 'Corrections applied'}</div>
+                                            </div>
+                                        </div>
+                                        <div style={{ marginTop: 2, ...CARD_S, textAlign: 'center' as const, padding: '14px 18px', background: 'rgba(253,200,0,0.04)', borderColor: 'rgba(253,200,0,0.2)' }}>
+                                            <span style={{ fontFamily: QF, fontSize: 11, color: '#6b7280' }}>
+                                                {lang === 'fr' ? 'AMÉLIORATION POTENTIELLE : ' : 'POTENTIAL IMPROVEMENT: '}
+                                            </span>
+                                            <span style={{ fontFamily: QF, fontSize: 11, fontWeight: 900, color: '#FDC800' }}>
+                                                +${totalRecovery.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                            </span>
+                                        </div>
+                                    </div>
+                                )}
+
+                                {/* ── SECTION 9: NEXT SESSION RULES ── */}
+                                <div>
+                                    <div style={{ ...SL, color: '#FDC800', marginBottom: 14 }}>{lang === 'fr' ? 'RÈGLES POUR LA PROCHAINE SESSION' : 'NEXT SESSION RULES'}</div>
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                                        {nextRules.slice(0, 3).map((rule, i) => (
+                                            <div key={i} style={{ ...CARD_S, display: 'flex', alignItems: 'flex-start', gap: 16, padding: '14px 18px' }}>
+                                                <span style={{ fontFamily: QF, fontSize: 20, fontWeight: 900, color: '#FDC800', lineHeight: 1, flexShrink: 0, minWidth: 28 }}>{i + 1}</span>
+                                                <p style={{ fontFamily: 'var(--font-sans)', fontSize: 12, color: '#c9d1d9', lineHeight: 1.6, margin: 0 }}>{rule}</p>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+
                             </motion.div>
                         );
                     })()}
