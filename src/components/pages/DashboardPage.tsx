@@ -67,7 +67,6 @@ export default function DashboardPage() {
     }, [trades, todayStr]);
 
     // ── Daily Guard ────────────────────────────────────────────
-    // Use actual realized P&L if trades exist; fall back to manual session tracking
     const manualUsed = mounted ? getTodayRiskUsed() : 0;
     const used       = mounted ? Math.max(manualUsed, todayActualLoss) : 0;
     const remaining  = mounted ? Math.max(0, account.dailyLossLimit - used) : account.dailyLossLimit;
@@ -84,7 +83,6 @@ export default function DashboardPage() {
             .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()),
     [trades]);
 
-    // Newest-first for the recent trades list
     const recentTrades = useMemo(() =>
         [...trades]
             .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
@@ -129,7 +127,7 @@ export default function DashboardPage() {
         let peak = 0;
         return pnlChartData.map((pt, i) => {
             if (pt.cumulative > peak) peak = pt.cumulative;
-            const dd = pt.cumulative - peak; // 0 or negative
+            const dd = pt.cumulative - peak;
             return { d: String(i + 1), v: dd };
         });
     }, [pnlChartData]);
@@ -170,14 +168,12 @@ export default function DashboardPage() {
         if (!mounted || closedTrades.length === 0) return null;
         const n = closedTrades.length;
         const prevN = n - 1;
-        // Only show milestone on exact counts
         if (n === 1) return lang === 'fr' ? '🎯 Premier trade enregistré !' : '🎯 First Trade Logged!';
         if (n === 10 && prevN < 10) return lang === 'fr' ? '🔟 10 trades — bon départ !' : '🔟 10 Trades Milestone!';
         if (n === 50 && prevN < 50) return lang === 'fr' ? '📊 50 trades — pro du journal !' : '📊 50 Trades — Journaling Pro!';
         if (n === 100 && prevN < 100) return lang === 'fr' ? '🏆 100 trades — vétéran !' : '🏆 100 Trades — Veteran!';
         if (streakType === 'W' && streakCount === 5) return lang === 'fr' ? '⚡ Série gagnante de 5 !' : '⚡ 5-Trade Win Streak!';
         if (streakType === 'W' && streakCount === 10) return lang === 'fr' ? '🔥 Série gagnante de 10 !' : '🔥 10-Trade Win Streak!';
-        // "You've improved" moment — this week better than last week
         if (n >= 10) {
             const now = new Date();
             const oneWeekAgo = new Date(now.getTime() - 7 * 24 * 3600 * 1000);
@@ -218,7 +214,7 @@ export default function DashboardPage() {
         if (openTrades.length === 0) return false;
         const now = new Date();
         const estNow = new Date(now.toLocaleString('en-US', { timeZone: 'America/New_York' }));
-        const day = estNow.getDay(); // 0=Sun, 5=Fri, 6=Sat
+        const day = estNow.getDay();
         const hour = estNow.getHours();
         const isFridayEvening = day === 5 && hour >= 16;
         const isWeekend = day === 6 || day === 0;
@@ -236,7 +232,6 @@ export default function DashboardPage() {
     [account, closedTrades]);
     const floorDanger  = drawdownInfo.usedPct >= 80;
     const floorWarning = drawdownInfo.usedPct >= 50;
-
 
     // ── Count-up animated values ───────────────────────────────
     const animBalance   = useCountUp(mounted ? account.balance : 0, 1100);
@@ -256,17 +251,37 @@ export default function DashboardPage() {
     const streakColor = streakType === 'W' ? '#FDC800' : '#ff4757';
     const pfColor     = profitFactor >= 1.5 ? '#FDC800' : profitFactor >= 1 ? '#EAB308' : '#ff4757';
 
+    // ── Style constants ────────────────────────────────────────
     const mono: React.CSSProperties = { fontFamily: 'var(--font-mono)' };
     const lbl: React.CSSProperties  = { ...mono, fontSize: 9, color: '#4b5563', letterSpacing: '0.1em', textTransform: 'uppercase' as const, display: 'block' };
     const divider = '1px solid #1a1c24';
     const card: React.CSSProperties = {
-        margin: isMobile ? '0 0 8px' : '0 12px 8px',
         background: '#0d1117',
-        borderRadius: 0,
         border: '2px solid #1a1c24',
         boxShadow: '4px 4px 0 #000',
         overflow: 'hidden',
     };
+
+    // ── Badge helper ───────────────────────────────────────────
+    function StatusBadge({ danger, warning, dangerLabel, warningLabel, safeLabel, pulse }: {
+        danger: boolean; warning: boolean;
+        dangerLabel: string; warningLabel: string; safeLabel: string;
+        pulse?: boolean;
+    }) {
+        const color  = danger ? '#ff4757' : warning ? '#EAB308' : '#FDC800';
+        const border = danger ? 'rgba(255,71,87,0.5)' : warning ? 'rgba(234,179,8,0.4)' : 'rgba(253,200,0,0.3)';
+        const bg     = danger ? 'rgba(255,71,87,0.1)' : warning ? 'rgba(234,179,8,0.08)' : 'rgba(253,200,0,0.06)';
+        const label  = danger ? dangerLabel : warning ? warningLabel : safeLabel;
+        return (
+            <motion.span
+                animate={(danger || (pulse && warning)) ? { opacity: [1, 0.5, 1] } : {}}
+                transition={{ duration: 0.9, repeat: Infinity }}
+                style={{ ...mono, fontSize: 9, fontWeight: 800, letterSpacing: '0.08em', padding: '3px 8px', textTransform: 'uppercase', color, border: `1px solid ${border}`, background: bg }}
+            >
+                {label}
+            </motion.span>
+        );
+    }
 
     if (!mounted) return null;
 
@@ -283,7 +298,7 @@ export default function DashboardPage() {
                     </p>
                     <button
                         onClick={() => setActiveTab('settings')}
-                        style={{ padding: '12px 24px', background: '#FDC800', color: '#000', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em' }}
+                        style={{ padding: '12px 24px', background: '#FDC800', color: '#000', border: 'none', cursor: 'pointer', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em' }}
                     >
                         {lang === 'fr' ? 'Aller aux Paramètres' : 'Go to Settings'}
                     </button>
@@ -292,39 +307,20 @@ export default function DashboardPage() {
         );
     }
 
+    // Suppress unused variable warning for isEval — it may be used in future rule items
+    void isEval;
+
     return (
         <motion.div variants={stagger} initial="hidden" animate="show"
             style={{ display: 'flex', flexDirection: 'column', background: '#090909', minHeight: '100vh' }}
         >
-            {/* ── MILESTONE BANNER ── */}
-            {milestone && (
-                <motion.div
-                    initial={{ opacity: 0, y: -20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: -20 }}
-                    style={{
-                        background: 'rgba(253,200,0,0.08)',
-                        border: '1px solid rgba(253,200,0,0.3)',
-                        borderLeft: '3px solid #FDC800',
-                        padding: '10px 16px',
-                        fontFamily: 'var(--font-mono)',
-                        fontSize: 12,
-                        fontWeight: 700,
-                        color: '#FDC800',
-                        letterSpacing: '0.04em',
-                    }}
-                >
-                    {milestone}
-                </motion.div>
-            )}
 
-            {/* ── 1. LIVE STATUS BAR ─────────────────────────────── */}
+            {/* ── SECTION 1 — STATUS STRIP ─────────────────────── */}
             <motion.div variants={fadeUp} style={{
                 display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                padding: isMobile ? '8px 14px' : '10px 20px', borderBottom: divider, flexWrap: 'wrap', gap: 6,
+                padding: '8px 20px', borderBottom: divider, flexWrap: 'wrap', gap: 6,
             }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                    {/* Pulsing live dot */}
                     <div style={{ position: 'relative', width: 10, height: 10, flexShrink: 0 }}>
                         <motion.div
                             animate={{ scale: [1, 2.4, 1], opacity: [0.6, 0, 0.6] }}
@@ -340,7 +336,7 @@ export default function DashboardPage() {
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                     {account.propFirm && (
-                        <span style={{ ...mono, fontSize: 10, color: '#FDC800', letterSpacing: '0.06em', textTransform: 'uppercase' }}>
+                        <span style={{ ...mono, fontSize: 10, color: '#FDC800', letterSpacing: '0.06em', textTransform: 'uppercase', padding: '2px 8px', background: 'rgba(253,200,0,0.06)', border: '1px solid rgba(253,200,0,0.2)' }}>
                             {account.propFirm}
                         </span>
                     )}
@@ -350,112 +346,146 @@ export default function DashboardPage() {
                 </div>
             </motion.div>
 
-            {/* ── 2. BALANCE HERO ────────────────────────────────── */}
-            <motion.div variants={fadeUp} style={{ padding: isMobile ? '16px 14px' : '24px 20px 20px', borderBottom: divider }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-                    <span style={lbl}>Account Balance</span>
-                    <span style={{ ...mono, fontSize: 8, padding: '2px 6px', background: 'rgba(253,200,0,0.1)', color: '#FDC800', borderRadius: 4, letterSpacing: '0.04em', border: '1px solid rgba(253,200,0,0.2)' }}>{lang === 'fr' ? 'AUTO-CALCULÉ' : 'AUTO-COMPUTED'}</span>
-                </div>
-                <div style={{ display: 'flex', alignItems: 'baseline', gap: 14, flexWrap: 'wrap' }}>
-                    <motion.span
-                        key={account.balance}
-                        initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }}
-                        transition={{ ease: [0.16, 1, 0.3, 1], duration: 0.5 }}
-                        style={{ ...mono, fontSize: isMobile ? 32 : 42, fontWeight: 900, color: '#fff', letterSpacing: '-0.04em', lineHeight: 1 }}
-                    >
-                        ${animBalance.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                    </motion.span>
-                    {closedTrades.length > 0 && (
+            {/* ── SECTION 2 — HERO BLOCK ───────────────────────── */}
+            <motion.div variants={fadeUp} style={{
+                padding: isMobile ? '20px 16px' : '28px 24px',
+                borderBottom: divider,
+            }}>
+                <div style={{
+                    display: 'flex',
+                    flexDirection: isMobile ? 'column' : 'row',
+                    alignItems: isMobile ? 'flex-start' : 'center',
+                    gap: isMobile ? 16 : 32,
+                }}>
+                    {/* Left — balance */}
+                    <div style={{ flex: 1 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+                            <span style={lbl}>{lang === 'fr' ? 'Solde du compte' : 'Account Balance'}</span>
+                            <span style={{ ...mono, fontSize: 8, padding: '2px 6px', background: 'rgba(253,200,0,0.08)', color: '#FDC800', border: '1px solid rgba(253,200,0,0.2)', letterSpacing: '0.04em' }}>
+                                {lang === 'fr' ? 'AUTO-CALCULÉ' : 'AUTO-COMPUTED'}
+                            </span>
+                        </div>
                         <motion.span
-                            initial={{ opacity: 0 }} animate={{ opacity: 1 }}
-                            transition={{ delay: 0.3, duration: 0.4 }}
-                            style={{ ...mono, fontSize: 13, color: pnlColor, fontWeight: 700 }}
+                            key={account.balance}
+                            initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }}
+                            transition={{ ease: [0.16, 1, 0.3, 1], duration: 0.5 }}
+                            style={{ ...mono, fontSize: isMobile ? 36 : 52, fontWeight: 900, color: '#fff', letterSpacing: '-0.04em', lineHeight: 1, display: 'block' }}
                         >
-                            {totalPnl >= 0 ? '+' : '-'}${animPnl.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} net&nbsp;·&nbsp;{closedTrades.length} closed
+                            ${animBalance.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                         </motion.span>
+                        {closedTrades.length > 0 && (
+                            <motion.span
+                                initial={{ opacity: 0 }} animate={{ opacity: 1 }}
+                                transition={{ delay: 0.3, duration: 0.4 }}
+                                style={{ ...mono, fontSize: 13, color: pnlColor, fontWeight: 700, display: 'block', marginTop: 6 }}
+                            >
+                                {totalPnl >= 0 ? '+' : '-'}${animPnl.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} net&nbsp;·&nbsp;{closedTrades.length} {lang === 'fr' ? 'clôturés' : 'closed'}
+                            </motion.span>
+                        )}
+                    </div>
+                    {/* Right — equity chart */}
+                    {pnlChartData.length > 1 && (
+                        <motion.div
+                            initial={{ opacity: 0, scaleX: 0.6 }} animate={{ opacity: 1, scaleX: 1 }}
+                            transition={{ ease: [0.16, 1, 0.3, 1], duration: 0.7, delay: 0.15 }}
+                            style={{ height: isMobile ? 80 : 100, minWidth: isMobile ? '100%' : 280, transformOrigin: 'left', flex: isMobile ? 'none' : '0 0 280px' }}
+                        >
+                            <PnLChart data={pnlChartData} />
+                        </motion.div>
                     )}
                 </div>
-                {pnlChartData.length > 1 && (
-                    <motion.div
-                        initial={{ opacity: 0, scaleX: 0.6 }} animate={{ opacity: 1, scaleX: 1 }}
-                        transition={{ ease: [0.16, 1, 0.3, 1], duration: 0.7, delay: 0.15 }}
-                        style={{ marginTop: 16, height: 90, transformOrigin: 'left' }}
-                    >
-                        <PnLChart data={pnlChartData} />
-                    </motion.div>
-                )}
             </motion.div>
 
-            {/* ── 3. STAT STRIP ──────────────────────────────────── */}
-            {closedTrades.length > 0 && (
-                <motion.div variants={fadeUp} style={{ display: 'grid', gridTemplateColumns: isMobile ? 'repeat(2,1fr)' : 'repeat(4,1fr)', borderBottom: divider }}>
-                    {[
-                        { lbl: 'NET P&L',       val: `${totalPnl >= 0 ? '+' : ''}$${Math.abs(totalPnl).toLocaleString(undefined, { maximumFractionDigits: 0 })}`, clr: pnlColor,    sub: `${wins.length}W · ${losses.length}L` },
-                        { lbl: 'WIN RATE',       val: `${winRate}%`,                   clr: wrColor,     sub: `${closedTrades.length} trades` },
-                        { lbl: 'STREAK',         val: `${streakCount}${streakType}`,   clr: streakColor, sub: streakType === 'W' ? (lang === 'fr' ? 'en feu' : 'on fire') : (lang === 'fr' ? 'drawdown' : 'drawdown') },
-                        { lbl: 'PROFIT FACTOR',  val: profitFactor > 0 ? profitFactor.toFixed(2) : '—', clr: pfColor, sub: '≥1.5 = edge' },
-                    ].map((s, i) => (
-                        <motion.div
-                            key={i}
-                            initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
-                            transition={{ ease: [0.16, 1, 0.3, 1], duration: 0.4, delay: 0.08 + i * 0.07 }}
-                            style={{
-                                padding: isMobile ? '12px 12px' : '14px 12px',
-                                borderRight: isMobile ? (i % 2 === 0 ? divider : 'none') : (i < 3 ? divider : 'none'),
-                                borderBottom: isMobile && i < 2 ? divider : 'none',
-                                display: 'flex', flexDirection: 'column', gap: 3,
-                            }}
-                        >
-                            <span style={lbl}>{s.lbl}</span>
-                            <span style={{ ...mono, fontSize: isMobile ? 16 : 18, fontWeight: 800, color: s.clr, lineHeight: 1, letterSpacing: '-0.02em' }}>{s.val}</span>
-                            <span style={{ ...mono, fontSize: 9, color: '#6b7280' }}>{s.sub}</span>
-                        </motion.div>
-                    ))}
+            {/* ── SECTION 3 — KPI GRID (8 cells) ──────────────── */}
+            <motion.div variants={fadeUp} style={{
+                display: 'grid',
+                gridTemplateColumns: isMobile ? 'repeat(2,1fr)' : 'repeat(4,1fr)',
+                borderBottom: divider,
+            }}>
+                {[
+                    {
+                        lbl: 'NET P&L',
+                        val: `${totalPnl >= 0 ? '+' : ''}$${Math.abs(totalPnl).toLocaleString(undefined, { maximumFractionDigits: 0 })}`,
+                        clr: pnlColor,
+                        sub: `${wins.length}W · ${losses.length}L`,
+                    },
+                    {
+                        lbl: 'WIN RATE',
+                        val: `${winRate}%`,
+                        clr: wrColor,
+                        sub: `${closedTrades.length} ${lang === 'fr' ? 'trades' : 'trades'}`,
+                    },
+                    {
+                        lbl: 'PROFIT FACTOR',
+                        val: profitFactor > 0 ? profitFactor.toFixed(2) : '—',
+                        clr: pfColor,
+                        sub: '≥1.5 = edge',
+                    },
+                    {
+                        lbl: lang === 'fr' ? 'SÉRIE' : 'STREAK',
+                        val: closedTrades.length > 0 ? `${streakCount}${streakType}` : '—',
+                        clr: streakColor,
+                        sub: streakType === 'W' ? (lang === 'fr' ? 'en feu' : 'on fire') : (lang === 'fr' ? 'drawdown' : 'drawdown'),
+                    },
+                    {
+                        lbl: lang === 'fr' ? 'UTILISÉ AUJD' : 'DAILY USED',
+                        val: `$${animUsed.toFixed(0)}`,
+                        clr: used > 0 ? '#ff4757' : '#4b5563',
+                        sub: `${usedPct.toFixed(1)}% ${lang === 'fr' ? 'de la limite' : 'of limit'}`,
+                    },
+                    {
+                        lbl: lang === 'fr' ? 'RESTANT' : 'REMAINING',
+                        val: `$${animRemaining.toFixed(0)}`,
+                        clr: remaining === 0 ? '#ff4757' : '#FDC800',
+                        sub: lang === 'fr' ? 'aujourd\'hui' : 'today',
+                    },
+                    {
+                        lbl: lang === 'fr' ? 'MARGE DRAWDOWN' : 'DRAWDOWN BUFFER',
+                        val: `$${animBuffer.toFixed(0)}`,
+                        clr: floorDanger ? '#ff4757' : floorWarning ? '#EAB308' : '#FDC800',
+                        sub: `${drawdownInfo.usedPct.toFixed(1)}% used`,
+                    },
+                    {
+                        lbl: lang === 'fr' ? 'RISQUE MAX SUIVANT' : 'MAX NEXT RISK',
+                        val: `$${animSafeNext.toFixed(0)}`,
+                        clr: '#FDC800',
+                        sub: `${account.maxRiskPercent}% of balance`,
+                    },
+                ].map((s, i) => (
+                    <div
+                        key={i}
+                        style={{
+                            padding: '16px 20px',
+                            borderRight: isMobile
+                                ? (i % 2 === 0 ? divider : 'none')
+                                : (i % 4 < 3 ? divider : 'none'),
+                            borderBottom: isMobile
+                                ? (i < 6 ? divider : 'none')
+                                : (i < 4 ? divider : 'none'),
+                            display: 'flex', flexDirection: 'column', gap: 3,
+                        }}
+                    >
+                        <span style={lbl}>{s.lbl}</span>
+                        <span style={{ ...mono, fontSize: 20, fontWeight: 800, color: s.clr, lineHeight: 1, letterSpacing: '-0.02em' }}>{s.val}</span>
+                        <span style={{ ...mono, fontSize: 9, color: '#6b7280' }}>{s.sub}</span>
+                    </div>
+                ))}
+            </motion.div>
+
+            {/* ── SECTION 4 — ALERT BANNERS ────────────────────── */}
+            {milestone && (
+                <motion.div
+                    initial={{ opacity: 0, y: -16 }} animate={{ opacity: 1, y: 0 }}
+                    style={{ background: 'rgba(253,200,0,0.06)', borderLeft: '3px solid #FDC800', padding: '10px 16px', ...mono, fontSize: 12, fontWeight: 700, color: '#FDC800', letterSpacing: '0.04em' }}
+                >
+                    {milestone}
                 </motion.div>
             )}
 
-            {/* ── STREAK WIDGET ── */}
-            {mounted && closedTrades.length >= 2 && (
-                <motion.div variants={fadeUp} style={{
-                    ...card,
-                    padding: isMobile ? '12px 14px' : '14px 20px',
-                    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                    gap: 12,
-                }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                        <div style={{
-                            width: 32, height: 32,
-                            background: streakType === 'W' ? 'rgba(253,200,0,0.12)' : 'rgba(255,71,87,0.12)',
-                            border: `1px solid ${streakType === 'W' ? 'rgba(253,200,0,0.3)' : 'rgba(255,71,87,0.3)'}`,
-                            display: 'flex', alignItems: 'center', justifyContent: 'center',
-                            fontSize: 16,
-                        }}>
-                            {streakType === 'W' ? '↑' : '↓'}
-                        </div>
-                        <div>
-                            <div style={{ ...lbl, marginBottom: 2 }}>
-                                {lang === 'fr' ? 'SÉRIE EN COURS' : 'CURRENT STREAK'}
-                            </div>
-                            <div style={{ ...mono, fontSize: 15, fontWeight: 700, color: streakColor }}>
-                                {streakCount} {streakType === 'W' ? (lang === 'fr' ? 'GAINS' : 'WINS') : (lang === 'fr' ? 'PERTES' : 'LOSSES')}
-                            </div>
-                        </div>
-                    </div>
-                    <div style={{ textAlign: 'right' }}>
-                        <div style={{ ...lbl, marginBottom: 2 }}>
-                            {lang === 'fr' ? 'TAUX DE RÉUSSITE' : 'WIN RATE'}
-                        </div>
-                        <div style={{ ...mono, fontSize: 15, fontWeight: 700, color: wrColor }}>
-                            {winRate}%
-                        </div>
-                    </div>
-                </motion.div>
-            )}
-
-            {/* ── 4. REVENGE ALERT ───────────────────────────────── */}
             {revengeAlert && (
                 <motion.div variants={fadeUp}
-                    style={{ display: 'flex', alignItems: 'flex-start', gap: 10, padding: isMobile ? '10px 14px' : '12px 20px', borderBottom: '1px solid rgba(255,71,87,0.3)', background: 'rgba(255,71,87,0.06)' }}>
+                    style={{ display: 'flex', alignItems: 'flex-start', gap: 10, padding: '10px 16px', background: 'rgba(255,71,87,0.06)', borderLeft: '3px solid #ff4757', borderBottom: divider }}
+                >
                     <motion.div animate={{ opacity: [1, 0.4, 1] }} transition={{ duration: 1.2, repeat: Infinity }}>
                         <AlertTriangle size={13} color="#ff4757" />
                     </motion.div>
@@ -465,50 +495,53 @@ export default function DashboardPage() {
                 </motion.div>
             )}
 
-            {/* ── CONSISTENCY ALERT ───────────────────────────────── */}
             {totalPnl > 0 && consistencyScore > 20 && (
                 <motion.div variants={fadeUp}
-                    style={{ display: 'flex', alignItems: 'flex-start', gap: 10, padding: isMobile ? '10px 14px' : '12px 20px', borderBottom: '1px solid rgba(234,179,8,0.3)', background: 'rgba(234,179,8,0.06)' }}>
+                    style={{ display: 'flex', alignItems: 'flex-start', gap: 10, padding: '10px 16px', background: 'rgba(234,179,8,0.06)', borderLeft: '3px solid #EAB308', borderBottom: divider }}
+                >
                     <motion.div animate={{ opacity: [1, 0.4, 1] }} transition={{ duration: 1.2, repeat: Infinity }}>
                         <AlertTriangle size={13} color="#EAB308" />
                     </motion.div>
                     <span style={{ ...mono, fontSize: 11, color: '#EAB308', fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase' }}>
-                        {lang === 'fr' ? `ALERTE COHÉRENCE — Meilleur jour (${bestTradingDay}) représente ${consistencyScore.toFixed(1)}% du profit total (Max 20%).` : `CONSISTENCY WARNING — Best day (${bestTradingDay}) is ${consistencyScore.toFixed(1)}% of total profit (Max 20%).`}
+                        {lang === 'fr'
+                            ? `ALERTE COHÉRENCE — Meilleur jour (${bestTradingDay}) représente ${consistencyScore.toFixed(1)}% du profit total (Max 20%).`
+                            : `CONSISTENCY WARNING — Best day (${bestTradingDay}) is ${consistencyScore.toFixed(1)}% of total profit (Max 20%).`}
                     </span>
                 </motion.div>
             )}
 
-            {/* ── OPEN TRADES ALERT ───────────────────────────────── */}
             {openTrades.length > 0 && (() => {
                 const agedTrades = openTrades.filter(t => Math.floor((Date.now() - new Date(t.createdAt).getTime()) / 3600000) >= 4);
                 const hasAged = agedTrades.length > 0;
+                const alertColor = hasAged ? '#EAB308' : '#38bdf8';
                 return (
                     <motion.div variants={fadeUp}
                         onClick={() => setActiveTab('journal')}
-                        style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: isMobile ? '10px 14px' : '12px 20px', borderBottom: `1px solid ${hasAged ? 'rgba(234,179,8,0.3)' : 'rgba(0,212,255,0.3)'}`, background: hasAged ? 'rgba(234,179,8,0.06)' : 'rgba(0,212,255,0.06)', cursor: 'pointer', flexWrap: 'wrap', gap: 8 }}>
+                        style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 16px', background: hasAged ? 'rgba(234,179,8,0.06)' : 'rgba(56,189,248,0.06)', borderLeft: `3px solid ${alertColor}`, borderBottom: divider, cursor: 'pointer', flexWrap: 'wrap', gap: 8 }}
+                    >
                         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                             <motion.div animate={{ opacity: [1, 0.4, 1] }} transition={{ duration: 1.2, repeat: Infinity }}>
-                                <AlertTriangle size={13} color={hasAged ? '#EAB308' : '#00D4FF'} />
+                                <AlertTriangle size={13} color={alertColor} />
                             </motion.div>
-                            <span style={{ ...mono, fontSize: 11, color: hasAged ? '#EAB308' : '#00D4FF', fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase' }}>
+                            <span style={{ ...mono, fontSize: 11, color: alertColor, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase' }}>
                                 {hasAged
                                     ? lang === 'fr'
                                         ? `⚠ ${agedTrades.length} trade${agedTrades.length > 1 ? 's' : ''} ouvert${agedTrades.length > 1 ? 's' : ''} depuis 4h+ — enregistrez votre résultat`
                                         : `⚠ ${agedTrades.length} trade${agedTrades.length > 1 ? 's' : ''} have been open for 4h+ — log your outcome`
                                     : lang === 'fr'
                                         ? `${openTrades.length} TRADE${openTrades.length > 1 ? 'S' : ''} OUVERT${openTrades.length > 1 ? 'S' : ''} — Enregistrez le résultat pour débloquer l'analyse.`
-                                        : `${openTrades.length} OPEN TRADE${openTrades.length > 1 ? 'S' : ''} — Log outcome to unlock analysis.`
-                                }
+                                        : `${openTrades.length} OPEN TRADE${openTrades.length > 1 ? 'S' : ''} — Log outcome to unlock analysis.`}
                             </span>
                         </div>
-                        <ArrowRight size={13} color={hasAged ? '#EAB308' : '#00D4FF'} />
+                        <ArrowRight size={13} color={alertColor} />
                     </motion.div>
                 );
             })()}
 
             {weekendGapAlert && (
                 <motion.div variants={fadeUp}
-                    style={{ display: 'flex', alignItems: 'flex-start', gap: 10, padding: isMobile ? '10px 14px' : '12px 20px', borderBottom: '1px solid rgba(234,179,8,0.3)', background: 'rgba(234,179,8,0.06)' }}>
+                    style={{ display: 'flex', alignItems: 'flex-start', gap: 10, padding: '10px 16px', background: 'rgba(234,179,8,0.06)', borderLeft: '3px solid #EAB308', borderBottom: divider }}
+                >
                     <motion.div animate={{ opacity: [1, 0.4, 1] }} transition={{ duration: 1.2, repeat: Infinity }}>
                         <AlertTriangle size={13} color="#EAB308" />
                     </motion.div>
@@ -520,142 +553,180 @@ export default function DashboardPage() {
                 </motion.div>
             )}
 
-            <div style={{ height: 12 }} />
-
-            {/* ── 5. DAILY GUARD ─────────────────────────────────── */}
-            <motion.div variants={fadeUp} style={card}>
-                <div style={{ padding: '14px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: divider }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                        <Shield size={12} color="#4b5563" />
-                        <span style={lbl}>Daily Loss Guard</span>
-                        <span style={{ ...mono, fontSize: 10, color: '#4b5563' }}>/ ${account.dailyLossLimit.toLocaleString()}</span>
-                    </div>
-                    <motion.span
-                        animate={isDanger ? { opacity: [1, 0.5, 1] } : {}}
-                        transition={{ duration: 0.9, repeat: Infinity }}
-                        style={{
-                            ...mono, fontSize: 9, fontWeight: 800, letterSpacing: '0.08em', padding: '3px 8px', textTransform: 'uppercase', borderRadius: 3,
-                            color: isDanger ? '#ff4757' : isWarning ? '#EAB308' : '#FDC800',
-                            border: `1px solid ${isDanger ? 'rgba(255,71,87,0.5)' : isWarning ? 'rgba(234,179,8,0.4)' : 'rgba(253,200,0,0.3)'}`,
-                            background: isDanger ? 'rgba(255,71,87,0.1)' : isWarning ? 'rgba(234,179,8,0.08)' : 'rgba(253,200,0,0.06)',
-                        }}
-                    >
-                        {isDanger ? (lang === 'fr' ? 'DANGER' : 'DANGER') : isWarning ? (lang === 'fr' ? 'ALERTE' : 'WARNING') : (lang === 'fr' ? 'SÉCURISÉ' : 'SAFE')}
-                    </motion.span>
-                </div>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', padding: '14px 16px' }}>
-                    {[
-                        { lbl: lang === 'fr' ? 'UTILISÉ' : 'USED',           val: `$${animUsed.toFixed(0)}`,      clr: used > 0 ? '#ff4757' : '#4b5563' },
-                        { lbl: lang === 'fr' ? 'RESTANT' : 'REMAINING',     val: `$${animRemaining.toFixed(0)}`, clr: remaining === 0 ? '#ff4757' : '#FDC800' },
-                        { lbl: lang === 'fr' ? 'RISQUE MAX SUIVANT' : 'SAFE NEXT', val: `$${animSafeNext.toFixed(0)}`, clr: '#FDC800' },
-                    ].map((s, i) => (
-                        <motion.div
-                            key={i}
-                            initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }}
-                            transition={{ ease: [0.16, 1, 0.3, 1], duration: 0.4, delay: 0.12 + i * 0.07 }}
-                            style={{ borderRight: i < 2 ? divider : 'none', paddingRight: i < 2 ? 14 : 0, paddingLeft: i > 0 ? 14 : 0 }}
-                        >
-                            <span style={lbl}>{s.lbl}</span>
-                            <span style={{ ...mono, fontSize: 22, fontWeight: 800, color: s.clr, lineHeight: 1, letterSpacing: '-0.02em', display: 'block', marginTop: 4 }}>
-                                {s.val}
-                            </span>
-                        </motion.div>
-                    ))}
-                </div>
-                {isDanger && (
-                    <motion.div
-                        initial={{ opacity: 0 }} animate={{ opacity: 1 }}
-                        style={{ padding: '10px 16px', background: 'rgba(255,71,87,0.08)', borderTop: '1px solid rgba(255,71,87,0.2)', display: 'flex', alignItems: 'center', gap: 8 }}
-                    >
-                        <AlertTriangle size={12} color="#ff4757" />
-                        <span style={{ ...mono, fontSize: 11, color: '#ff4757', fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase' }}>{lang === 'fr' ? 'STOP — Limite journalière presque atteinte' : 'STOP — Daily limit almost reached'}</span>
-                    </motion.div>
-                )}
-            </motion.div>
-
-            {/* ── 6. MAX DRAWDOWN FLOOR ──────────────────────────── */}
-            {account.startingBalance > 0 && (
-                <motion.div variants={fadeUp} style={card}>
+            {/* ── SECTION 5 — RISK CARDS (2-col desktop) ──────── */}
+            <motion.div variants={fadeUp} style={{
+                display: 'grid',
+                gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr',
+                borderTop: divider,
+            }}>
+                {/* Card A: Daily Guard */}
+                <div style={{
+                    ...card,
+                    margin: isMobile ? '12px 12px 0' : '12px 8px 12px 12px',
+                }}>
                     <div style={{ padding: '14px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: divider }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                             <Shield size={12} color="#4b5563" />
-                            <span style={lbl}>Max Drawdown Floor</span>
-                            <span style={{ ...mono, fontSize: 10, color: '#4b5563' }}>
-                                / {account.drawdownType === 'Static' ? 'Static' : account.drawdownType === 'EOD' ? 'EOD Trailing' : 'EOT Trailing'}
-                                {drawdownInfo.isLocked ? ' · LOCKED' : ''}
-                            </span>
+                            <span style={lbl}>{lang === 'fr' ? 'Garde perte journalière' : 'Daily Loss Guard'}</span>
+                            <span style={{ ...mono, fontSize: 10, color: '#4b5563' }}>/ ${account.dailyLossLimit.toLocaleString()}</span>
                         </div>
-                        <motion.span
-                            animate={floorDanger ? { opacity: [1, 0.5, 1] } : {}}
-                            transition={{ duration: 0.9, repeat: Infinity }}
-                            style={{
-                                ...mono, fontSize: 9, fontWeight: 800, letterSpacing: '0.08em', padding: '3px 8px', textTransform: 'uppercase', borderRadius: 3,
-                                color: floorDanger ? '#ff4757' : floorWarning ? '#EAB308' : '#FDC800',
-                                border: `1px solid ${floorDanger ? 'rgba(255,71,87,0.5)' : floorWarning ? 'rgba(234,179,8,0.4)' : 'rgba(253,200,0,0.3)'}`,
-                                background: floorDanger ? 'rgba(255,71,87,0.1)' : floorWarning ? 'rgba(234,179,8,0.08)' : 'rgba(253,200,0,0.06)',
-                            }}
-                        >
-                            {floorDanger ? (lang === 'fr' ? 'DANGER' : 'DANGER') : floorWarning ? (lang === 'fr' ? 'ALERTE' : 'WARNING') : (lang === 'fr' ? 'SÉCURISÉ' : 'SAFE')}
-                        </motion.span>
+                        <StatusBadge
+                            danger={isDanger} warning={isWarning} pulse
+                            dangerLabel={lang === 'fr' ? 'DANGER' : 'DANGER'}
+                            warningLabel={lang === 'fr' ? 'ALERTE' : 'WARNING'}
+                            safeLabel={lang === 'fr' ? 'SÉCURISÉ' : 'SAFE'}
+                        />
+                    </div>
+                    {/* Progress bar */}
+                    <div style={{ height: 4, background: '#0b0e14', position: 'relative' }}>
+                        <motion.div
+                            animate={{ width: `${Math.min(100, usedPct)}%` }}
+                            transition={{ duration: 0.8, ease: [0.16, 1, 0.3, 1] as const }}
+                            style={{ height: '100%', background: isDanger ? '#ff4757' : isWarning ? '#EAB308' : '#FDC800', position: 'absolute', left: 0, top: 0 }}
+                        />
                     </div>
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', padding: '14px 16px' }}>
                         {[
-                            { lbl: lang === 'fr' ? 'PLANCHER' : 'FLOOR',   val: `$${animFloor.toLocaleString('en-US', { maximumFractionDigits: 0 })}`,  clr: '#e2e8f0' },
-                            { lbl: lang === 'fr' ? 'MARGE' : 'BUFFER',  val: `$${animBuffer.toLocaleString('en-US', { maximumFractionDigits: 0 })}`, clr: floorDanger ? '#ff4757' : floorWarning ? '#EAB308' : '#FDC800' },
-                            { lbl: lang === 'fr' ? 'UTILISÉ' : 'USED',    val: `${drawdownInfo.usedPct.toFixed(1)}%`, clr: floorDanger ? '#ff4757' : floorWarning ? '#EAB308' : '#FDC800' },
+                            { lbl: lang === 'fr' ? 'UTILISÉ' : 'USED',                   val: `$${animUsed.toFixed(0)}`,      clr: used > 0 ? '#ff4757' : '#4b5563' },
+                            { lbl: lang === 'fr' ? 'RESTANT' : 'REMAINING',              val: `$${animRemaining.toFixed(0)}`, clr: remaining === 0 ? '#ff4757' : '#FDC800' },
+                            { lbl: lang === 'fr' ? 'RISQUE MAX' : 'SAFE NEXT',           val: `$${animSafeNext.toFixed(0)}`,  clr: '#FDC800' },
                         ].map((s, i) => (
-                            <motion.div
-                                key={i}
+                            <motion.div key={i}
                                 initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }}
                                 transition={{ ease: [0.16, 1, 0.3, 1], duration: 0.4, delay: 0.12 + i * 0.07 }}
-                                style={{ borderRight: i < 2 ? divider : 'none', paddingRight: i < 2 ? 14 : 0, paddingLeft: i > 0 ? 14 : 0 }}
+                                style={{ borderRight: i < 2 ? divider : 'none', paddingRight: i < 2 ? 12 : 0, paddingLeft: i > 0 ? 12 : 0 }}
                             >
                                 <span style={lbl}>{s.lbl}</span>
-                                <span style={{ ...mono, fontSize: 22, fontWeight: 800, color: s.clr, lineHeight: 1, letterSpacing: '-0.02em', display: 'block', marginTop: 4 }}>{s.val}</span>
+                                <span style={{ ...mono, fontSize: 20, fontWeight: 800, color: s.clr, lineHeight: 1, letterSpacing: '-0.02em', display: 'block', marginTop: 4 }}>{s.val}</span>
                             </motion.div>
                         ))}
                     </div>
-                    {/* Explain what the floor means */}
-                    <div style={{ padding: '10px 16px', borderTop: divider, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <span style={{ ...mono, fontSize: 10, color: '#4b5563' }}>
-                            {account.drawdownType === 'Static'
-                                ? `Fixed floor: $${account.startingBalance.toLocaleString()} − ${account.maxDrawdownLimit ? `$${account.maxDrawdownLimit.toLocaleString()}` : '6%'}`
-                                : account.drawdownType === 'EOD'
-                                    ? (lang === 'fr' ? 'Remonte à 17h00 EST · se bloque au solde initial' : 'Trails up at 17:00 EST · locks at starting balance')
-                                    : (lang === 'fr' ? 'Remonte après chaque trade fermé · se bloque au solde initial' : 'Trails up after each closed trade · locks at starting balance')}
-                        </span>
-                        {account.payoutLockActive && (
-                            <span style={{ ...mono, fontSize: 9, fontWeight: 800, color: '#EAB308', padding: '2px 8px', border: '1px solid rgba(234,179,8,0.3)', borderRadius: 3, textTransform: 'uppercase' }}>
-                                {lang === 'fr' ? 'Paiement verrouillé' : 'Payout Locked'}
-                            </span>
-                        )}
-                    </div>
-                    {floorDanger && (
-                        <motion.div
-                            initial={{ opacity: 0 }} animate={{ opacity: 1 }}
+                    {isDanger && (
+                        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}
                             style={{ padding: '10px 16px', background: 'rgba(255,71,87,0.08)', borderTop: '1px solid rgba(255,71,87,0.2)', display: 'flex', alignItems: 'center', gap: 8 }}
                         >
                             <AlertTriangle size={12} color="#ff4757" />
-                            <span style={{ ...mono, fontSize: 11, color: '#ff4757', fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase' }}>{lang === 'fr' ? 'CRITIQUE — Plancher du compte dangereusement proche' : 'CRITICAL — Account floor dangerously close'}</span>
+                            <span style={{ ...mono, fontSize: 11, color: '#ff4757', fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase' }}>
+                                {lang === 'fr' ? 'STOP — Limite journalière presque atteinte' : 'STOP — Daily limit almost reached'}
+                            </span>
                         </motion.div>
                     )}
+                </div>
+
+                {/* Card B: Drawdown Floor */}
+                {account.startingBalance > 0 && (
+                    <div style={{
+                        ...card,
+                        margin: isMobile ? '8px 12px 12px' : '12px 12px 12px 8px',
+                    }}>
+                        <div style={{ padding: '14px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: divider }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                <Shield size={12} color="#4b5563" />
+                                <span style={lbl}>{lang === 'fr' ? 'Plancher drawdown max' : 'Max Drawdown Floor'}</span>
+                                <span style={{ ...mono, fontSize: 10, color: '#4b5563' }}>
+                                    / {account.drawdownType === 'Static' ? 'Static' : account.drawdownType === 'EOD' ? 'EOD' : 'EOT'}
+                                    {drawdownInfo.isLocked ? ' · LOCKED' : ''}
+                                </span>
+                            </div>
+                            <StatusBadge
+                                danger={floorDanger} warning={floorWarning} pulse
+                                dangerLabel={lang === 'fr' ? 'DANGER' : 'DANGER'}
+                                warningLabel={lang === 'fr' ? 'ALERTE' : 'WARNING'}
+                                safeLabel={lang === 'fr' ? 'SÉCURISÉ' : 'SAFE'}
+                            />
+                        </div>
+                        {/* Progress bar */}
+                        <div style={{ height: 4, background: '#0b0e14', position: 'relative' }}>
+                            <motion.div
+                                animate={{ width: `${Math.min(100, drawdownInfo.usedPct)}%` }}
+                                transition={{ duration: 0.8, ease: [0.16, 1, 0.3, 1] as const }}
+                                style={{ height: '100%', background: floorDanger ? '#ff4757' : floorWarning ? '#EAB308' : '#FDC800', position: 'absolute', left: 0, top: 0 }}
+                            />
+                        </div>
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', padding: '14px 16px' }}>
+                            {[
+                                { lbl: lang === 'fr' ? 'PLANCHER' : 'FLOOR',  val: `$${animFloor.toLocaleString('en-US', { maximumFractionDigits: 0 })}`,  clr: '#e2e8f0' },
+                                { lbl: lang === 'fr' ? 'MARGE' : 'BUFFER',    val: `$${animBuffer.toLocaleString('en-US', { maximumFractionDigits: 0 })}`, clr: floorDanger ? '#ff4757' : floorWarning ? '#EAB308' : '#FDC800' },
+                                { lbl: lang === 'fr' ? 'UTILISÉ' : 'USED',    val: `${drawdownInfo.usedPct.toFixed(1)}%`,                                   clr: floorDanger ? '#ff4757' : floorWarning ? '#EAB308' : '#FDC800' },
+                            ].map((s, i) => (
+                                <motion.div key={i}
+                                    initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }}
+                                    transition={{ ease: [0.16, 1, 0.3, 1], duration: 0.4, delay: 0.12 + i * 0.07 }}
+                                    style={{ borderRight: i < 2 ? divider : 'none', paddingRight: i < 2 ? 12 : 0, paddingLeft: i > 0 ? 12 : 0 }}
+                                >
+                                    <span style={lbl}>{s.lbl}</span>
+                                    <span style={{ ...mono, fontSize: 20, fontWeight: 800, color: s.clr, lineHeight: 1, letterSpacing: '-0.02em', display: 'block', marginTop: 4 }}>{s.val}</span>
+                                </motion.div>
+                            ))}
+                        </div>
+                        <div style={{ padding: '10px 16px', borderTop: divider, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <span style={{ ...mono, fontSize: 10, color: '#4b5563' }}>
+                                {account.drawdownType === 'Static'
+                                    ? `Fixed floor: $${account.startingBalance.toLocaleString()} − ${account.maxDrawdownLimit ? `$${account.maxDrawdownLimit.toLocaleString()}` : '6%'}`
+                                    : account.drawdownType === 'EOD'
+                                        ? (lang === 'fr' ? 'Remonte à 17h00 EST · se bloque au solde initial' : 'Trails up at 17:00 EST · locks at starting balance')
+                                        : (lang === 'fr' ? 'Remonte après chaque trade · se bloque au solde initial' : 'Trails up after each closed trade · locks at starting balance')}
+                            </span>
+                            {account.payoutLockActive && (
+                                <span style={{ ...mono, fontSize: 9, fontWeight: 800, color: '#EAB308', padding: '2px 8px', border: '1px solid rgba(234,179,8,0.3)', textTransform: 'uppercase' }}>
+                                    {lang === 'fr' ? 'Paiement verrouillé' : 'Payout Locked'}
+                                </span>
+                            )}
+                        </div>
+                        {floorDanger && (
+                            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}
+                                style={{ padding: '10px 16px', background: 'rgba(255,71,87,0.08)', borderTop: '1px solid rgba(255,71,87,0.2)', display: 'flex', alignItems: 'center', gap: 8 }}
+                            >
+                                <AlertTriangle size={12} color="#ff4757" />
+                                <span style={{ ...mono, fontSize: 11, color: '#ff4757', fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase' }}>
+                                    {lang === 'fr' ? 'CRITIQUE — Plancher du compte dangereusement proche' : 'CRITICAL — Account floor dangerously close'}
+                                </span>
+                            </motion.div>
+                        )}
+                    </div>
+                )}
+            </motion.div>
+
+            {/* ── SECTION 6 — STREAK BEADS ─────────────────────── */}
+            {trades.length > 0 && (
+                <motion.div variants={fadeUp} style={{ padding: '16px 20px', borderTop: divider }}>
+                    <span style={{ ...lbl, marginBottom: 10, display: 'block' }}>
+                        {lang === 'fr' ? 'SÉRIE DE TRADES' : 'TRADE STREAK'}
+                    </span>
+                    <StreakBeads data={streakBeadData} height={44} maxBeads={40} />
                 </motion.div>
             )}
 
-            {/* ── 7. TRADEIFY CONSISTENCY — INSTANT FUNDING ONLY ─── */}
+            {/* ── SECTION 7 — DRAWDOWN CURVE ───────────────────── */}
+            {drawdownCurveData.length > 2 && (
+                <motion.div variants={fadeUp} style={{ background: '#0d1117', borderTop: divider }}>
+                    <ChartCard
+                        title={lang === 'fr' ? 'COURBE DE DRAWDOWN' : 'DRAWDOWN CURVE'}
+                        subtitle={lang === 'fr' ? 'Profondeur de drawdown depuis le pic' : 'Depth from peak equity'}
+                    >
+                        <DrawdownCurve
+                            data={drawdownCurveData}
+                            limitLine={account.dailyLossLimit > 0 ? -account.dailyLossLimit : undefined}
+                            height={160}
+                        />
+                    </ChartCard>
+                </motion.div>
+            )}
+
+            {/* ── SECTION 8 — CONSISTENCY CARD ─────────────────── */}
             {isInstantFunded && totalPnl > 0 && (
-                <motion.div variants={fadeUp} style={card}>
+                <motion.div variants={fadeUp} style={{ ...card, margin: '0 12px 0' }}>
                     <div style={{ padding: '14px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: divider }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                             <Activity size={12} color="#4b5563" />
-                            <span style={lbl}>Consistency Rule</span>
+                            <span style={lbl}>{lang === 'fr' ? 'Règle de cohérence' : 'Consistency Rule'}</span>
                             <span style={{ ...mono, fontSize: 10, color: '#4b5563' }}>/ best day ≤ 20%</span>
                         </div>
                         <motion.span
                             animate={!consistencyPassing ? { opacity: [1, 0.5, 1] } : {}}
                             transition={{ duration: 1.1, repeat: Infinity }}
                             style={{
-                                ...mono, fontSize: 9, fontWeight: 800, letterSpacing: '0.08em', padding: '3px 8px', textTransform: 'uppercase', borderRadius: 3,
+                                ...mono, fontSize: 9, fontWeight: 800, letterSpacing: '0.08em', padding: '3px 8px', textTransform: 'uppercase',
                                 color: consistencyPassing ? '#FDC800' : '#ff4757',
                                 border: `1px solid ${consistencyPassing ? 'rgba(253,200,0,0.5)' : 'rgba(255,71,87,0.5)'}`,
                                 background: consistencyPassing ? 'rgba(253,200,0,0.06)' : 'rgba(255,71,87,0.1)',
@@ -664,28 +735,22 @@ export default function DashboardPage() {
                             {consistencyPassing ? (lang === 'fr' ? 'VALIDÉ' : 'PASSING') : (lang === 'fr' ? 'ÉCHOUÉ' : 'FAILING')}
                         </motion.span>
                     </div>
-
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', padding: '14px 16px' }}>
                         {[
-                            { lbl: lang === 'fr' ? 'Meilleur jour %' : 'Best Day %',   val: `${animBestDayPct.toFixed(1)}%`, clr: consistencyPassing ? '#FDC800' : '#ff4757' },
-                            { lbl: lang === 'fr' ? 'Meilleur jour $' : 'Best Day $',   val: `$${animBestDayAmt.toLocaleString('en-US', { maximumFractionDigits: 0 })}`, clr: '#e2e8f0' },
-                            { lbl: lang === 'fr' ? 'Profit total' : 'Total Profit', val: `$${animTotalProfit.toLocaleString('en-US', { maximumFractionDigits: 0 })}`, clr: '#FDC800' },
+                            { lbl: lang === 'fr' ? 'Meilleur jour %' : 'Best Day %',  val: `${animBestDayPct.toFixed(1)}%`, clr: consistencyPassing ? '#FDC800' : '#ff4757' },
+                            { lbl: lang === 'fr' ? 'Meilleur jour $' : 'Best Day $',  val: `$${animBestDayAmt.toLocaleString('en-US', { maximumFractionDigits: 0 })}`, clr: '#e2e8f0' },
+                            { lbl: lang === 'fr' ? 'Profit total' : 'Total Profit',   val: `$${animTotalProfit.toLocaleString('en-US', { maximumFractionDigits: 0 })}`, clr: '#FDC800' },
                         ].map((s, i) => (
-                            <motion.div
-                                key={i}
+                            <motion.div key={i}
                                 initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }}
                                 transition={{ ease: [0.16, 1, 0.3, 1], duration: 0.4, delay: 0.1 + i * 0.07 }}
-                                style={{ borderRight: i < 2 ? divider : 'none', paddingRight: i < 2 ? 14 : 0, paddingLeft: i > 0 ? 14 : 0 }}
+                                style={{ borderRight: i < 2 ? divider : 'none', paddingRight: i < 2 ? 12 : 0, paddingLeft: i > 0 ? 12 : 0 }}
                             >
                                 <span style={lbl}>{s.lbl}</span>
-                                <span style={{ ...mono, fontSize: 20, fontWeight: 800, color: s.clr, lineHeight: 1.2, display: 'block', marginTop: 4, letterSpacing: '-0.02em' }}>
-                                    {s.val}
-                                </span>
+                                <span style={{ ...mono, fontSize: 20, fontWeight: 800, color: s.clr, lineHeight: 1.2, display: 'block', marginTop: 4, letterSpacing: '-0.02em' }}>{s.val}</span>
                             </motion.div>
                         ))}
                     </div>
-
-                    {/* Consistency target — no progress bar, clean numeric row */}
                     {(() => {
                         const target = bestDayPnl / 0.20;
                         const stillNeeded = Math.max(0, target - totalPnl);
@@ -723,29 +788,28 @@ export default function DashboardPage() {
                 </motion.div>
             )}
 
-            {/* ── 8. SESSION INTELLIGENCE ────────────────────────── */}
+            {/* ── SECTION 9 — SESSION INTELLIGENCE ────────────── */}
             {closedTrades.length >= 5 && (
-                <motion.div variants={fadeUp} style={card}>
+                <motion.div variants={fadeUp} style={{ ...card, margin: '12px 12px 0' }}>
                     <div style={{ padding: '12px 16px', display: 'flex', alignItems: 'center', gap: 8, borderBottom: divider }}>
                         <Zap size={11} color="#4b5563" />
-                        <span style={lbl}>Session Intelligence</span>
+                        <span style={lbl}>{lang === 'fr' ? 'Intelligence de session' : 'Session Intelligence'}</span>
                     </div>
                     <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr 1fr' : 'repeat(3,1fr)' }}>
                         {[
-                            { icon: <Clock size={14} color="#FDC800" />,          lbl: 'Peak Hour',     val: `${bestHour}:00`,              sub: 'highest P&L window' },
-                            { icon: <TrendingUp size={14} color={streakColor} />, lbl: 'Streak',        val: `${streakCount}${streakType}`,  sub: streakType === 'W' ? 'momentum' : 'reset now' },
-                            { icon: <Shield size={14} color="#FDC800" />,         lbl: 'Max Next Risk', val: `$${safeNextRisk.toFixed(0)}`,  sub: `${account.maxRiskPercent}% of bal` },
+                            { icon: <Clock size={14} color="#FDC800" />,          lbl: lang === 'fr' ? 'Meilleure heure' : 'Peak Hour',   val: `${bestHour}:00`,             sub: lang === 'fr' ? 'meilleure fenêtre P&L' : 'highest P&L window' },
+                            { icon: <TrendingUp size={14} color={streakColor} />, lbl: lang === 'fr' ? 'Série' : 'Streak',                val: closedTrades.length > 0 ? `${streakCount}${streakType}` : '—', sub: streakType === 'W' ? 'momentum' : (lang === 'fr' ? 'réinitialiser' : 'reset now') },
+                            { icon: <Shield size={14} color="#FDC800" />,         lbl: lang === 'fr' ? 'Risque max suivant' : 'Max Next Risk', val: `$${safeNextRisk.toFixed(0)}`, sub: `${account.maxRiskPercent}% of bal` },
                         ].map((item, i) => (
-                            <motion.div
-                                key={i}
+                            <motion.div key={i}
                                 initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
                                 transition={{ ease: [0.16, 1, 0.3, 1], duration: 0.4, delay: 0.1 + i * 0.08 }}
                                 style={{
-                                padding: '14px',
-                                borderRight: isMobile ? (i % 2 === 0 ? divider : 'none') : (i < 2 ? divider : 'none'),
-                                borderBottom: isMobile && i < 2 ? divider : 'none',
-                                display: 'flex', flexDirection: 'column', gap: 5,
-                            }}
+                                    padding: '14px',
+                                    borderRight: isMobile ? (i % 2 === 0 ? divider : 'none') : (i < 2 ? divider : 'none'),
+                                    borderBottom: isMobile && i < 2 ? divider : 'none',
+                                    display: 'flex', flexDirection: 'column', gap: 5,
+                                }}
                             >
                                 {item.icon}
                                 <span style={lbl}>{item.lbl}</span>
@@ -757,15 +821,15 @@ export default function DashboardPage() {
                 </motion.div>
             )}
 
-            {/* ── 8. PROP RULES ──────────────────────────────────── */}
+            {/* ── SECTION 10 — RULE COMPLIANCE ─────────────────── */}
             {account.propFirm && (
-                <motion.div variants={fadeUp} style={card}>
+                <motion.div variants={fadeUp} style={{ ...card, margin: '12px 12px 0' }}>
                     <div style={{ padding: '12px 16px', display: 'flex', alignItems: 'center', gap: 8, borderBottom: divider }}>
                         <Shield size={11} color="#4b5563" />
                         <span style={lbl}>{lang === 'fr' ? 'Conformité règles' : 'Rule Compliance'}</span>
                         <span style={{
                             marginLeft: 'auto', ...mono, fontSize: 9, fontWeight: 800, letterSpacing: '0.08em',
-                            padding: '2px 8px', textTransform: 'uppercase', borderRadius: 3,
+                            padding: '2px 8px', textTransform: 'uppercase',
                             color: (isDanger || floorDanger) ? '#ff4757' : '#FDC800',
                             border: `1px solid ${(isDanger || floorDanger) ? 'rgba(255,71,87,0.3)' : 'rgba(253,200,0,0.3)'}`,
                             background: (isDanger || floorDanger) ? 'rgba(255,71,87,0.06)' : 'rgba(253,200,0,0.04)',
@@ -775,11 +839,8 @@ export default function DashboardPage() {
                     </div>
                     <div style={{ padding: '12px 16px', display: 'flex', flexDirection: 'column', gap: 8 }}>
                         {([
-                            // ── Daily Loss Limit (all accounts) ─────────────────
                             { dot: isDanger ? 'red' : isWarning ? 'yellow' : 'green',
                               text: lang === 'fr' ? `Limite journalière : $${account.dailyLossLimit.toLocaleString()} (3% du compte) — ${usedPct.toFixed(1)}% utilisé aujourd'hui` : `Daily loss limit: $${account.dailyLossLimit.toLocaleString()} (3% of account) — ${usedPct.toFixed(1)}% used today` },
-
-                            // ── Max Drawdown ─────────────────────────────────────
                             account.startingBalance > 0 ? {
                               dot: floorDanger ? 'red' : floorWarning ? 'yellow' : 'green',
                               text: isTradeify
@@ -790,43 +851,28 @@ export default function DashboardPage() {
                                         : (lang === 'fr' ? `Drawdown max : 6% EOT trailing — suit chaque trade fermé · plancher $${drawdownInfo.floor.toLocaleString()}` : `Max drawdown: 6% EOT trailing — trails after each closed trade · floor $${drawdownInfo.floor.toLocaleString()}`)
                                 : `Max drawdown: $${(account.maxDrawdownLimit ?? 0).toLocaleString()}`,
                             } : null,
-
-                            // ── Leverage (Tradeify) ──────────────────────────────
                             isTradeify ? {
                               dot: 'green',
                               text: isInstantFunded
                                 ? (lang === 'fr' ? 'Levier : 2:1 sur toutes les paires (BTC & ETH inclus)' : 'Leverage: 2:1 on all pairs (including BTC & ETH)')
                                 : (lang === 'fr' ? 'Levier : 5:1 BTC/ETH · 2:1 toutes autres paires crypto' : 'Leverage: 5:1 BTC/ETH · 2:1 all other crypto pairs'),
                             } : { dot: 'green', text: lang === 'fr' ? `Levier : ${account.leverage || 2}:1` : `Leverage: ${account.leverage || 2}:1` },
-
-                            // ── Microscalping (Tradeify only) ────────────────────
                             isTradeify ? { icon: 'clock', text: lang === 'fr' ? 'Durée min : 20 secondes par trade (règle anti-microscalping)' : 'Min hold time: 20 seconds per trade (microscalping rule)' } : null,
-
-                            // ── Consistency (Instant Funding only) ──────────────
                             isInstantFunded ? {
                               dot: consistencyPassing ? 'green' : 'yellow',
                               text: lang === 'fr' ? `Score cohérence : ${consistencyScore.toFixed(1)}% — doit être ≤ 20% pour demander un paiement` : `Consistency score: ${consistencyScore.toFixed(1)}% — must be ≤ 20% to request payout`,
                             } : null,
-
-                            // ── Payout Lock (Instant Funding only) ──────────────
                             isInstantFunded ? {
                               dot: account.payoutLockActive ? 'yellow' : 'green',
                               text: account.payoutLockActive
                                 ? (lang === 'fr' ? 'Verrou paiement : ACTIF — plancher définitivement verrouillé au solde initial' : 'Payout lock: ACTIVE — floor permanently locked at starting balance')
                                 : (lang === 'fr' ? "Verrou paiement : non déclenché — s'active à la première demande" : 'Payout lock: not triggered — activate on first payout request'),
                             } : null,
-
-                            // ── Anti-hedging ─────────────────────────────────────
                             isTradeify ? { icon: 'ban', text: lang === 'fr' ? 'Pas de hedging — positions compensatoires interdites (détection auto)' : 'No hedging — offsetting positions not allowed (auto-detected)' } : null,
-
-                            // ── Inactivity ────────────────────────────────────────
                             isTradeify ? { icon: 'cal', text: lang === 'fr' ? 'Inactivité : trader au moins une fois tous les 30 jours' : 'Inactivity: must trade at least once every 30 days' } : null,
-
-                            // ── Non-Tradeify fallback ────────────────────────────
                             !isTradeify ? { dot: 'green', text: `Max trade risk: $${maxPerTrade.toFixed(0)} (${account.maxRiskPercent}%)` } : null,
                         ] as any[]).filter(Boolean).map((rule: any, i: number) => (
-                            <motion.div
-                                key={i}
+                            <motion.div key={i}
                                 initial={{ opacity: 0, x: -6 }} animate={{ opacity: 1, x: 0 }}
                                 transition={{ ease: [0.16, 1, 0.3, 1], duration: 0.35, delay: 0.04 + i * 0.05 }}
                                 style={{ display: 'flex', alignItems: 'center', gap: 8 }}
@@ -846,108 +892,92 @@ export default function DashboardPage() {
                 </motion.div>
             )}
 
-            {/* ── 9. RECENT TRADES ───────────────────────────────── */}
-            {recentTrades.length > 0 ? (
-                <motion.div variants={fadeUp} style={card}>
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', borderBottom: divider }}>
+            {/* ── SECTION 11 — RECENT TRADES ───────────────────── */}
+            <motion.div variants={fadeUp} style={{ ...card, margin: '12px 12px 0' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', borderBottom: divider }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        {totalPnl >= 0 ? <TrendingUp size={11} color="#FDC800" /> : <TrendingDown size={11} color="#ff4757" />}
                         <span style={lbl}>{lang === 'fr' ? 'TRADES RÉCENTS' : 'RECENT TRADES'}</span>
-                        <button onClick={() => setActiveTab('journal')}
-                            style={{ background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4, ...mono, fontSize: 10, color: '#FDC800', letterSpacing: '0.06em', textTransform: 'uppercase', padding: 0 }}>
-                            {lang === 'fr' ? 'VOIR TOUT' : 'VIEW ALL'} <ChevronRight size={11} />
-                        </button>
                     </div>
-                    <motion.div variants={tradeListStagger} initial="hidden" animate="show">
-                        {recentTrades.map((trade) => (
-                            <motion.div
-                                key={trade.id}
-                                variants={tradeRowVariant}
-                                onHoverStart={() => setHoveredTrade(trade.id)}
-                                onHoverEnd={() => setHoveredTrade(null)}
-                                style={{
-                                    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                                    padding: '11px 16px', borderBottom: divider,
-                                    background: hoveredTrade === trade.id ? 'rgba(255,255,255,0.025)' : 'transparent',
-                                    transition: 'background 0.15s ease',
-                                    cursor: 'default',
-                                }}
-                            >
-                                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                                    <div style={{
-                                        width: 32, height: 32, borderRadius: 6, flexShrink: 0,
-                                        display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                        background: trade.outcome === 'win' ? 'rgba(253,200,0,0.1)' : trade.outcome === 'loss' ? 'rgba(255,71,87,0.1)' : 'rgba(255,255,255,0.04)',
-                                        border: `1px solid ${trade.outcome === 'win' ? 'rgba(253,200,0,0.2)' : trade.outcome === 'loss' ? 'rgba(255,71,87,0.2)' : 'rgba(255,255,255,0.06)'}`,
-                                    }}>
-                                        {trade.outcome === 'win' ? <TrendingUp size={14} color="#FDC800" />
-                                            : trade.outcome === 'loss' ? <TrendingDown size={14} color="#ff4757" />
-                                                : <Activity size={14} color="#6b7280" />}
-                                    </div>
-                                    <div>
-                                        <span style={{ ...mono, fontSize: 13, fontWeight: 700, color: '#e2e8f0', display: 'block', letterSpacing: '0.02em' }}>{trade.asset}</span>
-                                        <span style={{ ...mono, fontSize: 10, color: '#4b5563', display: 'block', marginTop: 1 }}>
-                                            {new Date(trade.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-                                            {trade.isShort ? ' · SHORT' : ' · LONG'}
+                    <button onClick={() => setActiveTab('journal')}
+                        style={{ background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4, ...mono, fontSize: 10, color: '#FDC800', letterSpacing: '0.06em', textTransform: 'uppercase', padding: 0 }}>
+                        {lang === 'fr' ? 'VOIR TOUT' : 'VIEW ALL'} <ChevronRight size={11} />
+                    </button>
+                </div>
+
+                {trades.length === 0 ? (
+                    <div style={{ padding: '48px 20px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, textAlign: 'center' }}>
+                        <Shield size={32} style={{ color: '#4b5563', marginBottom: 4 }} />
+                        <span style={{ ...mono, fontSize: 15, fontWeight: 800, color: '#e2e8f0' }}>{lang === 'fr' ? 'Aucun trade pour l\'instant' : 'No trades yet'}</span>
+                        <span style={{ ...mono, fontSize: 12, color: '#6b7280', maxWidth: 260, lineHeight: 1.6 }}>
+                            {lang === 'fr' ? 'Ouvrez le Moteur de Risque, calculez votre taille et enregistrez votre premier trade.' : 'Open the Risk Engine, calculate your size, and log your first trade.'}
+                        </span>
+                        <div style={{ display: 'flex', gap: 10, marginTop: 16 }}>
+                            <button onClick={() => setActiveTab('terminal')}
+                                style={{ padding: '10px 20px', background: '#FDC800', color: '#000', border: 'none', cursor: 'pointer', ...mono, fontSize: 11, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.06em', display: 'flex', alignItems: 'center', gap: 6 }}>
+                                <Calculator size={12} /> {lang === 'fr' ? 'Calculer' : 'Calculate'}
+                            </button>
+                            <button onClick={() => setActiveTab('analytics')}
+                                style={{ padding: '10px 20px', background: 'transparent', color: '#FDC800', border: '1px solid rgba(253,200,0,0.3)', cursor: 'pointer', ...mono, fontSize: 11, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.06em', display: 'flex', alignItems: 'center', gap: 6 }}>
+                                {lang === 'fr' ? 'Analytiques' : 'Analytics'} <ArrowRight size={12} />
+                            </button>
+                        </div>
+                    </div>
+                ) : (
+                    <>
+                        <motion.div variants={tradeListStagger} initial="hidden" animate="show">
+                            {recentTrades.map((trade) => (
+                                <motion.div key={trade.id} variants={tradeRowVariant}
+                                    onHoverStart={() => setHoveredTrade(trade.id)}
+                                    onHoverEnd={() => setHoveredTrade(null)}
+                                    style={{
+                                        display: 'flex', alignItems: 'center', gap: 12,
+                                        padding: '10px 16px', borderBottom: divider,
+                                        background: hoveredTrade === trade.id ? 'rgba(255,255,255,0.025)' : 'transparent',
+                                        transition: 'background 0.15s ease', cursor: 'default',
+                                    }}
+                                >
+                                    {/* Asset + direction */}
+                                    <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 10 }}>
+                                        <span style={{ ...mono, fontSize: 12, fontWeight: 800, color: '#e2e8f0' }}>{trade.asset}</span>
+                                        <span style={{ ...mono, fontSize: 9, padding: '2px 6px', border: divider, color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                                            {trade.isShort ? (lang === 'fr' ? 'COURT' : 'SHORT') : 'LONG'}
+                                        </span>
+                                        {/* Outcome badge */}
+                                        <span style={{
+                                            ...mono, fontSize: 9, fontWeight: 800, padding: '2px 6px', textTransform: 'uppercase', letterSpacing: '0.04em',
+                                            color: trade.outcome === 'win' ? '#FDC800' : trade.outcome === 'loss' ? '#ff4757' : '#6b7280',
+                                            background: trade.outcome === 'win' ? 'rgba(253,200,0,0.1)' : trade.outcome === 'loss' ? 'rgba(255,71,87,0.1)' : 'transparent',
+                                            border: `1px solid ${trade.outcome === 'win' ? 'rgba(253,200,0,0.3)' : trade.outcome === 'loss' ? 'rgba(255,71,87,0.3)' : 'rgba(107,114,128,0.3)'}`,
+                                        }}>
+                                            {trade.outcome === 'win' ? 'WIN' : trade.outcome === 'loss' ? 'LOSS' : 'OPEN'}
                                         </span>
                                     </div>
-                                </div>
-                                <div style={{ textAlign: 'right' }}>
-                                    <span style={{ ...mono, fontSize: 14, fontWeight: 800, display: 'block', letterSpacing: '-0.01em', color: trade.outcome === 'win' ? '#FDC800' : trade.outcome === 'loss' ? '#ff4757' : '#6b7280' }}>
-                                        {trade.outcome === 'win' ? '+' : trade.outcome === 'loss' ? '-' : ''}
-                                        ${Math.abs(trade.pnl ?? 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                                    </span>
-                                    <span style={{ ...mono, fontSize: 9, color: '#4b5563', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
-                                        {trade.outcome === 'win' ? 'WIN' : trade.outcome === 'loss' ? 'LOSS' : 'OPEN'}
-                                    </span>
-                                </div>
-                            </motion.div>
-                        ))}
-                    </motion.div>
-                </motion.div>
-            ) : (
-                <motion.div variants={fadeUp} style={{ padding: '48px 20px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, textAlign: 'center' }}>
-                    <span style={{ fontSize: 32 }}>📊</span>
-                    <span style={{ fontSize: 15, fontWeight: 800, color: '#e2e8f0', marginTop: 8 }}>{lang === 'fr' ? 'Aucun trade pour l\'instant' : 'No trades yet'}</span>
-                    <span style={{ fontSize: 12, color: '#6b7280', maxWidth: 260, lineHeight: 1.6 }}>
-                        {lang === 'fr' ? 'Ouvrez le Moteur de Risque, calculez votre taille et enregistrez votre premier trade.' : 'Open the Risk Engine, calculate your size, and log your first trade.'}
-                    </span>
-                    <button onClick={() => setActiveTab('terminal')} className="btn btn--primary" style={{ marginTop: 16, display: 'inline-flex', alignItems: 'center', gap: 8 }}>
-                        <Calculator size={14} /> {lang === 'fr' ? 'Enregistrer un trade' : 'Log a Trade'}
-                    </button>
-                </motion.div>
-            )}
+                                    {/* P&L + date */}
+                                    <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                                        <span style={{ ...mono, fontSize: 14, fontWeight: 800, display: 'block', letterSpacing: '-0.01em', color: trade.outcome === 'win' ? '#FDC800' : trade.outcome === 'loss' ? '#ff4757' : '#6b7280' }}>
+                                            {trade.outcome === 'win' ? '+' : trade.outcome === 'loss' ? '-' : ''}
+                                            ${Math.abs(trade.pnl ?? 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                        </span>
+                                        <span style={{ ...mono, fontSize: 9, color: '#4b5563' }}>
+                                            {new Date(trade.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                                        </span>
+                                    </div>
+                                </motion.div>
+                            ))}
+                        </motion.div>
+                        {trades.length > 6 && (
+                            <button onClick={() => setActiveTab('journal')}
+                                style={{ width: '100%', padding: '12px 16px', background: 'none', border: 'none', borderTop: divider, cursor: 'pointer', ...mono, fontSize: 10, color: '#4b5563', textTransform: 'uppercase', letterSpacing: '0.08em', textAlign: 'center' }}>
+                                {lang === 'fr' ? `Voir les ${trades.length} trades →` : `View all ${trades.length} trades →`}
+                            </button>
+                        )}
+                    </>
+                )}
+            </motion.div>
 
-            {/* ── STREAK BEADS ───────────────────────────────────── */}
-            {trades.length > 0 && (
-                <motion.div variants={fadeUp} style={card}>
-                    <ChartCard
-                        title={lang === 'fr' ? 'SÉRIE DE TRADES' : 'TRADE STREAK'}
-                        subtitle={lang === 'fr' ? 'Derniers 40 trades — jaune = gain, rouge = perte' : 'Last 40 trades — yellow = win, red = loss'}
-                    >
-                        <StreakBeads data={streakBeadData} height={44} maxBeads={40} />
-                    </ChartCard>
-                </motion.div>
-            )}
-
-            {/* ── DRAWDOWN CURVE ──────────────────────────────────── */}
-            {drawdownCurveData.length > 1 && (
-                <motion.div variants={fadeUp} style={card}>
-                    <ChartCard
-                        title={lang === 'fr' ? 'COURBE DE DRAWDOWN' : 'DRAWDOWN'}
-                        subtitle={lang === 'fr' ? 'Creux depuis le pic d\'équité — ligne pointillée = limite journalière' : 'Trough from equity peak — dashed line = daily limit'}
-                    >
-                        <DrawdownCurve
-                            data={drawdownCurveData}
-                            limitLine={account.dailyLossLimit > 0 ? -account.dailyLossLimit : undefined}
-                            height={160}
-                        />
-                    </ChartCard>
-                </motion.div>
-            )}
-
-            <div style={{ height: 12 }} />
-
-            {/* ── 10. QUICK ACTIONS ──────────────────────────────── */}
-            <motion.div variants={fadeUp} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', borderTop: divider, marginTop: 'auto' }}>
+            {/* ── QUICK ACTIONS ─────────────────────────────────── */}
+            <motion.div variants={fadeUp} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', borderTop: divider, marginTop: 12 }}>
                 <motion.button
                     onClick={() => setActiveTab('terminal')}
                     whileTap={{ scale: 0.97 }}
@@ -963,6 +993,8 @@ export default function DashboardPage() {
                     {lang === 'fr' ? 'Analytiques' : 'Analytics'} <ArrowRight size={14} />
                 </motion.button>
             </motion.div>
+
+            <div style={{ height: 12 }} />
         </motion.div>
     );
 }
