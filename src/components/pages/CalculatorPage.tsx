@@ -131,10 +131,14 @@ export default function CalculatorPage() {
         // Guardian validation
         const blocks: string[] = [];
         if (rsk > remainingToday && remainingToday > 0) {
-            blocks.push(`Risk ($${rsk.toFixed(0)}) exceeds daily budget. $${remainingToday.toFixed(0)} remaining today.`);
+            blocks.push(lang === 'fr'
+                ? `Risque ($${rsk.toFixed(0)}) dépasse le budget journalier. $${remainingToday.toFixed(0)} restant aujourd'hui.`
+                : `Risk ($${rsk.toFixed(0)}) exceeds daily budget. $${remainingToday.toFixed(0)} remaining today.`);
         }
         if (rsk > maxTradeRisk && maxTradeRisk > 0) {
-            blocks.push(`Risk ($${rsk.toFixed(0)}) exceeds per-trade max ($${maxTradeRisk.toFixed(0)}).`);
+            blocks.push(lang === 'fr'
+                ? `Risque ($${rsk.toFixed(0)}) dépasse le max par trade ($${maxTradeRisk.toFixed(0)}).`
+                : `Risk ($${rsk.toFixed(0)}) exceeds per-trade max ($${maxTradeRisk.toFixed(0)}).`);
         }
         if (account.maxDrawdownLimit && account.maxDrawdownLimit > 0) {
             let floor = account.balance - account.maxDrawdownLimit;
@@ -146,12 +150,16 @@ export default function CalculatorPage() {
                 floor = (account.highestBalance || account.balance) - account.maxDrawdownLimit;
             }
             if ((account.balance - rsk) < floor) {
-                blocks.push(`Trade breaches ${account.drawdownType} drawdown floor ($${floor.toLocaleString()}).`);
+                blocks.push(lang === 'fr'
+                    ? `Trade dépasse le plancher drawdown ${account.drawdownType} ($${floor.toLocaleString()}).`
+                    : `Trade breaches ${account.drawdownType} drawdown floor ($${floor.toLocaleString()}).`);
             }
         }
         const maxLev = account.leverage || 2;
         if (atype === 'crypto' && pos.notional > account.startingBalance * maxLev) {
-            blocks.push(`Notional ($${pos.notional.toLocaleString(undefined, { maximumFractionDigits: 0 })}) exceeds ${maxLev}x leverage limit.`);
+            blocks.push(lang === 'fr'
+                ? `Notionnel ($${pos.notional.toLocaleString(undefined, { maximumFractionDigits: 0 })}) dépasse la limite de levier ${maxLev}x.`
+                : `Notional ($${pos.notional.toLocaleString(undefined, { maximumFractionDigits: 0 })}) exceeds ${maxLev}x leverage limit.`);
         }
 
         // Direction mismatch (stop on wrong side of entry)
@@ -177,7 +185,7 @@ export default function CalculatorPage() {
             directionMismatch,
             isCustomTarget, customProfit, tgtNum
         };
-    }, [asset, entry, stopLoss, riskAmount, sizeInput, targetInput, inputMode, isShort, account, remainingToday, maxTradeRisk, trades]);
+    }, [asset, entry, stopLoss, riskAmount, sizeInput, targetInput, inputMode, isShort, account, remainingToday, maxTradeRisk, trades, lang]);
 
     // ── Design tokens ─────────────────────────────────────────────
     const mono    = { fontFamily: 'var(--font-mono)' } as const;
@@ -187,7 +195,7 @@ export default function CalculatorPage() {
     // ── Guard state ───────────────────────────────────────────────
     const dailyLeftPct = account.dailyLossLimit > 0 ? remainingToday / account.dailyLossLimit : 1;
     const guardColor   = dailyLeftPct > 0.5 ? '#FDC800' : dailyLeftPct > 0.25 ? '#EAB308' : '#ff4757';
-    const guardLabel   = dailyLeftPct > 0.5 ? 'SAFE' : dailyLeftPct > 0.25 ? 'CAUTION' : 'DANGER';
+    const guardLabel   = dailyLeftPct > 0.5 ? (lang === 'fr' ? 'SÉCURISÉ' : 'SAFE') : dailyLeftPct > 0.25 ? (lang === 'fr' ? 'ATTENTION' : 'CAUTION') : 'DANGER';
 
     // ── Today's trades ────────────────────────────────────────────
     const todayStr    = getTradingDay(new Date().toISOString());
@@ -302,7 +310,7 @@ export default function CalculatorPage() {
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                     <span style={{ ...mono, fontSize: 10, color: '#4b5563' }}>
-                        {todayTrades.length} trade{todayTrades.length !== 1 ? 's' : ''} today
+                        {todayTrades.length} trade{todayTrades.length !== 1 ? 's' : ''} {lang === 'fr' ? "aujourd'hui" : 'today'}
                     </span>
                     <span style={{
                         ...mono, fontSize: 9, fontWeight: 800, letterSpacing: '0.08em',
@@ -318,11 +326,11 @@ export default function CalculatorPage() {
                     style={{ padding: '12px 20px', background: 'rgba(234,179,8,0.07)', borderBottom: '1px solid rgba(234,179,8,0.25)', display: 'flex', alignItems: 'center', gap: 10 }}>
                     <AlertTriangle size={14} color="#EAB308" style={{ flexShrink: 0 }} />
                     <span style={{ ...mono, fontSize: 11, color: '#EAB308', flex: 1 }}>
-                        Account not configured — balance is $0. The calculator cannot run without your account settings.
+                        {lang === 'fr' ? 'Compte non configuré — solde à $0. Le calculateur ne peut pas fonctionner sans vos paramètres de compte.' : 'Account not configured — balance is $0. The calculator cannot run without your account settings.'}
                     </span>
                     <button onClick={() => setActiveTab('settings')}
                         style={{ ...mono, fontSize: 10, fontWeight: 800, padding: '6px 12px', background: '#EAB308', color: '#000', border: 'none', cursor: 'pointer', letterSpacing: '0.06em', flexShrink: 0 }}>
-                        SET UP ACCOUNT →
+                        {lang === 'fr' ? 'CONFIGURER →' : 'SET UP ACCOUNT →'}
                     </button>
                 </motion.div>
             )}
@@ -407,7 +415,7 @@ export default function CalculatorPage() {
                     <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }}
                         style={{ overflow: 'hidden', borderBottom: divider, background: '#0a0a0a', padding: '14px 20px' }}>
                         <span style={{ ...mono, fontSize: 10, fontWeight: 800, color: '#FDC800', display: 'block', marginBottom: 10, letterSpacing: '0.06em' }}>
-                            QUICK COMMAND SYNTAX — asset entry stop [risk]
+                            {lang === 'fr' ? 'SYNTAXE COMMANDE — actif entrée stop [risque]' : 'QUICK COMMAND SYNTAX — asset entry stop [risk]'}
                         </span>
                         <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: '6px 24px' }}>
                             {[
@@ -501,7 +509,7 @@ export default function CalculatorPage() {
                                         );
                                     })}
                                     {assetSearch && TRADEIFY_ASSETS.filter(a => a.symbol.toLowerCase().includes(assetSearch.toLowerCase()) || a.name.toLowerCase().includes(assetSearch.toLowerCase())).length === 0 && (
-                                        <div style={{ ...mono, fontSize: 11, color: '#4b5563', padding: '20px', textAlign: 'center' }}>No matching instruments</div>
+                                        <div style={{ ...mono, fontSize: 11, color: '#4b5563', padding: '20px', textAlign: 'center' }}>{lang === 'fr' ? 'Aucun instrument trouvé' : 'No matching instruments'}</div>
                                     )}
                                 </div>
                             </motion.div>
@@ -521,7 +529,7 @@ export default function CalculatorPage() {
                         placeholder="0.00"
                     />
                     <span style={{ ...mono, fontSize: 9, color: '#4b5563', display: 'block', marginTop: 3 }}>
-                        {isShort ? 'sell / short entry' : 'buy / long entry'}
+                        {isShort ? (lang === 'fr' ? 'vente / entrée short' : 'sell / short entry') : (lang === 'fr' ? 'achat / entrée long' : 'buy / long entry')}
                     </span>
                 </div>
 
@@ -538,13 +546,13 @@ export default function CalculatorPage() {
                     <span style={{ ...mono, fontSize: 9, color: '#4b5563', display: 'block', marginTop: 3 }}>
                         {calc
                             ? `${calc.stopPct.toFixed(2)}% · ${calc.stopDist < 1 ? calc.stopDist.toFixed(5) : calc.stopDist.toFixed(2)} pts`
-                            : 'exit if wrong'}
+                            : (lang === 'fr' ? 'sortie si incorrect' : 'exit if wrong')}
                     </span>
                 </div>
 
                 {/* TARGET PRICE */}
                 <div style={{ padding: isMobile ? '12px 12px' : '14px 16px', borderRight: isMobile ? 'none' : divider, borderBottom: isMobile ? divider : 'none' }}>
-                    <span style={{ ...lbl, display: 'block', marginBottom: 4 }}>Target (Optional)</span>
+                    <span style={{ ...lbl, display: 'block', marginBottom: 4 }}>{lang === 'fr' ? 'Cible (Optionnel)' : 'Target (Optional)'}</span>
                     <input
                         type="number" inputMode="decimal" pattern="[0-9]*"
                         style={{ ...mono, width: '100%', background: 'transparent', border: 'none', outline: 'none', fontSize: isMobile ? 18 : 22, fontWeight: 900, color: '#FDC800', padding: 0 }}
@@ -553,7 +561,7 @@ export default function CalculatorPage() {
                         placeholder="Auto 2R"
                     />
                     <span style={{ ...mono, fontSize: 9, color: '#4b5563', display: 'block', marginTop: 3 }}>
-                        {calc?.isCustomTarget ? `Reward: $${calc.customProfit.toFixed(0)}` : 'leave empty for 2R'}
+                        {calc?.isCustomTarget ? `${lang === 'fr' ? 'Gain' : 'Reward'}: $${calc.customProfit.toFixed(0)}` : (lang === 'fr' ? 'laisser vide pour 2R' : 'leave empty for 2R')}
                     </span>
                 </div>
 
@@ -633,7 +641,9 @@ export default function CalculatorPage() {
                             <div style={{ padding: '8px 20px', background: 'rgba(234,179,8,0.05)', borderBottom: divider, borderLeft: '3px solid #EAB308', display: 'flex', alignItems: 'center', gap: 8 }}>
                                 <AlertTriangle size={12} color="#EAB308" />
                                 <span style={{ ...mono, fontSize: 10, color: '#EAB308' }}>
-                                    Stop is {isShort ? 'below' : 'above'} entry — verify {isShort ? 'SHORT' : 'LONG'} direction is correct
+                                    {lang === 'fr'
+                                        ? `Stop est ${isShort ? 'en dessous' : 'au dessus'} du prix d'entrée — vérifiez la direction ${isShort ? 'SHORT' : 'LONG'}`
+                                        : `Stop is ${isShort ? 'below' : 'above'} entry — verify ${isShort ? 'SHORT' : 'LONG'} direction is correct`}
                                 </span>
                             </div>
                         )}
@@ -675,12 +685,12 @@ export default function CalculatorPage() {
                                 )}
                             </div>
                             <div style={{ textAlign: 'right', flexShrink: 0 }}>
-                                <span style={{ ...lbl, display: 'block', marginBottom: 6 }}>{calc.isCustomTarget ? 'Custom Target' : 'Potential 2R'}</span>
+                                <span style={{ ...lbl, display: 'block', marginBottom: 6 }}>{calc.isCustomTarget ? (lang === 'fr' ? 'Cible personnalisée' : 'Custom Target') : (lang === 'fr' ? 'Potentiel 2R' : 'Potential 2R')}</span>
                                 <span style={{ ...mono, fontSize: isMobile ? 26 : 32, fontWeight: 900, color: '#FDC800', letterSpacing: '-0.03em' }}>
                                     +${calc.isCustomTarget ? calc.customProfit.toFixed(0) : calc.profit2R.toFixed(0)}
                                 </span>
                                 <span style={{ ...mono, fontSize: 9, color: '#4b5563', display: 'block', marginTop: 4 }}>
-                                    {inputMode === 'size' ? `TOTAL RISK: $${calc.rsk.toFixed(0)}` : `vs $${calc.rsk.toFixed(0)} risked`} · {calc.isCustomTarget ? `RR: ${(calc.customProfit / calc.rsk).toFixed(1)}:1` : `3R = $${calc.profit3R.toFixed(0)}`}
+                                    {inputMode === 'size' ? (lang === 'fr' ? `RISQUE TOTAL : $${calc.rsk.toFixed(0)}` : `TOTAL RISK: $${calc.rsk.toFixed(0)}`) : (lang === 'fr' ? `vs $${calc.rsk.toFixed(0)} risqué` : `vs $${calc.rsk.toFixed(0)} risked`)} · {calc.isCustomTarget ? `RR: ${(calc.customProfit / calc.rsk).toFixed(1)}:1` : `3R = $${calc.profit3R.toFixed(0)}`}
                                 </span>
                             </div>
                         </div>
@@ -703,9 +713,9 @@ export default function CalculatorPage() {
                         {/* Metadata 4-col */}
                         <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'repeat(2,1fr)' : 'repeat(4,1fr)', borderBottom: divider }}>
                             {[
-                                { k: t.calculator.riskReward,   v: '2.00R',   c: '#FDC800',  s: 'minimum standard' },
-                                { k: t.calculator.notional,    v: calc.notional >= 1000000 ? `$${(calc.notional/1000000).toFixed(2)}M` : calc.notional >= 1000 ? `$${(calc.notional/1000).toFixed(1)}K` : `$${calc.notional.toFixed(0)}`, c: '#e2e8f0', s: calc.atype === 'futures' ? 'contract notional' : 'position value' },
-                                { k: t.calculator.commission,  v: calc.comm > 0 ? `$${calc.comm.toFixed(2)}` : 'N/A', c: calc.comm > 0 ? '#EAB308' : '#4b5563', s: calc.atype === 'crypto' ? '0.04% Tradeify' : 'flat per contract' },
+                                { k: t.calculator.riskReward,   v: '2.00R',   c: '#FDC800',  s: lang === 'fr' ? 'standard minimum' : 'minimum standard' },
+                                { k: t.calculator.notional,    v: calc.notional >= 1000000 ? `$${(calc.notional/1000000).toFixed(2)}M` : calc.notional >= 1000 ? `$${(calc.notional/1000).toFixed(1)}K` : `$${calc.notional.toFixed(0)}`, c: '#e2e8f0', s: calc.atype === 'futures' ? (lang === 'fr' ? 'notionnel contrat' : 'contract notional') : (lang === 'fr' ? 'valeur position' : 'position value') },
+                                { k: t.calculator.commission,  v: calc.comm > 0 ? `$${calc.comm.toFixed(2)}` : 'N/A', c: calc.comm > 0 ? '#EAB308' : '#4b5563', s: calc.atype === 'crypto' ? '0.04% Tradeify' : (lang === 'fr' ? 'fixe par contrat' : 'flat per contract') },
                                 { k: `${t.calculator.riskAmount.replace(' ($)', '')} / Unit`, v: calc.riskPerUnit < 0.01 ? `$${calc.riskPerUnit.toFixed(4)}` : `$${calc.riskPerUnit.toFixed(2)}`, c: '#e2e8f0', s: `per ${calc.unit.replace(/s$/, '')}` },
                             ].map((s, i) => (
                                 <div key={i} style={{
@@ -732,7 +742,7 @@ export default function CalculatorPage() {
                                 : <AlertTriangle size={20} color="#ff4757" style={{ flexShrink: 0, marginTop: 1 }} />}
                             <div style={{ flex: 1 }}>
                                 <span style={{ ...mono, fontSize: 12, fontWeight: 900, letterSpacing: '0.08em', display: 'block', color: calc.approved ? '#FDC800' : '#ff4757' }}>
-                                    {calc.approved ? 'RISK RULES: PASS' : 'TRADE REJECTED'}
+                                    {calc.approved ? (lang === 'fr' ? 'RÈGLES RISQUE : OK' : 'RISK RULES: PASS') : (lang === 'fr' ? 'TRADE REJETÉ' : 'TRADE REJECTED')}
                                 </span>
                                 <span style={{ ...mono, fontSize: 11, color: '#8b949e', display: 'block', marginTop: 3, lineHeight: 1.65 }}>
                                     {calc.approved
@@ -742,7 +752,7 @@ export default function CalculatorPage() {
                                 </span>
                                 {calc.approved && calc.comm > 0 && (
                                     <span style={{ ...mono, fontSize: 10, color: '#EAB308', display: 'block', marginTop: 5 }}>
-                                        Tradeify fee: ${calc.comm.toFixed(2)} — actual risk = $${(calc.rsk + calc.comm).toFixed(2)}
+                                        {lang === 'fr' ? `Frais Tradeify : $${calc.comm.toFixed(2)} — risque réel = $${(calc.rsk + calc.comm).toFixed(2)}` : `Tradeify fee: $${calc.comm.toFixed(2)} — actual risk = $${(calc.rsk + calc.comm).toFixed(2)}`}
                                     </span>
                                 )}
                             </div>
@@ -786,7 +796,7 @@ export default function CalculatorPage() {
                             <div style={{ padding: isMobile ? '12px 14px' : '14px 20px', borderBottom: divider }}>
                                 <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 8 }}>
                                     <Target size={12} color="#8b949e" />
-                                    <span style={lbl}>TP Probability Tiers — based on your win rate</span>
+                                    <span style={lbl}>{lang === 'fr' ? 'Niveaux TP — basés sur votre taux de réussite' : 'TP Probability Tiers — based on your win rate'}</span>
                                 </div>
                                 <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
                                     {tpTiers.tiers.slice(0, 5).map((t, i) => (
@@ -830,7 +840,7 @@ export default function CalculatorPage() {
                                     ? <><ShieldCheck size={15} color="#fff" /> {t.calculator.tradeLogged}</>
                                     : calc.approved
                                         ? <><ShieldCheck size={15} /> {t.calculator.journalIt}</>
-                                        : <><AlertTriangle size={15} /> Fix Errors to Log</>
+                                        : <><AlertTriangle size={15} /> {lang === 'fr' ? 'Corriger les erreurs' : 'Fix Errors to Log'}</>
                                 }
                             </button>
                         </div>
@@ -844,17 +854,20 @@ export default function CalculatorPage() {
                     <div style={{ width: 46, height: 46, border: divider, display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 4 }}>
                         <Target size={20} color="#1f2937" />
                     </div>
-                    <span style={{ ...mono, fontSize: 14, fontWeight: 800, color: '#e2e8f0' }}>Position Sizer Ready</span>
+                    <span style={{ ...mono, fontSize: 14, fontWeight: 800, color: '#e2e8f0' }}>{lang === 'fr' ? 'Calculateur prêt' : 'Position Sizer Ready'}</span>
                     <span style={{ ...mono, fontSize: 11, color: '#4b5563', lineHeight: 1.9, maxWidth: 320 }}>
-                        Enter your entry price + stop loss price to instantly calculate
-                        your exact position size, R:R levels, and risk metrics.
+                        {lang === 'fr' ? 'Entrez votre prix d\'entrée + stop loss pour calculer instantanément votre taille de position, niveaux R:R et métriques de risque.' : 'Enter your entry price + stop loss price to instantly calculate your exact position size, R:R levels, and risk metrics.'}
                     </span>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 4, marginTop: 8, padding: '12px 20px', border: divider, background: '#0a0a0a', textAlign: 'left' }}>
-                        {[
+                        {(lang === 'fr' ? [
+                            `Commande rapide : nq 21450 21400 500`,
+                            `Remplit tous les champs instantanément — appuyez ↵`,
+                            `Tapez "help" pour la syntaxe complète`,
+                        ] : [
                             `Quick command: nq 21450 21400 500`,
                             `Fills all fields instantly — press ↵`,
                             `Type "help" for full syntax`,
-                        ].map((t, i) => (
+                        ]).map((t, i) => (
                             <div key={i} style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
                                 <span style={{ ...mono, fontSize: 10, color: i === 0 ? '#FDC800' : '#4b5563' }}>
                                     {i === 0 ? '⚡' : '·'}

@@ -138,7 +138,8 @@ export function analyzeRiskGuardian(
     account: AccountSettings,
     todayUsed: number,
     proposedRisk?: number,
-    openTrades?: import('@/store/appStore').TradeSession[]
+    openTrades?: import('@/store/appStore').TradeSession[],
+    lang: 'en' | 'fr' = 'en'
 ): RiskGuardianResult {
     const remainingDaily = Math.max(0, account.dailyLossLimit - todayUsed);
     const maxPerTrade = (account.balance * account.maxRiskPercent) / 100;
@@ -212,13 +213,21 @@ export function analyzeRiskGuardian(
     // Smart recommendation
     let recommendation = '';
     if (survivalStatus === 'critical') {
-        recommendation = 'STOP TRADING. You are within critical distance of your drawdown limits. Protect the account.';
+        recommendation = lang === 'fr'
+            ? 'ARRÊTEZ DE TRADER. Vous êtes à distance critique de vos limites de drawdown. Protégez le compte.'
+            : 'STOP TRADING. You are within critical distance of your drawdown limits. Protect the account.';
     } else if (survivalStatus === 'danger') {
-        recommendation = `Reduce position size by 50%. Max ${maxTradesLeft} more trades today. Prioritize A+ setups only.`;
+        recommendation = lang === 'fr'
+            ? `Réduisez la taille de position de 50%. Max ${maxTradesLeft} trades supplémentaires aujourd'hui. Priorité aux setups A+ uniquement.`
+            : `Reduce position size by 50%. Max ${maxTradesLeft} more trades today. Prioritize A+ setups only.`;
     } else if (survivalStatus === 'caution') {
-        recommendation = `Proceed with caution. Recommended size: $${safeRisk.toFixed(0)} per trade. ${maxTradesLeft} trades remaining.`;
+        recommendation = lang === 'fr'
+            ? `Procédez avec prudence. Taille recommandée : $${safeRisk.toFixed(0)} par trade. ${maxTradesLeft} trades restants.`
+            : `Proceed with caution. Recommended size: $${safeRisk.toFixed(0)} per trade. ${maxTradesLeft} trades remaining.`;
     } else {
-        recommendation = `You are within safe parameters. Recommended risk: $${safeRisk.toFixed(0)} per trade.`;
+        recommendation = lang === 'fr'
+            ? `Sûr de trader. $${safeRisk.toFixed(0)} de risque recommandé par trade.`
+            : `You are within safe parameters. Recommended risk: $${safeRisk.toFixed(0)} per trade.`;
     }
 
     // Trade-specific warning
@@ -226,11 +235,17 @@ export function analyzeRiskGuardian(
     if (proposedRisk !== undefined && proposedRisk > 0) {
         const afterTrade = remainingDaily - proposedRisk;
         if (proposedRisk > remainingDaily) {
-            tradeWarning = `This trade ($${proposedRisk.toFixed(0)}) EXCEEDS your daily limit. Reduce to $${remainingDaily.toFixed(0)} max.`;
+            tradeWarning = lang === 'fr'
+                ? `Ce trade ($${proposedRisk.toFixed(0)}) DÉPASSE votre limite journalière. Réduisez à $${remainingDaily.toFixed(0)} max.`
+                : `This trade ($${proposedRisk.toFixed(0)}) EXCEEDS your daily limit. Reduce to $${remainingDaily.toFixed(0)} max.`;
         } else if (afterTrade < safeRisk) {
-            tradeWarning = `After this trade, only $${afterTrade.toFixed(0)} remains — less than one safe trade. Recommended: $${Math.min(proposedRisk, safeRisk).toFixed(0)}.`;
+            tradeWarning = lang === 'fr'
+                ? `Après ce trade, il ne reste que $${afterTrade.toFixed(0)} — moins d'un trade sûr. Recommandé : $${Math.min(proposedRisk, safeRisk).toFixed(0)}.`
+                : `After this trade, only $${afterTrade.toFixed(0)} remains — less than one safe trade. Recommended: $${Math.min(proposedRisk, safeRisk).toFixed(0)}.`;
         } else if (proposedRisk > maxPerTrade) {
-            tradeWarning = `$${proposedRisk.toFixed(0)} exceeds your per-trade risk max ($${maxPerTrade.toFixed(0)}). Recommended: $${safeRisk.toFixed(0)}.`;
+            tradeWarning = lang === 'fr'
+                ? `$${proposedRisk.toFixed(0)} dépasse votre max de risque par trade ($${maxPerTrade.toFixed(0)}). Recommandé : $${safeRisk.toFixed(0)}.`
+                : `$${proposedRisk.toFixed(0)} exceeds your per-trade risk max ($${maxPerTrade.toFixed(0)}). Recommended: $${safeRisk.toFixed(0)}.`;
         }
     }
 
@@ -431,7 +446,7 @@ export function analyzeConsistency(trades: TradeSession[]): ConsistencyAnalysis 
 // Feature #4 — Behavioral Trading AI
 // ─────────────────────────────────────────────────────────────────
 
-export function analyzeBehavior(trades: TradeSession[], maxTradeRisk: number): BehaviorAnalysis {
+export function analyzeBehavior(trades: TradeSession[], maxTradeRisk: number, lang: 'en' | 'fr' = 'en'): BehaviorAnalysis {
     // Use session-based window: today's trades (prop-firm day) capped at 20
     const todayStr = new Date().toLocaleDateString('en-CA', { timeZone: 'America/New_York' });
     const sessionTrades = trades.filter(t => {
@@ -582,23 +597,39 @@ export function analyzeBehavior(trades: TradeSession[], maxTradeRisk: number): B
     // Recommendation — priority order
     let recommendation = '';
     if (stopTradingRecommended) {
-        recommendation = `⛔ STOP TRADING. ${consecutiveLosses} consecutive losses detected. Take a ${cooldownMinutes}-minute break before your next trade.`;
+        recommendation = lang === 'fr'
+            ? `⛔ ARRÊTEZ DE TRADER. ${consecutiveLosses} pertes consécutives détectées. Prenez une pause de ${cooldownMinutes} minutes avant votre prochain trade.`
+            : `⛔ STOP TRADING. ${consecutiveLosses} consecutive losses detected. Take a ${cooldownMinutes}-minute break before your next trade.`;
     } else if (revengeTimeDensity && emotionalState !== 'revenge') {
-        recommendation = `⚠️ TIME-DENSITY ALERT: 2+ rapid-fire trades within 5 min of a loss detected — classic revenge cluster. Take a ${cooldownMinutes}-min break.`;
+        recommendation = lang === 'fr'
+            ? `⚠️ ALERTE DENSITÉ TEMPORELLE : 2+ trades rapides dans les 5 min après une perte — cluster de revanche classique. Prenez une pause de ${cooldownMinutes} min.`
+            : `⚠️ TIME-DENSITY ALERT: 2+ rapid-fire trades within 5 min of a loss detected — classic revenge cluster. Take a ${cooldownMinutes}-min break.`;
     } else if (winStreakRisk) {
-        recommendation = `⚠️ WIN STREAK OVERCONFIDENCE: ${winStreak} consecutive wins but position size has increased 40%+. Snap back to standard risk — this is how accounts blow.`;
+        recommendation = lang === 'fr'
+            ? `⚠️ SURCONFIANCE EN SÉRIE GAGNANTE : ${winStreak} victoires consécutives mais la taille de position a augmenté de 40%+. Revenez au risque standard — c'est ainsi que les comptes explosent.`
+            : `⚠️ WIN STREAK OVERCONFIDENCE: ${winStreak} consecutive wins but position size has increased 40%+. Snap back to standard risk — this is how accounts blow.`;
     } else if (fomoAlert) {
-        recommendation = `⚠️ FOMO ALERT: You are in the first 5 minutes of the US session (9:30–9:35 AM). Wait 10–15 min for price discovery before entering.`;
+        recommendation = lang === 'fr'
+            ? `⚠️ ALERTE FOMO : Vous êtes dans les 5 premières minutes de la session US (9h30–9h35). Attendez 10–15 min pour la découverte des prix avant d'entrer.`
+            : `⚠️ FOMO ALERT: You are in the first 5 minutes of the US session (9:30–9:35 AM). Wait 10–15 min for price discovery before entering.`;
     } else if (correlationWarning) {
-        recommendation = correlationWarning + ' Combined exposure = effective 2× position.';
+        recommendation = correlationWarning + (lang === 'fr' ? ' Exposition combinée = position effective 2×.' : ' Combined exposure = effective 2× position.');
     } else if (emotionalState === 'stressed') {
-        recommendation = `⚠️ Elevated stress signals. Reduce size by 50%. Max 1–2 more trades today.`;
+        recommendation = lang === 'fr'
+            ? `⚠️ Signaux de stress élevés. Réduisez la taille de 50%. Max 1–2 trades supplémentaires aujourd'hui.`
+            : `⚠️ Elevated stress signals. Reduce size by 50%. Max 1–2 more trades today.`;
     } else if (revengeRisk) {
-        recommendation = `⚠️ Revenge size pattern detected (+${revengePct.toFixed(0)}% after loss). Reset to your standard $${maxTradeRisk.toFixed(0)} risk.`;
+        recommendation = lang === 'fr'
+            ? `⚠️ Schéma de taille revanche détecté (+${revengePct.toFixed(0)}% après perte). Revenez à votre risque standard de $${maxTradeRisk.toFixed(0)}.`
+            : `⚠️ Revenge size pattern detected (+${revengePct.toFixed(0)}% after loss). Reset to your standard $${maxTradeRisk.toFixed(0)} risk.`;
     } else if (overtradingAlert) {
-        recommendation = `ℹ️ ${tradesThisSession} trades today — near overtrading threshold. Be selective.`;
+        recommendation = lang === 'fr'
+            ? `ℹ️ ${tradesThisSession} trades aujourd'hui — près du seuil de surtrading. Soyez sélectif.`
+            : `ℹ️ ${tradesThisSession} trades today — near overtrading threshold. Be selective.`;
     } else {
-        recommendation = `✅ Behavioral signals normal. Continue trading your plan.`;
+        recommendation = lang === 'fr'
+            ? `✅ Signaux comportementaux normaux. Continuez à trader votre plan.`
+            : `✅ Behavioral signals normal. Continue trading your plan.`;
     }
 
     return {
@@ -1643,7 +1674,8 @@ export function processNaturalLanguage(
     todayUsed: number,
     dailyLimit: number,
     trades: TradeSession[],
-    account: AccountSettings
+    account: AccountSettings,
+    lang: 'en' | 'fr' = 'en'
 ): { content: string; cards: ChatCard[] } {
     const { getFuturesSpec, FUTURES_SPECS } = require('@/store/appStore');
     const lower = input.toLowerCase().trim();
@@ -1699,11 +1731,13 @@ export function processNaturalLanguage(
     const dailyLeft = Math.max(0, dailyLimit - todayUsed);
     if (dailyLeft <= 0 && (hasEntry || hasRisk || hasKnownSize)) {
         return {
-            content: `⛔ Daily loss limit reached ($${dailyLimit.toLocaleString()}). No new trades today. Reset tomorrow at 5:00 PM EST.`,
+            content: lang === 'fr'
+                ? `⛔ Limite journalière atteinte ($${dailyLimit.toLocaleString()}). Aucun nouveau trade aujourd'hui. Réinitialisation demain à 17h00 EST.`
+                : `⛔ Daily loss limit reached ($${dailyLimit.toLocaleString()}). No new trades today. Reset tomorrow at 5:00 PM EST.`,
             cards: [
-                { label: 'Daily Limit', value: `$${dailyLimit.toLocaleString()}`, danger: true },
-                { label: 'Used Today',  value: `$${todayUsed.toFixed(0)}`,        danger: true },
-                { label: 'Reset',       value: '5:00 PM EST daily',               highlight: false },
+                { label: lang === 'fr' ? 'Limite journalière' : 'Daily Limit', value: `$${dailyLimit.toLocaleString()}`, danger: true },
+                { label: lang === 'fr' ? 'Utilisé aujourd\'hui' : 'Used Today',  value: `$${todayUsed.toFixed(0)}`,      danger: true },
+                { label: lang === 'fr' ? 'Réinitialisation' : 'Reset',          value: lang === 'fr' ? '17h00 EST chaque jour' : '5:00 PM EST daily', highlight: false },
             ],
         };
     }
@@ -1714,33 +1748,37 @@ export function processNaturalLanguage(
             const move10    = fSpec.pointValue * 10;
             const move50    = fSpec.pointValue * 50;
             return {
-                content: `Contract specification for ${asset} — ${fSpec.label} on ${fSpec.exchange}:`,
+                content: lang === 'fr'
+                    ? `Specs du contrat ${asset} — ${fSpec.label} sur ${fSpec.exchange}:`
+                    : `Contract specification for ${asset} — ${fSpec.label} on ${fSpec.exchange}:`,
                 cards: [
-                    { label: 'Point Value',       value: `$${fSpec.pointValue.toFixed(2)} / point / contract`, highlight: true },
-                    { label: 'Tick Size',          value: `${fSpec.tickSize} points` },
-                    { label: 'Tick Value',         value: `$${tickVal.toFixed(2)} per tick per contract` },
-                    { label: 'Exchange',           value: fSpec.exchange },
-                    { label: '10-Point Move',      value: `$${move10.toFixed(0)} per contract` },
-                    { label: '50-Point Move',      value: `$${move50.toFixed(0)} per contract` },
-                    { label: 'Quick Example',      value: `Stop 20pts × 1 contract = $${fSpec.pointValue * 20} risk`, highlight: true },
+                    { label: lang === 'fr' ? 'Valeur du point'       : 'Point Value',       value: `$${fSpec.pointValue.toFixed(2)} / point / contract`, highlight: true },
+                    { label: lang === 'fr' ? 'Taille du tick'         : 'Tick Size',          value: `${fSpec.tickSize} points` },
+                    { label: lang === 'fr' ? 'Valeur du tick'         : 'Tick Value',         value: `$${tickVal.toFixed(2)} per tick per contract` },
+                    { label: lang === 'fr' ? 'Bourse'                 : 'Exchange',           value: fSpec.exchange },
+                    { label: lang === 'fr' ? 'Mouvement 10 points'    : '10-Point Move',      value: `$${move10.toFixed(0)} per contract` },
+                    { label: lang === 'fr' ? 'Mouvement 50 points'    : '50-Point Move',      value: `$${move50.toFixed(0)} per contract` },
+                    { label: lang === 'fr' ? 'Exemple rapide'         : 'Quick Example',      value: `Stop 20pts × 1 contract = $${fSpec.pointValue * 20} risk`, highlight: true },
                 ],
             };
         }
         if (/forex|pip|eurusd|gbpusd|fx/i.test(lower)) {
             return {
-                content: 'Standard forex pip values — standard lot = 100,000 units:',
+                content: lang === 'fr'
+                    ? 'Valeur des pips forex — lot standard = 100 000 unités :'
+                    : 'Standard forex pip values — standard lot = 100,000 units:',
                 cards: [
-                    { label: 'Standard Lot (1.0)',  value: '$10 per pip (USD pairs)',   highlight: true },
-                    { label: 'Mini Lot (0.1)',       value: '$1 per pip' },
-                    { label: 'Micro Lot (0.01)',     value: '$0.10 per pip' },
-                    { label: 'JPY Pairs',            value: '~$6.80 per pip (fluctuates)' },
-                    { label: 'Quick Example',        value: '20-pip stop × 0.5 lots = $100 risk', highlight: true },
-                    { label: 'Formula',              value: 'Risk = Pips × PipValue × Lots' },
+                    { label: lang === 'fr' ? 'Lot standard (1.0)' : 'Standard Lot (1.0)',  value: '$10 per pip (USD pairs)',   highlight: true },
+                    { label: lang === 'fr' ? 'Mini lot (0.1)'     : 'Mini Lot (0.1)',       value: '$1 per pip' },
+                    { label: lang === 'fr' ? 'Micro lot (0.01)'   : 'Micro Lot (0.01)',     value: '$0.10 per pip' },
+                    { label: lang === 'fr' ? 'Paires JPY'         : 'JPY Pairs',            value: '~$6.80 per pip (fluctuates)' },
+                    { label: lang === 'fr' ? 'Exemple rapide'     : 'Quick Example',        value: '20-pip stop × 0.5 lots = $100 risk', highlight: true },
+                    { label: lang === 'fr' ? 'Formule'            : 'Formula',              value: 'Risk = Pips × PipValue × Lots' },
                 ],
             };
         }
         return {
-            content: 'All tracked futures contract specs:',
+            content: lang === 'fr' ? 'Specs de tous les contrats futures suivis :' : 'All tracked futures contract specs:',
             cards: Object.entries(FUTURES_SPECS).map(([sym, s]: any) => ({
                 label: `${sym} — ${s.label}`,
                 value: `$${s.pointValue}/pt · tick $${(s.pointValue * s.tickSize).toFixed(2)} · ${s.exchange}`,
@@ -1758,16 +1796,18 @@ export function processNaturalLanguage(
             const tp3R         = isShort ? entry - stopDistNum * 3 : entry + stopDistNum * 3;
             const ticks        = stopDistNum / fSpec.tickSize;
             return {
-                content: `${asset} (${fSpec.label}) — Entry: ${entry}, Stop: ${stopDistNum} pts (${ticks.toFixed(0)} ticks), Risk: $${riskAmt}:`,
+                content: lang === 'fr'
+                    ? `${asset} (${fSpec.label}) — Entrée: ${entry}, Stop: ${stopDistNum} pts (${ticks.toFixed(0)} ticks), Risque: $${riskAmt}:`
+                    : `${asset} (${fSpec.label}) — Entry: ${entry}, Stop: ${stopDistNum} pts (${ticks.toFixed(0)} ticks), Risk: $${riskAmt}:`,
                 cards: [
-                    { label: 'Contracts',         value: contracts.toString(),                                          highlight: true },
-                    { label: 'Stop Loss Price',   value: slPrice.toFixed(2),                                           danger: true },
-                    { label: 'Actual Risk',       value: `$${actualRisk.toFixed(0)}`,                                  danger: actualRisk > maxRisk },
-                    { label: 'Risk / Contract',   value: `$${(stopDistNum * fSpec.pointValue).toFixed(0)}` },
-                    { label: 'TP 2R',             value: tp2R.toFixed(2),                                              highlight: true },
-                    { label: 'TP 3R',             value: tp3R.toFixed(2) },
-                    { label: 'Ticks to Stop',     value: `${ticks.toFixed(0)} ticks @ $${(fSpec.pointValue * fSpec.tickSize).toFixed(2)}/tick` },
-                    { label: 'Guardian',          value: actualRisk > maxRisk ? `Over limit! Reduce to 1 contract` : 'Within risk parameters', danger: actualRisk > maxRisk },
+                    { label: lang === 'fr' ? 'Contrats'            : 'Contracts',         value: contracts.toString(),                                                                         highlight: true },
+                    { label: lang === 'fr' ? 'Prix du stop'         : 'Stop Loss Price',   value: slPrice.toFixed(2),                                                                           danger: true },
+                    { label: lang === 'fr' ? 'Risque réel'          : 'Actual Risk',       value: `$${actualRisk.toFixed(0)}`,                                                                  danger: actualRisk > maxRisk },
+                    { label: lang === 'fr' ? 'Risque / Contrat'     : 'Risk / Contract',   value: `$${(stopDistNum * fSpec.pointValue).toFixed(0)}` },
+                    { label: 'TP 2R',                                                       value: tp2R.toFixed(2),                                                                              highlight: true },
+                    { label: 'TP 3R',                                                       value: tp3R.toFixed(2) },
+                    { label: lang === 'fr' ? 'Ticks jusqu\'au stop' : 'Ticks to Stop',     value: `${ticks.toFixed(0)} ticks @ $${(fSpec.pointValue * fSpec.tickSize).toFixed(2)}/tick` },
+                    { label: lang === 'fr' ? 'Gardien'              : 'Guardian',          value: actualRisk > maxRisk ? (lang === 'fr' ? 'Limite dépassée ! Réduire à 1 contrat' : 'Over limit! Reduce to 1 contract') : (lang === 'fr' ? 'Dans les paramètres de risque' : 'Within risk parameters'), danger: actualRisk > maxRisk },
                 ],
             };
         }
@@ -1776,13 +1816,15 @@ export function processNaturalLanguage(
             const pipValue = 10;
             const lots     = Math.round((riskAmt / (stopDistNum * pipValue)) * 100) / 100;
             return {
-                content: `Forex position for ${asset} — Entry: ${entry}, Stop: ${stopDistNum} pips, Risk: $${riskAmt}:`,
+                content: lang === 'fr'
+                    ? `Position forex ${asset} — Entrée: ${entry}, Stop: ${stopDistNum} pips, Risque: $${riskAmt}:`
+                    : `Forex position for ${asset} — Entry: ${entry}, Stop: ${stopDistNum} pips, Risk: $${riskAmt}:`,
                 cards: [
-                    { label: 'Position Size',   value: `${lots} lots`,                                    highlight: true },
-                    { label: 'Stop Pips',       value: `${stopDistNum} pips` },
-                    { label: 'Pip Value',       value: `$${(lots * pipValue).toFixed(2)} per pip` },
-                    { label: 'Actual Risk',     value: `$${(lots * stopDistNum * pipValue).toFixed(0)}` },
-                    { label: 'TP 2R',           value: `${(stopDistNum * 2).toFixed(1)} pips from entry`,  highlight: true },
+                    { label: lang === 'fr' ? 'Taille de position' : 'Position Size',   value: `${lots} lots`,                                    highlight: true },
+                    { label: lang === 'fr' ? 'Stop en pips'       : 'Stop Pips',       value: `${stopDistNum} pips` },
+                    { label: lang === 'fr' ? 'Valeur du pip'      : 'Pip Value',       value: `$${(lots * pipValue).toFixed(2)} per pip` },
+                    { label: lang === 'fr' ? 'Risque réel'        : 'Actual Risk',     value: `$${(lots * stopDistNum * pipValue).toFixed(0)}` },
+                    { label: 'TP 2R',                                                   value: `${(stopDistNum * 2).toFixed(1)} pips from entry`,  highlight: true },
                 ],
             };
         }
@@ -1790,13 +1832,15 @@ export function processNaturalLanguage(
         const size = stopDistNum > 0 ? Math.round((riskAmt / stopDistNum) * 100) / 100 : 0;
         const tp2R = isShort ? entry - stopDistNum * 2 : entry + stopDistNum * 2;
         return {
-            content: `${asset} position — Entry: ${entry}, Stop distance: $${stopDistNum}, Risk: $${riskAmt}:`,
+            content: lang === 'fr'
+                ? `${asset} — Entrée: ${entry}, Stop: ${stopDistNum} pts, Risque: $${riskAmt}:`
+                : `${asset} position — Entry: ${entry}, Stop distance: $${stopDistNum}, Risk: $${riskAmt}:`,
             cards: [
-                { label: 'Position Size', value: `${size} units`,                    highlight: true },
-                { label: 'Stop Distance', value: `$${stopDistNum}` },
-                { label: 'Risk',          value: `$${riskAmt}` },
-                { label: 'TP 2R',         value: tp2R.toFixed(4),                    highlight: true },
-                { label: 'TP 3R',         value: (isShort ? entry - stopDistNum * 3 : entry + stopDistNum * 3).toFixed(4) },
+                { label: lang === 'fr' ? 'Taille de position' : 'Position Size', value: `${size} units`,                    highlight: true },
+                { label: lang === 'fr' ? 'Distance du stop'   : 'Stop Distance', value: `$${stopDistNum}` },
+                { label: lang === 'fr' ? 'Risque'             : 'Risk',          value: `$${riskAmt}` },
+                { label: 'TP 2R',                                                 value: tp2R.toFixed(4),                    highlight: true },
+                { label: 'TP 3R',                                                 value: (isShort ? entry - stopDistNum * 3 : entry + stopDistNum * 3).toFixed(4) },
             ],
         };
     }
@@ -1848,14 +1892,16 @@ export function processNaturalLanguage(
     if (isPayout) {
         const c = analyzeConsistency(trades);
         return {
-            content: `Tradeify payout consistency check — best single day must be ≤ 20% of total profit:`,
+            content: lang === 'fr'
+                ? `Vérification de cohérence Tradeify — le meilleur jour doit être ≤ 20% du profit total :`
+                : `Tradeify payout consistency check — best single day must be ≤ 20% of total profit:`,
             cards: [
-                { label: 'Payout Eligible',    value: c.payoutEligible ? 'YES — ELIGIBLE' : 'NOT YET',                    highlight: c.payoutEligible, danger: !c.payoutEligible },
-                { label: 'Best Day Share',     value: `${c.bestDayPct.toFixed(1)}% of total profit`,                       danger: c.bestDayPct > 20 },
-                { label: 'Best Day P&L',       value: `$${c.bestDay.toFixed(0)}` },
-                { label: 'Consistency Score',  value: `${c.score}/100`,                                                    highlight: c.score >= 70 },
-                { label: 'Profit Days',        value: `${c.profitDays}G / ${c.lossDays}R` },
-                { label: 'Action',             value: c.payoutEligible ? 'You can submit a payout request' : `Need best day ≤ 20% of total. Currently ${c.bestDayPct.toFixed(1)}%`, danger: !c.payoutEligible },
+                { label: lang === 'fr' ? 'Éligible au paiement' : 'Payout Eligible',    value: c.payoutEligible ? (lang === 'fr' ? 'OUI — ÉLIGIBLE' : 'YES — ELIGIBLE') : (lang === 'fr' ? 'PAS ENCORE' : 'NOT YET'),  highlight: c.payoutEligible, danger: !c.payoutEligible },
+                { label: lang === 'fr' ? 'Part du meilleur jour': 'Best Day Share',     value: `${c.bestDayPct.toFixed(1)}% of total profit`,                                                                            danger: c.bestDayPct > 20 },
+                { label: lang === 'fr' ? 'P&L meilleur jour'    : 'Best Day P&L',       value: `$${c.bestDay.toFixed(0)}` },
+                { label: lang === 'fr' ? 'Score de cohérence'   : 'Consistency Score',  value: `${c.score}/100`,                                                                                                         highlight: c.score >= 70 },
+                { label: lang === 'fr' ? 'Jours profitables'    : 'Profit Days',        value: `${c.profitDays}G / ${c.lossDays}R` },
+                { label: lang === 'fr' ? 'Action'               : 'Action',             value: c.payoutEligible ? (lang === 'fr' ? 'Vous pouvez soumettre une demande de paiement' : 'You can submit a payout request') : (lang === 'fr' ? `Meilleur jour doit être ≤ 20% du total. Actuellement ${c.bestDayPct.toFixed(1)}%` : `Need best day ≤ 20% of total. Currently ${c.bestDayPct.toFixed(1)}%`), danger: !c.payoutEligible },
             ],
         };
     }
@@ -1917,14 +1963,14 @@ export function processNaturalLanguage(
         const guardian = analyzeRiskGuardian(account, todayUsed);
         const beh      = analyzeBehavior(trades, maxRisk);
         return {
-            content: `Live account status:`,
+            content: lang === 'fr' ? 'Statut du compte en direct :' : 'Live account status:',
             cards: [
-                { label: 'Daily Remaining',   value: `$${guardian.remainingDaily.toFixed(0)}`,  highlight: true },
-                { label: 'Safe Risk / Trade', value: `$${guardian.safeRisk.toFixed(0)}`,        highlight: true },
-                { label: 'Trades Left Today', value: `${guardian.maxTradesLeft}` },
-                { label: 'Survival Status',   value: guardian.survivalStatus.toUpperCase(),      danger: guardian.survivalStatus !== 'safe' },
-                { label: 'Emotional State',   value: beh.emotionalState.toUpperCase(),           danger: beh.emotionalState === 'revenge' || beh.emotionalState === 'stressed' },
-                { label: 'Guardian',          value: guardian.recommendation },
+                { label: lang === 'fr' ? 'Restant aujourd\'hui' : 'Daily Remaining',   value: `$${guardian.remainingDaily.toFixed(0)}`,  highlight: true },
+                { label: lang === 'fr' ? 'Risque sûr / trade'  : 'Safe Risk / Trade', value: `$${guardian.safeRisk.toFixed(0)}`,        highlight: true },
+                { label: lang === 'fr' ? 'Trades restants'      : 'Trades Left Today', value: `${guardian.maxTradesLeft}` },
+                { label: lang === 'fr' ? 'Statut de survie'     : 'Survival Status',   value: guardian.survivalStatus.toUpperCase(),      danger: guardian.survivalStatus !== 'safe' },
+                { label: lang === 'fr' ? 'État émotionnel'      : 'Emotional State',   value: beh.emotionalState.toUpperCase(),           danger: beh.emotionalState === 'revenge' || beh.emotionalState === 'stressed' },
+                { label: lang === 'fr' ? 'Gardien'              : 'Guardian',          value: guardian.recommendation },
             ],
         };
     }
@@ -1933,14 +1979,14 @@ export function processNaturalLanguage(
         // Call directly — generateDailyReport is in the same file, no require needed
         const report = generateDailyReport(trades, account, todayUsed);
         return {
-            content: `AI coaching report for today's session:`,
+            content: lang === 'fr' ? 'Rapport de coaching IA pour la session d\'aujourd\'hui :' : `AI coaching report for today's session:`,
             cards: [
-                { label: 'Trades Today',       value: `${report.trades}` },
-                { label: 'Net Profit',         value: `${report.netProfit >= 0 ? '+' : ''}$${report.netProfit.toFixed(0)}`, highlight: report.netProfit > 0, danger: report.netProfit < 0 },
-                { label: 'Discipline Grade',   value: report.disciplineGrade,                                               highlight: true },
-                { label: 'Revenge Trades',     value: `${report.revengeTradesDetected}`,                                   danger: report.revengeTradesDetected > 0 },
-                { label: 'Strength',           value: report.strengths[0] || 'Keep logging' },
-                { label: 'Tomorrow Focus',     value: report.tomorrowFocus },
+                { label: lang === 'fr' ? 'Trades aujourd\'hui' : 'Trades Today',       value: `${report.trades}` },
+                { label: lang === 'fr' ? 'Profit net'          : 'Net Profit',         value: `${report.netProfit >= 0 ? '+' : ''}$${report.netProfit.toFixed(0)}`, highlight: report.netProfit > 0, danger: report.netProfit < 0 },
+                { label: lang === 'fr' ? 'Note de discipline'  : 'Discipline Grade',   value: report.disciplineGrade,                                               highlight: true },
+                { label: lang === 'fr' ? 'Trades revanche'     : 'Revenge Trades',     value: `${report.revengeTradesDetected}`,                                   danger: report.revengeTradesDetected > 0 },
+                { label: lang === 'fr' ? 'Point fort'          : 'Strength',           value: report.strengths[0] || (lang === 'fr' ? 'Continuez à noter' : 'Keep logging') },
+                { label: lang === 'fr' ? 'Focus demain'        : 'Tomorrow Focus',     value: report.tomorrowFocus },
             ],
         };
     }
@@ -1948,13 +1994,13 @@ export function processNaturalLanguage(
     if (hasBehavior) {
         const beh = analyzeBehavior(trades, maxRisk);
         return {
-            content: `Behavioral analysis:`,
+            content: lang === 'fr' ? 'Analyse comportementale :' : `Behavioral analysis:`,
             cards: [
-                { label: 'Emotional State',     value: beh.emotionalState.toUpperCase(),                                              danger: beh.emotionalState !== 'disciplined' },
-                { label: 'Consecutive Losses',  value: `${beh.consecutiveLosses}`,                                                    danger: beh.consecutiveLosses >= 2 },
-                { label: 'Revenge Risk',        value: beh.revengeRisk ? `YES (+${beh.revengePct.toFixed(0)}% size after loss)` : 'None detected', danger: beh.revengeRisk },
-                { label: 'Trades Today',        value: `${beh.tradesThisSession}`,                                                    danger: beh.overtradingAlert },
-                { label: 'Recommendation',      value: beh.recommendation },
+                { label: lang === 'fr' ? 'État émotionnel'      : 'Emotional State',     value: beh.emotionalState.toUpperCase(),                                                                                                                                            danger: beh.emotionalState !== 'disciplined' },
+                { label: lang === 'fr' ? 'Pertes consécutives'  : 'Consecutive Losses',  value: `${beh.consecutiveLosses}`,                                                                                                                                                  danger: beh.consecutiveLosses >= 2 },
+                { label: lang === 'fr' ? 'Risque de revanche'   : 'Revenge Risk',        value: beh.revengeRisk ? (lang === 'fr' ? `OUI (+${beh.revengePct.toFixed(0)}% taille après perte)` : `YES (+${beh.revengePct.toFixed(0)}% size after loss)`) : (lang === 'fr' ? 'Aucun détecté' : 'None detected'), danger: beh.revengeRisk },
+                { label: lang === 'fr' ? 'Trades aujourd\'hui'  : 'Trades Today',        value: `${beh.tradesThisSession}`,                                                                                                                                                  danger: beh.overtradingAlert },
+                { label: lang === 'fr' ? 'Recommandation'       : 'Recommendation',      value: beh.recommendation },
             ],
         };
     }
@@ -2081,7 +2127,9 @@ export function processNaturalLanguage(
     }
 
     return {
-        content: `I understand you're asking about risk. Here's what I can calculate:\n\n· "NQ at 21450, 30 point stop, $500 risk" — position size\n· "2 NQ contracts, stop 20 points — what's my risk?" — dollar risk\n· "NQ spec" or "point value of GC" — instrument details\n· "What's my status?" — account health\n· "Coach me on today's session" — coaching report\n· "Am I consistent enough for payout?" — payout check\n· "What should I trade?" — personal edge profile`,
+        content: lang === 'fr'
+            ? `Je comprends vos questions sur le risque. Voici ce que je peux calculer :\n\n· "NQ à 21450, stop 30 points, risque $500" — taille de position\n· "2 contrats NQ, stop 20 points — quel est mon risque ?" — risque en dollars\n· "spec NQ" ou "valeur du point de GC" — détails de l'instrument\n· "Quel est mon statut ?" — santé du compte\n· "Coache-moi sur la session" — rapport de coaching\n· "Suis-je éligible au paiement ?" — vérification de cohérence\n· "Que devrais-je trader ?" — profil d'edge personnel`
+            : `I understand you're asking about risk. Here's what I can calculate:\n\n· "NQ at 21450, 30 point stop, $500 risk" — position size\n· "2 NQ contracts, stop 20 points — what's my risk?" — dollar risk\n· "NQ spec" or "point value of GC" — instrument details\n· "What's my status?" — account health\n· "Coach me on today's session" — coaching report\n· "Am I consistent enough for payout?" — payout check\n· "What should I trade?" — personal edge profile`,
         cards: [],
     };
 }

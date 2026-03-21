@@ -354,7 +354,7 @@ export default function DashboardPage() {
             <motion.div variants={fadeUp} style={{ padding: isMobile ? '16px 14px' : '24px 20px 20px', borderBottom: divider }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
                     <span style={lbl}>Account Balance</span>
-                    <span style={{ ...mono, fontSize: 8, padding: '2px 6px', background: 'rgba(253,200,0,0.1)', color: '#FDC800', borderRadius: 4, letterSpacing: '0.04em', border: '1px solid rgba(253,200,0,0.2)' }}>AUTO-COMPUTED</span>
+                    <span style={{ ...mono, fontSize: 8, padding: '2px 6px', background: 'rgba(253,200,0,0.1)', color: '#FDC800', borderRadius: 4, letterSpacing: '0.04em', border: '1px solid rgba(253,200,0,0.2)' }}>{lang === 'fr' ? 'AUTO-CALCULÉ' : 'AUTO-COMPUTED'}</span>
                 </div>
                 <div style={{ display: 'flex', alignItems: 'baseline', gap: 14, flexWrap: 'wrap' }}>
                     <motion.span
@@ -392,7 +392,7 @@ export default function DashboardPage() {
                     {[
                         { lbl: 'NET P&L',       val: `${totalPnl >= 0 ? '+' : ''}$${Math.abs(totalPnl).toLocaleString(undefined, { maximumFractionDigits: 0 })}`, clr: pnlColor,    sub: `${wins.length}W · ${losses.length}L` },
                         { lbl: 'WIN RATE',       val: `${winRate}%`,                   clr: wrColor,     sub: `${closedTrades.length} trades` },
-                        { lbl: 'STREAK',         val: `${streakCount}${streakType}`,   clr: streakColor, sub: streakType === 'W' ? 'on fire' : 'drawdown' },
+                        { lbl: 'STREAK',         val: `${streakCount}${streakType}`,   clr: streakColor, sub: streakType === 'W' ? (lang === 'fr' ? 'en feu' : 'on fire') : (lang === 'fr' ? 'drawdown' : 'drawdown') },
                         { lbl: 'PROFIT FACTOR',  val: profitFactor > 0 ? profitFactor.toFixed(2) : '—', clr: pfColor, sub: '≥1.5 = edge' },
                     ].map((s, i) => (
                         <motion.div
@@ -460,7 +460,7 @@ export default function DashboardPage() {
                         <AlertTriangle size={13} color="#ff4757" />
                     </motion.div>
                     <span style={{ ...mono, fontSize: 11, color: '#ff4757', fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase' }}>
-                        REVENGE RISK — Last loss was oversized. Reduce next position.
+                        {lang === 'fr' ? 'RISQUE REVANCHE — Dernière perte surdimensionnée. Réduisez la prochaine position.' : 'REVENGE RISK — Last loss was oversized. Reduce next position.'}
                     </span>
                 </motion.div>
             )}
@@ -473,7 +473,7 @@ export default function DashboardPage() {
                         <AlertTriangle size={13} color="#EAB308" />
                     </motion.div>
                     <span style={{ ...mono, fontSize: 11, color: '#EAB308', fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase' }}>
-                        CONSISTENCY WARNING — Best day ({bestTradingDay}) is {consistencyScore.toFixed(1)}% of total profit (Max 20%).
+                        {lang === 'fr' ? `ALERTE COHÉRENCE — Meilleur jour (${bestTradingDay}) représente ${consistencyScore.toFixed(1)}% du profit total (Max 20%).` : `CONSISTENCY WARNING — Best day (${bestTradingDay}) is ${consistencyScore.toFixed(1)}% of total profit (Max 20%).`}
                     </span>
                 </motion.div>
             )}
@@ -540,7 +540,7 @@ export default function DashboardPage() {
                             background: isDanger ? 'rgba(255,71,87,0.1)' : isWarning ? 'rgba(234,179,8,0.08)' : 'rgba(253,200,0,0.06)',
                         }}
                     >
-                        {isDanger ? 'DANGER' : isWarning ? 'WARNING' : 'SAFE'}
+                        {isDanger ? (lang === 'fr' ? 'DANGER' : 'DANGER') : isWarning ? (lang === 'fr' ? 'ALERTE' : 'WARNING') : (lang === 'fr' ? 'SÉCURISÉ' : 'SAFE')}
                     </motion.span>
                 </div>
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', padding: '14px 16px' }}>
@@ -568,7 +568,7 @@ export default function DashboardPage() {
                         style={{ padding: '10px 16px', background: 'rgba(255,71,87,0.08)', borderTop: '1px solid rgba(255,71,87,0.2)', display: 'flex', alignItems: 'center', gap: 8 }}
                     >
                         <AlertTriangle size={12} color="#ff4757" />
-                        <span style={{ ...mono, fontSize: 11, color: '#ff4757', fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase' }}>STOP — Daily limit almost reached</span>
+                        <span style={{ ...mono, fontSize: 11, color: '#ff4757', fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase' }}>{lang === 'fr' ? 'STOP — Limite journalière presque atteinte' : 'STOP — Daily limit almost reached'}</span>
                     </motion.div>
                 )}
             </motion.div>
@@ -595,14 +595,14 @@ export default function DashboardPage() {
                                 background: floorDanger ? 'rgba(255,71,87,0.1)' : floorWarning ? 'rgba(234,179,8,0.08)' : 'rgba(253,200,0,0.06)',
                             }}
                         >
-                            {floorDanger ? 'DANGER' : floorWarning ? 'WARNING' : 'SAFE'}
+                            {floorDanger ? (lang === 'fr' ? 'DANGER' : 'DANGER') : floorWarning ? (lang === 'fr' ? 'ALERTE' : 'WARNING') : (lang === 'fr' ? 'SÉCURISÉ' : 'SAFE')}
                         </motion.span>
                     </div>
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', padding: '14px 16px' }}>
                         {[
-                            { lbl: 'FLOOR',   val: `$${animFloor.toLocaleString('en-US', { maximumFractionDigits: 0 })}`,  clr: '#e2e8f0' },
-                            { lbl: 'BUFFER',  val: `$${animBuffer.toLocaleString('en-US', { maximumFractionDigits: 0 })}`, clr: floorDanger ? '#ff4757' : floorWarning ? '#EAB308' : '#FDC800' },
-                            { lbl: 'USED',    val: `${drawdownInfo.usedPct.toFixed(1)}%`, clr: floorDanger ? '#ff4757' : floorWarning ? '#EAB308' : '#FDC800' },
+                            { lbl: lang === 'fr' ? 'PLANCHER' : 'FLOOR',   val: `$${animFloor.toLocaleString('en-US', { maximumFractionDigits: 0 })}`,  clr: '#e2e8f0' },
+                            { lbl: lang === 'fr' ? 'MARGE' : 'BUFFER',  val: `$${animBuffer.toLocaleString('en-US', { maximumFractionDigits: 0 })}`, clr: floorDanger ? '#ff4757' : floorWarning ? '#EAB308' : '#FDC800' },
+                            { lbl: lang === 'fr' ? 'UTILISÉ' : 'USED',    val: `${drawdownInfo.usedPct.toFixed(1)}%`, clr: floorDanger ? '#ff4757' : floorWarning ? '#EAB308' : '#FDC800' },
                         ].map((s, i) => (
                             <motion.div
                                 key={i}
@@ -621,12 +621,12 @@ export default function DashboardPage() {
                             {account.drawdownType === 'Static'
                                 ? `Fixed floor: $${account.startingBalance.toLocaleString()} − ${account.maxDrawdownLimit ? `$${account.maxDrawdownLimit.toLocaleString()}` : '6%'}`
                                 : account.drawdownType === 'EOD'
-                                    ? 'Trails up at 17:00 EST · locks at starting balance'
-                                    : 'Trails up after each closed trade · locks at starting balance'}
+                                    ? (lang === 'fr' ? 'Remonte à 17h00 EST · se bloque au solde initial' : 'Trails up at 17:00 EST · locks at starting balance')
+                                    : (lang === 'fr' ? 'Remonte après chaque trade fermé · se bloque au solde initial' : 'Trails up after each closed trade · locks at starting balance')}
                         </span>
                         {account.payoutLockActive && (
                             <span style={{ ...mono, fontSize: 9, fontWeight: 800, color: '#EAB308', padding: '2px 8px', border: '1px solid rgba(234,179,8,0.3)', borderRadius: 3, textTransform: 'uppercase' }}>
-                                Payout Locked
+                                {lang === 'fr' ? 'Paiement verrouillé' : 'Payout Locked'}
                             </span>
                         )}
                     </div>
@@ -636,7 +636,7 @@ export default function DashboardPage() {
                             style={{ padding: '10px 16px', background: 'rgba(255,71,87,0.08)', borderTop: '1px solid rgba(255,71,87,0.2)', display: 'flex', alignItems: 'center', gap: 8 }}
                         >
                             <AlertTriangle size={12} color="#ff4757" />
-                            <span style={{ ...mono, fontSize: 11, color: '#ff4757', fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase' }}>CRITICAL — Account floor dangerously close</span>
+                            <span style={{ ...mono, fontSize: 11, color: '#ff4757', fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase' }}>{lang === 'fr' ? 'CRITIQUE — Plancher du compte dangereusement proche' : 'CRITICAL — Account floor dangerously close'}</span>
                         </motion.div>
                     )}
                 </motion.div>
@@ -661,15 +661,15 @@ export default function DashboardPage() {
                                 background: consistencyPassing ? 'rgba(253,200,0,0.06)' : 'rgba(255,71,87,0.1)',
                             }}
                         >
-                            {consistencyPassing ? 'PASSING' : 'FAILING'}
+                            {consistencyPassing ? (lang === 'fr' ? 'VALIDÉ' : 'PASSING') : (lang === 'fr' ? 'ÉCHOUÉ' : 'FAILING')}
                         </motion.span>
                     </div>
 
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', padding: '14px 16px' }}>
                         {[
-                            { lbl: 'Best Day %',   val: `${animBestDayPct.toFixed(1)}%`, clr: consistencyPassing ? '#FDC800' : '#ff4757' },
-                            { lbl: 'Best Day $',   val: `$${animBestDayAmt.toLocaleString('en-US', { maximumFractionDigits: 0 })}`, clr: '#e2e8f0' },
-                            { lbl: 'Total Profit', val: `$${animTotalProfit.toLocaleString('en-US', { maximumFractionDigits: 0 })}`, clr: '#FDC800' },
+                            { lbl: lang === 'fr' ? 'Meilleur jour %' : 'Best Day %',   val: `${animBestDayPct.toFixed(1)}%`, clr: consistencyPassing ? '#FDC800' : '#ff4757' },
+                            { lbl: lang === 'fr' ? 'Meilleur jour $' : 'Best Day $',   val: `$${animBestDayAmt.toLocaleString('en-US', { maximumFractionDigits: 0 })}`, clr: '#e2e8f0' },
+                            { lbl: lang === 'fr' ? 'Profit total' : 'Total Profit', val: `$${animTotalProfit.toLocaleString('en-US', { maximumFractionDigits: 0 })}`, clr: '#FDC800' },
                         ].map((s, i) => (
                             <motion.div
                                 key={i}
@@ -699,7 +699,7 @@ export default function DashboardPage() {
                             }}>
                                 <div>
                                     <span style={{ ...mono, fontSize: 10, color: '#6b7280', letterSpacing: '0.06em', textTransform: 'uppercase', display: 'block', marginBottom: 2 }}>
-                                        {consistencyPassing ? 'Buffer above limit' : 'Target total profit'}
+                                        {consistencyPassing ? (lang === 'fr' ? 'Marge au-dessus de la limite' : 'Buffer above limit') : (lang === 'fr' ? 'Objectif de profit total' : 'Target total profit')}
                                     </span>
                                     {!consistencyPassing && (
                                         <span style={{ ...mono, fontSize: 10, color: '#ff4757' }}>
@@ -762,7 +762,7 @@ export default function DashboardPage() {
                 <motion.div variants={fadeUp} style={card}>
                     <div style={{ padding: '12px 16px', display: 'flex', alignItems: 'center', gap: 8, borderBottom: divider }}>
                         <Shield size={11} color="#4b5563" />
-                        <span style={lbl}>Rule Compliance</span>
+                        <span style={lbl}>{lang === 'fr' ? 'Conformité règles' : 'Rule Compliance'}</span>
                         <span style={{
                             marginLeft: 'auto', ...mono, fontSize: 9, fontWeight: 800, letterSpacing: '0.08em',
                             padding: '2px 8px', textTransform: 'uppercase', borderRadius: 3,
@@ -770,24 +770,24 @@ export default function DashboardPage() {
                             border: `1px solid ${(isDanger || floorDanger) ? 'rgba(255,71,87,0.3)' : 'rgba(253,200,0,0.3)'}`,
                             background: (isDanger || floorDanger) ? 'rgba(255,71,87,0.06)' : 'rgba(253,200,0,0.04)',
                         }}>
-                            {(isDanger || floorDanger) ? 'AT RISK' : 'COMPLIANT'}
+                            {(isDanger || floorDanger) ? (lang === 'fr' ? 'À RISQUE' : 'AT RISK') : (lang === 'fr' ? 'CONFORME' : 'COMPLIANT')}
                         </span>
                     </div>
                     <div style={{ padding: '12px 16px', display: 'flex', flexDirection: 'column', gap: 8 }}>
                         {([
                             // ── Daily Loss Limit (all accounts) ─────────────────
                             { dot: isDanger ? 'red' : isWarning ? 'yellow' : 'green',
-                              text: `Daily loss limit: $${account.dailyLossLimit.toLocaleString()} (3% of account) — ${usedPct.toFixed(1)}% used today` },
+                              text: lang === 'fr' ? `Limite journalière : $${account.dailyLossLimit.toLocaleString()} (3% du compte) — ${usedPct.toFixed(1)}% utilisé aujourd'hui` : `Daily loss limit: $${account.dailyLossLimit.toLocaleString()} (3% of account) — ${usedPct.toFixed(1)}% used today` },
 
                             // ── Max Drawdown ─────────────────────────────────────
                             account.startingBalance > 0 ? {
                               dot: floorDanger ? 'red' : floorWarning ? 'yellow' : 'green',
                               text: isTradeify
                                 ? account.drawdownType === 'Static'
-                                    ? `Max drawdown: 6% static — floor locked at $${(account.startingBalance - (account.maxDrawdownLimit ?? account.startingBalance * 0.06)).toLocaleString()}`
+                                    ? (lang === 'fr' ? `Drawdown max : 6% statique — plancher fixé à $${(account.startingBalance - (account.maxDrawdownLimit ?? account.startingBalance * 0.06)).toLocaleString()}` : `Max drawdown: 6% static — floor locked at $${(account.startingBalance - (account.maxDrawdownLimit ?? account.startingBalance * 0.06)).toLocaleString()}`)
                                     : account.drawdownType === 'EOD'
-                                        ? `Max drawdown: 6% EOD trailing — snapshots at 17:00 EST · floor $${drawdownInfo.floor.toLocaleString()}`
-                                        : `Max drawdown: 6% EOT trailing — trails after each closed trade · floor $${drawdownInfo.floor.toLocaleString()}`
+                                        ? (lang === 'fr' ? `Drawdown max : 6% EOD trailing — snapshot à 17h00 EST · plancher $${drawdownInfo.floor.toLocaleString()}` : `Max drawdown: 6% EOD trailing — snapshots at 17:00 EST · floor $${drawdownInfo.floor.toLocaleString()}`)
+                                        : (lang === 'fr' ? `Drawdown max : 6% EOT trailing — suit chaque trade fermé · plancher $${drawdownInfo.floor.toLocaleString()}` : `Max drawdown: 6% EOT trailing — trails after each closed trade · floor $${drawdownInfo.floor.toLocaleString()}`)
                                 : `Max drawdown: $${(account.maxDrawdownLimit ?? 0).toLocaleString()}`,
                             } : null,
 
@@ -795,32 +795,32 @@ export default function DashboardPage() {
                             isTradeify ? {
                               dot: 'green',
                               text: isInstantFunded
-                                ? 'Leverage: 2:1 on all pairs (including BTC & ETH)'
-                                : 'Leverage: 5:1 BTC/ETH · 2:1 all other crypto pairs',
-                            } : { dot: 'green', text: `Leverage: ${account.leverage || 2}:1` },
+                                ? (lang === 'fr' ? 'Levier : 2:1 sur toutes les paires (BTC & ETH inclus)' : 'Leverage: 2:1 on all pairs (including BTC & ETH)')
+                                : (lang === 'fr' ? 'Levier : 5:1 BTC/ETH · 2:1 toutes autres paires crypto' : 'Leverage: 5:1 BTC/ETH · 2:1 all other crypto pairs'),
+                            } : { dot: 'green', text: lang === 'fr' ? `Levier : ${account.leverage || 2}:1` : `Leverage: ${account.leverage || 2}:1` },
 
                             // ── Microscalping (Tradeify only) ────────────────────
-                            isTradeify ? { icon: 'clock', text: 'Min hold time: 20 seconds per trade (microscalping rule)' } : null,
+                            isTradeify ? { icon: 'clock', text: lang === 'fr' ? 'Durée min : 20 secondes par trade (règle anti-microscalping)' : 'Min hold time: 20 seconds per trade (microscalping rule)' } : null,
 
                             // ── Consistency (Instant Funding only) ──────────────
                             isInstantFunded ? {
                               dot: consistencyPassing ? 'green' : 'yellow',
-                              text: `Consistency score: ${consistencyScore.toFixed(1)}% — must be ≤ 20% to request payout`,
+                              text: lang === 'fr' ? `Score cohérence : ${consistencyScore.toFixed(1)}% — doit être ≤ 20% pour demander un paiement` : `Consistency score: ${consistencyScore.toFixed(1)}% — must be ≤ 20% to request payout`,
                             } : null,
 
                             // ── Payout Lock (Instant Funding only) ──────────────
                             isInstantFunded ? {
                               dot: account.payoutLockActive ? 'yellow' : 'green',
                               text: account.payoutLockActive
-                                ? 'Payout lock: ACTIVE — floor permanently locked at starting balance'
-                                : 'Payout lock: not triggered — activate on first payout request',
+                                ? (lang === 'fr' ? 'Verrou paiement : ACTIF — plancher définitivement verrouillé au solde initial' : 'Payout lock: ACTIVE — floor permanently locked at starting balance')
+                                : (lang === 'fr' ? "Verrou paiement : non déclenché — s'active à la première demande" : 'Payout lock: not triggered — activate on first payout request'),
                             } : null,
 
                             // ── Anti-hedging ─────────────────────────────────────
-                            isTradeify ? { icon: 'ban', text: 'No hedging — offsetting positions not allowed (auto-detected)' } : null,
+                            isTradeify ? { icon: 'ban', text: lang === 'fr' ? 'Pas de hedging — positions compensatoires interdites (détection auto)' : 'No hedging — offsetting positions not allowed (auto-detected)' } : null,
 
                             // ── Inactivity ────────────────────────────────────────
-                            isTradeify ? { icon: 'cal', text: 'Inactivity: must trade at least once every 30 days' } : null,
+                            isTradeify ? { icon: 'cal', text: lang === 'fr' ? 'Inactivité : trader au moins une fois tous les 30 jours' : 'Inactivity: must trade at least once every 30 days' } : null,
 
                             // ── Non-Tradeify fallback ────────────────────────────
                             !isTradeify ? { dot: 'green', text: `Max trade risk: $${maxPerTrade.toFixed(0)} (${account.maxRiskPercent}%)` } : null,
@@ -953,14 +953,14 @@ export default function DashboardPage() {
                     whileTap={{ scale: 0.97 }}
                     style={{ padding: '18px', background: '#FDC800', border: 'none', borderRight: '1px solid #090909', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, ...mono, fontSize: 12, fontWeight: 800, color: '#000', letterSpacing: '0.08em', textTransform: 'uppercase' }}
                 >
-                    <Calculator size={14} /> Calculate
+                    <Calculator size={14} /> {lang === 'fr' ? 'Calculer' : 'Calculate'}
                 </motion.button>
                 <motion.button
                     onClick={() => setActiveTab('analytics')}
                     whileTap={{ scale: 0.97 }}
                     style={{ padding: '18px', background: '#0d1117', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, ...mono, fontSize: 12, fontWeight: 800, color: '#FDC800', letterSpacing: '0.08em', textTransform: 'uppercase' }}
                 >
-                    Analytics <ArrowRight size={14} />
+                    {lang === 'fr' ? 'Analytiques' : 'Analytics'} <ArrowRight size={14} />
                 </motion.button>
             </motion.div>
         </motion.div>

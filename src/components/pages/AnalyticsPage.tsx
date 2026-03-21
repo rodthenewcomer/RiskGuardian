@@ -657,7 +657,7 @@ export default function AnalyticsPage() {
                         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                             <AlertTriangle size={12} color="#e60023" />
                             <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, fontWeight: 700, color: '#e60023', letterSpacing: '0.1em', textTransform: 'uppercase' }}>
-                                {forensics.patterns.length} Critical Pattern{forensics.patterns.length > 1 ? 's' : ''} Detected
+                                {lang === 'fr' ? `${forensics.patterns.length} Motif${forensics.patterns.length > 1 ? 's' : ''} Critique${forensics.patterns.length > 1 ? 's' : ''} Détecté${forensics.patterns.length > 1 ? 's' : ''}` : `${forensics.patterns.length} Critical Pattern${forensics.patterns.length > 1 ? 's' : ''} Detected`}
                             </span>
                         </div>
                         <button
@@ -781,11 +781,11 @@ export default function AnalyticsPage() {
                                     <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                                         <AlertTriangle size={13} color="#e60023" />
                                         <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, fontWeight: 700, color: '#e60023', letterSpacing: '0.08em', textTransform: 'uppercase' }}>
-                                            RISK ALERT — {forensics.patterns.length} CRITICAL BEHAVIORAL PATTERN{forensics.patterns.length > 1 ? 'S' : ''} DETECTED IN YOUR DATA. CLICK TO INVESTIGATE.
+                                            {lang === 'fr' ? `ALERTE RISQUE — ${forensics.patterns.length} MOTIF${forensics.patterns.length > 1 ? 'S' : ''} COMPORTEMENTAL${forensics.patterns.length > 1 ? 'S' : ''} CRITIQUE${forensics.patterns.length > 1 ? 'S' : ''} DÉTECTÉ${forensics.patterns.length > 1 ? 'S' : ''} DANS VOS DONNÉES. CLIQUEZ POUR ENQUÊTER.` : `RISK ALERT — ${forensics.patterns.length} CRITICAL BEHAVIORAL PATTERN${forensics.patterns.length > 1 ? 'S' : ''} DETECTED IN YOUR DATA. CLICK TO INVESTIGATE.`}
                                         </span>
                                     </div>
                                     <button onClick={() => setActiveTab('BEHAVIOR')} style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: '#e60023', background: 'none', border: 'none', cursor: 'pointer', letterSpacing: '0.06em', textDecoration: 'underline', whiteSpace: 'nowrap' }}>
-                                        SEE ALL PATTERNS →
+                                        {lang === 'fr' ? 'VOIR TOUS LES MOTIFS →' : 'SEE ALL PATTERNS →'}
                                     </button>
                                 </div>
                             )}
@@ -798,7 +798,7 @@ export default function AnalyticsPage() {
                                         <div style={{ flex: 1, minWidth: 240 }}>
                                             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
                                                 <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, fontWeight: 700, color: '#e60023', letterSpacing: '0.12em', textTransform: 'uppercase', background: 'rgba(230,0,35,0.12)', border: '1px solid rgba(230,0,35,0.3)', padding: '2px 8px' }}>CRITICAL PATTERN</span>
-                                                <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#6b7280', letterSpacing: '0.08em' }}>{p.freq} DETECTED · {forensics.patterns.length} TOTAL</span>
+                                                <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#6b7280', letterSpacing: '0.08em' }}>{p.freq} {lang === 'fr' ? 'DÉTECTÉ(S)' : 'DETECTED'} · {forensics.patterns.length} {lang === 'fr' ? 'AU TOTAL' : 'TOTAL'}</span>
                                             </div>
                                             <div style={{ fontFamily: 'var(--font-mono)', fontSize: 18, fontWeight: 700, color: '#fff', marginBottom: 12 }}>{p.name}</div>
                                             <div style={{ fontFamily: 'var(--font-mono)', fontSize: 12, color: '#8b949e', lineHeight: 1.7, maxWidth: 520 }}>
@@ -806,12 +806,12 @@ export default function AnalyticsPage() {
                                             </div>
                                         </div>
                                         <div style={{ textAlign: 'right', flexShrink: 0 }}>
-                                            <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#6b7280', letterSpacing: '0.1em', marginBottom: 4, textTransform: 'uppercase' }}>ESTIMATED COST</div>
+                                            <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#6b7280', letterSpacing: '0.1em', marginBottom: 4, textTransform: 'uppercase' }}>{lang === 'fr' ? 'COÛT ESTIMÉ' : 'ESTIMATED COST'}</div>
                                             <div style={{ fontFamily: 'var(--font-mono)', fontSize: 28, fontWeight: 700, color: '#ff4757' }}>
                                                 -${Math.abs(p.impact ?? 0).toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
                                             </div>
                                             <button onClick={() => setActiveTab('BEHAVIOR')} style={{ marginTop: 10, fontFamily: 'var(--font-mono)', fontSize: 9, color: '#6b7280', background: 'none', border: 'none', cursor: 'pointer', letterSpacing: '0.08em', textDecoration: 'underline' }}>
-                                                SEE ALL PATTERNS →
+                                                {lang === 'fr' ? 'VOIR TOUS LES MOTIFS →' : 'SEE ALL PATTERNS →'}
                                             </button>
                                         </div>
                                     </div>
@@ -822,14 +822,14 @@ export default function AnalyticsPage() {
                             <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'repeat(2, 1fr)' : 'repeat(4, 1fr)', borderTop: '1px solid #1a1c24', borderLeft: '1px solid #1a1c24' }}>
                                 {/* Row 1 */}
                                 {[
-                                    { label: 'NET P&L (AFTER FEES)', value: `${netPnl >= 0 ? '+' : '-'}$${Math.abs(netPnl).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, color: netPnl >= 0 ? '#FDC800' : '#ff4757', sub: `Gross $${grossProfit.toFixed(0)} · Loss $${grossLoss.toFixed(0)}` },
-                                    { label: 'WIN RATE', value: `${winRate.toFixed(1)}%`, color: winRate >= 50 ? '#FDC800' : '#EAB308', sub: `${wins.length}W / ${losses.length}L of ${closed.length} trades` },
-                                    { label: 'PROFIT FACTOR', value: profitFactor === 99 ? '∞' : profitFactor.toFixed(2), color: profitFactor >= 2 ? '#FDC800' : profitFactor >= 1.2 ? '#EAB308' : '#ff4757', sub: `Won $${grossProfit.toFixed(0)} / Lost $${grossLoss.toFixed(0)}` },
-                                    { label: 'EXPECTANCY / TRADE', value: `${expectancy >= 0 ? '+' : ''}$${expectancy.toFixed(2)}`, color: expectancy >= 0 ? '#FDC800' : '#ff4757', sub: `Avg W $${avgWin.toFixed(0)} · Avg L $${avgLoss.toFixed(0)}` },
-                                    { label: 'MAX DRAWDOWN', value: maxDd > 0 ? `-$${maxDd.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '—', color: '#ff4757', sub: 'Peak to trough' },
-                                    { label: 'MAX RUN-UP', value: maxRunup > 0 ? `+$${maxRunup.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '—', color: '#FDC800', sub: 'Trough to peak' },
-                                    { label: 'AVG TRADE DURATION', value: fmtDuration((avgWinDuration * wins.length + avgLossDuration * losses.length) / Math.max(1, closed.length)), color: '#c9d1d9', sub: `${wins.length + losses.length} closed trades` },
-                                    { label: 'W/L DOLLAR RATIO', value: wlRatio > 0 ? `${wlRatio.toFixed(2)}:1` : '—', color: wlRatio >= 1.5 ? '#FDC800' : wlRatio >= 1 ? '#EAB308' : '#ff4757', sub: `$${avgWin.toFixed(0)} avg win · $${avgLoss.toFixed(0)} avg loss` },
+                                    { label: lang === 'fr' ? 'P&L NET (APRÈS FRAIS)' : 'NET P&L (AFTER FEES)', value: `${netPnl >= 0 ? '+' : '-'}$${Math.abs(netPnl).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, color: netPnl >= 0 ? '#FDC800' : '#ff4757', sub: lang === 'fr' ? `Brut $${grossProfit.toFixed(0)} · Perte $${grossLoss.toFixed(0)}` : `Gross $${grossProfit.toFixed(0)} · Loss $${grossLoss.toFixed(0)}` },
+                                    { label: lang === 'fr' ? 'TAUX DE RÉUSSITE' : 'WIN RATE', value: `${winRate.toFixed(1)}%`, color: winRate >= 50 ? '#FDC800' : '#EAB308', sub: `${wins.length}W / ${losses.length}L ${lang === 'fr' ? 'sur' : 'of'} ${closed.length} trades` },
+                                    { label: lang === 'fr' ? 'FACTEUR DE PROFIT' : 'PROFIT FACTOR', value: profitFactor === 99 ? '∞' : profitFactor.toFixed(2), color: profitFactor >= 2 ? '#FDC800' : profitFactor >= 1.2 ? '#EAB308' : '#ff4757', sub: lang === 'fr' ? `Gagné $${grossProfit.toFixed(0)} / Perdu $${grossLoss.toFixed(0)}` : `Won $${grossProfit.toFixed(0)} / Lost $${grossLoss.toFixed(0)}` },
+                                    { label: lang === 'fr' ? 'ESPÉRANCE / TRADE' : 'EXPECTANCY / TRADE', value: `${expectancy >= 0 ? '+' : ''}$${expectancy.toFixed(2)}`, color: expectancy >= 0 ? '#FDC800' : '#ff4757', sub: lang === 'fr' ? `Moy G $${avgWin.toFixed(0)} · Moy P $${avgLoss.toFixed(0)}` : `Avg W $${avgWin.toFixed(0)} · Avg L $${avgLoss.toFixed(0)}` },
+                                    { label: lang === 'fr' ? 'DRAWDOWN MAX' : 'MAX DRAWDOWN', value: maxDd > 0 ? `-$${maxDd.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '—', color: '#ff4757', sub: lang === 'fr' ? 'Sommet au creux' : 'Peak to trough' },
+                                    { label: lang === 'fr' ? 'HAUSSE MAX' : 'MAX RUN-UP', value: maxRunup > 0 ? `+$${maxRunup.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '—', color: '#FDC800', sub: lang === 'fr' ? 'Creux au sommet' : 'Trough to peak' },
+                                    { label: lang === 'fr' ? 'DURÉE MOY. TRADE' : 'AVG TRADE DURATION', value: fmtDuration((avgWinDuration * wins.length + avgLossDuration * losses.length) / Math.max(1, closed.length)), color: '#c9d1d9', sub: lang === 'fr' ? `${wins.length + losses.length} trades clôturés` : `${wins.length + losses.length} closed trades` },
+                                    { label: lang === 'fr' ? 'RATIO G/P EN $' : 'W/L DOLLAR RATIO', value: wlRatio > 0 ? `${wlRatio.toFixed(2)}:1` : '—', color: wlRatio >= 1.5 ? '#FDC800' : wlRatio >= 1 ? '#EAB308' : '#ff4757', sub: lang === 'fr' ? `$${avgWin.toFixed(0)} gain moy · $${avgLoss.toFixed(0)} perte moy` : `$${avgWin.toFixed(0)} avg win · $${avgLoss.toFixed(0)} avg loss` },
                                 ].map((k, i) => (
                                     <div key={i} style={{ padding: isMobile ? '14px 14px' : '20px 24px', borderBottom: '1px solid #1a1c24', borderRight: '1px solid #1a1c24', background: '#0d1117', display: 'flex', flexDirection: 'column', gap: 6 }}>
                                         <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#6b7280', letterSpacing: '0.1em', textTransform: 'uppercase' }}>{k.label}</span>
@@ -915,14 +915,14 @@ export default function AnalyticsPage() {
                             <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 1, background: '#1a1c24' }}>
                                 {/* Waterfall */}
                                 <div style={{ background: '#0d1117', padding: isMobile ? '14px' : '24px' }}>
-                                    <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#6b7280', letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 4 }}>FULL DETAILS</div>
-                                    <div style={{ fontFamily: 'var(--font-mono)', fontSize: 16, fontWeight: 700, color: '#fff', marginBottom: 6 }}>Gross, fees, and what actually landed</div>
-                                    <div style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: '#6b7280', marginBottom: 20 }}>A waterfall is the cleanest way to show how commissions compress gross edge into net P&L.</div>
+                                    <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#6b7280', letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 4 }}>{lang === 'fr' ? 'DÉTAIL COMPLET' : 'FULL DETAILS'}</div>
+                                    <div style={{ fontFamily: 'var(--font-mono)', fontSize: 16, fontWeight: 700, color: '#fff', marginBottom: 6 }}>{lang === 'fr' ? 'Brut, frais et ce qui reste réellement' : 'Gross, fees, and what actually landed'}</div>
+                                    <div style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: '#6b7280', marginBottom: 20 }}>{lang === 'fr' ? 'Un graphique en cascade montre clairement comment les commissions compriment le P&L brut.' : 'A waterfall is the cleanest way to show how commissions compress gross edge into net P&L.'}</div>
                                     {/* SVG Waterfall */}
                                     <div style={{ display: 'flex', alignItems: 'flex-end', gap: 4, height: 100, padding: '0 8px', position: 'relative' }}>
                                         {[
-                                            { label: 'GROSS', val: grossProfit, color: '#FDC800' },
-                                            { label: 'LOSS', val: -grossLoss, color: '#ff4757' },
+                                            { label: lang === 'fr' ? 'BRUT' : 'GROSS', val: grossProfit, color: '#FDC800' },
+                                            { label: lang === 'fr' ? 'PERTE' : 'LOSS', val: -grossLoss, color: '#ff4757' },
                                             { label: 'NET', val: netPnl, color: netPnl >= 0 ? '#FDC800' : '#ff4757' },
                                         ].map((bar, i) => {
                                             const maxV = Math.max(grossProfit, grossLoss, Math.abs(netPnl), 1);
@@ -936,7 +936,7 @@ export default function AnalyticsPage() {
                                         })}
                                     </div>
                                     <div style={{ display: 'flex', gap: 4, marginTop: 8 }}>
-                                        {['GROSS', 'LOSS', 'NET'].map((l, i) => (
+                                        {[lang === 'fr' ? 'BRUT' : 'GROSS', lang === 'fr' ? 'PERTE' : 'LOSS', 'NET'].map((l, i) => (
                                             <div key={i} style={{ flex: 1, textAlign: 'center', fontFamily: 'var(--font-mono)', fontSize: 9, color: '#6b7280', letterSpacing: '0.08em' }}>{l}</div>
                                         ))}
                                     </div>
@@ -944,9 +944,9 @@ export default function AnalyticsPage() {
 
                                 {/* Wins vs Losses segmented */}
                                 <div style={{ background: '#0d1117', padding: isMobile ? '14px' : '24px' }}>
-                                    <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#6b7280', letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 4 }}>TRADE OUTCOMES</div>
-                                    <div style={{ fontFamily: 'var(--font-mono)', fontSize: 16, fontWeight: 700, color: '#fff', marginBottom: 6 }}>Wins versus losses</div>
-                                    <div style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: '#6b7280', marginBottom: 20 }}>Segmented composition reads faster than a donut here and keeps the trade counts explicit.</div>
+                                    <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#6b7280', letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 4 }}>{lang === 'fr' ? 'RÉSULTATS DES TRADES' : 'TRADE OUTCOMES'}</div>
+                                    <div style={{ fontFamily: 'var(--font-mono)', fontSize: 16, fontWeight: 700, color: '#fff', marginBottom: 6 }}>{lang === 'fr' ? 'Gains contre pertes' : 'Wins versus losses'}</div>
+                                    <div style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: '#6b7280', marginBottom: 20 }}>{lang === 'fr' ? 'La composition segmentée se lit plus vite qu\'un donut et rend les comptes de trades explicites.' : 'Segmented composition reads faster than a donut here and keeps the trade counts explicit.'}</div>
                                     <div style={{ height: 12, background: '#1a1c24', borderRadius: 2, overflow: 'hidden', marginBottom: 16 }}>
                                         {closed.length > 0 && (
                                             <motion.div initial={{ width: 0 }} animate={{ width: `${winRate}%` }} style={{ height: '100%', background: '#FDC800', borderRadius: '2px 0 0 2px' }} />
@@ -969,9 +969,9 @@ export default function AnalyticsPage() {
                             <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 1, background: '#1a1c24' }}>
                                 {/* Profit Factor & Expectancy gauges */}
                                 <div style={{ background: '#0d1117', padding: isMobile ? '14px' : '24px' }}>
-                                    <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#6b7280', letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 4 }}>TRADE VIABILITY</div>
-                                    <div style={{ fontFamily: 'var(--font-mono)', fontSize: 16, fontWeight: 700, color: '#fff', marginBottom: 6 }}>Profitability thresholds</div>
-                                    <div style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: '#6b7280', marginBottom: 24 }}>Profit factor tells you whether wins outsize losses. Expectancy tells you what each trade is worth on average.</div>
+                                    <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#6b7280', letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 4 }}>{lang === 'fr' ? 'VIABILITÉ DES TRADES' : 'TRADE VIABILITY'}</div>
+                                    <div style={{ fontFamily: 'var(--font-mono)', fontSize: 16, fontWeight: 700, color: '#fff', marginBottom: 6 }}>{lang === 'fr' ? 'Seuils de rentabilité' : 'Profitability thresholds'}</div>
+                                    <div style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: '#6b7280', marginBottom: 24 }}>{lang === 'fr' ? 'Le facteur de profit indique si les gains dépassent les pertes. L\'espérance indique ce que vaut chaque trade en moyenne.' : 'Profit factor tells you whether wins outsize losses. Expectancy tells you what each trade is worth on average.'}</div>
 
                                     {/* PF slider */}
                                     <div style={{ marginBottom: 24 }}>
@@ -986,7 +986,7 @@ export default function AnalyticsPage() {
                                             <motion.div initial={{ left: 0 }} animate={{ left: `${Math.min(95, (Math.min(profitFactor, 3) / 3) * 100)}%` }} style={{ position: 'absolute', top: -3, width: 12, height: 12, background: profitFactor >= 1.5 ? '#FDC800' : '#EAB308', borderRadius: '50%', transform: 'translateX(-50%)' }} />
                                         </div>
                                         <div style={{ display: 'flex', justifyContent: 'space-between', fontFamily: 'var(--font-mono)', fontSize: 9, color: '#6b7280' }}>
-                                            <span>0–0.9x LOSS</span><span>1–1.4x FLAT</span><span>1.5–1.9x PLAYABLE</span><span>2x+ EDGE</span>
+                                            <span>{lang === 'fr' ? '0–0.9x PERTE' : '0–0.9x LOSS'}</span><span>{lang === 'fr' ? '1–1.4x NEUTRE' : '1–1.4x FLAT'}</span><span>{lang === 'fr' ? '1.5–1.9x JOUABLE' : '1.5–1.9x PLAYABLE'}</span><span>{lang === 'fr' ? '2x+ AVANTAGE' : '2x+ EDGE'}</span>
                                         </div>
                                     </div>
 
@@ -1005,23 +1005,23 @@ export default function AnalyticsPage() {
                                             />
                                         </div>
                                         <div style={{ display: 'flex', justifyContent: 'space-between', fontFamily: 'var(--font-mono)', fontSize: 9, color: '#6b7280' }}>
-                                            <span>NEGATIVE</span><span>FLAT</span><span>POSITIVE</span><span>OPTIMAL</span>
+                                            <span>{lang === 'fr' ? 'NÉGATIF' : 'NEGATIVE'}</span><span>{lang === 'fr' ? 'NEUTRE' : 'FLAT'}</span><span>{lang === 'fr' ? 'POSITIF' : 'POSITIVE'}</span><span>{lang === 'fr' ? 'OPTIMAL' : 'OPTIMAL'}</span>
                                         </div>
                                     </div>
                                 </div>
 
                                 {/* Payoff Profile */}
                                 <div style={{ background: '#0d1117', padding: isMobile ? '14px' : '24px' }}>
-                                    <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#6b7280', letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 4 }}>PAYOFF PROFILE</div>
-                                    <div style={{ fontFamily: 'var(--font-mono)', fontSize: 16, fontWeight: 700, color: '#fff', marginBottom: 6 }}>Average win versus average loss</div>
-                                    <div style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: '#6b7280', marginBottom: 24 }}>This is the most direct visual for your W:L dollar ratio. Traders scan the payoff gap faster than the ratio alone.</div>
+                                    <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#6b7280', letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 4 }}>{lang === 'fr' ? 'PROFIL DE GAIN' : 'PAYOFF PROFILE'}</div>
+                                    <div style={{ fontFamily: 'var(--font-mono)', fontSize: 16, fontWeight: 700, color: '#fff', marginBottom: 6 }}>{lang === 'fr' ? 'Gain moyen contre perte moyenne' : 'Average win versus average loss'}</div>
+                                    <div style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: '#6b7280', marginBottom: 24 }}>{lang === 'fr' ? 'C\'est la représentation la plus directe de votre ratio W:L en dollars. Les traders lisent l\'écart plus vite que le ratio seul.' : 'This is the most direct visual for your W:L dollar ratio. Traders scan the payoff gap faster than the ratio alone.'}</div>
                                     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
                                         <div>
                                             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
                                                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                                                     <div style={{ width: 8, height: 8, background: '#FDC800', borderRadius: '50%' }} />
-                                                    <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: '#FDC800' }}>Avg win</span>
-                                                    <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: '#FDC800', opacity: 0.65 }}>{wins.length} winning trades</span>
+                                                    <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: '#FDC800' }}>{lang === 'fr' ? 'Gain moyen' : 'Avg win'}</span>
+                                                    <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: '#FDC800', opacity: 0.65 }}>{wins.length} {lang === 'fr' ? 'trades gagnants' : 'winning trades'}</span>
                                                 </div>
                                                 <span style={{ fontFamily: 'var(--font-mono)', fontSize: 14, fontWeight: 700, color: '#FDC800' }}>+${avgWin.toFixed(2)}</span>
                                             </div>
@@ -1033,8 +1033,8 @@ export default function AnalyticsPage() {
                                             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
                                                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                                                     <div style={{ width: 8, height: 8, background: '#ff4757', borderRadius: '50%' }} />
-                                                    <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: '#ff4757' }}>Avg loss</span>
-                                                    <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: '#ff4757', opacity: 0.65 }}>{losses.length} losing trades</span>
+                                                    <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: '#ff4757' }}>{lang === 'fr' ? 'Perte moyenne' : 'Avg loss'}</span>
+                                                    <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: '#ff4757', opacity: 0.65 }}>{losses.length} {lang === 'fr' ? 'trades perdants' : 'losing trades'}</span>
                                                 </div>
                                                 <span style={{ fontFamily: 'var(--font-mono)', fontSize: 14, fontWeight: 700, color: '#ff4757' }}>-${avgLoss.toFixed(2)}</span>
                                             </div>
@@ -1048,13 +1048,13 @@ export default function AnalyticsPage() {
 
                             {/* ── HOLD TIME ANALYSIS ── */}
                             <div style={{ background: '#0d1117', border: '1px solid #1a1c24', padding: isMobile ? '14px' : '24px' }}>
-                                <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#6b7280', letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 4 }}>MULTIPLIED EDGE</div>
-                                <div style={{ fontFamily: 'var(--font-mono)', fontSize: 16, fontWeight: 700, color: '#fff', marginBottom: 6 }}>Winners versus losers</div>
-                                <div style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: '#6b7280', marginBottom: 24 }}>Average duration alone hides the real coaching signal. The split below shows whether losers are lingering longer than winners.</div>
+                                <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#6b7280', letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 4 }}>{lang === 'fr' ? 'AVANTAGE MULTIPLIÉ' : 'MULTIPLIED EDGE'}</div>
+                                <div style={{ fontFamily: 'var(--font-mono)', fontSize: 16, fontWeight: 700, color: '#fff', marginBottom: 6 }}>{lang === 'fr' ? 'Gagnants contre perdants' : 'Winners versus losers'}</div>
+                                <div style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: '#6b7280', marginBottom: 24 }}>{lang === 'fr' ? 'La durée moyenne seule masque le signal de coaching réel. La répartition ci-dessous montre si les perdants durent plus longtemps.' : 'Average duration alone hides the real coaching signal. The split below shows whether losers are lingering longer than winners.'}</div>
                                 <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
                                     {[
-                                        { label: 'Winners', sub: 'Average hold time', dur: avgWinDuration, color: '#FDC800' },
-                                        { label: 'Losers', sub: 'Average hold time', dur: avgLossDuration, color: '#ff4757' },
+                                        { label: lang === 'fr' ? 'Gagnants' : 'Winners', sub: lang === 'fr' ? 'Durée moyenne de détention' : 'Average hold time', dur: avgWinDuration, color: '#FDC800' },
+                                        { label: lang === 'fr' ? 'Perdants' : 'Losers', sub: lang === 'fr' ? 'Durée moyenne de détention' : 'Average hold time', dur: avgLossDuration, color: '#ff4757' },
                                     ].map((row, i) => {
                                         const maxDur = Math.max(avgWinDuration, avgLossDuration, 1);
                                         return (
@@ -1075,7 +1075,7 @@ export default function AnalyticsPage() {
                                 </div>
                                 {avgLossDuration > avgWinDuration && avgLossDuration > 0 && (
                                     <div style={{ marginTop: 16, fontFamily: 'var(--font-mono)', fontSize: 11, color: '#ff4757', fontWeight: 600 }}>
-                                        Losers lasting {(avgLossDuration / Math.max(avgWinDuration, 1)).toFixed(1)}x longer than winners.
+                                        {lang === 'fr' ? `Perdants durant ${(avgLossDuration / Math.max(avgWinDuration, 1)).toFixed(1)}x plus longtemps que les gagnants.` : `Losers lasting ${(avgLossDuration / Math.max(avgWinDuration, 1)).toFixed(1)}x longer than winners.`}
                                     </div>
                                 )}
                             </div>
@@ -1084,29 +1084,29 @@ export default function AnalyticsPage() {
                             {behavioralCost < 0 && (
                                 <div style={{ background: '#0d1117', border: '1px solid #1a1c24', padding: '20px 24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 16 }}>
                                     <div>
-                                        <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#6b7280', letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 4 }}>ESTIMATED TOTAL BEHAVIORAL COST — THIS SESSION</div>
+                                        <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#6b7280', letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 4 }}>{lang === 'fr' ? 'COÛT COMPORTEMENTAL TOTAL ESTIMÉ — CETTE SESSION' : 'ESTIMATED TOTAL BEHAVIORAL COST — THIS SESSION'}</div>
                                         <div style={{ fontFamily: 'var(--font-mono)', fontSize: 28, fontWeight: 700, color: '#ff4757' }}>
                                             -${Math.abs(behavioralCost).toLocaleString(undefined, { minimumFractionDigits: 0 })}
                                         </div>
                                         <div style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: '#6b7280', marginTop: 4 }}>
-                                            Across {forensics.patterns.length} detected patterns · {Math.abs(behavioralCost / Math.max(grossProfit, 1) * 100).toFixed(1)}% of gross profits
+                                            {lang === 'fr' ? `Sur ${forensics.patterns.length} motifs détectés · ${Math.abs(behavioralCost / Math.max(grossProfit, 1) * 100).toFixed(1)}% des profits bruts` : `Across ${forensics.patterns.length} detected patterns · ${Math.abs(behavioralCost / Math.max(grossProfit, 1) * 100).toFixed(1)}% of gross profits`}
                                         </div>
                                     </div>
                                     <div style={{ textAlign: 'right' }}>
-                                        <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#6b7280', letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 4 }}>WITHOUT TOXIC PATTERNS</div>
+                                        <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#6b7280', letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 4 }}>{lang === 'fr' ? 'SANS MOTIFS TOXIQUES' : 'WITHOUT TOXIC PATTERNS'}</div>
                                         <div style={{ fontFamily: 'var(--font-mono)', fontSize: 28, fontWeight: 700, color: '#FDC800' }}>
                                             +${withoutToxicPatterns.toLocaleString(undefined, { minimumFractionDigits: 0 })}
                                         </div>
-                                        <div style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: '#6b7280', marginTop: 4 }}>potential</div>
+                                        <div style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: '#6b7280', marginTop: 4 }}>{lang === 'fr' ? 'potentiel' : 'potential'}</div>
                                     </div>
                                 </div>
                             )}
 
                             {/* ── SESSION-TO-SESSION EQUITY PATH ── */}
                             <div style={{ background: '#0d1117', border: '1px solid #1a1c24', padding: isMobile ? '14px' : '24px' }}>
-                                <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#6b7280', letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 4 }}>EQUITY CURVE</div>
-                                <div style={{ fontFamily: 'var(--font-mono)', fontSize: 16, fontWeight: 700, color: '#fff', marginBottom: 6 }}>Session-to-session equity path</div>
-                                <div style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: '#6b7280', marginBottom: 20 }}>Cumulative net P&L over your trading days, with the deepest drawdown interval highlighted.</div>
+                                <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#6b7280', letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 4 }}>{lang === 'fr' ? 'COURBE D\'ÉQUITÉ' : 'EQUITY CURVE'}</div>
+                                <div style={{ fontFamily: 'var(--font-mono)', fontSize: 16, fontWeight: 700, color: '#fff', marginBottom: 6 }}>{lang === 'fr' ? 'Courbe d\'équité session par session' : 'Session-to-session equity path'}</div>
+                                <div style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: '#6b7280', marginBottom: 20 }}>{lang === 'fr' ? 'P&L net cumulatif sur vos jours de trading, avec l\'intervalle de drawdown le plus profond mis en évidence.' : 'Cumulative net P&L over your trading days, with the deepest drawdown interval highlighted.'}</div>
                                 <div style={{ height: 180 }}>
                                     {equityCurve.length > 1 ? (
                                         <ResponsiveContainer width="100%" height="100%">
@@ -1123,42 +1123,50 @@ export default function AnalyticsPage() {
                                                 <ReferenceLine y={0} stroke="rgba(255,255,255,0.08)" />
                                                 <Tooltip
                                                     contentStyle={{ backgroundColor: '#0b0e14', border: '1px solid #1a1c24', fontFamily: 'var(--font-mono)', fontSize: 11 }}
-                                                    formatter={(v: number | undefined) => v !== undefined ? [`${v >= 0 ? '+' : ''}$${Math.abs(v).toFixed(2)}`, 'Cumulative P&L'] : ['—', 'Cumulative P&L']}
-                                                    labelFormatter={(l: unknown) => `Trade #${l}`}
+                                                    formatter={(v: number | undefined) => v !== undefined ? [`${v >= 0 ? '+' : ''}$${Math.abs(v).toFixed(2)}`, lang === 'fr' ? 'P&L Cumulatif' : 'Cumulative P&L'] : ['—', lang === 'fr' ? 'P&L Cumulatif' : 'Cumulative P&L']}
+                                                    labelFormatter={(l: unknown) => `${lang === 'fr' ? 'Trade n°' : 'Trade #'}${l}`}
                                                 />
                                                 <Area type="monotone" dataKey="pnl" stroke={netPnl >= 0 ? '#FDC800' : '#ff4757'} strokeWidth={2} fill="url(#eqGrad)" dot={false} activeDot={{ r: 4, fill: netPnl >= 0 ? '#FDC800' : '#ff4757' }} />
                                             </AreaChart>
                                         </ResponsiveContainer>
                                     ) : (
-                                        <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'var(--font-mono)', fontSize: 11, color: '#6b7280' }}>No trade data to plot</div>
+                                        <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'var(--font-mono)', fontSize: 11, color: '#6b7280' }}>{lang === 'fr' ? 'Aucune donnée de trade à tracer' : 'No trade data to plot'}</div>
                                     )}
                                 </div>
                                 {equityCurve.length > 1 && (
                                     <div style={{ display: 'flex', gap: 24, marginTop: 12, flexWrap: 'wrap' }}>
-                                        <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: '#ff4757' }}>Max drawdown: -${maxDd.toFixed(0)}</span>
-                                        <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: '#FDC800' }}>Max run-up: +${maxRunup.toFixed(0)}</span>
-                                        <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: '#6b7280' }}>Trades: {closed.length}</span>
-                                        <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: netPnl >= 0 ? '#FDC800' : '#ff4757' }}>Final: {netPnl >= 0 ? '+' : ''}${netPnl.toFixed(0)}</span>
+                                        <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: '#ff4757' }}>{lang === 'fr' ? `Drawdown max : -$${maxDd.toFixed(0)}` : `Max drawdown: -$${maxDd.toFixed(0)}`}</span>
+                                        <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: '#FDC800' }}>{lang === 'fr' ? `Hausse max : +$${maxRunup.toFixed(0)}` : `Max run-up: +$${maxRunup.toFixed(0)}`}</span>
+                                        <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: '#6b7280' }}>{lang === 'fr' ? `Trades : ${closed.length}` : `Trades: ${closed.length}`}</span>
+                                        <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: netPnl >= 0 ? '#FDC800' : '#ff4757' }}>{lang === 'fr' ? `Final : ${netPnl >= 0 ? '+' : ''}$${netPnl.toFixed(0)}` : `Final: ${netPnl >= 0 ? '+' : ''}$${netPnl.toFixed(0)}`}</span>
                                     </div>
                                 )}
                                 {equityCurve.length > 1 && (
                                     <div style={{ marginTop: 16, display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 12 }}>
                                         <div style={{ padding: '14px 16px', background: 'rgba(253,200,0,0.04)', border: '1px solid rgba(253,200,0,0.12)', borderLeft: '3px solid #FDC800' }}>
-                                            <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#FDC800', letterSpacing: '0.1em', textTransform: 'uppercase', fontWeight: 700, marginBottom: 6 }}>WHAT THIS MEANS</div>
+                                            <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#FDC800', letterSpacing: '0.1em', textTransform: 'uppercase', fontWeight: 700, marginBottom: 6 }}>{lang === 'fr' ? 'CE QUE CELA SIGNIFIE' : 'WHAT THIS MEANS'}</div>
                                             <p style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: '#c9d1d9', lineHeight: 1.8, margin: 0 }}>
                                                 {netPnl >= 0
-                                                    ? <>Equity is <strong style={{ color: '#FDC800' }}>net positive</strong>. Max drawdown was <strong style={{ color: '#ff4757' }}>-${maxDd.toFixed(0)}</strong> — a {maxRunup > 0 ? ((maxDd / maxRunup) * 100).toFixed(0) : 0}% retracement of your peak. A smooth rising curve = consistent edge. A jagged one = high variance — you may be getting lucky with large outlier wins.</>
-                                                    : <>Equity is <strong style={{ color: '#ff4757' }}>net negative</strong> at ${netPnl.toFixed(0)}. The curve shape tells you whether losses are concentrated (a few blowouts) or systematic (steady bleed). Max drawdown hit <strong style={{ color: '#ff4757' }}>-${maxDd.toFixed(0)}</strong>.</>}
+                                                    ? lang === 'fr'
+                                                        ? <>L&apos;équité est <strong style={{ color: '#FDC800' }}>nette positive</strong>. Le drawdown max était <strong style={{ color: '#ff4757' }}>-${maxDd.toFixed(0)}</strong> — un retracement de {maxRunup > 0 ? ((maxDd / maxRunup) * 100).toFixed(0) : 0}% de votre sommet. Une courbe régulière = avantage consistant. Une courbe irrégulière = forte variance.</>
+                                                        : <>Equity is <strong style={{ color: '#FDC800' }}>net positive</strong>. Max drawdown was <strong style={{ color: '#ff4757' }}>-${maxDd.toFixed(0)}</strong> — a {maxRunup > 0 ? ((maxDd / maxRunup) * 100).toFixed(0) : 0}% retracement of your peak. A smooth rising curve = consistent edge. A jagged one = high variance — you may be getting lucky with large outlier wins.</>
+                                                    : lang === 'fr'
+                                                        ? <>L&apos;équité est <strong style={{ color: '#ff4757' }}>nette négative</strong> à ${netPnl.toFixed(0)}. La forme de la courbe indique si les pertes sont concentrées (quelques explosions) ou systémiques (saignement régulier). Le drawdown max a atteint <strong style={{ color: '#ff4757' }}>-${maxDd.toFixed(0)}</strong>.</>
+                                                        : <>Equity is <strong style={{ color: '#ff4757' }}>net negative</strong> at ${netPnl.toFixed(0)}. The curve shape tells you whether losses are concentrated (a few blowouts) or systematic (steady bleed). Max drawdown hit <strong style={{ color: '#ff4757' }}>-${maxDd.toFixed(0)}</strong>.</>}
                                             </p>
                                         </div>
                                         <div style={{ padding: '14px 16px', background: 'rgba(234,179,8,0.04)', border: '1px solid rgba(234,179,8,0.15)', borderLeft: '3px solid #EAB308' }}>
-                                            <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#EAB308', letterSpacing: '0.1em', textTransform: 'uppercase', fontWeight: 700, marginBottom: 6 }}>ACTION</div>
+                                            <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#EAB308', letterSpacing: '0.1em', textTransform: 'uppercase', fontWeight: 700, marginBottom: 6 }}>{lang === 'fr' ? 'ACTION' : 'ACTION'}</div>
                                             <p style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: '#8b949e', lineHeight: 1.8, margin: 0 }}>
                                                 {maxDd > 0 && netPnl > 0
-                                                    ? `Your max drawdown is -$${maxDd.toFixed(0)} — ${((maxDd / netPnl) * 100).toFixed(0)}% of net profit. Set a hard drawdown ceiling at -$${Math.round(maxDd * 0.6)} to protect gains. If hit, reduce position size by 50% for the rest of the session.`
+                                                    ? lang === 'fr'
+                                                        ? `Votre drawdown max est -$${maxDd.toFixed(0)} — ${((maxDd / netPnl) * 100).toFixed(0)}% du P&L net. Fixez un plafond de drawdown à -$${Math.round(maxDd * 0.6)} pour protéger vos gains. Si atteint, réduisez la taille de position de 50% pour le reste de la session.`
+                                                        : `Your max drawdown is -$${maxDd.toFixed(0)} — ${((maxDd / netPnl) * 100).toFixed(0)}% of net profit. Set a hard drawdown ceiling at -$${Math.round(maxDd * 0.6)} to protect gains. If hit, reduce position size by 50% for the rest of the session.`
                                                     : maxDd > 0
-                                                    ? `Max drawdown -$${maxDd.toFixed(0)} with negative net P&L signals a structural problem. Reduce all trade sizes by 30% immediately and re-evaluate edge by reviewing PATTERNS tab.`
-                                                    : 'Log more trades to see drawdown analysis.'}
+                                                    ? lang === 'fr'
+                                                        ? `Drawdown max -$${maxDd.toFixed(0)} avec un P&L net négatif signale un problème structurel. Réduisez immédiatement toutes les tailles de trade de 30% et réévaluez l'avantage via l'onglet MOTIFS.`
+                                                        : `Max drawdown -$${maxDd.toFixed(0)} with negative net P&L signals a structural problem. Reduce all trade sizes by 30% immediately and re-evaluate edge by reviewing PATTERNS tab.`
+                                                    : lang === 'fr' ? 'Enregistrez plus de trades pour voir l\'analyse du drawdown.' : 'Log more trades to see drawdown analysis.'}
                                             </p>
                                         </div>
                                     </div>
@@ -1169,8 +1177,8 @@ export default function AnalyticsPage() {
                             <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr 1fr', gap: 1, background: '#1a1c24' }}>
                                 {/* Trade Outcome Pie */}
                                 <div style={{ background: '#0d1117', padding: isMobile ? '14px' : '24px' }}>
-                                    <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#6b7280', letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 4 }}>TRADE OUTCOME WIN</div>
-                                    <div style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: '#8b949e', marginBottom: 16 }}>Fast read on how often this session finished green versus red</div>
+                                    <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#6b7280', letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 4 }}>{lang === 'fr' ? 'RÉSULTAT DES TRADES' : 'TRADE OUTCOME WIN'}</div>
+                                    <div style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: '#8b949e', marginBottom: 16 }}>{lang === 'fr' ? 'Lecture rapide de la fréquence à laquelle la session s\'est terminée en positif ou négatif' : 'Fast read on how often this session finished green versus red'}</div>
                                     <div style={{ height: 120 }}>
                                         <ResponsiveContainer width="100%" height="100%">
                                             <PieChart>
@@ -1195,8 +1203,8 @@ export default function AnalyticsPage() {
 
                                 {/* P&L by Instrument */}
                                 <div style={{ background: '#0d1117', padding: isMobile ? '14px' : '24px' }}>
-                                    <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#6b7280', letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 4 }}>P&L BY INSTRUMENT</div>
-                                    <div style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: '#8b949e', marginBottom: 16 }}>Signed contribution: our share of volume. Losing instruments stay visibly negative.</div>
+                                    <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#6b7280', letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 4 }}>{lang === 'fr' ? 'P&L PAR INSTRUMENT' : 'P&L BY INSTRUMENT'}</div>
+                                    <div style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: '#8b949e', marginBottom: 16 }}>{lang === 'fr' ? 'Contribution signée : notre part de volume. Les instruments perdants restent visiblement négatifs.' : 'Signed contribution: our share of volume. Losing instruments stay visibly negative.'}</div>
                                     <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                                         {instrumentArray.slice(0, 5).map((inst, i) => (
                                             <div key={inst.asset} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -1211,19 +1219,19 @@ export default function AnalyticsPage() {
                                         ))}
                                     </div>
                                     {instrumentArray.length === 0 && (
-                                        <div style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: '#6b7280' }}>No instrument data</div>
+                                        <div style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: '#6b7280' }}>{lang === 'fr' ? 'Aucune donnée d\'instrument' : 'No instrument data'}</div>
                                     )}
                                 </div>
 
                                 {/* Risk Score */}
                                 <div style={{ background: '#0d1117', padding: isMobile ? '14px' : '24px', display: 'flex', flexDirection: 'column', alignItems: 'flex-start' }}>
-                                    <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#6b7280', letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 4 }}>RISK SCORE</div>
-                                    <div style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: '#8b949e', marginBottom: 16 }}>Threshold-based readout designed for faster risk interpretation than a gauge.</div>
+                                    <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#6b7280', letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 4 }}>{lang === 'fr' ? 'SCORE DE RISQUE' : 'RISK SCORE'}</div>
+                                    <div style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: '#8b949e', marginBottom: 16 }}>{lang === 'fr' ? 'Lecture basée sur des seuils pour une interprétation plus rapide du risque qu\'une jauge.' : 'Threshold-based readout designed for faster risk interpretation than a gauge.'}</div>
                                     {/* Linear bar risk score */}
                                     {(() => {
                                         const rs = forensics.riskScore;
                                         const riskColor = rs > 75 ? '#ff4757' : rs > 50 ? '#F97316' : rs > 30 ? '#EAB308' : '#FDC800';
-                                        const riskLabel = rs > 75 ? 'CRITICAL' : rs > 50 ? 'HIGH' : rs > 30 ? 'ELEVATED' : 'HEALTHY';
+                                        const riskLabel = rs > 75 ? (lang === 'fr' ? 'CRITIQUE' : 'CRITICAL') : rs > 50 ? (lang === 'fr' ? 'ÉLEVÉ' : 'HIGH') : rs > 30 ? (lang === 'fr' ? 'MODÉRÉ' : 'ELEVATED') : (lang === 'fr' ? 'SAIN' : 'HEALTHY');
                                         return (
                                             <div style={{ width: '100%' }}>
                                                 <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginBottom: 8 }}>
@@ -1234,10 +1242,10 @@ export default function AnalyticsPage() {
                                                     <motion.div initial={{ width: 0 }} animate={{ width: `${rs}%` }} style={{ height: '100%', background: `linear-gradient(to right, #FDC800, ${riskColor})`, borderRadius: 3 }} />
                                                 </div>
                                                 <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, letterSpacing: '0.1em', color: riskColor, fontWeight: 700, border: `1px solid ${riskColor}33`, background: `${riskColor}11`, padding: '3px 8px', display: 'inline-block' }}>
-                                                    {riskLabel} RISK
+                                                    {riskLabel} {lang === 'fr' ? 'RISQUE' : 'RISK'}
                                                 </div>
                                                 <div style={{ marginTop: 16, display: 'flex', gap: 4, flexWrap: 'wrap' }}>
-                                                    {[{ label: '0-30', tag: 'CLEAN', active: rs <= 30 }, { label: '31-55', tag: 'MODERATE', active: rs > 30 && rs <= 55 }, { label: '56-75', tag: 'HIGH', active: rs > 55 && rs <= 75 }, { label: '76-100', tag: 'CRITICAL', active: rs > 75 }].map((z, i) => (
+                                                    {[{ label: '0-30', tag: lang === 'fr' ? 'PROPRE' : 'CLEAN', active: rs <= 30 }, { label: '31-55', tag: lang === 'fr' ? 'MODÉRÉ' : 'MODERATE', active: rs > 30 && rs <= 55 }, { label: '56-75', tag: lang === 'fr' ? 'ÉLEVÉ' : 'HIGH', active: rs > 55 && rs <= 75 }, { label: '76-100', tag: lang === 'fr' ? 'CRITIQUE' : 'CRITICAL', active: rs > 75 }].map((z, i) => (
                                                         <div key={i} style={{ fontFamily: 'var(--font-mono)', fontSize: 8, padding: '2px 6px', border: `1px solid ${z.active ? riskColor : '#1a1c24'}`, color: z.active ? riskColor : '#6b7280', background: z.active ? `${riskColor}11` : 'transparent' }}>
                                                             {z.label}<br />{z.tag}
                                                         </div>
@@ -1251,32 +1259,32 @@ export default function AnalyticsPage() {
 
                             {/* ── RISK SCORE BREAKDOWN ── */}
                             <div style={{ background: '#0d1117', border: '1px solid #1a1c24', padding: isMobile ? '14px' : '24px' }}>
-                                <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#6b7280', letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 4 }}>HOW THE RISK SCORE IS CALCULATED</div>
+                                <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#6b7280', letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 4 }}>{lang === 'fr' ? 'COMMENT LE SCORE DE RISQUE EST CALCULÉ' : 'HOW THE RISK SCORE IS CALCULATED'}</div>
                                 <div style={{ display: 'flex', flexDirection: 'column', gap: 14, marginTop: 16 }}>
                                     {[
                                         {
-                                            label: 'Behavior Patterns',
+                                            label: lang === 'fr' ? 'Patterns comportementaux' : 'Behavior Patterns',
                                             score: revScore,
                                             max: 60,
                                             color: revScore > 40 ? '#ff4757' : revScore > 20 ? '#EAB308' : '#FDC800',
-                                            desc: `+${revScore > 0 ? revScore : 0} if critical · +${revScore > 20 ? Math.floor(revScore / 2) : 0} warning · +${0} info`,
-                                            sub: `Max: 60 pts`,
+                                            desc: lang === 'fr' ? `+${revScore > 0 ? revScore : 0} si critique · +${revScore > 20 ? Math.floor(revScore / 2) : 0} alerte · +${0} info` : `+${revScore > 0 ? revScore : 0} if critical · +${revScore > 20 ? Math.floor(revScore / 2) : 0} warning · +${0} info`,
+                                            sub: lang === 'fr' ? `Max : 60 pts` : `Max: 60 pts`,
                                         },
                                         {
-                                            label: 'Financial Damage',
+                                            label: lang === 'fr' ? 'Dommages financiers' : 'Financial Damage',
                                             score: financialScore,
                                             max: 25,
                                             color: financialScore > 15 ? '#ff4757' : financialScore > 0 ? '#EAB308' : '#FDC800',
-                                            desc: `+${financialScore > 15 ? financialScore : 0} if losses >5% of gross · +${financialScore > 5 && financialScore <= 15 ? financialScore : 0} if 1–5% · +0 if <1%`,
-                                            sub: `Max: 25 pts`,
+                                            desc: lang === 'fr' ? `+${financialScore > 15 ? financialScore : 0} si pertes >5% du brut · +${financialScore > 5 && financialScore <= 15 ? financialScore : 0} si 1–5% · +0 si <1%` : `+${financialScore > 15 ? financialScore : 0} if losses >5% of gross · +${financialScore > 5 && financialScore <= 15 ? financialScore : 0} if 1–5% · +0 if <1%`,
+                                            sub: lang === 'fr' ? `Max : 25 pts` : `Max: 25 pts`,
                                         },
                                         {
-                                            label: 'Win Rate Erosion',
+                                            label: lang === 'fr' ? 'Érosion du taux de réussite' : 'Win Rate Erosion',
                                             score: wrErosion,
                                             max: 15,
                                             color: wrErosion > 10 ? '#ff4757' : wrErosion > 0 ? '#EAB308' : '#FDC800',
-                                            desc: `+${wrErosion > 10 ? wrErosion : 0} if win rate <30% & negative expectancy · +${wrErosion > 0 && wrErosion <= 10 ? wrErosion : 0} if 30–35% negative`,
-                                            sub: `Max: 15 pts`,
+                                            desc: lang === 'fr' ? `+${wrErosion > 10 ? wrErosion : 0} si taux <30% & espérance négative · +${wrErosion > 0 && wrErosion <= 10 ? wrErosion : 0} si 30–35% négatif` : `+${wrErosion > 10 ? wrErosion : 0} if win rate <30% & negative expectancy · +${wrErosion > 0 && wrErosion <= 10 ? wrErosion : 0} if 30–35% negative`,
+                                            sub: lang === 'fr' ? `Max : 15 pts` : `Max: 15 pts`,
                                         },
                                     ].map((row, i) => (
                                         <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap' }}>
@@ -1293,34 +1301,34 @@ export default function AnalyticsPage() {
                                     ))}
                                 </div>
                                 <div style={{ display: 'flex', gap: 4, marginTop: 20 }}>
-                                    {[{ r: '0-30', l: 'LOW', c: '#FDC800' }, { r: '31-55', l: 'MODERATE', c: '#EAB308' }, { r: '56-75', l: 'HIGH', c: '#F97316' }, { r: '76-100', l: 'CRITICAL', c: '#ff4757', active: forensics.riskScore > 75 }].map((z, i) => (
-                                        <div key={i} style={{ fontFamily: 'var(--font-mono)', fontSize: 9, padding: '4px 10px', border: `1px solid ${z.c}44`, color: z.c, background: z.active ? `${z.c}15` : 'transparent' }}>{z.r}<br />{z.l}</div>
+                                    {[{ r: '0-30', l: lang === 'fr' ? 'FAIBLE' : 'LOW', c: '#FDC800' }, { r: '31-55', l: lang === 'fr' ? 'MODÉRÉ' : 'MODERATE', c: '#EAB308' }, { r: '56-75', l: lang === 'fr' ? 'ÉLEVÉ' : 'HIGH', c: '#F97316' }, { r: '76-100', l: lang === 'fr' ? 'CRITIQUE' : 'CRITICAL', c: '#ff4757', active: forensics.riskScore > 75 }].map((z, i) => (
+                                        <div key={i} style={{ fontFamily: 'var(--font-mono)', fontSize: 9, padding: '4px 10px', border: `1px solid ${z.c}44`, color: z.c, background: (z as any).active ? `${z.c}15` : 'transparent' }}>{z.r}<br />{z.l}</div>
                                     ))}
                                     <div style={{ marginLeft: 'auto', fontFamily: 'var(--font-mono)', fontSize: 9, padding: '4px 12px', border: '2px solid #EAB308', color: '#EAB308', background: 'rgba(234,179,8,0.08)' }}>
-                                        YOUR SCORE: {forensics.riskScore.toFixed(0)} / 100
+                                        {lang === 'fr' ? `VOTRE SCORE : ${forensics.riskScore.toFixed(0)} / 100` : `YOUR SCORE: ${forensics.riskScore.toFixed(0)} / 100`}
                                     </div>
                                 </div>
                             </div>
 
                             {/* ── BENCHMARK vs RETAIL FUTURES TRADERS ── */}
                             <div style={{ background: '#0d1117', border: '1px solid #1a1c24', padding: isMobile ? '14px' : '24px' }}>
-                                <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#6b7280', letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 4 }}>BENCHMARK — 100 RETAIL FUTURES TRADERS</div>
+                                <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#6b7280', letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 4 }}>{lang === 'fr' ? 'RÉFÉRENCE — 100 TRADERS FUTURES RETAIL' : 'BENCHMARK — 100 RETAIL FUTURES TRADERS'}</div>
                                 <div style={{ overflowX: 'auto' }}>
                                     <table style={{ width: '100%', borderCollapse: 'collapse', fontFamily: 'var(--font-mono)', fontSize: 11, marginTop: 16 }}>
                                         <thead>
                                             <tr style={{ borderBottom: '1px solid #1a1c24' }}>
-                                                {['METRIC', 'YOUR VALUE', 'MEDIAN', 'TOP 25%', 'YOUR RANK'].map((h, i) => (
+                                                {[lang === 'fr' ? 'MÉTRIQUE' : 'METRIC', lang === 'fr' ? 'VOTRE VALEUR' : 'YOUR VALUE', lang === 'fr' ? 'MÉDIANE' : 'MEDIAN', 'TOP 25%', lang === 'fr' ? 'VOTRE RANG' : 'YOUR RANK'].map((h, i) => (
                                                     <th key={i} style={{ padding: '10px 16px', textAlign: i === 0 ? 'left' : 'right', color: '#6b7280', fontWeight: 700, letterSpacing: '0.08em', fontSize: 9, textTransform: 'uppercase' }}>{h}</th>
                                                 ))}
                                             </tr>
                                         </thead>
                                         <tbody>
                                             {[
-                                                { metric: 'Win Rate', yours: `${winRate.toFixed(1)}%`, median: '42%', top25: '55%', rank: winRate >= 55 ? 'Top 25% (76+)' : winRate >= 42 ? 'Above Avg (51+)' : 'Below Avg', rankColor: winRate >= 55 ? '#FDC800' : winRate >= 42 ? '#EAB308' : '#ff4757' },
-                                                { metric: 'Profit Factor', yours: profitFactor === 99 ? '∞' : profitFactor.toFixed(2), median: '1.21', top25: '1.90', rank: profitFactor >= 1.9 ? 'Above Avg (81+)' : profitFactor >= 1.2 ? 'Above Avg (61+)' : 'Below Avg (38%)', rankColor: profitFactor >= 1.9 ? '#FDC800' : profitFactor >= 1.2 ? '#EAB308' : '#ff4757' },
-                                                { metric: 'Expectancy / Trade ($)', yours: `${expectancy >= 0 ? '+' : ''}$${expectancy.toFixed(2)}`, median: '$4', top25: '$75', rank: expectancy >= 75 ? 'Above Avg (79+)' : expectancy >= 4 ? 'Above Avg (56+)' : 'Below Avg', rankColor: expectancy >= 75 ? '#FDC800' : expectancy >= 4 ? '#EAB308' : '#ff4757' },
-                                                { metric: 'Max Drawdown ($)', yours: `-$${maxDd.toFixed(0)}`, median: '$1390', top25: '$160', rank: maxDd <= 160 ? 'Top 25% (78+)' : maxDd <= 1390 ? 'Above Avg (39+)' : 'Below Avg', rankColor: maxDd <= 160 ? '#FDC800' : maxDd <= 1390 ? '#EAB308' : '#ff4757' },
-                                                { metric: 'Behavioral Risk Score', yours: `${forensics.riskScore.toFixed(0)}`, median: '58', top25: '26', rank: forensics.riskScore <= 26 ? 'Top 25% (>75)' : forensics.riskScore <= 58 ? 'Above Avg (>50)' : 'Below 25% (35th)', rankColor: forensics.riskScore <= 26 ? '#FDC800' : forensics.riskScore <= 58 ? '#EAB308' : '#ff4757' },
+                                                { metric: lang === 'fr' ? 'Taux de réussite' : 'Win Rate', yours: `${winRate.toFixed(1)}%`, median: '42%', top25: '55%', rank: winRate >= 55 ? (lang === 'fr' ? 'Top 25% (76+)' : 'Top 25% (76+)') : winRate >= 42 ? (lang === 'fr' ? 'Au-dessus moy. (51+)' : 'Above Avg (51+)') : (lang === 'fr' ? 'Sous la moy.' : 'Below Avg'), rankColor: winRate >= 55 ? '#FDC800' : winRate >= 42 ? '#EAB308' : '#ff4757' },
+                                                { metric: lang === 'fr' ? 'Facteur de profit' : 'Profit Factor', yours: profitFactor === 99 ? '∞' : profitFactor.toFixed(2), median: '1.21', top25: '1.90', rank: profitFactor >= 1.9 ? (lang === 'fr' ? 'Au-dessus moy. (81+)' : 'Above Avg (81+)') : profitFactor >= 1.2 ? (lang === 'fr' ? 'Au-dessus moy. (61+)' : 'Above Avg (61+)') : (lang === 'fr' ? 'Sous la moy. (38%)' : 'Below Avg (38%)'), rankColor: profitFactor >= 1.9 ? '#FDC800' : profitFactor >= 1.2 ? '#EAB308' : '#ff4757' },
+                                                { metric: lang === 'fr' ? 'Espérance / Trade ($)' : 'Expectancy / Trade ($)', yours: `${expectancy >= 0 ? '+' : ''}$${expectancy.toFixed(2)}`, median: '$4', top25: '$75', rank: expectancy >= 75 ? (lang === 'fr' ? 'Au-dessus moy. (79+)' : 'Above Avg (79+)') : expectancy >= 4 ? (lang === 'fr' ? 'Au-dessus moy. (56+)' : 'Above Avg (56+)') : (lang === 'fr' ? 'Sous la moy.' : 'Below Avg'), rankColor: expectancy >= 75 ? '#FDC800' : expectancy >= 4 ? '#EAB308' : '#ff4757' },
+                                                { metric: lang === 'fr' ? 'Drawdown max ($)' : 'Max Drawdown ($)', yours: `-$${maxDd.toFixed(0)}`, median: '$1390', top25: '$160', rank: maxDd <= 160 ? (lang === 'fr' ? 'Top 25% (78+)' : 'Top 25% (78+)') : maxDd <= 1390 ? (lang === 'fr' ? 'Au-dessus moy. (39+)' : 'Above Avg (39+)') : (lang === 'fr' ? 'Sous la moy.' : 'Below Avg'), rankColor: maxDd <= 160 ? '#FDC800' : maxDd <= 1390 ? '#EAB308' : '#ff4757' },
+                                                { metric: lang === 'fr' ? 'Score de risque comportemental' : 'Behavioral Risk Score', yours: `${forensics.riskScore.toFixed(0)}`, median: '58', top25: '26', rank: forensics.riskScore <= 26 ? (lang === 'fr' ? 'Top 25% (>75)' : 'Top 25% (>75)') : forensics.riskScore <= 58 ? (lang === 'fr' ? 'Au-dessus moy. (>50)' : 'Above Avg (>50)') : (lang === 'fr' ? 'Sous top 25% (35e)' : 'Below 25% (35th)'), rankColor: forensics.riskScore <= 26 ? '#FDC800' : forensics.riskScore <= 58 ? '#EAB308' : '#ff4757' },
                                             ].map((row, i) => (
                                                 <tr key={i} style={{ borderBottom: '1px solid #1a1c24' }}
                                                     onMouseEnter={e => (e.currentTarget as HTMLTableRowElement).style.background = '#0d1117cc'}
@@ -1340,7 +1348,7 @@ export default function AnalyticsPage() {
                                     </table>
                                 </div>
                                 <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#6b7280', marginTop: 12, fontStyle: 'italic' }}>
-                                    Source: Probabilistic live data from 100+ retail traders on prop firm accounts · Stats update rolling 30-day
+                                    {lang === 'fr' ? 'Source : Données probabilistes de 100+ traders retail sur comptes prop firm · Stats actualisées 30 jours glissants' : 'Source: Probabilistic live data from 100+ retail traders on prop firm accounts · Stats update rolling 30-day'}
                                 </div>
                             </div>
 
@@ -1349,7 +1357,7 @@ export default function AnalyticsPage() {
                                 <div style={{ background: '#0d1117', padding: isMobile ? '14px' : '24px' }}>
                                     <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
                                         <TrendingDown size={12} color="#ff4757" />
-                                        <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#ff4757', letterSpacing: '0.12em', textTransform: 'uppercase', fontWeight: 700 }}>DANGER ZONES</span>
+                                        <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#ff4757', letterSpacing: '0.12em', textTransform: 'uppercase', fontWeight: 700 }}>{lang === 'fr' ? 'ZONES DE DANGER' : 'DANGER ZONES'}</span>
                                     </div>
                                     <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                                         {dangerZones.length > 0 ? dangerZones.map((z: { h: number; pnl: number }, i: number) => (
@@ -1358,14 +1366,14 @@ export default function AnalyticsPage() {
                                                 <span style={{ fontFamily: 'var(--font-mono)', fontSize: 12, fontWeight: 700, color: '#ff4757' }}>-${Math.abs(z.pnl).toFixed(0)}</span>
                                             </div>
                                         )) : (
-                                            <div style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: '#6b7280' }}>No negative time zones detected</div>
+                                            <div style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: '#6b7280' }}>{lang === 'fr' ? 'Aucune zone temporelle négative détectée' : 'No negative time zones detected'}</div>
                                         )}
                                     </div>
                                 </div>
                                 <div style={{ background: '#0d1117', padding: isMobile ? '14px' : '24px' }}>
                                     <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
                                         <TrendingUp size={12} color="#FDC800" />
-                                        <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#FDC800', letterSpacing: '0.12em', textTransform: 'uppercase', fontWeight: 700 }}>STRENGTH ZONES</span>
+                                        <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#FDC800', letterSpacing: '0.12em', textTransform: 'uppercase', fontWeight: 700 }}>{lang === 'fr' ? 'ZONES DE FORCE' : 'STRENGTH ZONES'}</span>
                                     </div>
                                     <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                                         {strengthZones.length > 0 ? strengthZones.map((z: { h: number; pnl: number }, i: number) => (
@@ -1374,7 +1382,7 @@ export default function AnalyticsPage() {
                                                 <span style={{ fontFamily: 'var(--font-mono)', fontSize: 12, fontWeight: 700, color: '#FDC800' }}>+${z.pnl.toFixed(0)}</span>
                                             </div>
                                         )) : (
-                                            <div style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: '#6b7280' }}>No positive time zones detected yet</div>
+                                            <div style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: '#6b7280' }}>{lang === 'fr' ? 'Aucune zone temporelle positive détectée' : 'No positive time zones detected yet'}</div>
                                         )}
                                     </div>
                                 </div>
@@ -1433,14 +1441,14 @@ export default function AnalyticsPage() {
                             {/* ── 8-KPI GRID ── */}
                             <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'repeat(2, 1fr)' : 'repeat(4, 1fr)', borderTop: '1px solid #1a1c24', borderLeft: '1px solid #1a1c24' }}>
                                 {[
-                                    { label: 'BEST DAY', value: bestDay > 0 ? `+$${bestDay.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '—', sub: bestDayDate ? new Date(bestDayDate + 'T12:00:00Z').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }) : '—', color: '#FDC800' },
-                                    { label: 'WORST DAY', value: worstDay < 0 ? `-$${Math.abs(worstDay).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '—', sub: worstDayDate ? new Date(worstDayDate + 'T12:00:00Z').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }) : '—', color: '#ff4757' },
-                                    { label: 'AVG DAILY P&L', value: avgDaily !== 0 ? `${avgDaily >= 0 ? '+' : ''}$${Math.abs(avgDaily).toFixed(2)}` : '—', sub: `Median: ${medianDaily >= 0 ? '+' : ''}$${Math.abs(medianDaily).toFixed(2)}`, color: avgDaily >= 0 ? '#FDC800' : '#ff4757' },
-                                    { label: 'DAILY VOLATILITY', value: dailyVolatility > 0 ? `±$${dailyVolatility.toFixed(0)}` : '—', sub: `${daysWithin1Std}% days within 1σ`, color: '#EAB308' },
-                                    { label: 'GREEN DAYS', value: `${greenDays}`, sub: `${dayWinRate.toFixed(0)}% of ${dailyData.length} days`, color: '#FDC800' },
-                                    { label: 'RED DAYS', value: `${redDays}`, sub: `${(100 - dayWinRate).toFixed(0)}% of ${dailyData.length} days`, color: '#ff4757' },
-                                    { label: 'LONGEST GREEN STREAK', value: `${longestGreenDayStreak}d`, sub: 'Consecutive profitable days', color: '#FDC800' },
-                                    { label: 'LONGEST RED STREAK', value: `${longestRedDayStreak}d`, sub: 'Consecutive losing days', color: longestRedDayStreak >= 3 ? '#ff4757' : '#EAB308' },
+                                    { label: lang === 'fr' ? 'MEILLEUR JOUR' : 'BEST DAY', value: bestDay > 0 ? `+$${bestDay.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '—', sub: bestDayDate ? new Date(bestDayDate + 'T12:00:00Z').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }) : '—', color: '#FDC800' },
+                                    { label: lang === 'fr' ? 'PIRE JOUR' : 'WORST DAY', value: worstDay < 0 ? `-$${Math.abs(worstDay).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '—', sub: worstDayDate ? new Date(worstDayDate + 'T12:00:00Z').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }) : '—', color: '#ff4757' },
+                                    { label: lang === 'fr' ? 'P&L JOURNALIER MOY.' : 'AVG DAILY P&L', value: avgDaily !== 0 ? `${avgDaily >= 0 ? '+' : ''}$${Math.abs(avgDaily).toFixed(2)}` : '—', sub: lang === 'fr' ? `Médiane: ${medianDaily >= 0 ? '+' : ''}$${Math.abs(medianDaily).toFixed(2)}` : `Median: ${medianDaily >= 0 ? '+' : ''}$${Math.abs(medianDaily).toFixed(2)}`, color: avgDaily >= 0 ? '#FDC800' : '#ff4757' },
+                                    { label: lang === 'fr' ? 'VOLATILITÉ JOURNALIÈRE' : 'DAILY VOLATILITY', value: dailyVolatility > 0 ? `±$${dailyVolatility.toFixed(0)}` : '—', sub: lang === 'fr' ? `${daysWithin1Std}% jours dans 1σ` : `${daysWithin1Std}% days within 1σ`, color: '#EAB308' },
+                                    { label: lang === 'fr' ? 'JOURS VERTS' : 'GREEN DAYS', value: `${greenDays}`, sub: lang === 'fr' ? `${dayWinRate.toFixed(0)}% des ${dailyData.length} jours` : `${dayWinRate.toFixed(0)}% of ${dailyData.length} days`, color: '#FDC800' },
+                                    { label: lang === 'fr' ? 'JOURS ROUGES' : 'RED DAYS', value: `${redDays}`, sub: lang === 'fr' ? `${(100 - dayWinRate).toFixed(0)}% des ${dailyData.length} jours` : `${(100 - dayWinRate).toFixed(0)}% of ${dailyData.length} days`, color: '#ff4757' },
+                                    { label: lang === 'fr' ? 'PLUS LONGUE SÉRIE VERTE' : 'LONGEST GREEN STREAK', value: `${longestGreenDayStreak}d`, sub: lang === 'fr' ? 'Jours profitables consécutifs' : 'Consecutive profitable days', color: '#FDC800' },
+                                    { label: lang === 'fr' ? 'PLUS LONGUE SÉRIE ROUGE' : 'LONGEST RED STREAK', value: `${longestRedDayStreak}d`, sub: lang === 'fr' ? 'Jours perdants consécutifs' : 'Consecutive losing days', color: longestRedDayStreak >= 3 ? '#ff4757' : '#EAB308' },
                                 ].map((k, i) => (
                                     <div key={i} style={{ padding: '20px 24px', borderBottom: '1px solid #1a1c24', borderRight: '1px solid #1a1c24', background: '#0d1117', display: 'flex', flexDirection: 'column', gap: 6 }}>
                                         <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#6b7280', letterSpacing: '0.1em', textTransform: 'uppercase' }}>{k.label}</span>
@@ -1454,11 +1462,11 @@ export default function AnalyticsPage() {
                             <div style={{ background: '#0d1117', border: '1px solid #1a1c24', padding: isMobile ? '14px' : '24px' }}>
                                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16, flexWrap: 'wrap', gap: 8 }}>
                                     <div>
-                                        <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#6b7280', letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 2 }}>NET P&L PER TRADING DAY</div>
-                                        <div style={{ fontFamily: 'var(--font-mono)', fontSize: 13, fontWeight: 600, color: '#c9d1d9' }}>Bars = daily P&L · Yellow dashed = 5-day rolling average</div>
+                                        <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#6b7280', letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 2 }}>{lang === 'fr' ? 'P&L NET PAR JOUR DE TRADING' : 'NET P&L PER TRADING DAY'}</div>
+                                        <div style={{ fontFamily: 'var(--font-mono)', fontSize: 13, fontWeight: 600, color: '#c9d1d9' }}>{lang === 'fr' ? 'Barres = P&L journalier · Tirets jaunes = moy. mobile 5 jours' : 'Bars = daily P&L · Yellow dashed = 5-day rolling average'}</div>
                                     </div>
                                     <div style={{ display: 'flex', gap: 16 }}>
-                                        {[{ color: '#FDC800', label: 'Profitable day' }, { color: '#ff4757', label: 'Loss day' }, { color: '#EAB308', label: '5d avg', dash: true }].map((l, i) => (
+                                        {[{ color: '#FDC800', label: lang === 'fr' ? 'Jour profitable' : 'Profitable day' }, { color: '#ff4757', label: lang === 'fr' ? 'Jour perdant' : 'Loss day' }, { color: '#EAB308', label: '5d avg', dash: true }].map((l, i) => (
                                             <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                                                 <div style={{ width: 20, height: 2, background: l.color, borderTop: l.dash ? '2px dashed' : undefined, borderColor: l.color }} />
                                                 <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: l.color }}>{l.label}</span>
@@ -1471,19 +1479,27 @@ export default function AnalyticsPage() {
                                 {dailyData.length >= 3 && (
                                     <div style={{ marginTop: 16, display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 12 }}>
                                         <div style={{ padding: '14px 16px', background: 'rgba(253,200,0,0.04)', border: '1px solid rgba(253,200,0,0.12)', borderLeft: '3px solid #FDC800' }}>
-                                            <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#FDC800', letterSpacing: '0.1em', textTransform: 'uppercase', fontWeight: 700, marginBottom: 6 }}>WHAT THIS MEANS</div>
+                                            <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#FDC800', letterSpacing: '0.1em', textTransform: 'uppercase', fontWeight: 700, marginBottom: 6 }}>{lang === 'fr' ? 'CE QUE CELA SIGNIFIE' : 'WHAT THIS MEANS'}</div>
                                             <p style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: '#c9d1d9', lineHeight: 1.8, margin: 0 }}>
                                                 {greenDays > redDays
-                                                    ? <>Your day win rate is <strong style={{ color: '#FDC800' }}>{dayWinRate.toFixed(0)}%</strong> ({greenDays} green vs {redDays} red). The 5-day rolling average shows whether your edge is improving or degrading over time — watch its slope, not just daily bars.</>
-                                                    : <>Your day win rate is <strong style={{ color: '#ff4757' }}>{dayWinRate.toFixed(0)}%</strong> ({greenDays} green vs {redDays} red). More red days than green is a structural issue, not variance — look for recurring calendar patterns below.</>}
+                                                    ? lang === 'fr'
+                                                        ? <>Votre taux de réussite journalier est <strong style={{ color: '#FDC800' }}>{dayWinRate.toFixed(0)}%</strong> ({greenDays} verts vs {redDays} rouges). La moy. mobile 5 jours montre si votre avantage s&apos;améliore ou se dégrade — surveillez sa pente, pas seulement les barres.</>
+                                                        : <>Your day win rate is <strong style={{ color: '#FDC800' }}>{dayWinRate.toFixed(0)}%</strong> ({greenDays} green vs {redDays} red). The 5-day rolling average shows whether your edge is improving or degrading over time — watch its slope, not just daily bars.</>
+                                                    : lang === 'fr'
+                                                        ? <>Votre taux de réussite journalier est <strong style={{ color: '#ff4757' }}>{dayWinRate.toFixed(0)}%</strong> ({greenDays} verts vs {redDays} rouges). Plus de jours rouges que verts est un problème structurel, pas de la variance — cherchez des patterns récurrents ci-dessous.</>
+                                                        : <>Your day win rate is <strong style={{ color: '#ff4757' }}>{dayWinRate.toFixed(0)}%</strong> ({greenDays} green vs {redDays} red). More red days than green is a structural issue, not variance — look for recurring calendar patterns below.</>}
                                             </p>
                                         </div>
                                         <div style={{ padding: '14px 16px', background: 'rgba(234,179,8,0.04)', border: '1px solid rgba(234,179,8,0.15)', borderLeft: '3px solid #EAB308' }}>
                                             <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#EAB308', letterSpacing: '0.1em', textTransform: 'uppercase', fontWeight: 700, marginBottom: 6 }}>ACTION</div>
                                             <p style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: '#8b949e', lineHeight: 1.8, margin: 0 }}>
                                                 {avgDaily > 0
-                                                    ? `Average daily P&L is +$${avgDaily.toFixed(0)} — protect it with a daily loss floor of -$${Math.round(avgDaily * 1.5)}. If the 5d average line trends down for 3+ bars, cut position size 30% until it flattens.`
-                                                    : `Average daily P&L is -$${Math.abs(avgDaily).toFixed(0)}. Immediately set a daily max-loss of $${Math.round(Math.abs(avgDaily) * 0.7)} and halt trading once hit. Review the day-of-week breakdown below for structural patterns.`}
+                                                    ? lang === 'fr'
+                                                        ? `P&L journalier moyen est +$${avgDaily.toFixed(0)} — protégez-le avec un plancher de perte journalier de -$${Math.round(avgDaily * 1.5)}. Si la moy. mobile 5 jours baisse 3+ barres consécutives, réduisez la taille de 30% jusqu'à stabilisation.`
+                                                        : `Average daily P&L is +$${avgDaily.toFixed(0)} — protect it with a daily loss floor of -$${Math.round(avgDaily * 1.5)}. If the 5d average line trends down for 3+ bars, cut position size 30% until it flattens.`
+                                                    : lang === 'fr'
+                                                        ? `P&L journalier moyen est -$${Math.abs(avgDaily).toFixed(0)}. Fixez immédiatement une perte max journalière de $${Math.round(Math.abs(avgDaily) * 0.7)} et arrêtez le trading une fois atteinte. Consultez le bilan par jour de la semaine ci-dessous.`
+                                                        : `Average daily P&L is -$${Math.abs(avgDaily).toFixed(0)}. Immediately set a daily max-loss of $${Math.round(Math.abs(avgDaily) * 0.7)} and halt trading once hit. Review the day-of-week breakdown below for structural patterns.`}
                                             </p>
                                         </div>
                                     </div>
@@ -1512,17 +1528,23 @@ export default function AnalyticsPage() {
                                     return (
                                         <div style={{ marginTop: 16, display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 12 }}>
                                             <div style={{ padding: '14px 16px', background: 'rgba(253,200,0,0.04)', border: '1px solid rgba(253,200,0,0.12)', borderLeft: '3px solid #FDC800' }}>
-                                                <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#FDC800', letterSpacing: '0.1em', textTransform: 'uppercase', fontWeight: 700, marginBottom: 6 }}>WHAT THIS MEANS</div>
+                                                <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#FDC800', letterSpacing: '0.1em', textTransform: 'uppercase', fontWeight: 700, marginBottom: 6 }}>{lang === 'fr' ? 'CE QUE CELA SIGNIFIE' : 'WHAT THIS MEANS'}</div>
                                                 <p style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: '#c9d1d9', lineHeight: 1.8, margin: 0 }}>
-                                                    <strong style={{ color: '#FDC800' }}>{best.day}</strong> is your strongest day (+${best.pnl.toFixed(0)} · {best.trades > 0 ? ((best.wins / best.trades) * 100).toFixed(0) : 0}% WR). <strong style={{ color: '#ff4757' }}>{worst.day}</strong> is your worst (${worst.pnl.toFixed(0)}). {trapDay ? <><strong style={{ color: '#ff4757' }}>{trapDay.day}</strong> is a statistical trap with &lt;40% WR over {trapDay.trades} trades.</> : 'No weekday has dropped below 40% WR over 3+ samples.'}
+                                                    {lang === 'fr'
+                                                        ? <><strong style={{ color: '#FDC800' }}>{best.day}</strong> est votre meilleur jour (+${best.pnl.toFixed(0)} · {best.trades > 0 ? ((best.wins / best.trades) * 100).toFixed(0) : 0}% TR). <strong style={{ color: '#ff4757' }}>{worst.day}</strong> est votre pire (${worst.pnl.toFixed(0)}). {trapDay ? <><strong style={{ color: '#ff4757' }}>{trapDay.day}</strong> est un piège statistique avec &lt;40% TR sur {trapDay.trades} trades.</> : 'Aucun jour de la semaine n\'est sous les 40% TR sur 3+ échantillons.'}</>
+                                                        : <><strong style={{ color: '#FDC800' }}>{best.day}</strong> is your strongest day (+${best.pnl.toFixed(0)} · {best.trades > 0 ? ((best.wins / best.trades) * 100).toFixed(0) : 0}% WR). <strong style={{ color: '#ff4757' }}>{worst.day}</strong> is your worst (${worst.pnl.toFixed(0)}). {trapDay ? <><strong style={{ color: '#ff4757' }}>{trapDay.day}</strong> is a statistical trap with &lt;40% WR over {trapDay.trades} trades.</> : 'No weekday has dropped below 40% WR over 3+ samples.'}</>}
                                                 </p>
                                             </div>
                                             <div style={{ padding: '14px 16px', background: 'rgba(234,179,8,0.04)', border: '1px solid rgba(234,179,8,0.15)', borderLeft: '3px solid #EAB308' }}>
                                                 <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#EAB308', letterSpacing: '0.1em', textTransform: 'uppercase', fontWeight: 700, marginBottom: 6 }}>ACTION</div>
                                                 <p style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: '#8b949e', lineHeight: 1.8, margin: 0 }}>
                                                     {trapDay
-                                                        ? `${trapDay.day} has a sub-40% win rate — implement a soft trading ban until WR improves over 15+ samples. Add 20% to your position size on ${best.day} to compound your strongest day.`
-                                                        : `All active days are above 40% WR — no hard bans needed. Incrementally increase size on ${best.day} while monitoring. Review if ${worst.day} dips below 40% WR.`}
+                                                        ? lang === 'fr'
+                                                            ? `${trapDay.day} a un taux de réussite sous 40% — mettez en place une restriction de trading jusqu'à ce que le TR dépasse 40% sur 15+ échantillons. Ajoutez 20% à la taille de vos positions le ${best.day} pour maximiser votre meilleur jour.`
+                                                            : `${trapDay.day} has a sub-40% win rate — implement a soft trading ban until WR improves over 15+ samples. Add 20% to your position size on ${best.day} to compound your strongest day.`
+                                                        : lang === 'fr'
+                                                            ? `Tous les jours actifs sont au-dessus de 40% TR — pas de restriction nécessaire. Augmentez progressivement la taille le ${best.day}. Réévaluez si ${worst.day} passe sous les 40% TR.`
+                                                            : `All active days are above 40% WR — no hard bans needed. Incrementally increase size on ${best.day} while monitoring. Review if ${worst.day} dips below 40% WR.`}
                                                 </p>
                                             </div>
                                         </div>
@@ -1584,7 +1606,7 @@ export default function AnalyticsPage() {
                                         <table style={{ width: '100%', borderCollapse: 'collapse', fontFamily: 'var(--font-mono)', fontSize: 11 }}>
                                             <thead>
                                                 <tr style={{ borderBottom: '1px solid #1a1c24' }}>
-                                                    {['WEEK', 'DAYS', 'NET P&L', 'BEST DAY', 'WORST DAY', 'WIN %', 'FLAG'].map((h, i) => (
+                                                    {(lang === 'fr' ? ['SEMAINE', 'JOURS', 'P&L NET', 'MEILLEUR JOUR', 'PIRE JOUR', 'TAUX RÉU.', 'FLAG'] : ['WEEK', 'DAYS', 'NET P&L', 'BEST DAY', 'WORST DAY', 'WIN %', 'FLAG']).map((h, i) => (
                                                         <th key={i} style={{ padding: '10px 16px', textAlign: i === 0 ? 'left' : 'right', color: '#6b7280', fontWeight: 700, letterSpacing: '0.08em', fontSize: 9, textTransform: 'uppercase', whiteSpace: 'nowrap' }}>{h}</th>
                                                     ))}
                                                 </tr>
@@ -1618,14 +1640,14 @@ export default function AnalyticsPage() {
                                 <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#6b7280', letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 16 }}>DAILY RULES — DERIVED FROM YOUR DATA</div>
                                 <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
                                     {[
-                                        { rule: 'RULE 01 — DAILY LOSS LIMIT', detail: `Your worst day was -$${Math.abs(worstDay).toFixed(0)}. Set a hard daily stop at $${Math.round(Math.abs(worstDay) * 0.5)} — 50% of your worst day. Walk away when hit. A single blowout day erases multiple good days.`, icon: '⛔', color: '#ff4757' },
-                                        { rule: 'RULE 02 — TARGET & WALK RULE', detail: `Best day was +$${bestDay.toFixed(0)}. Once you hit ${(bestDay * 0.6).toFixed(0)} in a day, cut position size by half. Don't give back your edge trying to maximize a good day.`, icon: '→', color: '#FDC800' },
+                                        { rule: lang === 'fr' ? 'RÈGLE 01 — LIMITE DE PERTE JOURNALIÈRE' : 'RULE 01 — DAILY LOSS LIMIT', detail: lang === 'fr' ? `Votre pire journée était -$${Math.abs(worstDay).toFixed(0)}. Fixez un stop journalier à $${Math.round(Math.abs(worstDay) * 0.5)} — 50% de votre pire journée. Arrêtez quand il est atteint. Une seule mauvaise journée efface plusieurs bonnes.` : `Your worst day was -$${Math.abs(worstDay).toFixed(0)}. Set a hard daily stop at $${Math.round(Math.abs(worstDay) * 0.5)} — 50% of your worst day. Walk away when hit. A single blowout day erases multiple good days.`, icon: '⛔', color: '#ff4757' },
+                                        { rule: lang === 'fr' ? 'RÈGLE 02 — RÈGLE CIBLE ET SORTIE' : 'RULE 02 — TARGET & WALK RULE', detail: lang === 'fr' ? `Meilleur jour était +$${bestDay.toFixed(0)}. Une fois $${(bestDay * 0.6).toFixed(0)} atteint en une journée, réduisez la taille de moitié. Ne sacrifiez pas votre avantage en voulant maximiser une bonne journée.` : `Best day was +$${bestDay.toFixed(0)}. Once you hit ${(bestDay * 0.6).toFixed(0)} in a day, cut position size by half. Don't give back your edge trying to maximize a good day.`, icon: '→', color: '#FDC800' },
                                         {
-                                            rule: `RULE 03 — ${dayOfWeekStats.sort((a, b) => a.pnl - b.pnl)[0]?.day ?? 'WORST DAY'} CAUTION`,
-                                            detail: `${dayOfWeekStats.sort((a, b) => a.pnl - b.pnl)[0]?.day ?? 'Your worst weekday'} is your statistically worst day. Trade reduced size or skip this day entirely until win rate exceeds 50% over 20+ samples.`,
+                                            rule: lang === 'fr' ? `RÈGLE 03 — PRUDENCE ${dayOfWeekStats.sort((a, b) => a.pnl - b.pnl)[0]?.day ?? 'PIRE JOUR'}` : `RULE 03 — ${dayOfWeekStats.sort((a, b) => a.pnl - b.pnl)[0]?.day ?? 'WORST DAY'} CAUTION`,
+                                            detail: lang === 'fr' ? `${dayOfWeekStats.sort((a, b) => a.pnl - b.pnl)[0]?.day ?? 'Votre pire jour'} est votre pire jour statistiquement. Réduisez la taille de position de 50% ce jour-là ou sautez-le entièrement jusqu'à ce que le taux de réussite dépasse 50% sur 20+ échantillons.` : `${dayOfWeekStats.sort((a, b) => a.pnl - b.pnl)[0]?.day ?? 'Your worst weekday'} is your statistically worst day. Trade reduced size or skip this day entirely until win rate exceeds 50% over 20+ samples.`,
                                             icon: '⏸', color: '#EAB308',
                                         },
-                                        { rule: 'RULE 04 — STREAK PROTECTION', detail: `${longestRedDayStreak >= 2 ? `Your longest red day streak was ${longestRedDayStreak} consecutive days. After 2 red days in a row, cut daily trade limit by 50% until you record a green day.` : 'No prolonged red day streaks detected. Maintain current daily discipline.'}`, icon: '✓', color: '#c9d1d9' },
+                                        { rule: lang === 'fr' ? 'RÈGLE 04 — PROTECTION DES SÉRIES' : 'RULE 04 — STREAK PROTECTION', detail: lang === 'fr' ? `${longestRedDayStreak >= 2 ? `Votre plus longue série de jours rouges était ${longestRedDayStreak} jours consécutifs. Après 2 jours rouges consécutifs, réduisez la limite de trades journaliers de 50% jusqu'à enregistrer un jour vert.` : 'Aucune série prolongée de jours rouges détectée. Maintenez la discipline journalière actuelle.'}` : `${longestRedDayStreak >= 2 ? `Your longest red day streak was ${longestRedDayStreak} consecutive days. After 2 red days in a row, cut daily trade limit by 50% until you record a green day.` : 'No prolonged red day streaks detected. Maintain current daily discipline.'}`, icon: '✓', color: '#c9d1d9' },
                                     ].map((r, i) => (
                                         <div key={i} style={{ display: 'flex', gap: 16, padding: '14px 16px', background: '#0b0e14', borderLeft: `2px solid ${r.color}55` }}>
                                             <span style={{ fontFamily: 'var(--font-mono)', fontSize: 14, color: r.color, flexShrink: 0, width: 20 }}>{r.icon}</span>
@@ -1682,8 +1704,8 @@ export default function AnalyticsPage() {
                                 </div>
                                 {/* P&L diverging bars */}
                                 <div style={{ background: '#0d1117', padding: isMobile ? '14px' : '24px' }}>
-                                    <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#6b7280', letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 4 }}>NET P&L RANKING</div>
-                                    <div style={{ fontFamily: 'var(--font-mono)', fontSize: 13, fontWeight: 600, color: '#c9d1d9', marginBottom: 16 }}>Signed contribution per instrument — diverging from zero</div>
+                                    <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#6b7280', letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 4 }}>{lang === 'fr' ? 'CLASSEMENT P&L NET' : 'NET P&L RANKING'}</div>
+                                    <div style={{ fontFamily: 'var(--font-mono)', fontSize: 13, fontWeight: 600, color: '#c9d1d9', marginBottom: 16 }}>{lang === 'fr' ? 'Contribution signée par instrument — divergeant de zéro' : 'Signed contribution per instrument — diverging from zero'}</div>
                                     <div style={{ height: 280 }}>
                                         <ResponsiveContainer width="100%" height="100%">
                                             <BarChart data={instrumentDeep.slice(0, 8).map(i => ({ asset: i.asset, pnl: i.pnl, wr: i.winRate }))} layout="vertical" margin={{ top: 4, right: 60, bottom: 4, left: 0 }} barCategoryGap="25%">
@@ -1714,7 +1736,7 @@ export default function AnalyticsPage() {
                                     <table style={{ width: '100%', borderCollapse: 'collapse', fontFamily: 'var(--font-mono)', fontSize: 11 }}>
                                         <thead>
                                             <tr style={{ borderBottom: '1px solid #1a1c24' }}>
-                                                {['INSTRUMENT', 'TRADES', 'WIN RATE', 'NET P&L', 'PROFIT FACTOR', 'AVG WIN', 'AVG LOSS', 'EXPECTANCY', 'LONG/SHORT', 'VERDICT'].map((h, i) => (
+                                                {(lang === 'fr' ? ['INSTRUMENT', 'TRADES', 'TAUX RÉU.', 'P&L NET', 'FACT. PROFIT', 'GAIN MOY.', 'PERTE MOY.', 'ESPÉRANCE', 'LONG/COURT', 'VERDICT'] : ['INSTRUMENT', 'TRADES', 'WIN RATE', 'NET P&L', 'PROFIT FACTOR', 'AVG WIN', 'AVG LOSS', 'EXPECTANCY', 'LONG/SHORT', 'VERDICT']).map((h, i) => (
                                                     <th key={i} style={{ padding: '10px 12px', textAlign: i === 0 ? 'left' : 'right', color: '#6b7280', fontWeight: 700, letterSpacing: '0.08em', fontSize: 9, textTransform: 'uppercase', whiteSpace: 'nowrap' }}>{h}</th>
                                                 ))}
                                             </tr>
@@ -1834,24 +1856,24 @@ export default function AnalyticsPage() {
                                 <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
                                     {[
                                         {
-                                            rule: `RULE 01 — FOCUS ON YOUR EDGE`,
-                                            detail: `${instrumentDeep[0]?.asset ?? 'Your best instrument'} is your highest-edge instrument. Minimum 60% of session allocation should go here until you demonstrate consistent edge in other instruments.`,
+                                            rule: lang === 'fr' ? `RÈGLE 01 — CONCENTREZ-VOUS SUR VOTRE AVANTAGE` : `RULE 01 — FOCUS ON YOUR EDGE`,
+                                            detail: lang === 'fr' ? `${instrumentDeep[0]?.asset ?? 'Votre meilleur instrument'} est votre instrument avec le meilleur avantage. Minimum 60% de l'allocation de session devrait y aller jusqu'à ce que vous démontriez un avantage constant sur d'autres instruments.` : `${instrumentDeep[0]?.asset ?? 'Your best instrument'} is your highest-edge instrument. Minimum 60% of session allocation should go here until you demonstrate consistent edge in other instruments.`,
                                             icon: '→', color: '#FDC800',
                                         },
                                         {
-                                            rule: `RULE 02 — CUT DEAD INSTRUMENTS`,
-                                            detail: `${instrumentDeep.filter(i => i.pnl < 0).map(i => i.asset).join(', ') || 'None'} ${instrumentDeep.filter(i => i.pnl < 0).length > 0 ? 'are net negative — remove from your active list until you identify why these are failing.' : '— all instruments are currently profitable.'}`,
+                                            rule: lang === 'fr' ? `RÈGLE 02 — ÉLIMINEZ LES INSTRUMENTS MORTS` : `RULE 02 — CUT DEAD INSTRUMENTS`,
+                                            detail: lang === 'fr' ? `${instrumentDeep.filter(i => i.pnl < 0).map(i => i.asset).join(', ') || 'Aucun'} ${instrumentDeep.filter(i => i.pnl < 0).length > 0 ? 'sont négatifs nettement — retirez-les de votre liste active jusqu\'à ce que vous identifiiez pourquoi ils échouent.' : '— tous les instruments sont actuellement profitables.'}` : `${instrumentDeep.filter(i => i.pnl < 0).map(i => i.asset).join(', ') || 'None'} ${instrumentDeep.filter(i => i.pnl < 0).length > 0 ? 'are net negative — remove from your active list until you identify why these are failing.' : '— all instruments are currently profitable.'}`,
                                             icon: '⛔', color: '#ff4757',
                                             show: instrumentDeep.filter(i => i.pnl < 0).length > 0,
                                         },
                                         {
-                                            rule: `RULE 03 — DIRECTION DISCIPLINE`,
-                                            detail: `Check your long vs short split per instrument. Direction bias (e.g., always longing a downtrending asset) is a silent P&L killer. Match direction to market structure, not habit.`,
+                                            rule: lang === 'fr' ? `RÈGLE 03 — DISCIPLINE DE DIRECTION` : `RULE 03 — DIRECTION DISCIPLINE`,
+                                            detail: lang === 'fr' ? `Vérifiez votre répartition long/short par instrument. Un biais de direction (ex: toujours acheter un actif en tendance baissière) est un tueur silencieux de P&L. Adaptez la direction à la structure du marché, pas à l'habitude.` : `Check your long vs short split per instrument. Direction bias (e.g., always longing a downtrending asset) is a silent P&L killer. Match direction to market structure, not habit.`,
                                             icon: '⏸', color: '#EAB308',
                                         },
                                         {
-                                            rule: `RULE 04 — INSTRUMENT FOCUS CAP`,
-                                            detail: `You're trading ${instrumentDeep.length} instrument${instrumentDeep.length > 1 ? 's' : ''}. ${instrumentDeep.length > 3 ? `Consider reducing to your top 2-3 for the next 30 days. More instruments = more context switching = diluted edge.` : 'Current instrument count is within optimal range for focused execution.'}`,
+                                            rule: lang === 'fr' ? `RÈGLE 04 — LIMITE DU NOMBRE D'INSTRUMENTS` : `RULE 04 — INSTRUMENT FOCUS CAP`,
+                                            detail: lang === 'fr' ? `Vous tradez ${instrumentDeep.length} instrument${instrumentDeep.length > 1 ? 's' : ''}. ${instrumentDeep.length > 3 ? `Envisagez de réduire à vos 2-3 meilleurs pour les 30 prochains jours. Plus d'instruments = plus de changements de contexte = avantage dilué.` : 'Le nombre d\'instruments actuel est dans la plage optimale pour une exécution concentrée.'}` : `You're trading ${instrumentDeep.length} instrument${instrumentDeep.length > 1 ? 's' : ''}. ${instrumentDeep.length > 3 ? `Consider reducing to your top 2-3 for the next 30 days. More instruments = more context switching = diluted edge.` : 'Current instrument count is within optimal range for focused execution.'}`,
                                             icon: '✓', color: '#c9d1d9',
                                         },
                                     ].filter(r => (r as any).show !== false).map((r, i) => (
@@ -1935,19 +1957,27 @@ export default function AnalyticsPage() {
                                         return (
                                             <div style={{ marginTop: 16, display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 12 }}>
                                                 <div style={{ padding: '14px 16px', background: 'rgba(253,200,0,0.04)', border: '1px solid rgba(253,200,0,0.12)', borderLeft: '3px solid #FDC800' }}>
-                                                    <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#FDC800', letterSpacing: '0.1em', textTransform: 'uppercase', fontWeight: 700, marginBottom: 6 }}>WHAT THIS MEANS</div>
+                                                    <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#FDC800', letterSpacing: '0.1em', textTransform: 'uppercase', fontWeight: 700, marginBottom: 6 }}>{lang === 'fr' ? 'CE QUE CELA SIGNIFIE' : 'WHAT THIS MEANS'}</div>
                                                     <p style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: '#c9d1d9', lineHeight: 1.8, margin: 0 }}>
-                                                        {cleanSessions.length} of {sessionMetrics.length} sessions were profitable ({((cleanSessions.length / sessionMetrics.length) * 100).toFixed(0)}% session win rate).
-                                                        {critSessions.length > 0 && <> <strong style={{ color: '#ff4757' }}>{critSessions.length} CRITICAL</strong> session{critSessions.length !== 1 ? 's' : ''} exceeded blowout threshold.</>}
-                                                        {revSessions.length > 0 && <> <strong style={{ color: '#EAB308' }}>{revSessions.length} REVENGE</strong> session{revSessions.length !== 1 ? 's' : ''} detected — rapid re-entry after a loss.</>}
+                                                        {lang === 'fr'
+                                                            ? <>{cleanSessions.length} sur {sessionMetrics.length} sessions étaient profitables ({((cleanSessions.length / sessionMetrics.length) * 100).toFixed(0)}% taux de réussite de session).
+                                                                {critSessions.length > 0 && <> <strong style={{ color: '#ff4757' }}>{critSessions.length} CRITIQUE{critSessions.length !== 1 ? 'S' : ''}</strong> session{critSessions.length !== 1 ? 's' : ''} a dépassé le seuil de blowout.</>}
+                                                                {revSessions.length > 0 && <> <strong style={{ color: '#EAB308' }}>{revSessions.length} REVENGE</strong> session{revSessions.length !== 1 ? 's' : ''} détectée{revSessions.length !== 1 ? 's' : ''} — re-entrée rapide après une perte.</>}</>
+                                                            : <>{cleanSessions.length} of {sessionMetrics.length} sessions were profitable ({((cleanSessions.length / sessionMetrics.length) * 100).toFixed(0)}% session win rate).
+                                                                {critSessions.length > 0 && <> <strong style={{ color: '#ff4757' }}>{critSessions.length} CRITICAL</strong> session{critSessions.length !== 1 ? 's' : ''} exceeded blowout threshold.</>}
+                                                                {revSessions.length > 0 && <> <strong style={{ color: '#EAB308' }}>{revSessions.length} REVENGE</strong> session{revSessions.length !== 1 ? 's' : ''} detected — rapid re-entry after a loss.</>}</>}
                                                     </p>
                                                 </div>
                                                 <div style={{ padding: '14px 16px', background: 'rgba(234,179,8,0.04)', border: '1px solid rgba(234,179,8,0.15)', borderLeft: '3px solid #EAB308' }}>
                                                     <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#EAB308', letterSpacing: '0.1em', textTransform: 'uppercase', fontWeight: 700, marginBottom: 6 }}>ACTION</div>
                                                     <p style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: '#8b949e', lineHeight: 1.8, margin: 0 }}>
                                                         {critSessions.length > 0
-                                                            ? `Your ${critSessions.length} critical session${critSessions.length !== 1 ? 's' : ''} had outsized losses. Set a per-session max-loss of $${Math.round(Math.abs(avgSessionPnl) * 2 || 500)} — once hit, close all positions and step away for minimum 2 hours.`
-                                                            : 'No critical sessions yet. Set a per-session max-loss now as a pre-emptive rule before you experience your first blowout.'}
+                                                            ? lang === 'fr'
+                                                                ? `Vos ${critSessions.length} session${critSessions.length !== 1 ? 's' : ''} critique${critSessions.length !== 1 ? 's' : ''} ont eu des pertes disproportionnées. Fixez une perte max par session de $${Math.round(Math.abs(avgSessionPnl) * 2 || 500)} — une fois atteinte, fermez toutes les positions et éloignez-vous pendant au moins 2 heures.`
+                                                                : `Your ${critSessions.length} critical session${critSessions.length !== 1 ? 's' : ''} had outsized losses. Set a per-session max-loss of $${Math.round(Math.abs(avgSessionPnl) * 2 || 500)} — once hit, close all positions and step away for minimum 2 hours.`
+                                                            : lang === 'fr'
+                                                                ? 'Aucune session critique encore. Fixez dès maintenant une perte max par session comme règle préventive avant de vivre votre premier blowout.'
+                                                                : 'No critical sessions yet. Set a per-session max-loss now as a pre-emptive rule before you experience your first blowout.'}
                                                     </p>
                                                 </div>
                                             </div>
@@ -2016,11 +2046,11 @@ export default function AnalyticsPage() {
                                                         <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'repeat(3, 1fr)' : 'repeat(6, 1fr)', gap: 1, background: '#1a1c24' }}>
                                                             {[
                                                                 { label: 'TRADES', value: s.trades.length, color: '#c9d1d9' },
-                                                                { label: 'WIN RATE', value: `${sessionWr.toFixed(0)}%`, color: sessionWr >= 55 ? '#FDC800' : sessionWr >= 45 ? '#EAB308' : '#ff4757' },
-                                                                { label: 'PROFIT FACTOR', value: s.pf === 99 ? '∞' : s.pf.toFixed(2), color: s.pf >= 1.5 ? '#FDC800' : s.pf >= 1 ? '#EAB308' : '#ff4757' },
-                                                                { label: 'AVG WIN', value: s.sAvgWin > 0 ? `+$${s.sAvgWin.toFixed(0)}` : '—', color: '#FDC800' },
-                                                                { label: 'AVG LOSS', value: s.sAvgLoss > 0 ? `-$${s.sAvgLoss.toFixed(0)}` : '—', color: '#ff4757' },
-                                                                { label: 'MAX CONSEC LOSS', value: s.maxConsecLoss > 0 ? `${s.maxConsecLoss}` : '0', color: s.maxConsecLoss >= 3 ? '#ff4757' : s.maxConsecLoss >= 2 ? '#EAB308' : '#FDC800' },
+                                                                { label: lang === 'fr' ? 'TAUX RÉU.' : 'WIN RATE', value: `${sessionWr.toFixed(0)}%`, color: sessionWr >= 55 ? '#FDC800' : sessionWr >= 45 ? '#EAB308' : '#ff4757' },
+                                                                { label: lang === 'fr' ? 'FACT. PROFIT' : 'PROFIT FACTOR', value: s.pf === 99 ? '∞' : s.pf.toFixed(2), color: s.pf >= 1.5 ? '#FDC800' : s.pf >= 1 ? '#EAB308' : '#ff4757' },
+                                                                { label: lang === 'fr' ? 'GAIN MOY.' : 'AVG WIN', value: s.sAvgWin > 0 ? `+$${s.sAvgWin.toFixed(0)}` : '—', color: '#FDC800' },
+                                                                { label: lang === 'fr' ? 'PERTE MOY.' : 'AVG LOSS', value: s.sAvgLoss > 0 ? `-$${s.sAvgLoss.toFixed(0)}` : '—', color: '#ff4757' },
+                                                                { label: lang === 'fr' ? 'PERTE CONSEC. MAX' : 'MAX CONSEC LOSS', value: s.maxConsecLoss > 0 ? `${s.maxConsecLoss}` : '0', color: s.maxConsecLoss >= 3 ? '#ff4757' : s.maxConsecLoss >= 2 ? '#EAB308' : '#FDC800' },
                                                             ].map((k, i) => (
                                                                 <div key={i} style={{ padding: '12px 16px', background: '#0d1117', display: 'flex', flexDirection: 'column', gap: 4 }}>
                                                                     <span style={{ fontFamily: 'var(--font-mono)', fontSize: 8, color: '#6b7280', letterSpacing: '0.1em', textTransform: 'uppercase' }}>{k.label}</span>
@@ -2074,8 +2104,8 @@ export default function AnalyticsPage() {
                                                         {/* Win/Loss P&L bars */}
                                                         <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 12 }}>
                                                             {[
-                                                                { label: 'GROSS PROFIT', val: s.gross, total: s.gross + s.lossAbs, color: '#FDC800' },
-                                                                { label: 'GROSS LOSS', val: s.lossAbs, total: s.gross + s.lossAbs, color: '#ff4757' },
+                                                                { label: lang === 'fr' ? 'PROFIT BRUT' : 'GROSS PROFIT', val: s.gross, total: s.gross + s.lossAbs, color: '#FDC800' },
+                                                                { label: lang === 'fr' ? 'PERTE BRUTE' : 'GROSS LOSS', val: s.lossAbs, total: s.gross + s.lossAbs, color: '#ff4757' },
                                                             ].map((bar, i) => (
                                                                 <div key={i}>
                                                                     <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
@@ -2233,26 +2263,26 @@ export default function AnalyticsPage() {
                                 <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
                                     {[
                                         {
-                                            rule: 'RULE 01 — SESSION DAILY LOSS LIMIT',
-                                            detail: `Your worst session lost $${worstSession && worstSession.pnl < 0 ? Math.abs(worstSession.pnl).toFixed(0) : 'N/A'}. Set a hard daily loss limit at 50% of that figure. When hit, session ends — no exceptions.`,
+                                            rule: lang === 'fr' ? 'RÈGLE 01 — LIMITE PERTE DE SESSION' : 'RULE 01 — SESSION DAILY LOSS LIMIT',
+                                            detail: lang === 'fr' ? `Votre pire session a perdu $${worstSession && worstSession.pnl < 0 ? Math.abs(worstSession.pnl).toFixed(0) : 'N/A'}. Fixez une limite de perte journalière à 50% de ce chiffre. Quand elle est atteinte, la session se termine — sans exception.` : `Your worst session lost $${worstSession && worstSession.pnl < 0 ? Math.abs(worstSession.pnl).toFixed(0) : 'N/A'}. Set a hard daily loss limit at 50% of that figure. When hit, session ends — no exceptions.`,
                                             icon: '⛔', color: '#ff4757',
                                             show: worstSession && worstSession.pnl < -100,
                                         },
                                         {
-                                            rule: `RULE 02 — TRADE COUNT CAP`,
-                                            detail: `Average session has ${avgSessionTrades.toFixed(1)} trades. Cap at ${Math.max(8, Math.ceil(avgSessionTrades * 1.3))} trades per session. Every trade beyond your optimal count has a statistically lower win rate.`,
+                                            rule: lang === 'fr' ? `RÈGLE 02 — PLAFOND DE TRADES` : `RULE 02 — TRADE COUNT CAP`,
+                                            detail: lang === 'fr' ? `La session moyenne a ${avgSessionTrades.toFixed(1)} trades. Plafonnez à ${Math.max(8, Math.ceil(avgSessionTrades * 1.3))} trades par session. Chaque trade au-delà de votre nombre optimal a un taux de réussite statistiquement inférieur.` : `Average session has ${avgSessionTrades.toFixed(1)} trades. Cap at ${Math.max(8, Math.ceil(avgSessionTrades * 1.3))} trades per session. Every trade beyond your optimal count has a statistically lower win rate.`,
                                             icon: '→', color: '#EAB308',
                                             show: true,
                                         },
                                         {
-                                            rule: 'RULE 03 — REVENGE PROTOCOL',
-                                            detail: `${sessionMetrics.filter((s: any) => s.tag === 'REVENGE').length} session${sessionMetrics.filter((s: any) => s.tag === 'REVENGE').length !== 1 ? 's' : ''} flagged for revenge behavior. After any loss, minimum 5-minute break. Log your emotional state before re-entry.`,
+                                            rule: lang === 'fr' ? 'RÈGLE 03 — PROTOCOLE ANTI-REVENGE' : 'RULE 03 — REVENGE PROTOCOL',
+                                            detail: lang === 'fr' ? `${sessionMetrics.filter((s: any) => s.tag === 'REVENGE').length} session${sessionMetrics.filter((s: any) => s.tag === 'REVENGE').length !== 1 ? 's' : ''} signalée${sessionMetrics.filter((s: any) => s.tag === 'REVENGE').length !== 1 ? 's' : ''} pour comportement de revenge. Après toute perte, pause minimale de 5 minutes. Journalisez votre état émotionnel avant de re-entrer.` : `${sessionMetrics.filter((s: any) => s.tag === 'REVENGE').length} session${sessionMetrics.filter((s: any) => s.tag === 'REVENGE').length !== 1 ? 's' : ''} flagged for revenge behavior. After any loss, minimum 5-minute break. Log your emotional state before re-entry.`,
                                             icon: '⏸', color: '#EAB308',
                                             show: sessionMetrics.filter((s: any) => s.tag === 'REVENGE').length > 0,
                                         },
                                         {
-                                            rule: 'RULE 04 — REPLICATE BEST SESSION',
-                                            detail: bestSession ? `Best session: $${bestSession.pnl.toFixed(0)} on ${bestSession.fmtDate(bestSession.startTime)} — ${bestSession.trades.length} trades, started at ${bestSession.fmtEstTime(bestSession.startTime)} EST. Identify what was different that day and systemize it.` : 'Log more sessions to identify your best session pattern.',
+                                            rule: lang === 'fr' ? 'RÈGLE 04 — RÉPLIQUER LA MEILLEURE SESSION' : 'RULE 04 — REPLICATE BEST SESSION',
+                                            detail: lang === 'fr' ? (bestSession ? `Meilleure session: $${bestSession.pnl.toFixed(0)} le ${bestSession.fmtDate(bestSession.startTime)} — ${bestSession.trades.length} trades, commencée à ${bestSession.fmtEstTime(bestSession.startTime)} EST. Identifiez ce qui était différent ce jour-là et systématisez-le.` : 'Enregistrez plus de sessions pour identifier votre meilleur schéma de session.') : (bestSession ? `Best session: $${bestSession.pnl.toFixed(0)} on ${bestSession.fmtDate(bestSession.startTime)} — ${bestSession.trades.length} trades, started at ${bestSession.fmtEstTime(bestSession.startTime)} EST. Identify what was different that day and systemize it.` : 'Log more sessions to identify your best session pattern.'),
                                             icon: '✓', color: '#FDC800',
                                             show: true,
                                         },
@@ -2346,7 +2376,7 @@ export default function AnalyticsPage() {
                                     <div style={{ background: '#0d1117', border: '1px solid #1a1c24', padding: '24px 24px 20px' }}>
                                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 20, flexWrap: 'wrap', gap: 8 }}>
                                             <div>
-                                                <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#6b7280', letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 2 }}>CHART 1 OF 4 — P&L BY HOUR (EST)</div>
+                                                <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#6b7280', letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 2 }}>{lang === 'fr' ? 'GRAPHIQUE 1/4 — P&L PAR HEURE (EST)' : 'CHART 1 OF 4 — P&L BY HOUR (EST)'}</div>
                                                 <div style={{ fontFamily: 'var(--font-mono)', fontSize: 14, fontWeight: 700, color: '#c9d1d9' }}>Net profit/loss accumulated per clock hour</div>
                                                 <div style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: '#8b949e', marginTop: 4 }}>Bar height = dollar P&L · Color intensity scales with trade density · Empty bars = no trades that hour</div>
                                             </div>
@@ -2397,9 +2427,11 @@ export default function AnalyticsPage() {
                                         {activeH.length > 0 && (
                                             <div style={{ marginTop: 16, display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 12 }}>
                                                 <div style={{ padding: '14px 16px', background: 'rgba(253,200,0,0.04)', border: '1px solid rgba(253,200,0,0.12)', borderLeft: '3px solid #FDC800' }}>
-                                                    <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#FDC800', letterSpacing: '0.1em', textTransform: 'uppercase', fontWeight: 700, marginBottom: 6 }}>WHAT THIS MEANS</div>
+                                                    <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#FDC800', letterSpacing: '0.1em', textTransform: 'uppercase', fontWeight: 700, marginBottom: 6 }}>{lang === 'fr' ? 'CE QUE CELA SIGNIFIE' : 'WHAT THIS MEANS'}</div>
                                                     <p style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: '#c9d1d9', lineHeight: 1.8, margin: 0 }}>
-                                                        Your top 3 profitable hours ({top3.map(h => `${String(h.h).padStart(2,'0')}:00`).join(', ')}) account for <strong style={{ color: '#FDC800' }}>{top3Pct}%</strong> of all hourly profit. Meanwhile, your {trapHours.length} loss hour{trapHours.length !== 1 ? 's' : ''} collectively cost <strong style={{ color: '#ff4757' }}>${Math.abs(trapCost).toFixed(0)}</strong>. Your edge is concentrated — not spread evenly.
+                                                        {lang === 'fr'
+                                                            ? <>Vos 3 meilleures heures profitables ({top3.map(h => `${String(h.h).padStart(2,'0')}:00`).join(', ')}) représentent <strong style={{ color: '#FDC800' }}>{top3Pct}%</strong> de tous les bénéfices horaires. Pendant ce temps, vos {trapHours.length} heure{trapHours.length !== 1 ? 's' : ''} de perte ont collectivement coûté <strong style={{ color: '#ff4757' }}>${Math.abs(trapCost).toFixed(0)}</strong>. Votre avantage est concentré — pas réparti uniformément.</>
+                                                            : <>Your top 3 profitable hours ({top3.map(h => `${String(h.h).padStart(2,'0')}:00`).join(', ')}) account for <strong style={{ color: '#FDC800' }}>{top3Pct}%</strong> of all hourly profit. Meanwhile, your {trapHours.length} loss hour{trapHours.length !== 1 ? 's' : ''} collectively cost <strong style={{ color: '#ff4757' }}>${Math.abs(trapCost).toFixed(0)}</strong>. Your edge is concentrated — not spread evenly.</>}
                                                     </p>
                                                 </div>
                                                 <div style={{ padding: '14px 16px', background: 'rgba(234,179,8,0.04)', border: '1px solid rgba(234,179,8,0.15)', borderLeft: '3px solid #EAB308' }}>
@@ -2473,9 +2505,11 @@ export default function AnalyticsPage() {
                                         {activeH.length > 0 && (
                                             <div style={{ marginTop: 16, display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 12 }}>
                                                 <div style={{ padding: '14px 16px', background: 'rgba(253,200,0,0.04)', border: '1px solid rgba(253,200,0,0.12)', borderLeft: '3px solid #FDC800' }}>
-                                                    <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#FDC800', letterSpacing: '0.1em', textTransform: 'uppercase', fontWeight: 700, marginBottom: 6 }}>WHAT THIS MEANS</div>
+                                                    <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#FDC800', letterSpacing: '0.1em', textTransform: 'uppercase', fontWeight: 700, marginBottom: 6 }}>{lang === 'fr' ? 'CE QUE CELA SIGNIFIE' : 'WHAT THIS MEANS'}</div>
                                                     <p style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: '#c9d1d9', lineHeight: 1.8, margin: 0 }}>
-                                                        You have <strong style={{ color: '#FDC800' }}>{strongEdgeHours.length} strong-edge hour{strongEdgeHours.length !== 1 ? 's' : ''}</strong> (≥60% WR) and <strong style={{ color: '#ff4757' }}>{trapHours.length} statistical trap{trapHours.length !== 1 ? 's' : ''}</strong> (&lt;40% WR). Your overall active-hour average is <strong style={{ color: '#EAB308' }}>{avgWR.toFixed(1)}%</strong>. Win rate below 40% is not variance — it&apos;s structural.
+                                                        {lang === 'fr'
+                                                            ? <>Vous avez <strong style={{ color: '#FDC800' }}>{strongEdgeHours.length} heure{strongEdgeHours.length !== 1 ? 's' : ''} à fort avantage</strong> (≥60% TR) et <strong style={{ color: '#ff4757' }}>{trapHours.length} piège{trapHours.length !== 1 ? 's' : ''} statistique{trapHours.length !== 1 ? 's' : ''}</strong> (&lt;40% TR). Votre moyenne globale des heures actives est <strong style={{ color: '#EAB308' }}>{avgWR.toFixed(1)}%</strong>. Un taux de réussite sous 40% n&apos;est pas de la variance — c&apos;est structurel.</>
+                                                            : <>You have <strong style={{ color: '#FDC800' }}>{strongEdgeHours.length} strong-edge hour{strongEdgeHours.length !== 1 ? 's' : ''}</strong> (≥60% WR) and <strong style={{ color: '#ff4757' }}>{trapHours.length} statistical trap{trapHours.length !== 1 ? 's' : ''}</strong> (&lt;40% WR). Your overall active-hour average is <strong style={{ color: '#EAB308' }}>{avgWR.toFixed(1)}%</strong>. Win rate below 40% is not variance — it&apos;s structural.</>}
                                                     </p>
                                                 </div>
                                                 <div style={{ padding: '14px 16px', background: 'rgba(234,179,8,0.04)', border: '1px solid rgba(234,179,8,0.15)', borderLeft: '3px solid #EAB308' }}>
@@ -2510,9 +2544,11 @@ export default function AnalyticsPage() {
                                         {/* Interpretation */}
                                         <div style={{ marginTop: 16, display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 12 }}>
                                             <div style={{ padding: '14px 16px', background: 'rgba(253,200,0,0.04)', border: '1px solid rgba(253,200,0,0.12)', borderLeft: '3px solid #FDC800' }}>
-                                                <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#FDC800', letterSpacing: '0.1em', textTransform: 'uppercase', fontWeight: 700, marginBottom: 6 }}>WHAT THIS MEANS</div>
+                                                <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#FDC800', letterSpacing: '0.1em', textTransform: 'uppercase', fontWeight: 700, marginBottom: 6 }}>{lang === 'fr' ? 'CE QUE CELA SIGNIFIE' : 'WHAT THIS MEANS'}</div>
                                                 <p style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: '#c9d1d9', lineHeight: 1.8, margin: 0 }}>
-                                                    Your best slot is <strong style={{ color: '#FDC800' }}>{bestCell.day} {fmtH(bestCell.hour)}</strong> (+${bestCell.pnl.toFixed(0)} avg · {bestCell.trades} trades). Your worst slot is <strong style={{ color: '#ff4757' }}>{worstCell.day} {fmtH(worstCell.hour)}</strong> (${worstCell.pnl.toFixed(0)} avg · {worstCell.trades} trades). Red clusters on the same day-of-week point to structural market conditions, not random variance.
+                                                    {lang === 'fr'
+                                                        ? <>Votre meilleur créneau est <strong style={{ color: '#FDC800' }}>{bestCell.day} {fmtH(bestCell.hour)}</strong> (+${bestCell.pnl.toFixed(0)} moy · {bestCell.trades} trades). Votre pire créneau est <strong style={{ color: '#ff4757' }}>{worstCell.day} {fmtH(worstCell.hour)}</strong> (${worstCell.pnl.toFixed(0)} moy · {worstCell.trades} trades). Les clusters rouges sur le même jour de la semaine indiquent des conditions structurelles du marché, pas de la variance aléatoire.</>
+                                                        : <>Your best slot is <strong style={{ color: '#FDC800' }}>{bestCell.day} {fmtH(bestCell.hour)}</strong> (+${bestCell.pnl.toFixed(0)} avg · {bestCell.trades} trades). Your worst slot is <strong style={{ color: '#ff4757' }}>{worstCell.day} {fmtH(worstCell.hour)}</strong> (${worstCell.pnl.toFixed(0)} avg · {worstCell.trades} trades). Red clusters on the same day-of-week point to structural market conditions, not random variance.</>}
                                                 </p>
                                             </div>
                                             <div style={{ padding: '14px 16px', background: 'rgba(255,71,87,0.04)', border: '1px solid rgba(255,71,87,0.12)', borderLeft: '3px solid #ff4757' }}>
@@ -2549,16 +2585,18 @@ export default function AnalyticsPage() {
                                         {/* Interpretation */}
                                         <div style={{ marginTop: 16, display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 12 }}>
                                             <div style={{ padding: '14px 16px', background: 'rgba(253,200,0,0.04)', border: '1px solid rgba(253,200,0,0.12)', borderLeft: '3px solid #FDC800' }}>
-                                                <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#FDC800', letterSpacing: '0.1em', textTransform: 'uppercase', fontWeight: 700, marginBottom: 6 }}>HOW TO READ THIS</div>
+                                                <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#FDC800', letterSpacing: '0.1em', textTransform: 'uppercase', fontWeight: 700, marginBottom: 6 }}>{lang === 'fr' ? 'COMMENT LIRE CE GRAPHIQUE' : 'HOW TO READ THIS'}</div>
                                                 <p style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: '#c9d1d9', lineHeight: 1.8, margin: 0 }}>
-                                                    Look for <strong style={{ color: '#FDC800' }}>green clusters</strong> — time windows where wins dominate. Look for <strong style={{ color: '#ff4757' }}>red clusters or large red dots</strong> — those are your blowup windows. Vertical clustering at a specific hour = that hour has a consistent behavioral outcome for you.
+                                                    {lang === 'fr'
+                                                        ? <>Cherchez des <strong style={{ color: '#FDC800' }}>clusters verts</strong> — fenêtres temporelles où les gains dominent. Cherchez des <strong style={{ color: '#ff4757' }}>clusters rouges ou gros points rouges</strong> — ce sont vos fenêtres de blowup. Un clustering vertical à une heure spécifique = cette heure a un résultat comportemental cohérent pour vous.</>
+                                                        : <>Look for <strong style={{ color: '#FDC800' }}>green clusters</strong> — time windows where wins dominate. Look for <strong style={{ color: '#ff4757' }}>red clusters or large red dots</strong> — those are your blowup windows. Vertical clustering at a specific hour = that hour has a consistent behavioral outcome for you.</>}
                                                 </p>
                                             </div>
                                             <div style={{ padding: '14px 16px', background: 'rgba(234,179,8,0.04)', border: '1px solid rgba(234,179,8,0.15)', borderLeft: '3px solid #EAB308' }}>
-                                                <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#EAB308', letterSpacing: '0.1em', textTransform: 'uppercase', fontWeight: 700, marginBottom: 6 }}>TOP OBSERVATIONS</div>
+                                                <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#EAB308', letterSpacing: '0.1em', textTransform: 'uppercase', fontWeight: 700, marginBottom: 6 }}>{lang === 'fr' ? 'OBSERVATIONS CLÉS' : 'TOP OBSERVATIONS'}</div>
                                                 <div style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: '#8b949e', lineHeight: 1.9 }}>
-                                                    {bigWins.length > 0 && <div>Biggest wins: {bigWins.map(d => `${fmtT(d.x)} (+$${d.y.toFixed(0)})`).join(' · ')}</div>}
-                                                    {bigLosses.length > 0 && <div>Biggest losses: {bigLosses.map(d => `${fmtT(d.x)} (-$${Math.abs(d.y).toFixed(0)})`).join(' · ')}</div>}
+                                                    {bigWins.length > 0 && <div>{lang === 'fr' ? 'Plus grands gains' : 'Biggest wins'}: {bigWins.map(d => `${fmtT(d.x)} (+$${d.y.toFixed(0)})`).join(' · ')}</div>}
+                                                    {bigLosses.length > 0 && <div>{lang === 'fr' ? 'Plus grandes pertes' : 'Biggest losses'}: {bigLosses.map(d => `${fmtT(d.x)} (-$${Math.abs(d.y).toFixed(0)})`).join(' · ')}</div>}
                                                 </div>
                                             </div>
                                         </div>
@@ -2610,7 +2648,7 @@ export default function AnalyticsPage() {
                                     <table style={{ width: '100%', borderCollapse: 'collapse', fontFamily: 'var(--font-mono)', fontSize: 11 }}>
                                         <thead>
                                             <tr style={{ borderBottom: '1px solid #1a1c24' }}>
-                                                {['HOUR (EST)', 'SESSION', 'TRADES', 'WIN RATE', 'NET P&L', 'SIGNAL'].map((h, i) => (
+                                                {(lang === 'fr' ? ['HEURE (EST)', 'SESSION', 'TRADES', 'TAUX RÉU.', 'P&L NET', 'SIGNAL'] : ['HOUR (EST)', 'SESSION', 'TRADES', 'WIN RATE', 'NET P&L', 'SIGNAL']).map((h, i) => (
                                                     <th key={i} style={{ padding: '10px 16px', textAlign: i === 0 ? 'left' : 'right', color: '#6b7280', fontWeight: 700, letterSpacing: '0.08em', fontSize: 9, textTransform: 'uppercase', whiteSpace: 'nowrap' }}>{h}</th>
                                                 ))}
                                             </tr>
@@ -2735,23 +2773,23 @@ export default function AnalyticsPage() {
                                 <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
                                     {[
                                         {
-                                            rule: `RULE 01 — BEST HOUR PRIORITY`,
-                                            detail: `Focus maximum position sizing and highest conviction setups between ${String(forensics.timeStats.bestHour).padStart(2,'0')}:00–${String(forensics.timeStats.bestHour+1).padStart(2,'0')}:00 EST. This is your statistically proven peak edge window.`,
+                                            rule: lang === 'fr' ? `RÈGLE 01 — PRIORITÉ MEILLEURE HEURE` : `RULE 01 — BEST HOUR PRIORITY`,
+                                            detail: lang === 'fr' ? `Concentrez le maximum de taille de position et les setups de plus haute conviction entre ${String(forensics.timeStats.bestHour).padStart(2,'0')}:00–${String(forensics.timeStats.bestHour+1).padStart(2,'0')}:00 EST. C'est votre fenêtre d'avantage statistiquement prouvée.` : `Focus maximum position sizing and highest conviction setups between ${String(forensics.timeStats.bestHour).padStart(2,'0')}:00–${String(forensics.timeStats.bestHour+1).padStart(2,'0')}:00 EST. This is your statistically proven peak edge window.`,
                                             icon: '→', color: '#FDC800',
                                         },
                                         {
-                                            rule: `RULE 02 — DANGER HOUR BLOCK`,
-                                            detail: `Implement a soft trading ban at ${String(forensics.timeStats.worstHour).padStart(2,'0')}:00 EST. If a setup appears, reduce size by 50% and require double confirmation before entry.`,
+                                            rule: lang === 'fr' ? `RÈGLE 02 — BLOCAGE HEURE DANGEREUSE` : `RULE 02 — DANGER HOUR BLOCK`,
+                                            detail: lang === 'fr' ? `Mettez en place une restriction de trading à ${String(forensics.timeStats.worstHour).padStart(2,'0')}:00 EST. Si un setup apparaît, réduisez la taille de 50% et exigez une double confirmation avant l'entrée.` : `Implement a soft trading ban at ${String(forensics.timeStats.worstHour).padStart(2,'0')}:00 EST. If a setup appears, reduce size by 50% and require double confirmation before entry.`,
                                             icon: '⛔', color: '#ff4757',
                                         },
                                         {
-                                            rule: `RULE 03 — SESSION TRANSITION PAUSE`,
-                                            detail: `Add a 5-minute no-trade buffer at every session boundary (06:00, 09:30, 11:00, 14:00, 16:00 EST). Market microstructure shifts — your edge does too.`,
+                                            rule: lang === 'fr' ? `RÈGLE 03 — PAUSE DE TRANSITION DE SESSION` : `RULE 03 — SESSION TRANSITION PAUSE`,
+                                            detail: lang === 'fr' ? `Ajoutez une pause sans trade de 5 minutes à chaque limite de session (06:00, 09:30, 11:00, 14:00, 16:00 EST). La microstructure du marché change — votre avantage aussi.` : `Add a 5-minute no-trade buffer at every session boundary (06:00, 09:30, 11:00, 14:00, 16:00 EST). Market microstructure shifts — your edge does too.`,
                                             icon: '⏸', color: '#EAB308',
                                         },
                                         {
-                                            rule: `RULE 04 — DEAD HOUR DISCIPLINE`,
-                                            detail: `${24 - hourlyStats.filter(s => s.trades > 0).length} hours show zero activity — preserve this discipline. Do not expand your active hours until your current window win rate exceeds 55% over 30+ trades.`,
+                                            rule: lang === 'fr' ? `RÈGLE 04 — DISCIPLINE DES HEURES MORTES` : `RULE 04 — DEAD HOUR DISCIPLINE`,
+                                            detail: lang === 'fr' ? `${24 - hourlyStats.filter(s => s.trades > 0).length} heures montrent zéro activité — préservez cette discipline. N'étendez pas vos heures actives tant que votre taux de réussite actuel ne dépasse pas 55% sur 30+ trades.` : `${24 - hourlyStats.filter(s => s.trades > 0).length} hours show zero activity — preserve this discipline. Do not expand your active hours until your current window win rate exceeds 55% over 30+ trades.`,
                                             icon: '✓', color: '#6b7280',
                                         },
                                     ].map((r, i) => (
@@ -2786,8 +2824,8 @@ export default function AnalyticsPage() {
                             {/* ── 6-KPI GRID ── */}
                             <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'repeat(2, 1fr)' : 'repeat(3, 1fr)', borderTop: '1px solid #1a1c24', borderLeft: '1px solid #1a1c24' }}>
                                 {[
-                                    { label: 'MAX WIN STREAK', value: `${forensics.maxWinStreak}`, sub: 'Consecutive winning trades', color: '#FDC800' },
-                                    { label: 'MAX LOSS STREAK', value: `${forensics.maxLossStreak}`, sub: 'Consecutive losing trades', color: forensics.maxLossStreak >= 4 ? '#ff4757' : forensics.maxLossStreak >= 3 ? '#EAB308' : '#c9d1d9' },
+                                    { label: lang === 'fr' ? 'SÉRIE GAGNANTE MAX' : 'MAX WIN STREAK', value: `${forensics.maxWinStreak}`, sub: lang === 'fr' ? 'Trades gagnants consécutifs' : 'Consecutive winning trades', color: '#FDC800' },
+                                    { label: lang === 'fr' ? 'SÉRIE PERDANTE MAX' : 'MAX LOSS STREAK', value: `${forensics.maxLossStreak}`, sub: lang === 'fr' ? 'Trades perdants consécutifs' : 'Consecutive losing trades', color: forensics.maxLossStreak >= 4 ? '#ff4757' : forensics.maxLossStreak >= 3 ? '#EAB308' : '#c9d1d9' },
                                     { label: 'TOTAL STREAK RUNS', value: `${streakRuns.length}`, sub: `${streakRuns.filter(r => r.type === 'W').length}W runs · ${streakRuns.filter(r => r.type === 'L').length}L runs`, color: '#c9d1d9' },
                                     { label: 'WIN RATE', value: `${winRate.toFixed(1)}%`, sub: `${wins.length}W · ${losses.length}L`, color: winRate >= 55 ? '#FDC800' : winRate >= 45 ? '#EAB308' : '#ff4757' },
                                     { label: 'EXPECTANCY', value: expectancy !== 0 ? `${expectancy >= 0 ? '+' : ''}$${Math.abs(expectancy).toFixed(2)}` : '—', sub: 'Per trade average', color: expectancy >= 0 ? '#FDC800' : '#ff4757' },
@@ -2948,7 +2986,7 @@ export default function AnalyticsPage() {
                             {/* ── RECOVERY PROBABILITY ── */}
                             {recoveryProbTable.length > 0 && (
                                 <div style={{ background: '#0d1117', border: '1px solid #1a1c24', padding: isMobile ? '14px' : '24px' }}>
-                                    <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#6b7280', letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 4 }}>RECOVERY PROBABILITY AFTER N CONSECUTIVE LOSSES</div>
+                                    <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#6b7280', letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 4 }}>{lang === 'fr' ? 'PROBABILITÉ DE RÉCUPÉRATION APRÈS N PERTES CONSÉCUTIVES' : 'RECOVERY PROBABILITY AFTER N CONSECUTIVE LOSSES'}</div>
                                     <div style={{ fontFamily: 'var(--font-mono)', fontSize: 12, color: '#c9d1d9', marginBottom: 20 }}>Derived from your actual trade sequence — not theory. How likely is your next trade to be a win after a losing streak?</div>
                                     <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'repeat(2, 1fr)' : 'repeat(5, 1fr)', gap: 1, background: '#1a1c24', marginBottom: 20 }}>
                                         {recoveryProbTable.map((row, i) => {
@@ -2956,7 +2994,7 @@ export default function AnalyticsPage() {
                                             const color = pct >= 65 ? '#FDC800' : pct >= 50 ? '#EAB308' : '#ff4757';
                                             return (
                                                 <div key={i} style={{ padding: '20px 16px', background: '#0d1117', display: 'flex', flexDirection: 'column', gap: 8, alignItems: 'center', textAlign: 'center' }}>
-                                                    <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#6b7280', letterSpacing: '0.1em', textTransform: 'uppercase' }}>AFTER {row.n} LOSSES</span>
+                                                    <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#6b7280', letterSpacing: '0.1em', textTransform: 'uppercase' }}>{lang === 'fr' ? `APRÈS ${row.n} PERTES` : `AFTER ${row.n} LOSSES`}</span>
                                                     <span style={{ fontFamily: 'var(--font-mono)', fontSize: 28, fontWeight: 700, color }}>{row.recoveryProb !== null ? `${row.recoveryProb.toFixed(0)}%` : '—'}</span>
                                                     <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#8b949e' }}>recovery</span>
                                                     {/* Mini progress bar */}
@@ -3057,7 +3095,7 @@ export default function AnalyticsPage() {
                                         {[
                                             { label: 'PATTERNS DETECTED', value: `${forensics.patterns.length}`, sub: `${forensics.patterns.filter((p: any) => p.severity === 'CRITICAL').length} critical`, color: forensics.patterns.some((p: any) => p.severity === 'CRITICAL') ? '#ff4757' : '#EAB308' },
                                             { label: 'TOTAL BEHAVIORAL COST', value: behavioralCost < 0 ? `-$${Math.abs(behavioralCost).toFixed(0)}` : '$0', sub: 'Avoidable losses', color: '#ff4757' },
-                                            { label: 'PROJECTED NET P&L', value: withoutToxicPatterns !== 0 ? `${withoutToxicPatterns >= 0 ? '+' : ''}$${Math.abs(withoutToxicPatterns).toFixed(0)}` : '—', sub: 'If all patterns corrected', color: withoutToxicPatterns > netPnl ? '#FDC800' : '#c9d1d9' },
+                                            { label: lang === 'fr' ? 'P&L NET PROJETÉ' : 'PROJECTED NET P&L', value: withoutToxicPatterns !== 0 ? `${withoutToxicPatterns >= 0 ? '+' : ''}$${Math.abs(withoutToxicPatterns).toFixed(0)}` : '—', sub: lang === 'fr' ? 'Si tous les patterns corrigés' : 'If all patterns corrected', color: withoutToxicPatterns > netPnl ? '#FDC800' : '#c9d1d9' },
                                             { label: 'BEHAVIORAL EFFICIENCY', value: (grossProfit + grossLoss) > 0 ? `${(100 - (Math.abs(behavioralCost) / (grossProfit + grossLoss)) * 100).toFixed(0)}%` : '—', sub: 'Capital not lost to behavior', color: '#c9d1d9' },
                                         ].map((k, i) => (
                                             <div key={i} style={{ padding: '20px 24px', borderBottom: '1px solid #1a1c24', borderRight: '1px solid #1a1c24', background: '#0d1117', display: 'flex', flexDirection: 'column', gap: 6 }}>
@@ -3124,16 +3162,16 @@ export default function AnalyticsPage() {
                                             const sevBg = isC ? 'rgba(255,71,87,0.04)' : 'rgba(234,179,8,0.04)';
                                             const sevBorder = isC ? 'rgba(255,71,87,0.2)' : 'rgba(234,179,8,0.18)';
                                             const prescription = p.name === 'Revenge Trading'
-                                                ? 'After any losing trade, mandatory 5-minute break before next entry. No exceptions. Set a timer. Journal your emotional state before re-entering. Rapid re-entry within 2 minutes of a loss has a statistically lower win rate in your data.'
+                                                ? (lang === 'fr' ? 'Après tout trade perdant, pause obligatoire de 5 minutes avant la prochaine entrée. Sans exception. Programmez un minuteur. Journalisez votre état émotionnel avant de re-entrer. Une re-entrée rapide dans les 2 minutes après une perte a un taux de réussite statistiquement inférieur dans vos données.' : 'After any losing trade, mandatory 5-minute break before next entry. No exceptions. Set a timer. Journal your emotional state before re-entering. Rapid re-entry within 2 minutes of a loss has a statistically lower win rate in your data.')
                                                 : p.name === 'Held Losers'
-                                                ? 'Set a hard maximum hold time on losers: if a position is down and has been open longer than your avg win hold time, close it. Time-in-trade on losers is compounding cost, not opportunity.'
+                                                ? (lang === 'fr' ? 'Fixez un temps de détention maximum strict sur les perdants : si une position est en perte et ouverte plus longtemps que votre temps moyen de détention gagnant, clôturez-la. Le temps en trade sur les perdants est un coût qui s\'accumule, pas une opportunité.' : 'Set a hard maximum hold time on losers: if a position is down and has been open longer than your avg win hold time, close it. Time-in-trade on losers is compounding cost, not opportunity.')
                                                 : p.name === 'Spike Vulnerability'
-                                                ? 'Hard stop losses are non-negotiable on volatile instruments. No position should be held through a news/spike event without a stop. Size down or exit before known catalysts.'
+                                                ? (lang === 'fr' ? 'Les stop-loss fermes sont non négociables sur les instruments volatils. Aucune position ne devrait être tenue à travers un événement de news/spike sans stop. Réduisez la taille ou sortez avant les catalyseurs connus.' : 'Hard stop losses are non-negotiable on volatile instruments. No position should be held through a news/spike event without a stop. Size down or exit before known catalysts.')
                                                 : p.name === 'Early Exit'
-                                                ? 'For your next 20 winning trades, do not exit until either your stop is hit or your initial target is reached. Log the would-have-been P&L. The data will show you exactly how much you are leaving on the table.'
+                                                ? (lang === 'fr' ? 'Pour vos 20 prochains trades gagnants, ne sortez pas avant que votre stop soit atteint ou votre cible initiale atteinte. Enregistrez le P&L hypothétique. Les données vous montreront exactement combien vous laissez sur la table.' : 'For your next 20 winning trades, do not exit until either your stop is hit or your initial target is reached. Log the would-have-been P&L. The data will show you exactly how much you are leaving on the table.')
                                                 : p.name === 'Micro Overtrading'
-                                                ? 'Cap micro contract frequency to 3 entries per session per instrument. Overtrading micro contracts dilutes your edge and increases commission drag on already thin margins.'
-                                                : `Address the root cause of ${p.name}. Review ${p.freq} occurrence${p.freq > 1 ? 's' : ''} and identify the common trigger across all instances.`;
+                                                ? (lang === 'fr' ? 'Plafonnez la fréquence des micro-contrats à 3 entrées par session par instrument. Le sur-trading de micro-contrats dilue votre avantage et augmente les frais de commission sur des marges déjà minces.' : 'Cap micro contract frequency to 3 entries per session per instrument. Overtrading micro contracts dilutes your edge and increases commission drag on already thin margins.')
+                                                : lang === 'fr' ? `Adressez la cause racine de ${p.name}. Revoyez les ${p.freq} occurrence${p.freq > 1 ? 's' : ''} et identifiez le déclencheur commun à toutes les instances.` : `Address the root cause of ${p.name}. Review ${p.freq} occurrence${p.freq > 1 ? 's' : ''} and identify the common trigger across all instances.`;
                                             return (
                                                 <div key={i} style={{ background: sevBg, border: `1px solid ${sevBorder}`, overflow: 'hidden' }}>
                                                     {/* Pattern header */}
@@ -3175,12 +3213,12 @@ export default function AnalyticsPage() {
                                                         <div style={{ padding: '16px 24px', borderRight: `1px solid ${sevBorder}` }}>
                                                             <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#6b7280', letterSpacing: '0.1em', textTransform: 'uppercase', fontWeight: 700, marginBottom: 8 }}>TRIGGER PATTERN</div>
                                                             <p style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: '#8b949e', lineHeight: 1.7, margin: 0 }}>
-                                                                {p.name === 'Revenge Trading' && 'Loss → rapid re-entry within minutes. Emotional pressure overrides systematic entry criteria. Confirmation bias maintained despite market rejection.'}
-                                                                {p.name === 'Held Losers' && 'Open losing position held significantly longer than average winning trades. Hope displacing risk management — waiting for a reversal that the data shows rarely comes.'}
-                                                                {p.name === 'Spike Vulnerability' && 'Rapid large loss in under 3 minutes — likely a news spike or stop-hunt event. No hard stop in place to limit damage.'}
-                                                                {p.name === 'Early Exit' && 'Winning positions closed before reaching structural target. Premature profit-taking driven by fear of reversal. Asymmetry works against you when wins are cut short.'}
-                                                                {p.name === 'Micro Overtrading' && 'Above-normal trade frequency on micro contracts within single sessions. Frequency without edge is just commission bleeding.'}
-                                                                {!['Revenge Trading','Held Losers','Spike Vulnerability','Early Exit','Micro Overtrading'].includes(p.name) && `Recurring pattern detected ${p.freq} time${p.freq > 1 ? 's' : ''} across your trade history. See evidence above for specific instances.`}
+                                                                {p.name === 'Revenge Trading' && (lang === 'fr' ? 'Perte → re-entrée rapide dans les minutes suivantes. La pression émotionnelle supplante les critères d\'entrée systématiques. Biais de confirmation maintenu malgré le rejet du marché.' : 'Loss → rapid re-entry within minutes. Emotional pressure overrides systematic entry criteria. Confirmation bias maintained despite market rejection.')}
+                                                                {p.name === 'Held Losers' && (lang === 'fr' ? 'Position perdante ouverte bien plus longtemps que les trades gagnants moyens. L\'espoir remplace la gestion du risque — attente d\'un retournement que les données montrent rarément.' : 'Open losing position held significantly longer than average winning trades. Hope displacing risk management — waiting for a reversal that the data shows rarely comes.')}
+                                                                {p.name === 'Spike Vulnerability' && (lang === 'fr' ? 'Perte importante rapide en moins de 3 minutes — probablement un spike de news ou un stop-hunt. Pas de stop ferme en place pour limiter les dégâts.' : 'Rapid large loss in under 3 minutes — likely a news spike or stop-hunt event. No hard stop in place to limit damage.')}
+                                                                {p.name === 'Early Exit' && (lang === 'fr' ? 'Positions gagnantes clôturées avant d\'atteindre la cible structurelle. Prise de bénéfices prématurée motivée par la peur d\'un retournement. L\'asymétrie joue contre vous lorsque les gains sont coupés court.' : 'Winning positions closed before reaching structural target. Premature profit-taking driven by fear of reversal. Asymmetry works against you when wins are cut short.')}
+                                                                {p.name === 'Micro Overtrading' && (lang === 'fr' ? 'Fréquence de trade au-dessus de la normale sur les micro-contrats dans des sessions uniques. La fréquence sans avantage n\'est que du saignement de commissions.' : 'Above-normal trade frequency on micro contracts within single sessions. Frequency without edge is just commission bleeding.')}
+                                                                {!['Revenge Trading','Held Losers','Spike Vulnerability','Early Exit','Micro Overtrading'].includes(p.name) && (lang === 'fr' ? `Pattern récurrent détecté ${p.freq} fois dans votre historique de trades. Voir les preuves ci-dessus pour les instances spécifiques.` : `Recurring pattern detected ${p.freq} time${p.freq > 1 ? 's' : ''} across your trade history. See evidence above for specific instances.`)}
                                                             </p>
                                                         </div>
                                                         <div style={{ padding: '16px 24px', background: 'rgba(253,200,0,0.02)' }}>
@@ -3525,7 +3563,7 @@ export default function AnalyticsPage() {
                                                 {/* Interpretation + Action */}
                                                 <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: 8 }}>
                                                     <div style={{ padding: '12px 14px', background: `rgba(${isFailing ? '255,71,87' : '166,255,77'},0.04)`, border: `1px solid rgba(${isFailing ? '255,71,87' : '166,255,77'},0.12)`, borderLeft: `3px solid ${isFailing ? '#ff4757' : '#FDC800'}` }}>
-                                                        <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: isFailing ? '#ff4757' : '#FDC800', letterSpacing: '0.1em', textTransform: 'uppercase', fontWeight: 700, marginBottom: 5 }}>WHAT THIS MEANS</div>
+                                                        <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: isFailing ? '#ff4757' : '#FDC800', letterSpacing: '0.1em', textTransform: 'uppercase', fontWeight: 700, marginBottom: 5 }}>{lang === 'fr' ? 'CE QUE CELA SIGNIFIE' : 'WHAT THIS MEANS'}</div>
                                                         <p style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: '#c9d1d9', lineHeight: 1.8, margin: 0 }}>{m.interpretation}</p>
                                                     </div>
                                                     <div style={{ padding: '12px 14px', background: 'rgba(234,179,8,0.04)', border: '1px solid rgba(234,179,8,0.12)', borderLeft: '3px solid #EAB308' }}>
@@ -4155,7 +4193,7 @@ export default function AnalyticsPage() {
                                         </ResponsiveContainer>
                                         <div style={{ marginTop: 12, display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 1, background: '#1a1c24' }}>
                                             <div style={{ padding: '12px 16px', background: '#0d1117', borderLeft: '3px solid #ff4757' }}>
-                                                <div style={{ fontFamily: QF, fontSize: 9, color: '#ff4757', letterSpacing: '0.1em', marginBottom: 6, fontWeight: 700 }}>WHAT THIS MEANS</div>
+                                                <div style={{ fontFamily: QF, fontSize: 9, color: '#ff4757', letterSpacing: '0.1em', marginBottom: 6, fontWeight: 700 }}>{lang === 'fr' ? 'CE QUE CELA SIGNIFIE' : 'WHAT THIS MEANS'}</div>
                                                 <p style={{ fontFamily: QF, fontSize: 10, color: '#c9d1d9', lineHeight: 1.8, margin: 0 }}>
                                                     {timeUW > underwaterData.length * 0.5
                                                         ? `${timeUW} of ${underwaterData.length} trades (${(timeUW / underwaterData.length * 100).toFixed(0)}%) occurred below peak equity. More time underwater than above water means you are spending more energy recovering ground than compounding it. The average drawdown depth of ${Math.abs(avgDD).toFixed(1)}% compounds psychologically — extended underwater periods are when emotional decisions peak.`
@@ -4413,16 +4451,16 @@ export default function AnalyticsPage() {
                         gradeScore = Math.max(0, gradeScore);
                         const grade = gradeScore >= 90 ? 'A' : gradeScore >= 75 ? 'B' : gradeScore >= 55 ? 'C' : 'D';
                         const gradeColor = grade === 'A' ? '#FDC800' : grade === 'B' ? '#00D4FF' : grade === 'C' ? '#EAB308' : '#ff4757';
-                        const gradeDesc = grade === 'A' ? 'Solid execution' : grade === 'B' ? 'Minor leakage' : grade === 'C' ? 'Needs work' : 'Significant issues';
+                        const gradeDesc = grade === 'A' ? (lang === 'fr' ? 'Exécution solide' : 'Solid execution') : grade === 'B' ? (lang === 'fr' ? 'Fuites mineures' : 'Minor leakage') : grade === 'C' ? (lang === 'fr' ? 'À améliorer' : 'Needs work') : (lang === 'fr' ? 'Problèmes significatifs' : 'Significant issues');
 
                         // ── Prescriptions from patterns ──
                         const prescriptions = forensics.patterns.map((p: any, idx: number) => ({
                             num: String(idx + 1).padStart(2, '0'),
-                            title: p.name === 'Revenge Trading' ? 'Enforce a Hard Tilt Stop' :
-                                p.name === 'Held Losers' ? 'Cap Maximum Hold Time on Losers' :
-                                p.name === 'Spike Vulnerability' ? 'Add Hard Stop on Every Entry' :
-                                p.name === 'Early Exit' ? 'Let Winners Run to Target' :
-                                p.name === 'Micro Overtrading' ? 'Reduce Micro Contract Frequency' :
+                            title: p.name === 'Revenge Trading' ? (lang === 'fr' ? 'Mettre en place un stop anti-tilt' : 'Enforce a Hard Tilt Stop') :
+                                p.name === 'Held Losers' ? (lang === 'fr' ? 'Limiter le temps de détention max sur les perdants' : 'Cap Maximum Hold Time on Losers') :
+                                p.name === 'Spike Vulnerability' ? (lang === 'fr' ? 'Ajouter un stop ferme sur chaque entrée' : 'Add Hard Stop on Every Entry') :
+                                p.name === 'Early Exit' ? (lang === 'fr' ? 'Laisser courir les gagnants jusqu\'à la cible' : 'Let Winners Run to Target') :
+                                p.name === 'Micro Overtrading' ? (lang === 'fr' ? 'Réduire la fréquence des micro-contrats' : 'Reduce Micro Contract Frequency') :
                                 p.name,
                             desc: p.desc,
                             badge: p.severity === 'CRITICAL' ? 'CRITICAL' : Math.abs(p.impact) > 200 ? 'HIGH' : 'RECOMMENDED',

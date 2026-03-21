@@ -30,7 +30,7 @@ interface ChatMessage {
 // ─────────────────────────────────────────────────────────────────
 // Suggestion chips
 // ─────────────────────────────────────────────────────────────────
-const SUGGESTIONS = [
+const SUGGESTIONS_EN = [
     { icon: '🛡', text: "What's my status?" },
     { icon: '📐', text: "NQ at 21450, 30 point stop, $500 risk" },
     { icon: '📊', text: "Coach me on today's session" },
@@ -39,6 +39,16 @@ const SUGGESTIONS = [
     { icon: '🎯', text: "NQ spec and point value" },
     { icon: '💡', text: "What should I trade?" },
     { icon: '💰', text: "2 NQ contracts, stop 20 points — my risk?" },
+];
+const SUGGESTIONS_FR = [
+    { icon: '🛡', text: "Quel est mon statut ?" },
+    { icon: '📐', text: "NQ à 21450, stop 30 points, risque $500" },
+    { icon: '📊', text: "Coache-moi sur la session d'aujourd'hui" },
+    { icon: '🧠', text: "Est-ce que je fais du revenge trading ?" },
+    { icon: '📋', text: "Suis-je éligible au paiement ?" },
+    { icon: '🎯', text: "Specs NQ et valeur du point" },
+    { icon: '💡', text: "Que devrais-je trader ?" },
+    { icon: '💰', text: "2 contrats NQ, stop 20 points — mon risque ?" },
 ];
 
 // ─────────────────────────────────────────────────────────────────
@@ -50,10 +60,16 @@ export default function AIChatPage() {
     const { language } = useAppStore();
     const lang = language ?? 'en';
 
+    const SUGGESTIONS = lang === 'fr' ? SUGGESTIONS_FR : SUGGESTIONS_EN;
+
+    const welcomeContent = lang === 'fr'
+        ? `Je suis votre Coach IA. Je comprends le langage naturel pour toute question de trading :\n\n· Dimensionnement de position avec stops en points/ticks/pips\n· Risque en dollars depuis votre position\n· Specs d'instruments (valeur du point, taille du tick)\n· Éligibilité au paiement, analyse comportementale, edge stratégique\n\nEssayez : "NQ à 21450, stop 30 points, risque $500"`
+        : `I'm your AI Risk Coach. I understand natural language for any trading question:\n\n· Position sizing with point/tick/pip stops\n· Dollar risk from your actual position\n· Instrument specs (point value, tick size)\n· Payout eligibility, behavioral analysis, strategy edge\n\nTry: "NQ at 21450, 30 point stop, $500 risk"`;
+
     const [messages, setMessages] = useState<ChatMessage[]>([{
         id: 'welcome',
         role: 'assistant',
-        content: `I'm your AI Risk Coach. I understand natural language for any trading question:\n\n· Position sizing with point/tick/pip stops\n· Dollar risk from your actual position\n· Instrument specs (point value, tick size)\n· Payout eligibility, behavioral analysis, strategy edge\n\nTry: "NQ at 21450, 30 point stop, $500 risk"`,
+        content: welcomeContent,
         cards: [],
         timestamp: new Date(),
     }]);
@@ -138,7 +154,7 @@ export default function AIChatPage() {
         }
 
         setTimeout(() => {
-            const result = processNaturalLanguage(q, balance, maxRisk, todayUsed, dailyLimit, trades, account);
+            const result = processNaturalLanguage(q, balance, maxRisk, todayUsed, dailyLimit, trades, account, lang);
             const aiMsg: ChatMessage = {
                 id: crypto.randomUUID?.() || String(Date.now() + 1),
                 role: 'assistant', content: result.content, cards: result.cards, timestamp: new Date(),
