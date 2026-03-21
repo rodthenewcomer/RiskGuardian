@@ -1,35 +1,17 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" fill="none">
-  <!-- Yellow square background — neobrutalism -->
+  <!-- Yellow background — neobrutalism -->
   <rect width="32" height="32" fill="#FDC800"/>
-  <!-- Hard shadow block -->
-  <rect x="2" y="2" width="30" height="30" fill="#1C293C" rx="0"/>
+  <!-- Hard shadow -->
+  <rect x="2" y="2" width="30" height="30" fill="#000"/>
   <rect width="30" height="30" fill="#FDC800"/>
 
-  <!-- Shield outline -->
+  <!-- Shield — matches Lucide Shield path, centered at 15,15, scaled to fit -->
   <path
-    d="M15 4L6 8V15.5C6 20.75 10 25.2 15 27C20 25.2 24 20.75 24 15.5V8L15 4Z"
-    fill="#1C293C"
-    stroke="#1C293C"
+    d="M15 5L7 8.5V15C7 19.75 10.5 24.1 15 25.8C19.5 24.1 23 19.75 23 15V8.5L15 5Z"
+    fill="#000"
+    stroke="#000"
     stroke-width="0.5"
-  />
-
-  <!-- Chart line inside shield (trending up) -->
-  <polyline
-    points="8.5,19.5 11,17 13,18.5 17,13.5 21.5,10"
-    fill="none"
-    stroke="#FDC800"
-    stroke-width="2"
-    stroke-linecap="round"
     stroke-linejoin="round"
-  />
-
-  <!-- Arrow tip -->
-  <polyline
-    points="19.5,9.5 21.5,10 21,12"
-    fill="none"
-    stroke="#FDC800"
-    stroke-width="2"
     stroke-linecap="round"
-    stroke-linejoin="round"
   />
 </svg>
