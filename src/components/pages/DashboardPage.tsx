@@ -12,6 +12,9 @@ import {
 } from 'lucide-react';
 import PnLChart from '@/components/analytics/PnLChart';
 import { useTranslation } from '@/i18n/useTranslation';
+import StreakBeads from '@/components/charts/StreakBeads';
+import DrawdownCurve from '@/components/charts/DrawdownCurve';
+import { ChartCard } from '@/components/charts/RiskGuardianPrimitives';
 
 const fadeUp = { hidden: { opacity: 0, y: 14 }, show: { opacity: 1, y: 0, transition: { ease: [0.16, 1, 0.3, 1] as const, duration: 0.45 } } };
 const stagger = { hidden: {}, show: { transition: { staggerChildren: 0.08 } } };
@@ -109,6 +112,27 @@ export default function DashboardPage() {
             return acc;
         }, [] as { id: string; pnl: number; cumulative: number; asset: string }[]),
     [closedTrades]);
+
+    // ── Streak beads data (last 40 closed/open trades) ────────────
+    const streakBeadData = useMemo(() =>
+        [...trades]
+            .sort((a, b) => new Date(a.closedAt ?? a.createdAt).getTime() - new Date(b.closedAt ?? b.createdAt).getTime())
+            .slice(-40)
+            .map(t => ({
+                result: t.outcome === 'win' ? 'win' as const : t.outcome === 'loss' ? 'loss' as const : 'open' as const,
+                pnl: t.pnl ?? 0,
+            })),
+    [trades]);
+
+    // ── Drawdown curve from equity curve ──────────────────────────
+    const drawdownCurveData = useMemo(() => {
+        let peak = 0;
+        return pnlChartData.map((pt, i) => {
+            if (pt.cumulative > peak) peak = pt.cumulative;
+            const dd = pt.cumulative - peak; // 0 or negative
+            return { d: String(i + 1), v: dd };
+        });
+    }, [pnlChartData]);
 
     // ── Tradeify Consistency — uses 5 PM EST trading day rollover ──
     const { consistencyScore, bestDayPnl, bestTradingDay } = useMemo(() => {
@@ -889,6 +913,34 @@ export default function DashboardPage() {
                     <button onClick={() => setActiveTab('terminal')} className="btn btn--primary" style={{ marginTop: 16, display: 'inline-flex', alignItems: 'center', gap: 8 }}>
                         <Calculator size={14} /> {lang === 'fr' ? 'Enregistrer un trade' : 'Log a Trade'}
                     </button>
+                </motion.div>
+            )}
+
+            {/* ── STREAK BEADS ───────────────────────────────────── */}
+            {trades.length > 0 && (
+                <motion.div variants={fadeUp} style={card}>
+                    <ChartCard
+                        title={lang === 'fr' ? 'SÉRIE DE TRADES' : 'TRADE STREAK'}
+                        subtitle={lang === 'fr' ? 'Derniers 40 trades — jaune = gain, rouge = perte' : 'Last 40 trades — yellow = win, red = loss'}
+                    >
+                        <StreakBeads data={streakBeadData} height={44} maxBeads={40} />
+                    </ChartCard>
+                </motion.div>
+            )}
+
+            {/* ── DRAWDOWN CURVE ──────────────────────────────────── */}
+            {drawdownCurveData.length > 1 && (
+                <motion.div variants={fadeUp} style={card}>
+                    <ChartCard
+                        title={lang === 'fr' ? 'COURBE DE DRAWDOWN' : 'DRAWDOWN'}
+                        subtitle={lang === 'fr' ? 'Creux depuis le pic d\'équité — ligne pointillée = limite journalière' : 'Trough from equity peak — dashed line = daily limit'}
+                    >
+                        <DrawdownCurve
+                            data={drawdownCurveData}
+                            limitLine={account.dailyLossLimit > 0 ? -account.dailyLossLimit : undefined}
+                            height={160}
+                        />
+                    </ChartCard>
                 </motion.div>
             )}
 

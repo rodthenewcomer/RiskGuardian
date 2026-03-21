@@ -11,6 +11,9 @@ import {
     ChevronDown, ChevronUp,
 } from 'lucide-react';
 import { TRADEIFY_CRYPTO_LIST, FUTURES_SPECS, getTradingDay } from '@/store/appStore';
+import { ChartCard } from '@/components/charts/RiskGuardianPrimitives';
+import StreakBeads from '@/components/charts/StreakBeads';
+import MonthlyCalendarHeatmap from '@/components/charts/MonthlyCalendarHeatmap';
 
 function guessAssetType(symbol: string): 'crypto' | 'forex' | 'futures' | 'stocks' {
     const s = symbol.toUpperCase().replace(/[^A-Z0-9]/g, '');
@@ -268,6 +271,28 @@ export default function JournalPage() {
     const totalShown = groupedByDay.reduce((s, g) => s + g.trades.length, 0);
     const pnlColor = totalPnl >= 0 ? '#FDC800' : '#ff4757';
 
+    // ── Monthly heatmap data (current month, P&L per trading day) ──
+    const heatmapData = useMemo(() => {
+        const dayMap: Record<string, number> = {};
+        trades.forEach(t => {
+            if (t.outcome === 'open') return;
+            const d = getTradingDay(t.closedAt ?? t.createdAt);
+            dayMap[d] = (dayMap[d] ?? 0) + (t.pnl ?? 0);
+        });
+        return Object.entries(dayMap).map(([d, pnl]) => ({ d, pnl }));
+    }, [trades]);
+
+    // ── Streak beads data (last 40 trades sorted chronologically) ──
+    const journalStreakData = useMemo(() =>
+        [...trades]
+            .sort((a, b) => new Date(a.closedAt ?? a.createdAt).getTime() - new Date(b.closedAt ?? b.createdAt).getTime())
+            .slice(-40)
+            .map(t => ({
+                result: t.outcome === 'win' ? 'win' as const : t.outcome === 'loss' ? 'loss' as const : 'open' as const,
+                pnl: t.pnl ?? 0,
+            })),
+    [trades]);
+
     return (
         <div style={{ display: 'flex', flexDirection: 'column', background: '#090909', minHeight: '100vh' }}>
             <input ref={csvRef} type="file" accept=".csv,.txt" style={{ display: 'none' }} onChange={handleCSVImport} />
@@ -399,6 +424,30 @@ export default function JournalPage() {
                             <CalendarDays size={12} /> {lang === 'fr' ? 'Calendrier' : 'Calendar'}
                         </button>
                     </div>
+                </div>
+            )}
+
+            {/* ── MONTHLY HEATMAP ─────────────────────────────── */}
+            {trades.length > 0 && (
+                <div style={{ padding: isMobile ? '8px 14px' : '10px 20px', borderBottom: '1px solid #1a1c24' }}>
+                    <ChartCard
+                        title={lang === 'fr' ? 'CE MOIS' : 'THIS MONTH'}
+                        subtitle={lang === 'fr' ? 'P&L par jour de trading (heure de New York)' : 'P&L by trading day (New York time)'}
+                    >
+                        <MonthlyCalendarHeatmap data={heatmapData} height={240} />
+                    </ChartCard>
+                </div>
+            )}
+
+            {/* ── STREAK BEADS ────────────────────────────────── */}
+            {trades.length > 0 && (
+                <div style={{ padding: isMobile ? '8px 14px' : '10px 20px', borderBottom: '1px solid #1a1c24' }}>
+                    <ChartCard
+                        title={lang === 'fr' ? 'SÉRIE' : 'STREAK'}
+                        subtitle={lang === 'fr' ? 'Derniers 40 trades — jaune = gain, rouge = perte' : 'Last 40 trades — yellow = win, red = loss'}
+                    >
+                        <StreakBeads data={journalStreakData} height={44} maxBeads={40} />
+                    </ChartCard>
                 </div>
             )}
 

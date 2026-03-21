@@ -18,6 +18,7 @@ import PnLHistogram from '@/components/charts/PnLHistogram';
 import DayOfWeekChart, { type DayStats } from '@/components/charts/DayOfWeekChart';
 import HeatmapGrid from '@/components/charts/HeatmapGrid';
 import TradeScatterChart, { type ScatterPoint } from '@/components/charts/TradeScatterChart';
+import { ChartCard, SegmentedBar, ThresholdBullet, DivergingBarList } from '@/components/charts/RiskGuardianPrimitives';
 
 export default function AnalyticsPage() {
     const { trades, account, language } = useAppStore();
@@ -837,6 +838,78 @@ export default function AnalyticsPage() {
                                     </div>
                                 ))}
                             </div>
+
+                            {/* ── WIN/LOSS SPLIT + THRESHOLD BULLETS ── */}
+                            {closed.length > 0 && (
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                                    {/* SegmentedBar: win/loss/flat */}
+                                    <ChartCard
+                                        title={t.analytics?.winRate ?? (lang === 'fr' ? 'TAUX DE RÉUSSITE' : 'WIN RATE')}
+                                        subtitle={lang === 'fr' ? 'Répartition gains · pertes sur la période sélectionnée' : 'Win / loss split across the selected period'}
+                                    >
+                                        <SegmentedBar
+                                            wins={wins.length}
+                                            losses={losses.length}
+                                            height={36}
+                                            showLabels
+                                        />
+                                    </ChartCard>
+
+                                    {/* Three ThresholdBullet metrics */}
+                                    <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'repeat(3, 1fr)', gap: 16 }}>
+                                        <ChartCard
+                                            title={lang === 'fr' ? 'TAUX DE RÉUSSITE' : 'WIN RATE'}
+                                            subtitle={lang === 'fr' ? '% de trades gagnants' : '% of winning trades'}
+                                        >
+                                            <ThresholdBullet
+                                                label={lang === 'fr' ? 'Taux de réussite' : 'Win Rate'}
+                                                value={winRate}
+                                                format={(v) => `${v.toFixed(1)}%`}
+                                                thresholds={[
+                                                    { max: 40, label: lang === 'fr' ? 'Faible' : 'Poor', color: '#ff4757' },
+                                                    { max: 50, label: lang === 'fr' ? 'Passable' : 'Fair', color: '#EAB308' },
+                                                    { max: 60, label: lang === 'fr' ? 'Bon' : 'Good', color: '#FDC800' },
+                                                    { max: Infinity, label: lang === 'fr' ? 'Excellent' : 'Excellent', color: '#A6FF4D' },
+                                                ]}
+                                            />
+                                        </ChartCard>
+
+                                        <ChartCard
+                                            title={lang === 'fr' ? 'FACTEUR PROFIT' : 'PROFIT FACTOR'}
+                                            subtitle={lang === 'fr' ? 'Gains bruts ÷ pertes brutes' : 'Gross wins ÷ gross losses'}
+                                        >
+                                            <ThresholdBullet
+                                                label={lang === 'fr' ? 'Facteur profit' : 'Profit Factor'}
+                                                value={profitFactor === 99 ? 3 : profitFactor}
+                                                format={(v) => `${v.toFixed(2)}x`}
+                                                thresholds={[
+                                                    { max: 1, label: lang === 'fr' ? 'Perdant' : 'Losing', color: '#ff4757' },
+                                                    { max: 1.5, label: lang === 'fr' ? 'Marginal' : 'Marginal', color: '#EAB308' },
+                                                    { max: 2.5, label: lang === 'fr' ? 'Bon' : 'Good', color: '#FDC800' },
+                                                    { max: Infinity, label: lang === 'fr' ? 'Fort' : 'Strong', color: '#38bdf8' },
+                                                ]}
+                                            />
+                                        </ChartCard>
+
+                                        <ChartCard
+                                            title={lang === 'fr' ? 'ESPÉRANCE' : 'EXPECTANCY'}
+                                            subtitle={lang === 'fr' ? 'Gain moyen attendu par trade' : 'Expected avg gain per trade'}
+                                        >
+                                            <ThresholdBullet
+                                                label={lang === 'fr' ? 'Espérance' : 'Expectancy'}
+                                                value={expectancy}
+                                                format={(v) => `${v >= 0 ? '+' : ''}$${v.toFixed(2)}`}
+                                                thresholds={[
+                                                    { max: 0, label: lang === 'fr' ? 'Négatif' : 'Negative', color: '#ff4757' },
+                                                    { max: 50, label: lang === 'fr' ? 'Faible' : 'Low', color: '#EAB308' },
+                                                    { max: 150, label: lang === 'fr' ? 'Bon' : 'Good', color: '#FDC800' },
+                                                    { max: Infinity, label: lang === 'fr' ? 'Fort' : 'Strong', color: '#38bdf8' },
+                                                ]}
+                                            />
+                                        </ChartCard>
+                                    </div>
+                                </div>
+                            )}
 
                             {/* ── FULL DETAILS ROW: Waterfall + Wins vs Losses ── */}
                             <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 1, background: '#1a1c24' }}>
@@ -4458,6 +4531,42 @@ export default function AnalyticsPage() {
                                                 : `${closed.length} closed trades logged. Add more trades to unlock deeper forensic analysis. Minimum 10 closed trades recommended.`
                                             }
                                         </p>
+                                    </div>
+                                )}
+
+                                {/* ── INSTRUMENT P&L CONTRIBUTION ── */}
+                                {instrumentArray.length > 0 && (
+                                    <div style={{ marginTop: 16 }}>
+                                        <ChartCard
+                                            title={lang === 'fr' ? 'CONTRIBUTION P&L PAR INSTRUMENT' : 'INSTRUMENT P&L CONTRIBUTION'}
+                                            subtitle={lang === 'fr' ? 'P&L net par instrument — barres à droite = profit, gauche = perte' : 'Net P&L per instrument — right = profit, left = loss'}
+                                        >
+                                            <DivergingBarList
+                                                data={instrumentArray.map(inst => ({
+                                                    label: inst.asset,
+                                                    value: inst.pnl,
+                                                    note: `${inst.wins + inst.losses} ${lang === 'fr' ? 'trades' : 'trades'}`,
+                                                }))}
+                                                valueFormat={(v) => `${v >= 0 ? '+' : ''}$${Math.abs(v).toFixed(0)}`}
+                                            />
+                                        </ChartCard>
+                                    </div>
+                                )}
+
+                                {/* ── OVERALL WIN/LOSS SPLIT ── */}
+                                {closed.length > 0 && (
+                                    <div style={{ marginTop: 16 }}>
+                                        <ChartCard
+                                            title={lang === 'fr' ? 'RÉPARTITION GAINS / PERTES' : 'OVERALL WIN / LOSS SPLIT'}
+                                            subtitle={lang === 'fr' ? 'Proportion de trades gagnants vs perdants sur la période' : 'Proportion of winning vs losing trades over the period'}
+                                        >
+                                            <SegmentedBar
+                                                wins={wins.length}
+                                                losses={losses.length}
+                                                height={36}
+                                                showLabels
+                                            />
+                                        </ChartCard>
                                     </div>
                                 )}
                             </motion.div>
