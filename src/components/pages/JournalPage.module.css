@@ -469,52 +469,66 @@
         font-size: 12px;
     }
 
-    /* Calendar: compact cells */
+    /* Calendar: horizontally scrollable on mobile */
     .calendarContainer {
         padding: var(--space-2);
+        padding-bottom: 0;
+        border-radius: 0;
     }
 
     .calendarHeader {
-        margin-bottom: 12px;
+        margin-bottom: 10px;
     }
 
     .calendarTitle {
-        font-size: 13px;
+        font-size: 15px;
+        font-weight: 700;
+    }
+
+    /* Let the grid scroll horizontally so each column stays readable */
+    .calendarGrid {
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+    }
+
+    .calendarHeaderRow,
+    .calendarRow {
+        min-width: 520px; /* 8 cols × 65px */
     }
 
     .calendarDayName {
-        font-size: 9px;
-        padding: 6px 0;
+        font-size: 10px;
+        padding: 8px 0;
     }
 
     .calendarCell {
-        min-height: 52px;
-        padding: 3px 2px;
+        min-height: 72px;
+        padding: 5px 4px;
     }
 
     .calendarCellDate {
-        font-size: 10px;
+        font-size: 11px;
     }
 
     .calendarCellPnl {
-        font-size: 9px;
+        font-size: 11px;
         font-weight: 700;
     }
 
     .calendarTrades {
-        font-size: 8px;
-    }
-
-    .weeklyLabel {
-        font-size: 8px;
-    }
-
-    .calendarWeeklyCell .calendarCellPnl {
         font-size: 9px;
     }
 
-    .btnToday {
+    .weeklyLabel {
+        font-size: 9px;
+    }
+
+    .calendarWeeklyCell .calendarCellPnl {
         font-size: 11px;
-        padding: 4px 8px;
+    }
+
+    .btnToday {
+        font-size: 12px;
+        padding: 5px 10px;
     }
 }

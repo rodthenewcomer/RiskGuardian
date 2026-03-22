@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import styles from './Header.module.css';
 import { useAppStore } from '@/store/appStore';
-import { Bell, LogIn, LogOut, User } from 'lucide-react';
+import { LogIn, LogOut, User } from 'lucide-react';
 import Logo from '@/components/ui/Logo';
 import { motion } from 'framer-motion';
 import { supabase } from '@/lib/supabase';
@@ -93,11 +93,6 @@ export default function Header({ onShowAuth }: HeaderProps) {
                     )
                 )}
 
-                {/* Notification bell */}
-                <button className="btn btn--icon" aria-label="Notifications" style={{ position: 'relative' }}>
-                    <Bell size={18} />
-                    {mounted && isDanger && <span className={styles.notifDot} />}
-                </button>
             </div>
 
             {/* Guard progress bar */}

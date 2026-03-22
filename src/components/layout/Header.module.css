@@ -78,11 +78,11 @@
     align-items: center;
     background: var(--bg-card);
     border: 1px solid var(--border-subtle);
-    border-radius: var(--radius-full);
+    border-radius: 0;
     padding: 3px 14px;
     gap: 0;
     flex: 1;
-    max-width: 150px;
+    max-width: 140px;
 }
 
 .balanceLabel {
