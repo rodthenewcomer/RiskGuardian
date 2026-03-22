@@ -208,29 +208,28 @@ export function generateForensics(trades: Trade[], accountData: any) {
 
     // ── PATTERN 2: Held Losers ────────────────────────────────────────────────
     {
-        // Use session-aware median baseline: off-hours losers compare to off-hours wins.
-        // Additionally, only flag if the loss was held LONGER than the trader's own median
-        // loss duration — if the hold time is within normal range for this trader's losses,
-        // it's their typical hold pattern, not "held loser" behaviour.
-        const medianLossDur = medianOf(lossesWithDur.map(t => t.durationSeconds!));
+        // A "held loser" requires BOTH conditions to be true for the analysis period:
+        //   1. Hold duration exceeds the trader's own avg losing trade duration
+        //   2. Loss amount is ≥20% worse than the trader's avg loss
+        // This prevents flagging trades that fall within the trader's normal loss profile.
         const held = lossTrades.filter(t =>
             (t.durationSeconds ?? 0) > 0 &&
-            t.durationSeconds! > contextualWinDur(t.createdAt) * 1.5 &&
-            t.durationSeconds! > medianLossDur * 1.5
+            t.durationSeconds! > avgLossDur &&
+            Math.abs(t.pnl ?? 0) > avgLossAmt * 1.2
         );
         if (held.length > 0) {
             const impact = held.reduce((a, b) => a + (b.pnl ?? 0), 0);
             patterns.push({
                 name: 'Held Losers', freq: held.length, impact,
                 severity: impact < -400 || held.length > 5 ? 'CRITICAL' : 'WARNING',
-                desc: 'Losing trades held 50%+ longer than the typical winning trade for that session type — holding hope instead of executing stop.',
-                evidence: held.slice(0, 3).map(t => `${t.asset}: held ${fmtDur(t.durationSeconds ?? 0)} vs ${fmtDur(contextualWinDur(t.createdAt))} session-avg win`),
+                desc: 'Losing trades held beyond the trader\'s avg loss duration AND resulting in 20%+ above-average loss — holding hope past the normal exit point.',
+                evidence: held.slice(0, 3).map(t => `${t.asset}: held ${fmtDur(t.durationSeconds ?? 0)} (avg loss hold: ${fmtDur(avgLossDur)}) · -$${Math.abs(t.pnl ?? 0).toFixed(0)} vs avg -$${avgLossAmt.toFixed(0)}`),
                 evidenceTrades: held.slice(0, 5).map(t => ({
                     timestamp: fmtTs(t.closedAt ?? t.createdAt),
                     asset: t.asset,
                     pnl: t.pnl ?? 0,
                     durationLabel: fmtDur(t.durationSeconds ?? 0),
-                    context: `Held ${fmtDur(t.durationSeconds ?? 0)} — session-type avg winner exits at ${fmtDur(contextualWinDur(t.createdAt))}`,
+                    context: `Held ${fmtDur(t.durationSeconds ?? 0)} (avg loss: ${fmtDur(avgLossDur)}) — loss $${Math.abs(t.pnl ?? 0).toFixed(0)} is ${((Math.abs(t.pnl ?? 0) / avgLossAmt - 1) * 100).toFixed(0)}% above avg`,
                 })),
             });
         }
