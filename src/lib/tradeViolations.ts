@@ -31,13 +31,13 @@ export function scanViolations(
     const minHold = account.minHoldTimeSec ?? 0;
     if (minHold > 0) {
         for (const t of closed) {
-            const holdMs = new Date(t.closedAt!).getTime() - new Date(t.createdAt).getTime();
+            const holdMs = new Date(t.closedAt ?? t.createdAt).getTime() - new Date(t.createdAt).getTime();
             const holdSec = holdMs / 1000;
             if (holdSec > 0 && holdSec < minHold) {
                 violations.push({
                     type: 'microscalping',
                     tradeId: t.id,
-                    date: t.closedAt!.slice(0, 10),
+                    date: getTradingDay(t.closedAt ?? t.createdAt),
                     detail: `${t.asset}: held ${holdSec.toFixed(0)}s (min ${minHold}s required)`,
                     severity: 'breach',
                 });
@@ -94,7 +94,7 @@ export function computeAccountFromTrades(
 
     const closed = trades
         .filter(t => (t.outcome === 'win' || t.outcome === 'loss') && typeof t.pnl === 'number')
-        .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+        .sort((a, b) => new Date(a.closedAt ?? a.createdAt).getTime() - new Date(b.closedAt ?? b.createdAt).getTime());
 
     let running = startingBalance;
     let highest = startingBalance;

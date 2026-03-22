@@ -417,7 +417,11 @@ export const useAppStore = create<AppState>()(
 
                 const closed = s.trades
                     .filter(t => (t.outcome === 'win' || t.outcome === 'loss') && typeof t.pnl === 'number')
-                    .sort((a, b) => new Date(a.closedAt ?? a.createdAt).getTime() - new Date(b.closedAt ?? b.createdAt).getTime());
+                    .sort((a, b) => {
+                        const ta = new Date(a.closedAt ?? a.createdAt).getTime();
+                        const tb = new Date(b.closedAt ?? b.createdAt).getTime();
+                        return ta !== tb ? ta - tb : a.id.localeCompare(b.id);
+                    });
 
                 if (closed.length === 0) return;
 

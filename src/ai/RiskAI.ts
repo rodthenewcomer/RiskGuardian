@@ -478,20 +478,20 @@ export function analyzeBehavior(trades: TradeSession[], maxTradeRisk: number, la
     }
 
     // ── Revenge trading — SIZE dimension ──────────────────────────
-    // Did risk size jump >30% immediately after a loss?
+    // Did risk size jump >30% after a loss? Check the next 3 trades (not just +1).
     let revengePct = 0;
     let revengeRisk = false;
     let revengeTimeDensity = false;   // NEW: rapid-fire cluster after loss
     if (closed.length >= 2) {
         for (let i = 0; i < closed.length - 1; i++) {
-            if (closed[i].outcome === 'loss') {
-                const afterSize = closed[i + 1]?.riskUSD || 0;
-                const bump = closed[i].riskUSD > 0
-                    ? ((afterSize - closed[i].riskUSD) / closed[i].riskUSD) * 100
-                    : 0;
-                if (bump > 30) {
-                    revengePct = Math.max(revengePct, bump);
-                    revengeRisk = true;
+            if (closed[i].outcome === 'loss' && closed[i].riskUSD > 0) {
+                for (let j = i + 1; j < Math.min(i + 4, closed.length); j++) {
+                    const afterSize = closed[j]?.riskUSD ?? 0;
+                    const bump = ((afterSize - closed[i].riskUSD) / closed[i].riskUSD) * 100;
+                    if (bump > 30) {
+                        revengePct = Math.max(revengePct, bump);
+                        revengeRisk = true;
+                    }
                 }
             }
         }
@@ -518,15 +518,23 @@ export function analyzeBehavior(trades: TradeSession[], maxTradeRisk: number, la
     // Combine both revenge signals
     if (revengeTimeDensity) revengeRisk = true;
 
-    // ── Win Streak Overconfidence Detection (NEW) ──────────────────
-    // Winning streak ≥ 3 + size escalation = overconfidence risk
+    // ── Win Streak Overconfidence Detection ────────────────────────
+    // Current consecutive wins ≥ 3 + size escalation = overconfidence risk.
+    // closed[0] is the most recent trade (trades stored newest-first).
     let winStreakRisk = false;
     if (winStreak >= 3 && closed.length >= 4) {
-        // Compare risk of last trade vs first trade of the streak
-        const streakStart = closed.find(t => t.outcome === 'win')?.riskUSD || 0;
-        const streakEnd   = closed[0]?.riskUSD || 0;  // most recent
-        if (streakStart > 0 && streakEnd > streakStart * 1.4) {
-            winStreakRisk = true;
+        // Count consecutive wins from the most recent trade backward
+        let currentWinCount = 0;
+        for (const t of closed) {
+            if (t.outcome === 'win') currentWinCount++;
+            else break;
+        }
+        if (currentWinCount >= 3) {
+            const streakStart = closed[currentWinCount - 1]?.riskUSD ?? 0; // oldest win in streak
+            const streakEnd   = closed[0]?.riskUSD ?? 0;                   // most recent
+            if (streakStart > 0 && streakEnd > streakStart * 1.4) {
+                winStreakRisk = true;
+            }
         }
     }
 

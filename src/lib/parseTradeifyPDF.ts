@@ -118,9 +118,9 @@ function extractTransactions(tableText: string): RawTx[] {
                 settledPnl = null;
                 restForCommission = afterOrder.replace(/^(?:—|-)\s*/, '');
             } else {
-                // Settled PnL: optional '-', optional whitespace, then the number.
-                // Handles both "-140.58" and "- 140.58" (split text items from pdfjs).
-                const pnlM = afterOrder.match(/^(-?)\s*([\d,]+\.[\d]{1,2})/);
+                // Settled PnL: optional '+'/'-', optional whitespace, then the number.
+                // Handles "-140.58", "- 140.58", and "+140.58" (pdfjs splits sign from digits).
+                const pnlM = afterOrder.match(/^([+-]?)\s*([\d,]+\.[\d]{1,2})/);
                 if (pnlM) {
                     settledPnl = parseFloat((pnlM[1] + pnlM[2]).replace(/,/g, ''));
                     restForCommission = afterOrder.slice(pnlM[0].length).trimStart();
@@ -130,17 +130,17 @@ function extractTransactions(tableText: string): RawTx[] {
             }
 
             // Commission: first number in restForCommission.
-            // Order-ID suffixes are ≥ 6 digits (≥ 100 000) so the < 10 000 guard
-            // safely excludes them while capturing realistic commission amounts.
+            // Order-ID suffixes are ≥ 6 digits (≥ 100 000) so the < 100 000 guard
+            // safely excludes them while capturing realistic commission amounts (even large accounts).
             const commM = restForCommission.match(/([\d,]+\.?\d*)/);
             if (commM) {
                 const val = parseFloat(commM[1].replace(/,/g, ''));
-                if (val < 10000) commission = val;
+                if (val < 100000) commission = val;
             }
         }
 
         results.push({
-            txId: `${dateStr.replace(/\//g, '')}-${timeM[1].replace(':', '')}-${dirM[1]}-${symM[1]}`,
+            txId: `${dateStr.replace(/\//g, '')}-${timeM[1].replace(':', '')}-${dirM[1]}-${symM[1]}-${results.length}`,
             dateISO: toISO(dateStr, timeM[1]),
             direction: dirM[1] as 'Buy' | 'Sell',
             size,
@@ -170,7 +170,7 @@ function buildTrades(rawTxs: RawTx[]): Omit<TradeSession, 'note'>[] {
             const stack = stacks.get(key) ?? [];
             const idx = stack.findIndex(o =>
                 o.direction !== tx.direction &&
-                Math.abs(o.size - tx.size) / Math.max(o.size, tx.size) < 0.05
+                Math.abs(o.size - tx.size) / Math.max(o.size, tx.size) < 0.005
             );
             const open = idx >= 0 ? stack.splice(idx, 1)[0] : stack.shift();
             if (stack.length > 0) stacks.set(key, stack); else stacks.delete(key);
