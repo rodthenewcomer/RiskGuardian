@@ -155,7 +155,10 @@ export function generateForensics(trades: Trade[], accountData: any) {
             if ((closed[i].pnl ?? 0) < 0) {
                 // lossClose = when the losing trade CLOSED (the trigger moment)
                 const lossClose = new Date(closed[i].closedAt ?? closed[i].createdAt).getTime();
-                let count = 0, seqImp = 0;
+                let count = 0, seqImp = 0, jMax = i;
+                // lastDecisionOpenMs tracks the open time of the most recent INDEPENDENT re-entry
+                // so that simultaneous split entries (±30s same open) are grouped as one decision.
+                let lastDecisionOpenMs = -Infinity;
                 for (let j = i + 1; j < closed.length; j++) {
                     // Use OPEN TIME of the next trade to measure elapsed time since the loss.
                     // Skip if the trade opened BEFORE OR AT the same moment the loss closed —
@@ -167,21 +170,31 @@ export function generateForensics(trades: Trade[], accountData: any) {
                     const windowMs = (isCrypto ? 5 : 30) * 60000;
                     const elapsed = jOpenTime - lossClose; // time from loss close → next open
                     if (elapsed <= windowMs) {
-                        count++;
                         seqImp += (closed[j].pnl ?? 0);
-                        const minAfter = Math.round(elapsed / 60000);
-                        evidenceTrades.push({
-                            timestamp: fmtTs(closed[j].closedAt ?? closed[j].createdAt),
-                            asset: closed[j].asset,
-                            pnl: closed[j].pnl ?? 0,
-                            durationLabel: closed[j].durationSeconds ? fmtDur(closed[j].durationSeconds!) : undefined,
-                            context: `Re-entry ${minAfter}min after -$${Math.abs(closed[i].pnl ?? 0).toFixed(0)} loss on ${closed[i].asset}`,
-                        });
-                        evidenceStr.push(`${closed[j].asset} @ ${fmtTs(closed[j].closedAt ?? closed[j].createdAt)}: ${minAfter}min after loss, P&L ${(closed[j].pnl ?? 0) >= 0 ? '+' : ''}$${(closed[j].pnl ?? 0).toFixed(0)}`);
+                        jMax = j;
+                        const isSplit = lastDecisionOpenMs >= 0 && (jOpenTime - lastDecisionOpenMs) <= 30000;
+                        if (!isSplit) {
+                            // Independent re-entry decision
+                            count++;
+                            lastDecisionOpenMs = jOpenTime;
+                            const minAfter = Math.round(elapsed / 60000);
+                            evidenceTrades.push({
+                                timestamp: fmtTs(closed[j].closedAt ?? closed[j].createdAt),
+                                asset: closed[j].asset,
+                                pnl: closed[j].pnl ?? 0,
+                                durationLabel: closed[j].durationSeconds ? fmtDur(closed[j].durationSeconds!) : undefined,
+                                context: `Re-entry ${minAfter}min after -$${Math.abs(closed[i].pnl ?? 0).toFixed(0)} loss on ${closed[i].asset}`,
+                            });
+                            evidenceStr.push(`${closed[j].asset} @ ${fmtTs(closed[j].closedAt ?? closed[j].createdAt)}: ${minAfter}min after loss, P&L ${(closed[j].pnl ?? 0) >= 0 ? '+' : ''}$${(closed[j].pnl ?? 0).toFixed(0)}`);
+                        } else if (evidenceTrades.length > 0) {
+                            // Split entry of same decision — fold P&L into the last evidence card
+                            evidenceTrades[evidenceTrades.length - 1].pnl += (closed[j].pnl ?? 0);
+                        }
                     } else break;
                 }
                 // ≥1 rapid re-entry is revenge regardless of sequence length; seqImp<0 ensures net-negative cost only
-                if (count >= 1 && seqImp < 0) { freq++; impact += seqImp; i += count; }
+                // Advance i past ALL trades in this window (including splits) via jMax
+                if (count >= 1 && seqImp < 0) { freq++; impact += seqImp; i = jMax; }
             }
         }
         if (freq > 0) patterns.push({
@@ -195,11 +208,15 @@ export function generateForensics(trades: Trade[], accountData: any) {
 
     // ── PATTERN 2: Held Losers ────────────────────────────────────────────────
     {
-        // Use session-aware median baseline: off-hours losers compare to off-hours wins,
-        // not the global mean which is skewed by slow overnight sessions.
+        // Use session-aware median baseline: off-hours losers compare to off-hours wins.
+        // Additionally, only flag if the loss was held LONGER than the trader's own median
+        // loss duration — if the hold time is within normal range for this trader's losses,
+        // it's their typical hold pattern, not "held loser" behaviour.
+        const medianLossDur = medianOf(lossesWithDur.map(t => t.durationSeconds!));
         const held = lossTrades.filter(t =>
             (t.durationSeconds ?? 0) > 0 &&
-            t.durationSeconds! > contextualWinDur(t.createdAt) * 1.5
+            t.durationSeconds! > contextualWinDur(t.createdAt) * 1.5 &&
+            t.durationSeconds! > medianLossDur * 1.5
         );
         if (held.length > 0) {
             const impact = held.reduce((a, b) => a + (b.pnl ?? 0), 0);
@@ -224,11 +241,12 @@ export function generateForensics(trades: Trade[], accountData: any) {
         // Threshold: duration < 50% of session-type median win duration.
         // Using session-aware median prevents off-hours trades (naturally slower markets)
         // from being falsely flagged as early exits against a US-session benchmark.
-        // Exclude any win that beats avgWinAmt — efficient in $ terms regardless of speed.
+        // Exclude any win that earned ≥50% of avgWinAmt — meaningful capture regardless of speed.
+        // A win at 50%+ of the trader's average is not an early exit, it's an efficient trim.
         const earlyWins = wins.filter(t =>
             (t.durationSeconds ?? 0) > 0 &&
             t.durationSeconds! < contextualWinDur(t.createdAt) * 0.5 &&
-            (t.pnl ?? 0) < avgWinAmt
+            (t.pnl ?? 0) < avgWinAmt * 0.5
         );
         if (earlyWins.length >= 3) {
             const earlyAvgPnl = earlyWins.reduce((s, t) => s + (t.pnl ?? 0), 0) / earlyWins.length;
@@ -430,7 +448,8 @@ export function generateForensics(trades: Trade[], accountData: any) {
         const avgWinSessPnl = winningSessions.length > 0
             ? winningSessions.reduce((s, sess) => s + sess.pnl, 0) / winningSessions.length
             : 100;
-        const minMeaningfulPeak = Math.max(avgWinSessPnl * 0.25, 50);
+        // Peak must reach at least 65% of avg winning session — avoids noise from trivial early spikes.
+        const minMeaningfulPeak = Math.max(avgWinSessPnl * 0.65, 50);
         const bleedSessions = sessions.filter(s => {
             let cum = 0, peak = 0;
             for (const t of s.trades) { cum += (t.pnl ?? 0); if (cum > peak) peak = cum; }
@@ -732,25 +751,34 @@ export function generateForensics(trades: Trade[], accountData: any) {
         let i = 0;
         while (i < closed.length - 2) {
             if ((closed[i].pnl ?? 0) >= 0) { i++; continue; }
-            // Start of a potential cascade
+            // Start of a potential cascade — track distinct re-entry DECISIONS, not raw trades.
+            // Entries within 30s of each other (same close time) are one split decision.
             let j = i;
             let cascadeLen = 0;
+            let lastDecisionCloseMs = -Infinity;
             while (j < closed.length - 1) {
                 if ((closed[j].pnl ?? 0) >= 0) break; // win breaks the loss streak
+                // Use CLOSE time of the current loss as the reference for elapsed measurement.
                 const lossClose = new Date(closed[j].closedAt ?? closed[j].createdAt).getTime();
                 const nextOpen  = new Date(closed[j + 1].createdAt).getTime();
-                const elapsed   = (nextOpen - lossClose) / 60000; // minutes
+                const elapsed   = (nextOpen - lossClose) / 60000; // minutes from loss close → next open
                 if (elapsed <= 0) {
-                    // Parallel/simultaneous entry — skip without breaking or counting the cascade
+                    // Parallel/simultaneous entry (was already open) — skip without counting
                     j++;
                     continue;
                 }
+                // If this loss's close is within 30s of the previous cascade decision's close,
+                // it's part of the same split decision — don't count as a new cascade step.
+                const isSplitStep = lastDecisionCloseMs >= 0 && (lossClose - lastDecisionCloseMs) <= 30000;
+                if (!isSplitStep) {
+                    lastDecisionCloseMs = lossClose;
+                }
                 if (elapsed <= 15) {
-                    cascadeLen++;
+                    if (!isSplitStep) cascadeLen++;
                     j++;
                 } else break;
             }
-            if (cascadeLen >= 2) { // 3+ losses each followed by quick re-entry
+            if (cascadeLen >= 2) { // 3+ distinct loss decisions each followed by quick re-entry
                 cascadeCount++;
                 const slice = closed.slice(i, j + 1);
                 slice.forEach((t, k) => {

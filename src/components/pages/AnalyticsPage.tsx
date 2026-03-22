@@ -3429,7 +3429,7 @@ export default function AnalyticsPage() {
                                                                             {/* P&L */}
                                                                             <div style={{ fontFamily: 'var(--font-mono)', fontSize: 11, fontWeight: 900, color: ev.pnl >= 0 ? '#FDC800' : '#ff4757' }}>
                                                                                 {ev.pnl >= 0 ? '+' : '-'}${Math.abs(ev.pnl).toFixed(0)}
-                                                                                {ev.durationLabel && <span style={{ fontSize: 8, color: '#4b5563', marginLeft: 4 }}>{ev.durationLabel}</span>}
+                                                                                {ev.durationLabel && <span style={{ fontSize: 8, color: '#4b5563', marginLeft: 6 }}>· {ev.durationLabel}</span>}
                                                                             </div>
                                                                             {/* Context */}
                                                                             <div style={{ fontFamily: 'var(--font-sans)', fontSize: 10, color: '#8b949e', lineHeight: 1.5 }}>{ev.context}</div>
