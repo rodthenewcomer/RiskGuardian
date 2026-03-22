@@ -3,7 +3,7 @@
 import styles from './AnalyticsPage.module.css';
 import { useState, useMemo, useRef, useEffect, useCallback } from 'react';
 import DateRangePicker from '@/components/ui/DateRangePicker';
-import { useAppStore, getTradingDay, type ReportSnapshot } from '@/store/appStore';
+import { useAppStore, getTradingDay, getESTDate, type ReportSnapshot } from '@/store/appStore';
 import { useTranslation } from '@/i18n/useTranslation';
 import { useIsMobile } from '@/hooks/useIsMobile';
 import { generateForensics } from '@/ai/EdgeForensics';
@@ -320,34 +320,43 @@ export default function AnalyticsPage() {
     const toggleInstrument = (asset: string) => setExpandedInstruments(prev => { const n = new Set(prev); n.has(asset) ? n.delete(asset) : n.add(asset); return n; });
 
     // Dailies — use closedAt with 5 PM EST rollover (Tradeify trading day convention)
-    const dailyMap: Record<string, { pnl: number; count: number }> = {};
-    closed.forEach(t => {
-        const d = getTradingDay(t.closedAt ?? t.createdAt);
-        if (!dailyMap[d]) dailyMap[d] = { pnl: 0, count: 0 };
-        dailyMap[d].pnl += (t.pnl ?? 0);
-        dailyMap[d].count++;
-    });
-    const dailyData = Object.keys(dailyMap).map(k => ({ date: k, pnl: dailyMap[k].pnl })).sort((a, b) => a.date.localeCompare(b.date));
-    const bestDay = Math.max(...dailyData.map(d => d.pnl), 0);
-    const worstDay = Math.min(...dailyData.map(d => d.pnl), 0);
+    // Memoized so deps of downstream useMemos are stable references
+    const dailyMap = useMemo<Record<string, { pnl: number; count: number }>>(() => {
+        const m: Record<string, { pnl: number; count: number }> = {};
+        closed.forEach(t => {
+            const d = getTradingDay(t.closedAt ?? t.createdAt);
+            if (!m[d]) m[d] = { pnl: 0, count: 0 };
+            m[d].pnl += (t.pnl ?? 0);
+            m[d].count++;
+        });
+        return m;
+    }, [closed]);
+
+    const dailyData = useMemo(() =>
+        Object.keys(dailyMap).map(k => ({ date: k, pnl: dailyMap[k].pnl })).sort((a, b) => a.date.localeCompare(b.date)),
+        [dailyMap]);
+
+    const bestDay = dailyData.length > 0 ? Math.max(...dailyData.map(d => d.pnl), 0) : 0;
+    const worstDay = dailyData.length > 0 ? Math.min(...dailyData.map(d => d.pnl), 0) : 0;
     const avgDaily = dailyData.length > 0 ? dailyData.reduce((s, d) => s + d.pnl, 0) / dailyData.length : 0;
     const bestDayDate = dailyData.reduce((a, b) => b.pnl > a.pnl ? b : a, { date: '', pnl: -Infinity }).date;
     const worstDayDate = dailyData.reduce((a, b) => b.pnl < a.pnl ? b : a, { date: '', pnl: Infinity }).date;
 
     // Median daily P&L
-    const medianDaily = (() => {
+    const medianDaily = useMemo(() => {
         if (dailyData.length === 0) return 0;
         const sorted = [...dailyData].map(d => d.pnl).sort((a, b) => a - b);
         const mid = Math.floor(sorted.length / 2);
         return sorted.length % 2 !== 0 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
-    })();
+    }, [dailyData]);
 
     // Daily volatility — standard deviation of daily P&L
-    const dailyVolatility = (() => {
+    const dailyVolatility = useMemo(() => {
         if (dailyData.length < 2) return 0;
         const variance = dailyData.reduce((s, d) => s + Math.pow(d.pnl - avgDaily, 2), 0) / dailyData.length;
         return Math.sqrt(variance);
-    })();
+    }, [dailyData, avgDaily]);
+
     const daysWithin1Std = dailyData.length > 0 && dailyVolatility > 0
         ? Math.round((dailyData.filter(d => Math.abs(d.pnl - avgDaily) <= dailyVolatility).length / dailyData.length) * 100)
         : 0;
@@ -774,15 +783,18 @@ export default function AnalyticsPage() {
 
             {/* ── Quick Date Filter Bar ─────────────────────────────── */}
             {(() => {
-                const now = new Date();
-                const todayISO = now.toISOString().slice(0, 10);
-                const dow = now.getDay();
+                // All preset dates use EST (America/New_York) — consistent with getTradingDay()
+                // Using UTC-based toISOString() would misalign with trading day attribution
+                const todayISO = getESTDate();  // YYYY-MM-DD in EST
+                // Compute week boundaries in EST by anchoring on the EST date string
+                const todayEst = new Date(todayISO + 'T12:00:00Z'); // noon UTC = safe for day arithmetic
+                const dow = todayEst.getUTCDay(); // 0=Sun in UTC, same as EST calendar day
                 const daysToMon = dow === 0 ? 6 : dow - 1;
-                const thisWeekMon  = new Date(now.getTime() - daysToMon * 86400000).toISOString().slice(0, 10);
-                const lastWeekSun  = new Date(now.getTime() - daysToMon * 86400000 - 86400000).toISOString().slice(0, 10);
-                const lastWeekMon  = new Date(now.getTime() - (daysToMon + 6) * 86400000).toISOString().slice(0, 10);
-                const thisMonthStart = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`;
-                const last30 = new Date(now.getTime() - 29 * 86400000).toISOString().slice(0, 10);
+                const thisWeekMon  = new Date(todayEst.getTime() - daysToMon * 86400000).toISOString().slice(0, 10);
+                const lastWeekSun  = new Date(todayEst.getTime() - daysToMon * 86400000 - 86400000).toISOString().slice(0, 10);
+                const lastWeekMon  = new Date(todayEst.getTime() - (daysToMon + 6) * 86400000).toISOString().slice(0, 10);
+                const thisMonthStart = `${todayISO.slice(0, 7)}-01`;
+                const last30 = new Date(todayEst.getTime() - 29 * 86400000).toISOString().slice(0, 10);
 
                 type Preset = { label: string; from: string; to: string };
                 const presets: Preset[] = [
@@ -5774,15 +5786,18 @@ export default function AnalyticsPage() {
                         ); } // end REPORT tab
 
                         // ── COMPARE TAB ──
-                        const cmpNow = new Date();
+                        // Use EST date as "now" so comparison windows align with trading day attribution
+                        const cmpNow = new Date(getESTDate() + 'T23:59:59');
                         const fmtSnap = (d: string) => new Date(d).toLocaleDateString(lang === 'fr' ? 'fr-FR' : 'en-US', { month: 'short', day: 'numeric', year: '2-digit' });
                         const fmtD = (d: Date) => fmtSnap(d.toISOString());
                         const gradeC = (g: string) => g === 'A' ? '#FDC800' : g === 'B' ? '#00D4FF' : g === 'C' ? '#EAB308' : '#ff4757';
                         const fmtDurS = (s: number) => s < 60 ? `${Math.round(s)}s` : s < 3600 ? `${Math.round(s / 60)}m` : `${(s / 3600).toFixed(1)}h`;
 
                         // ── PERIOD STATS ENGINE ──
+                        // Uses filteredTradesWithDuration so the active date filter is respected.
+                        // When no main filter is set, filteredTradesWithDuration === tradesWithDuration.
                         const computePeriodStats = (from: Date, to: Date) => {
-                            const t = tradesWithDuration
+                            const t = filteredTradesWithDuration
                                 .filter(tr => {
                                     if (tr.outcome !== 'win' && tr.outcome !== 'loss') return false;
                                     const d = new Date(tr.closedAt ?? tr.createdAt);
@@ -5966,6 +5981,24 @@ export default function AnalyticsPage() {
                                         })}
                                     </div>
                                 </div>
+
+                                {/* ── Filter-active info banner ── */}
+                                {filterActive && (
+                                    <div style={{
+                                        display: 'flex', alignItems: 'flex-start', gap: 10,
+                                        padding: '10px 14px',
+                                        background: 'rgba(253,200,0,0.05)',
+                                        border: '1px solid rgba(253,200,0,0.2)',
+                                        fontFamily: QF, fontSize: 10,
+                                    }}>
+                                        <span style={{ color: '#FDC800', flexShrink: 0 }}>FILTRE ACTIF</span>
+                                        <span style={{ color: '#8b949e', lineHeight: 1.5 }}>
+                                            {lang === 'fr'
+                                                ? `Les comparaisons de périodes utilisent uniquement les données dans la fenêtre filtrée (${dateFrom || '…'} → ${dateTo || '…'}). Passez sur TOUT pour comparer sur l'intégralité de l'historique.`
+                                                : `Period comparisons use only trades within your active filter (${dateFrom || '…'} → ${dateTo || '…'}). Switch to ALL to compare across full history.`}
+                                        </span>
+                                    </div>
+                                )}
 
                                 {/* ── 2. SNAPSHOT LIBRARY (SNAPSHOT mode only) ── */}
                                 {compareMode === 'SNAPSHOT' && (
