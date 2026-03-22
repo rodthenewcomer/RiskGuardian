@@ -207,6 +207,65 @@ export default function DashboardPage() {
         trades[1].riskUSD > 0 &&
         trades[0].riskUSD > trades[1].riskUSD * 1.3;
 
+    // ── Win streak overconfidence (3+ session winning streak) ────────────────
+    const winStreakCaution = useMemo(() => {
+        if (!mounted || closedTrades.length < 3) return false;
+        // Count consecutive wins from the most recent 10 closed trades
+        let count = 0;
+        for (let i = closedTrades.length - 1; i >= 0; i--) {
+            if ((closedTrades[i].pnl ?? 0) > 0) count++;
+            else break;
+        }
+        return count >= 3;
+    }, [mounted, closedTrades]);
+
+    // ── Consecutive loss streak (today / most recent closed) ──
+    const currentConsecLosses = useMemo(() => {
+        if (closedTrades.length === 0) return 0;
+        let count = 0;
+        for (let i = closedTrades.length - 1; i >= 0; i--) {
+            if ((closedTrades[i].pnl ?? 0) < 0) count++;
+            else break;
+        }
+        return count;
+    }, [closedTrades]);
+
+    // ── 70% daily limit flag (predictive: size-reduction prompt) ─
+    const isAt70Pct = mounted && usedPct >= 70 && usedPct < 90;
+
+    // ── Zero daily-limit guard: warn when no protection is configured ─
+    const hasNoProtection = mounted && account.dailyLossLimit === 0 && account.startingBalance > 0;
+
+    // ── Payout milestone tracking ─────────────────────────────────────
+    // Prop-firm profit targets (industry standard)
+    const payoutProgress = useMemo(() => {
+        if (!account.startingBalance || account.startingBalance === 0) return null;
+        const isInstant = account.propFirmType === 'Instant Funding';
+        if (isInstant) return null; // no profit target for instant funding
+        // Target: 10% for 1-Step/FTMO/FundingPips, 8% for 2-Step Phase 1
+        const targetPct = account.propFirmType === '2-Step Evaluation' ? 8 : 10;
+        const targetAmt = account.startingBalance * (targetPct / 100);
+        const gained = Math.max(0, account.balance - account.startingBalance);
+        const pct = Math.min(100, (gained / targetAmt) * 100);
+        const needed = Math.max(0, targetAmt - gained);
+        return { targetAmt, gained, pct, needed, targetPct };
+    }, [account]);
+
+    // ── Churn signals ─────────────────────────────────────────────────
+    const churnSignals = useMemo(() => {
+        if (!mounted || closedTrades.length === 0) return { inactive: false, repeatedDailyLimit: false, majorDrawdown: false };
+        const now = Date.now();
+        const lastTradeAt = new Date(closedTrades[closedTrades.length - 1].closedAt ?? closedTrades[closedTrades.length - 1].createdAt).getTime();
+        const daysSinceLast = (now - lastTradeAt) / (1000 * 3600 * 24);
+        // Balance dropped 50%+ from starting
+        const majorDrawdown = account.startingBalance > 0 && account.balance < account.startingBalance * 0.5;
+        return {
+            inactive: daysSinceLast >= 7,
+            repeatedDailyLimit: false, // requires per-day session storage — tracked via usedPct being 100% today
+            majorDrawdown,
+        };
+    }, [mounted, closedTrades, account]);
+
     // ── Open trades alert ─────────────────────────────────────
     const openTrades = useMemo(() => trades.filter(t => t.outcome === 'open'), [trades]);
 
@@ -554,6 +613,162 @@ export default function DashboardPage() {
                             ? 'RISQUE GAP WEEKEND — Position crypto ouverte ce weekend. Spreads élargis et gaps de liquidité à l\'ouverture dimanche.'
                             : 'WEEKEND GAP RISK — Open crypto position over weekend. Wider spreads and liquidity gaps on Sunday open.'}
                     </span>
+                </motion.div>
+            )}
+
+            {/* Win-streak overconfidence caution */}
+            {winStreakCaution && (
+                <motion.div variants={fadeUp}
+                    style={{ display: 'flex', alignItems: 'flex-start', gap: 10, padding: '12px 16px', background: 'rgba(253,200,0,0.06)', borderLeft: '3px solid #FDC800', borderBottom: divider }}
+                >
+                    <AlertTriangle size={13} color="#FDC800" style={{ flexShrink: 0, marginTop: 1 }} />
+                    <div style={{ flex: 1 }}>
+                        <span style={{ ...mono, fontSize: 11, color: '#FDC800', fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', display: 'block' }}>
+                            {streakCount >= 5
+                                ? (lang === 'fr' ? `⚠ ${streakCount} VICTOIRES — Complacency risk. Vérifiez vos 3 dernières entrées.` : `⚠ ${streakCount}-WIN STREAK — Complacency risk. Audit your last 3 entries.`)
+                                : (lang === 'fr' ? `⚠ ${streakCount} VICTOIRES CONSÉCUTIVES — Gardez la taille standard. Ne scalez pas encore.` : `⚠ ${streakCount} CONSECUTIVE WINS — Hold standard size. Do not scale up yet.`)}
+                        </span>
+                        <span style={{ ...mono, fontSize: 10, color: '#8b949e', marginTop: 3, display: 'block' }}>
+                            {lang === 'fr'
+                                ? 'Les traders qui ont gagné scalent trop vite — et perdent toutes leurs gains sur un seul trade.'
+                                : 'Winning traders oversize too soon — and give it all back on a single trade.'}
+                        </span>
+                    </div>
+                </motion.div>
+            )}
+
+            {/* Predictive tilt warning: 2+ consecutive losses → cooldown prompt */}
+            {currentConsecLosses >= 2 && (
+                <motion.div variants={fadeUp}
+                    style={{ display: 'flex', alignItems: 'flex-start', gap: 10, padding: '12px 16px', background: 'rgba(255,71,87,0.08)', borderLeft: '3px solid #ff4757', borderBottom: divider }}
+                >
+                    <motion.div animate={{ opacity: [1, 0.4, 1] }} transition={{ duration: 0.9, repeat: Infinity }}>
+                        <Ban size={13} color="#ff4757" />
+                    </motion.div>
+                    <div style={{ flex: 1 }}>
+                        <span style={{ ...mono, fontSize: 11, color: '#ff4757', fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', display: 'block' }}>
+                            {currentConsecLosses >= 3
+                                ? (lang === 'fr'
+                                    ? `⛔ ${currentConsecLosses} PERTES CONSÉCUTIVES — STOP. Pause de 30 min obligatoire avant le prochain trade.`
+                                    : `⛔ ${currentConsecLosses} CONSECUTIVE LOSSES — STOP. Mandatory 30-min break before next trade.`)
+                                : (lang === 'fr'
+                                    ? `⚠ 2 PERTES CONSÉCUTIVES — Réduisez la taille de 50%. Attendez 15 min. Votre edge se dégrade sous le stress.`
+                                    : `⚠ 2 CONSECUTIVE LOSSES — Halve your size. Wait 15 min. Your edge degrades under stress.`)}
+                        </span>
+                        <span style={{ ...mono, fontSize: 10, color: '#8b949e', marginTop: 3, display: 'block' }}>
+                            {lang === 'fr'
+                                ? `Série de pertes actuelle : ${currentConsecLosses}. Un troisième loss = arrêt immédiat de la session.`
+                                : `Current loss run: ${currentConsecLosses}. A third loss = immediate session stop.`}
+                        </span>
+                    </div>
+                </motion.div>
+            )}
+
+            {/* Predictive size-reduction prompt: 70% of daily limit used */}
+            {isAt70Pct && (
+                <motion.div variants={fadeUp}
+                    style={{ display: 'flex', alignItems: 'flex-start', gap: 10, padding: '12px 16px', background: 'rgba(249,115,22,0.08)', borderLeft: '3px solid #F97316', borderBottom: divider }}
+                >
+                    <motion.div animate={{ opacity: [1, 0.4, 1] }} transition={{ duration: 1.1, repeat: Infinity }}>
+                        <AlertTriangle size={13} color="#F97316" />
+                    </motion.div>
+                    <div style={{ flex: 1 }}>
+                        <span style={{ ...mono, fontSize: 11, color: '#F97316', fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', display: 'block' }}>
+                            {lang === 'fr'
+                                ? `70% DE LA LIMITE JOURNALIÈRE UTILISÉE — Réduisez la taille de 50% sur les trades restants.`
+                                : `70% OF DAILY LIMIT USED — Recommend halving size for remaining trades.`}
+                        </span>
+                        <span style={{ ...mono, fontSize: 10, color: '#8b949e', marginTop: 3, display: 'block' }}>
+                            {lang === 'fr'
+                                ? `Risque restant : $${remaining.toFixed(0)}. Taille réduite recommandée : $${(safeNextRisk * 0.5).toFixed(0)} max par trade.`
+                                : `Remaining headroom: $${remaining.toFixed(0)}. Reduced size recommendation: $${(safeNextRisk * 0.5).toFixed(0)} max per trade.`}
+                        </span>
+                    </div>
+                </motion.div>
+            )}
+
+            {/* No-protection guard: dailyLossLimit = 0 with a funded account */}
+            {hasNoProtection && (
+                <motion.div variants={fadeUp}
+                    style={{ display: 'flex', alignItems: 'flex-start', gap: 10, padding: '12px 16px', background: 'rgba(255,71,87,0.06)', borderLeft: '3px solid #ff4757', borderBottom: divider }}
+                    onClick={() => setActiveTab('settings')}
+                >
+                    <AlertTriangle size={13} color="#ff4757" style={{ flexShrink: 0, marginTop: 1 }} />
+                    <div style={{ flex: 1, cursor: 'pointer' }}>
+                        <span style={{ ...mono, fontSize: 11, color: '#ff4757', fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', display: 'block' }}>
+                            {lang === 'fr'
+                                ? 'AUCUNE PROTECTION JOURNALIÈRE — Limite de perte journalière non configurée. Aucun garde-fou actif.'
+                                : 'NO DAILY PROTECTION — Daily loss limit is $0. No guardrail is active.'}
+                        </span>
+                        <span style={{ ...mono, fontSize: 10, color: '#8b949e', marginTop: 3, display: 'block' }}>
+                            {lang === 'fr'
+                                ? 'Configurez une limite journalière dans les Paramètres → onglet Risque. Tap pour ouvrir.'
+                                : 'Set a daily loss limit in Settings → Risk tab. Tap to open.'}
+                        </span>
+                    </div>
+                    <ChevronRight size={13} color="#ff4757" style={{ flexShrink: 0 }} />
+                </motion.div>
+            )}
+
+            {/* Payout milestone tracker */}
+            {payoutProgress && account.propFirm && (
+                <motion.div variants={fadeUp}
+                    style={{ padding: '12px 16px', background: '#0d1117', borderBottom: divider }}
+                >
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                        <span style={{ ...mono, fontSize: 9, color: '#4b5563', letterSpacing: '0.1em', textTransform: 'uppercase' }}>
+                            {lang === 'fr' ? 'PROGRESSION VERS LE PAYOUT' : 'PAYOUT TARGET PROGRESS'}
+                        </span>
+                        <span style={{ ...mono, fontSize: 10, fontWeight: 700, color: payoutProgress.pct >= 100 ? '#FDC800' : '#c9d1d9' }}>
+                            {payoutProgress.pct >= 100
+                                ? (lang === 'fr' ? '✓ OBJECTIF ATTEINT' : '✓ TARGET HIT')
+                                : `${payoutProgress.pct.toFixed(0)}% — ${lang === 'fr' ? 'encore' : 'need'} $${payoutProgress.needed.toLocaleString('en-US', { maximumFractionDigits: 0 })}`}
+                        </span>
+                    </div>
+                    <div style={{ height: 4, background: '#1a1c24' }}>
+                        <div style={{ height: '100%', width: `${payoutProgress.pct}%`, background: payoutProgress.pct >= 100 ? '#FDC800' : '#38bdf8', transition: 'width 0.5s ease' }} />
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 4 }}>
+                        <span style={{ ...mono, fontSize: 9, color: '#4b5563' }}>{lang === 'fr' ? 'Gains' : 'Gained'}: +${payoutProgress.gained.toFixed(0)}</span>
+                        <span style={{ ...mono, fontSize: 9, color: '#4b5563' }}>{lang === 'fr' ? 'Objectif' : 'Target'}: +${payoutProgress.targetAmt.toFixed(0)} ({payoutProgress.targetPct}%)</span>
+                    </div>
+                </motion.div>
+            )}
+
+            {/* Churn signal: 7-day inactivity */}
+            {churnSignals.inactive && (
+                <motion.div variants={fadeUp}
+                    style={{ display: 'flex', alignItems: 'flex-start', gap: 10, padding: '12px 16px', background: 'rgba(56,189,248,0.05)', borderLeft: '3px solid #38bdf8', borderBottom: divider }}
+                    onClick={() => setActiveTab('journal')}
+                >
+                    <Clock size={13} color="#38bdf8" style={{ flexShrink: 0, marginTop: 1 }} />
+                    <div style={{ flex: 1, cursor: 'pointer' }}>
+                        <span style={{ ...mono, fontSize: 11, color: '#38bdf8', fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', display: 'block' }}>
+                            {lang === 'fr' ? '7 JOURS SANS TRADE — Votre journal vous attend.' : '7 DAYS WITHOUT A TRADE — Your journal is waiting.'}
+                        </span>
+                        <span style={{ ...mono, fontSize: 10, color: '#8b949e', marginTop: 3, display: 'block' }}>
+                            {lang === 'fr' ? 'Enregistrez un trade ou passez en revue vos patterns pour maintenir la continuité.' : 'Log a trade or review your patterns to maintain momentum.'}
+                        </span>
+                    </div>
+                </motion.div>
+            )}
+
+            {/* Churn signal: major drawdown (50%+ from start) */}
+            {churnSignals.majorDrawdown && (
+                <motion.div variants={fadeUp}
+                    style={{ display: 'flex', alignItems: 'flex-start', gap: 10, padding: '12px 16px', background: 'rgba(255,71,87,0.08)', borderLeft: '3px solid #ff4757', borderBottom: divider }}
+                >
+                    <AlertTriangle size={13} color="#ff4757" style={{ flexShrink: 0, marginTop: 1 }} />
+                    <div style={{ flex: 1 }}>
+                        <span style={{ ...mono, fontSize: 11, color: '#ff4757', fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', display: 'block' }}>
+                            {lang === 'fr' ? 'DRAWDOWN CRITIQUE — Solde en baisse de 50%+ depuis le début.' : 'CRITICAL DRAWDOWN — Balance is 50%+ below starting capital.'}
+                        </span>
+                        <span style={{ ...mono, fontSize: 10, color: '#8b949e', marginTop: 3, display: 'block' }}>
+                            {lang === 'fr'
+                                ? 'Réduisez la taille à 25% de la normale. Revoyez vos patterns dans Analytics avant de continuer.'
+                                : 'Reduce size to 25% of normal. Review your patterns in Analytics before continuing.'}
+                        </span>
+                    </div>
                 </motion.div>
             )}
 

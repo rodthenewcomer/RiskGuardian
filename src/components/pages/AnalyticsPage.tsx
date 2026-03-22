@@ -7,6 +7,7 @@ import { useAppStore, getTradingDay, getESTDate, type ReportSnapshot } from '@/s
 import { useTranslation } from '@/i18n/useTranslation';
 import { useIsMobile } from '@/hooks/useIsMobile';
 import { generateForensics } from '@/ai/EdgeForensics';
+import { calcRiskOfRuin } from '@/ai/RiskAI';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
     PieChart, Pie, Cell, ResponsiveContainer, BarChart, Bar, XAxis, Tooltip, YAxis, ReferenceLine,
@@ -241,10 +242,10 @@ export default function AnalyticsPage() {
 
     // Session windows (EST)
     const SESSION_WINDOWS = [
-        { label: 'FUTURES PRE-MARKET', range: '00:00–06:00', hours: [0,1,2,3,4,5], color: '#38bdf8' },
-        { label: 'FUTURES OPEN', range: '06:00–09:30', hours: [6,7,8,9], color: '#fb923c' },
+        { label: 'GLOBEX OVERNIGHT', range: '00:00–06:00', hours: [0,1,2,3,4,5], color: '#38bdf8' },
+        { label: 'PRE-MARKET', range: '06:00–09:30', hours: [6,7,8,9], color: '#fb923c' },
         { label: 'NYSE OPEN', range: '09:30–11:00', hours: [9,10], color: '#FDC800' },
-        { label: 'LUNCH GRIND', range: '11:00–14:00', hours: [11,12,13], color: '#EAB308' },
+        { label: 'MIDDAY DOLDRUMS', range: '11:30–13:30', hours: [11,12,13], color: '#EAB308' },
         { label: 'NY AFTERNOON', range: '14:00–16:00', hours: [14,15], color: '#FDC800' },
         { label: 'AFTER HOURS', range: '16:00–20:00', hours: [16,17,18,19], color: '#8b5cf6' },
         { label: 'EVENING', range: '20:00–23:59', hours: [20,21,22,23], color: '#6b7280' },
@@ -3507,9 +3508,11 @@ export default function AnalyticsPage() {
                         // ── Pre-compute all enriched scorecard values ──
                         const sc = forensics.scorecard; // [{metric, grade, desc}]
                         const gradeColor = (g: string) => g === 'A' ? '#FDC800' : g === 'B' ? '#00D4FF' : g === 'C' ? '#EAB308' : g === '—' ? '#6b7280' : '#ff4757';
-                        const gradeScore = (g: string) => g === 'A' ? 100 : g === 'B' ? 75 : g === 'C' ? 50 : g === '—' ? 50 : 20;
+                        // Score values must sit at or above each band's composite floor to avoid grade mismatch:
+                        // A=100 (≥90 threshold), B=75 (≥70), C=55 (≥50), D=35 (≥28), F=10, —=55 (neutral = C)
+                        const gradeScore = (g: string) => g === 'A' ? 100 : g === 'B' ? 75 : g === 'C' ? 55 : g === 'D' ? 35 : g === '—' ? 55 : 10;
                         const compositeScore = sc.length > 0 ? Math.round(sc.reduce((s: number, x: any) => s + gradeScore(x.grade), 0) / sc.length) : 0;
-                        const compositeGrade = compositeScore >= 90 ? 'A' : compositeScore >= 75 ? 'B' : compositeScore >= 55 ? 'C' : compositeScore >= 35 ? 'D' : 'F';
+                        const compositeGrade = compositeScore >= 90 ? 'A' : compositeScore >= 70 ? 'B' : compositeScore >= 50 ? 'C' : compositeScore >= 28 ? 'D' : 'F';
                         const passing = sc.filter((x: any) => x.grade === 'A' || x.grade === 'B').length;
                         const failing = sc.filter((x: any) => x.grade === 'F' || x.grade === 'D').length;
 
@@ -4129,6 +4132,46 @@ export default function AnalyticsPage() {
                                     </div>
                                 </div>
 
+                                {/* ── RISK OF RUIN ── */}
+                                {(() => {
+                                    if (nT < 5) return null;
+                                    const ror = calcRiskOfRuin({
+                                        winRate: winRate / 100,
+                                        avgWinR: wlRatio > 0 ? wlRatio : 2,
+                                        riskPct: account.maxRiskPercent / 100,
+                                    });
+                                    const rorColor = ror.ror < 5 ? '#FDC800' : ror.ror < 15 ? '#EAB308' : ror.ror < 35 ? '#F97316' : '#ff4757';
+                                    const rorBg    = ror.ror < 5 ? 'rgba(253,200,0,0.04)' : ror.ror < 15 ? 'rgba(234,179,8,0.05)' : ror.ror < 35 ? 'rgba(249,115,22,0.06)' : 'rgba(255,71,87,0.06)';
+                                    return (
+                                        <div style={{ background: rorBg, border: `1px solid ${rorColor}22`, padding: isMobile ? '14px' : '24px' }}>
+                                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 12, marginBottom: 16 }}>
+                                                <div>
+                                                    <div style={{ fontFamily: QF, fontSize: 9, color: '#6b7280', letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 4 }}>RISK OF RUIN</div>
+                                                    <div style={{ fontFamily: QF, fontSize: 13, fontWeight: 700, color: '#fff' }}>Probability of Account Blow</div>
+                                                    <div style={{ fontFamily: QF, fontSize: 10, color: '#8b949e', marginTop: 2 }}>Closed-form formula: RoR = ((1−edge)/edge)^(bankroll/risk). Assumes flat bet sizing.</div>
+                                                </div>
+                                                <div style={{ fontFamily: QF, fontSize: 36, fontWeight: 800, color: rorColor, letterSpacing: '-0.02em' }}>
+                                                    {ror.ror < 0.01 ? '< 0.01' : ror.ror.toFixed(1)}%
+                                                </div>
+                                            </div>
+                                            <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr 1fr' : 'repeat(4, 1fr)', gap: 1, background: '#1a1c24', marginBottom: 16 }}>
+                                                {[
+                                                    { label: 'WIN RATE', val: `${winRate.toFixed(1)}%` },
+                                                    { label: 'AVG WIN:LOSS', val: wlRatio > 0 ? `${wlRatio.toFixed(2)}:1` : '—' },
+                                                    { label: 'RISK / TRADE', val: `${account.maxRiskPercent}%` },
+                                                    { label: 'KELLY EDGE', val: ror.kellyFull > 0 ? `${(ror.kellyFull * 100).toFixed(1)}%` : 'No edge' },
+                                                ].map((s, i) => (
+                                                    <div key={i} style={{ background: '#0b0e14', padding: '10px 14px' }}>
+                                                        <div style={{ fontFamily: QF, fontSize: 8, color: '#4b5563', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 3 }}>{s.label}</div>
+                                                        <div style={{ fontFamily: QF, fontSize: 14, fontWeight: 700, color: '#c9d1d9' }}>{s.val}</div>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                            <p style={{ fontFamily: QF, fontSize: 11, color: '#8b949e', lineHeight: 1.75, margin: 0 }}>{ror.verdict}</p>
+                                        </div>
+                                    );
+                                })()}
+
                                 {/* ── DISTRIBUTION ANALYSIS ── */}
                                 <div style={{ background: '#0d1117', border: '1px solid #1a1c24', padding: isMobile ? '14px' : '24px' }}>
                                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 16, marginBottom: 16 }}>
@@ -4716,10 +4759,11 @@ export default function AnalyticsPage() {
                             if (p.severity === 'CRITICAL') gradeScore -= 20;
                             else gradeScore -= 10;
                         });
-                        if (rptTrades.length > 0 && rptWinRate < 50) gradeScore -= 10;
+                        // WR penalty only fires when WR is structurally low AND the style isn't compensating via R:R (PF ≥ 1.2)
+                        if (rptTrades.length > 0 && (rptWinRate < 40 || (rptWinRate < 50 && rptPF < 1.2))) gradeScore -= 10;
                         if (rptTrades.length > 0 && rptPF < 1) gradeScore -= 20;
                         gradeScore = Math.max(0, gradeScore);
-                        const grade = gradeScore >= 90 ? 'A' : gradeScore >= 75 ? 'B' : gradeScore >= 55 ? 'C' : 'D';
+                        const grade = gradeScore >= 90 ? 'A' : gradeScore >= 75 ? 'B' : gradeScore >= 55 ? 'C' : gradeScore >= 30 ? 'D' : 'F';
                         const gradeColor = grade === 'A' ? '#FDC800' : grade === 'B' ? '#00D4FF' : grade === 'C' ? '#EAB308' : '#ff4757';
 
                         // ── Risk score components (period-adjusted) ──
@@ -6352,7 +6396,12 @@ export default function AnalyticsPage() {
 
                                 {/* ── MULTI-PERIOD PERFORMANCE ── */}
                                 <div>
-                                    <div style={{ ...SL, color: '#FDC800', marginBottom: 10 }}>{lang === 'fr' ? 'PERFORMANCE MULTI-PÉRIODES' : 'MULTI-PERIOD PERFORMANCE'}</div>
+                                    <div style={{ ...SL, color: '#FDC800', marginBottom: 4 }}>{lang === 'fr' ? 'PERFORMANCE MULTI-PÉRIODES' : 'MULTI-PERIOD PERFORMANCE'}</div>
+                                    <div style={{ fontSize: 11, color: '#8b949e', fontFamily: 'var(--font-mono)', marginBottom: 10, lineHeight: 1.5 }}>
+                                        {lang === 'fr'
+                                            ? 'Compare tes stats clés sur 4 fenêtres temporelles simultanément. Si 90J et 30J sont identiques, tous tes trades sont dans les 30 derniers jours — c\'est normal. Regarde 7J vs TOUT pour détecter si ton edge se dégrade.'
+                                            : 'Compares your key stats across 4 time windows at once. If 90D and 30D match, all your trades fall within the last 30 days — that\'s expected. Watch 7D vs ALL to detect if your edge is decaying recently.'}
+                                    </div>
                                     <div style={{ background: '#0d1117', border: '1px solid #1a1c24', padding: '12px 0 4px', marginBottom: 2 }}>
                                         <ResponsiveContainer width="100%" height={110}>
                                             <BarChart data={multiPeriods} margin={{ top: 4, right: 16, left: 0, bottom: 0 }}>
@@ -6370,8 +6419,14 @@ export default function AnalyticsPage() {
                                     <div style={{ overflowX: 'auto' }}>
                                         <table style={{ width: '100%', borderCollapse: 'collapse', fontFamily: QF }}>
                                             <thead><tr style={{ borderBottom: '1px solid #1a1c24' }}>
-                                                {[lang === 'fr' ? 'PÉRIODE' : 'PERIOD', 'TRADES', 'P&L NET', lang === 'fr' ? 'TAUX' : 'WIN RATE', 'PF'].map((h, i) => (
-                                                    <th key={i} style={{ padding: '8px 14px', fontSize: 9, color: '#6b7280', textAlign: i === 0 ? 'left' : 'right', letterSpacing: '0.1em', fontWeight: 700 }}>{h}</th>
+                                                {([
+                                                    { label: lang === 'fr' ? 'PÉRIODE' : 'PERIOD', tip: lang === 'fr' ? 'Fenêtre temporelle' : 'Time window' },
+                                                    { label: 'TRADES', tip: lang === 'fr' ? 'Nombre de trades clôturés dans cette fenêtre' : 'Number of closed trades in this window' },
+                                                    { label: 'P&L NET', tip: lang === 'fr' ? 'Gains bruts − pertes brutes sur la période' : 'Gross wins − gross losses for the period' },
+                                                    { label: lang === 'fr' ? 'TAUX' : 'WIN RATE', tip: lang === 'fr' ? 'Trades gagnants ÷ total. Jaune ≥55%, orange ≥45%, rouge <45%' : 'Winning trades ÷ total. Yellow ≥55%, orange ≥45%, red <45%' },
+                                                    { label: 'PF', tip: lang === 'fr' ? 'Profit Factor = gains bruts ÷ pertes brutes. Mesure la qualité de l\'edge. Jaune ≥1.5, orange ≥1.0, rouge <1.0' : 'Profit Factor = gross wins ÷ gross losses. Measures edge quality. Yellow ≥1.5, orange ≥1.0, red <1.0' },
+                                                ] as { label: string; tip: string }[]).map(({ label, tip }, i) => (
+                                                    <th key={i} title={tip} style={{ padding: '8px 14px', fontSize: 9, color: '#6b7280', textAlign: i === 0 ? 'left' : 'right', letterSpacing: '0.1em', fontWeight: 700, cursor: 'help' }}>{label}</th>
                                                 ))}
                                             </tr></thead>
                                             <tbody>{multiPeriods.map((row, i) => (

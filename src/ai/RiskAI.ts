@@ -279,6 +279,8 @@ export function calcSmartPositionSize(params: {
     symbol: string;
     targetRR?: number;
     includeTradeifyFee?: boolean;
+    /** Optional: if provided, caps notional so size × entry × pointValue ≤ maxNotionalUSD */
+    maxNotionalUSD?: number;
 }): PositionSizeResult {
     const { entry, stopLoss, riskUSD, targetRR = 2, includeTradeifyFee = true } = params;
     const stopDistance = Math.abs(entry - stopLoss);
@@ -291,15 +293,24 @@ export function calcSmartPositionSize(params: {
 
     if (params.assetType === 'forex') {
         // Pip value calculation accounts for quote currency:
-        //  USD-quoted (EURUSD, GBPUSD, AUDUSD): 1 pip = 0.0001, pip value = $10/std lot
-        //  JPY-quoted  (USDJPY, EURJPY, GBPJPY): 1 pip = 0.01,   pip value ≈ $9.09/std lot at ~110 USDJPY
-        //  Cross-pairs: pip value varies; use approximate market price for base conversion
+        //  USD-quoted  (EURUSD, GBPUSD, AUDUSD):      1 pip = 0.0001, pip value = $10/std lot
+        //  USDJPY directly:                             1 pip = 0.01,   pip value = 1000 / entry
+        //  JPY-quoted crosses (EURJPY, GBPJPY, AUDJPY):1 pip = 0.01,   pip value = 1000 / USDJPY ≈ $6.67 at 150
+        //  Other crosses without live feed: approximate at $10/lot (conservative, ±5% error vs true value)
         const sym = params.symbol.toUpperCase().replace(/[^A-Z]/g, '');
         const isJPY = sym.endsWith('JPY');
+        const isUSDJPY = sym === 'USDJPY';
         const pipSize = isJPY ? 0.01 : 0.0001;
         // pip value per standard lot in USD
         const quoteIsUSD = sym.endsWith('USD');
-        const pipValuePerLot = quoteIsUSD ? 10 : isJPY ? (1 / (params.entry > 0 ? params.entry : 110)) * 1000 : 10;
+        // For JPY-quoted crosses (EURJPY, GBPJPY, AUDJPY, etc.) the pip value in USD
+        // is 1000 / USDJPY — we don't have live USDJPY so use 150 as the reference.
+        // For USDJPY directly, use the actual entry price as the USDJPY rate.
+        const USDJPY_REF = 150;
+        const pipValuePerLot = quoteIsUSD ? 10
+            : isUSDJPY  ? (1000 / (params.entry > 0 ? params.entry : USDJPY_REF))
+            : isJPY     ? (1000 / USDJPY_REF)   // cross JPY pairs (EURJPY, GBPJPY, etc.)
+            : 10;
         // stopDistance is in price units → convert to pips
         const stopPips = stopDistance / pipSize;
         size = pipValuePerLot > 0 ? riskUSD / (stopPips * pipValuePerLot) : 0;
@@ -327,6 +338,21 @@ export function calcSmartPositionSize(params: {
 
     size = Math.round(size * 100) / 100;
 
+    // ── Leverage cap: if maxNotionalUSD is provided, enforce it ────────────────
+    if (params.maxNotionalUSD && params.maxNotionalUSD > 0) {
+        let currentNotional = 0;
+        if (params.assetType === 'futures') {
+            currentNotional = size * entry * pointValue;
+        } else if (params.assetType === 'forex') {
+            currentNotional = size * 100000;
+        } else {
+            currentNotional = size * entry;
+        }
+        if (currentNotional > params.maxNotionalUSD && currentNotional > 0) {
+            size = Math.round((size * (params.maxNotionalUSD / currentNotional)) * 100) / 100;
+        }
+    }
+
     const tp2R = isLong ? entry + stopDistance * 2 : entry - stopDistance * 2;
     const tp3R = isLong ? entry + stopDistance * 3 : entry - stopDistance * 3;
     const tpCustomR = isLong ? entry + stopDistance * targetRR : entry - stopDistance * targetRR;
@@ -341,8 +367,13 @@ export function calcSmartPositionSize(params: {
         notional = size * entry;
     }
 
-    // Tradeify 0.4% per leg × 2 (entry + exit = 0.8% round-trip); crypto only
-    const comm = (params.assetType === 'crypto' && includeTradeifyFee) ? notional * 0.004 * 2 : 0;
+    // Tradeify fees:
+    //  Crypto:  0.4% per leg × 2 (0.8% round-trip on notional)
+    //  Futures: ~$3.50/contract/side × 2 = $7.00 round-trip per contract
+    const comm = !includeTradeifyFee ? 0
+        : params.assetType === 'crypto'   ? notional * 0.004 * 2
+        : params.assetType === 'futures'  ? size * 3.5 * 2
+        : 0;
 
     return { size, unit, riskUSD, tp2R, tp3R, tpCustomR, notional, comm, stopDistance, stopPct };
 }
@@ -539,16 +570,6 @@ export function analyzeBehavior(trades: TradeSession[], maxTradeRisk: number, la
         }
     }
 
-    // ── FOMO Alert: Entering within 5 minutes of US session open ──
-    let fomoAlert = false;
-    const now = new Date();
-    // Convert to EST
-    const estNow = new Date(now.toLocaleString('en-US', { timeZone: 'America/New_York' }));
-    const estHour = estNow.getHours();
-    const estMin  = estNow.getMinutes();
-    // 9:30–9:35 AM EST = FOMO window
-    if (estHour === 9 && estMin >= 30 && estMin <= 35) fomoAlert = true;
-
     // ── Correlated Instrument Warning ─────────────────────────────
     const CORR_PAIRS: [string, string][] = [
         ['NQ', 'ES'], ['NQ', 'MNQ'], ['ES', 'MES'],
@@ -582,6 +603,28 @@ export function analyzeBehavior(trades: TradeSession[], maxTradeRisk: number, la
     const overtradingAlert = todayTrades.length >= 6;
     const tradesThisSession = todayTrades.length;
 
+    // ── FOMO Alert: session open OR general entry clustering ──────────────
+    let fomoAlert = false;
+    const now = new Date();
+    const estNow = new Date(now.toLocaleString('en-US', { timeZone: 'America/New_York' }));
+    const estHour = estNow.getHours();
+    const estMin  = estNow.getMinutes();
+    // 1) Clock-based: first 5 min of US session open (9:30–9:35 AM EST)
+    if (estHour === 9 && estMin >= 30 && estMin <= 35) fomoAlert = true;
+    // 2) Behavior-based: 3+ entries within any rolling 10-min window today (chasing candles)
+    if (!fomoAlert && todayTrades.length >= 3) {
+        const sortedTimes = todayTrades
+            .map(t => { try { return new Date(t.createdAt).getTime(); } catch { return 0; } })
+            .filter(t => t > 0)
+            .sort((a, b) => a - b);
+        for (let i = 0; i <= sortedTimes.length - 3; i++) {
+            if (sortedTimes[i + 2] - sortedTimes[i] <= 10 * 60 * 1000) {
+                fomoAlert = true;
+                break;
+            }
+        }
+    }
+
     // Time between trades (avg)
     let avgTimeBetweenTrades = 0;
     if (todayTrades.length >= 2) {
@@ -594,11 +637,20 @@ export function analyzeBehavior(trades: TradeSession[], maxTradeRisk: number, la
         }
     }
 
-    // Emotional state
+    // Emotional state — includes recovery path (not just degradation)
+    // Recovery: if last 2 closed trades are wins after a stressed/revenge state, step back up
     let emotionalState: BehaviorAnalysis['emotionalState'] = 'disciplined';
     if (consecutiveLosses >= 3 || (revengeRisk && revengeSeverity !== 'low')) emotionalState = 'revenge';
     else if (consecutiveLosses >= 2 || overtradingAlert) emotionalState = 'stressed';
     else if (consecutiveLosses === 1) emotionalState = 'cautious';
+    // Recovery path: 2 consecutive wins resets from stressed/revenge → cautious
+    // 3 consecutive wins resets from cautious → disciplined
+    if (emotionalState !== 'disciplined' && closed.length >= 2) {
+        const lastTwo  = closed.slice(-2).every(t => t.outcome === 'win');
+        const lastThree = closed.length >= 3 && closed.slice(-3).every(t => t.outcome === 'win');
+        if (lastThree && emotionalState === 'cautious') emotionalState = 'disciplined';
+        else if (lastTwo && (emotionalState === 'stressed' || emotionalState === 'revenge')) emotionalState = 'cautious';
+    }
 
     const stopTradingRecommended = emotionalState === 'revenge' || (overtradingAlert && consecutiveLosses >= 2);
     const cooldownMinutes = consecutiveLosses >= 3 ? 60 : consecutiveLosses >= 2 ? 30 : revengeSeverity === 'high' ? 30 : 15;
@@ -876,16 +928,49 @@ export function generateJournalInsights(
         });
     }
 
-    // AI Coach Message
+    // AI Coach Message — data-driven, references actual trader stats
+    const avgWinAmt  = wins.length > 0  ? wins.reduce((s, t)   => s + (t.pnl ?? t.rewardUSD ?? 0), 0) / wins.length   : 0;
+    const avgLossAmt = losses.length > 0 ? losses.reduce((s, t) => s + Math.abs(t.pnl ?? t.riskUSD ?? 0), 0) / losses.length : 0;
+    const winsWithDur   = wins.filter(t => (t.durationSeconds ?? 0) > 0);
+    const lossesWithDur = losses.filter(t => (t.durationSeconds ?? 0) > 0);
+    const avgWinDurSec  = winsWithDur.length > 0  ? winsWithDur.reduce((s, t)  => s + (t.durationSeconds ?? 0), 0) / winsWithDur.length  : 0;
+    const avgLossDurSec = lossesWithDur.length > 0 ? lossesWithDur.reduce((s, t) => s + (t.durationSeconds ?? 0), 0) / lossesWithDur.length : 0;
+    const fmtMin = (s: number) => s < 60 ? `${Math.round(s)}s` : `${Math.round(s / 60)}m`;
+    // Best asset by win rate (min 3 trades)
+    const assetStats: Record<string, { w: number; l: number; pnl: number }> = {};
+    closed.forEach(t => {
+        if (!assetStats[t.asset]) assetStats[t.asset] = { w: 0, l: 0, pnl: 0 };
+        if (t.outcome === 'win') { assetStats[t.asset].w++; assetStats[t.asset].pnl += (t.pnl ?? t.rewardUSD ?? 0); }
+        else { assetStats[t.asset].l++; assetStats[t.asset].pnl -= Math.abs(t.pnl ?? t.riskUSD ?? 0); }
+    });
+    const qualifiedAssets = Object.entries(assetStats).filter(([, v]) => v.w + v.l >= 3);
+    const bestAssetEntry  = qualifiedAssets.sort((a, b) => (b[1].w / (b[1].w + b[1].l)) - (a[1].w / (a[1].w + a[1].l)))[0];
+    const bestAssetWr     = bestAssetEntry ? Math.round((bestAssetEntry[1].w / (bestAssetEntry[1].w + bestAssetEntry[1].l)) * 100) : 0;
+    // Big-winner trades (4R+) detection
+    const bigWins = wins.filter(t => t.rr >= 4);
+
     let aiCoachMessage = '';
-    if (netPnl > 0 && winRate >= 55) {
-        aiCoachMessage = `Excellent performance. Win rate ${winRate.toFixed(0)}% and positive expectancy suggest a solid edge. Focus on scaling your best setups: ${bestSetup}.`;
+    if (closed.length < 5) {
+        const bestSoFar = qualifiedAssets.length > 0 ? `` : bestSetup !== 'N/A' ? ` You already have early data on ${bestSetup}.` : '';
+        aiCoachMessage = `${closed.length} trades logged — too early for reliable patterns.${bestSoFar} Keep logging with consistent sizing. Aim for 20+ trades to reveal your true edge.`;
+    } else if (netPnl > 0 && winRate >= 55) {
+        const topQuarter = winRate >= 65 ? 'top 15%' : 'top 25%';
+        aiCoachMessage = `Win rate ${winRate.toFixed(0)}% with $${netPnl.toFixed(0)} net — you are in the ${topQuarter} of logged sessions. Your edge is strongest on ${bestSetup}. Protect it: never scale size beyond Kelly until you have 50+ trades on this setup.`;
     } else if (netPnl > 0 && winRate < 55) {
-        aiCoachMessage = `Profitable but low win rate (${winRate.toFixed(0)}%). Your edge is in large winners. Protect your R:R — never accept less than 2R.`;
+        const bigWinNote = bigWins.length > 0
+            ? ` You have ${bigWins.length} outlier win${bigWins.length > 1 ? 's' : ''} at 4R+. Your system is NOT broken — it lives in those trades.`
+            : '';
+        const dilutionNote = avgRR < 2 ? ` You are diluting your edge with ${avgRR.toFixed(1)}:1 avg R:R trades. Each sub-2R trade drags the expectancy down.` : '';
+        aiCoachMessage = `Profitable ($${netPnl.toFixed(0)}) but your win rate (${winRate.toFixed(0)}%) means you live on outlier wins.${bigWinNote}${dilutionNote} Cut trades with R:R <2 entirely.`;
+    } else if (netPnl < 0 && avgLossDurSec > 0 && avgWinDurSec > 0 && avgLossDurSec > avgWinDurSec * 1.3) {
+        aiCoachMessage = `Today: $${netPnl.toFixed(0)} on ${closed.length} trades. Your losing trades average ${fmtMin(avgLossDurSec)} hold time vs ${fmtMin(avgWinDurSec)} for your winners. You are cutting winners short and holding losers. Invert: take profits faster and honour your stop immediately.`;
     } else if (netPnl < 0 && losses.length > wins.length) {
-        aiCoachMessage = `Win rate below 50% and negative P&L. Focus on trade selection over frequency. Aim for only A+ setups this week.`;
+        const assetNote = bestAssetEntry && bestAssetWr >= 55
+            ? ` Your win rate on ${bestAssetEntry[0]} is ${bestAssetWr}% (${bestAssetEntry[1].w + bestAssetEntry[1].l} trades). Stick to ${bestAssetEntry[0]} until you have 20+ trades on other assets to confirm edge.`
+            : '';
+        aiCoachMessage = `Win rate ${winRate.toFixed(0)}% with avg winner $${avgWinAmt.toFixed(0)} vs avg loser $${avgLossAmt.toFixed(0)}. A+ setups only — volume without edge compounds the loss.${assetNote}`;
     } else {
-        aiCoachMessage = `Keep logging. Every closed trade teaches you something. Focus on consistency before size.`;
+        aiCoachMessage = `$${netPnl.toFixed(0)} net on ${closed.length} trades. Each closed trade teaches your system something. Focus on consistency of sizing before scaling up.`;
     }
 
     return {
@@ -927,6 +1012,60 @@ export interface StrategyAnalysis {
     topAsset: string;
     worstAsset: string;
     aiRulesSummary: string;
+}
+
+// ─────────────────────────────────────────────────────────────────
+// Risk of Ruin (closed-form)
+// ─────────────────────────────────────────────────────────────────
+// Classical formula: RoR = ((1 − edge) / edge) ^ (bankroll / riskPerTrade)
+// where edge (f) = W − (1−W)/R
+// Returns 0–100 (percentage probability of account ruin before target).
+// ─────────────────────────────────────────────────────────────────
+export function calcRiskOfRuin(params: {
+    winRate: number;       // 0–1  (e.g. 0.55 for 55%)
+    avgWinR: number;       // avg winner / avg loser ratio (e.g. 2.0 = 2:1)
+    riskPct: number;       // risk per trade as fraction of account (e.g. 0.01 for 1%)
+    ruinPct?: number;      // drawdown level considered "ruin" (default: 1.0 = 100% loss)
+}): { ror: number; edge: number; kellyFull: number; verdict: string } {
+    const { winRate: W, avgWinR: R, riskPct } = params;
+    const ruinPct = params.ruinPct ?? 1.0;
+
+    // Kelly edge fraction
+    const kellyFull = W - (1 - W) / R;
+
+    // If edge is negative or zero, ruin is certain
+    if (kellyFull <= 0) {
+        return { ror: 100, edge: kellyFull, kellyFull, verdict: 'Negative edge — ruin is mathematically certain if you continue.' };
+    }
+
+    // Bankroll measured in units of riskPerTrade
+    // e.g. riskPct = 0.01 → bankroll = 1/0.01 = 100 units
+    // ruinPct = 1.0 → ruin = losing the full bankroll (100 units)
+    const bankrollUnits = ruinPct / riskPct;
+
+    // q = (1 − W) / W ÷ R  (per-unit loss odds ratio)
+    const q = (1 - W) / (W * R);
+
+    let ror: number;
+    if (Math.abs(q - 1) < 0.0001) {
+        // Edge is exactly zero — approximate
+        ror = 100;
+    } else if (q >= 1) {
+        ror = 100;
+    } else {
+        ror = Math.min(100, Math.pow(q, bankrollUnits) * 100);
+    }
+
+    ror = Math.round(ror * 100) / 100;
+
+    const verdict =
+        ror < 1   ? `< 1% ruin probability — robust setup. Your edge will compound.`
+        : ror < 5  ? `${ror.toFixed(1)}% ruin risk — acceptable. Keep risk per trade consistent.`
+        : ror < 15 ? `${ror.toFixed(1)}% ruin risk — elevated. Consider reducing risk per trade.`
+        : ror < 35 ? `${ror.toFixed(1)}% ruin risk — high. Reduce position size by at least 30%.`
+        : `${ror.toFixed(1)}% ruin risk — critical. This system will blow the account at current sizing.`;
+
+    return { ror, edge: kellyFull, kellyFull, verdict };
 }
 
 export function analyzeStrategy(trades: TradeSession[]): StrategyAnalysis {

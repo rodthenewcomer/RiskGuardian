@@ -49,6 +49,12 @@ export interface TradeSession {
     durationSeconds?: number;
     tags?: string[];
     source?: 'manual' | 'pdf' | 'csv' | 'dxtrade'; // undefined = manual (backward compat)
+    /** Cognitive bias at trade entry — for psychological pattern tracking */
+    biasTag?: 'FOMO' | 'Revenge' | 'Overconfidence' | 'Loss Aversion' | 'Planned';
+    /** Setup quality tier — A+ = textbook, B = acceptable, Impulse = no plan */
+    setupType?: 'A+' | 'B' | 'Impulse';
+    /** How the trade was exited */
+    exitReason?: 'TP' | 'SL' | 'Manual' | 'Margin';
 }
 
 export interface AccountSettings {
@@ -174,6 +180,7 @@ interface AppState {
     updateTradeOutcome: (id: string, outcome: 'win' | 'loss' | 'open') => void;
     updateTradeNote: (id: string, note: string) => void;
     updateTradeTags: (id: string, tags: string[]) => void;
+    updateTradeFields: (id: string, fields: Partial<Pick<TradeSession, 'biasTag' | 'setupType' | 'exitReason' | 'note'>>) => void;
     setUserId: (id: string | null) => void;
     setUserEmail: (email: string | null) => void;
     setShowAuthModal: (show: boolean) => void;
@@ -355,6 +362,11 @@ export const useAppStore = create<AppState>()(
             updateTradeTags: (id, tags) =>
                 set((s) => ({
                     trades: s.trades.map((t) => (t.id === id ? { ...t, tags } : t)),
+                })),
+
+            updateTradeFields: (id, fields) =>
+                set((s) => ({
+                    trades: s.trades.map((t) => (t.id === id ? { ...t, ...fields } : t)),
                 })),
 
             setActiveTab: (tab) => set({ activeTab: tab }),

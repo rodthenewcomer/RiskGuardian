@@ -60,6 +60,12 @@ const fmtDur = (s: number): string =>
 const estHour = (iso: string): number =>
     new Date(new Date(iso).toLocaleString('en-US', { timeZone: 'America/New_York' })).getHours();
 
+// EST calendar date string — avoids UTC-date slicing which misassigns trades after 7 PM EST
+const estDateStr = (iso: string): string => {
+    const d = new Date(new Date(iso).toLocaleString('en-US', { timeZone: 'America/New_York' }));
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+};
+
 const estDay = (iso: string): number =>
     new Date(new Date(iso).toLocaleString('en-US', { timeZone: 'America/New_York' })).getDay();
 
@@ -154,7 +160,8 @@ export function generateForensics(trades: Trade[], accountData: any) {
                         evidenceStr.push(`${closed[j].asset} @ ${fmtTs(closed[j].closedAt ?? closed[j].createdAt)}: ${minAfter}min after loss, P&L ${(closed[j].pnl ?? 0) >= 0 ? '+' : ''}$${(closed[j].pnl ?? 0).toFixed(0)}`);
                     } else break;
                 }
-                if (count >= 3 && seqImp < 0) { freq++; impact += seqImp; i += count; }
+                // ≥1 rapid re-entry is revenge regardless of sequence length; seqImp<0 ensures net-negative cost only
+                if (count >= 1 && seqImp < 0) { freq++; impact += seqImp; i += count; }
             }
         }
         if (freq > 0) patterns.push({
@@ -385,7 +392,14 @@ export function generateForensics(trades: Trade[], accountData: any) {
             return peak > 0 && s.pnl < 0;
         });
         if (bleedSessions.length > 0) {
-            const impact = bleedSessions.reduce((s, sess) => s + sess.pnl, 0);
+            // Behavioral cost = how much was surrendered from the peak, not the full session loss.
+            // A session peaking +$500 and ending -$300 costs $800 in foregone P&L — NOT just -$300.
+            const bleedCost = (sess: SessionGroup): number => {
+                let cum = 0, peak = 0;
+                sess.trades.forEach(t => { cum += (t.pnl ?? 0); if (cum > peak) peak = cum; });
+                return sess.pnl - peak; // always ≤ 0: peak lost + final loss
+            };
+            const impact = bleedSessions.reduce((s, sess) => s + bleedCost(sess), 0);
             const evidenceTrades: EvidenceTrade[] = [];
             bleedSessions.slice(0, 3).forEach(s => {
                 let cum = 0, peak = 0, peakIdx = 0;
@@ -406,7 +420,8 @@ export function generateForensics(trades: Trade[], accountData: any) {
                 evidence: bleedSessions.slice(0, 3).map(s => {
                     let cum = 0, peak = 0;
                     s.trades.forEach(t => { cum += (t.pnl ?? 0); if (cum > peak) peak = cum; });
-                    return `${fmtTs(s.startTime)}: peaked +$${peak.toFixed(0)}, ended $${s.pnl.toFixed(0)}`;
+                    const surrendered = peak - s.pnl; // total given back from peak
+                    return `${fmtTs(s.startTime)}: peaked +$${peak.toFixed(0)}, ended $${s.pnl.toFixed(0)} — $${surrendered.toFixed(0)} surrendered from peak`;
                 }),
                 evidenceTrades: evidenceTrades.slice(0, 5),
             });
@@ -573,7 +588,7 @@ export function generateForensics(trades: Trade[], accountData: any) {
     {
         const dayMap: Record<string, Trade[]> = {};
         closed.forEach(t => {
-            const d = (t.closedAt ?? t.createdAt).slice(0, 10);
+            const d = estDateStr(t.closedAt ?? t.createdAt); // EST date, not UTC
             if (!dayMap[d]) dayMap[d] = [];
             dayMap[d].push(t);
         });
@@ -604,13 +619,183 @@ export function generateForensics(trades: Trade[], accountData: any) {
         }
     }
 
+    // ── PATTERN 16: Averaging Down ────────────────────────────────────────────
+    // Same-asset entry while a previous trade on that asset is still open (no
+    // intervening close on that asset) — adding to a losing position.
+    {
+        const avgDownTrades: Trade[] = [];
+        // Build a per-asset open/close timeline
+        const assetTimelines: Record<string, { opens: Trade[]; closes: Trade[] }> = {};
+        for (const t of closed) {
+            if (!assetTimelines[t.asset]) assetTimelines[t.asset] = { opens: [], closes: [] };
+            assetTimelines[t.asset].opens.push(t);
+            assetTimelines[t.asset].closes.push(t);
+        }
+        // For each asset, find entries where a trade opened before the previous one closed
+        for (const [, timeline] of Object.entries(assetTimelines)) {
+            const byOpen = [...timeline.opens].sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+            for (let i = 1; i < byOpen.length; i++) {
+                const prev = byOpen[i - 1];
+                const curr = byOpen[i];
+                const prevClose = prev.closedAt ? new Date(prev.closedAt).getTime() : null;
+                const currOpen = new Date(curr.createdAt).getTime();
+                // curr opened before prev closed = parallel/averaging position
+                if (prevClose && currOpen < prevClose && (prev.pnl ?? 0) < 0) {
+                    avgDownTrades.push(curr);
+                }
+            }
+        }
+        if (avgDownTrades.length >= 2) {
+            const impact = avgDownTrades.reduce((s, t) => s + (t.pnl ?? 0), 0);
+            patterns.push({
+                name: 'Averaging Down', freq: avgDownTrades.length, impact,
+                severity: impact < -500 ? 'CRITICAL' : 'HIGH',
+                desc: 'Adding to a losing position before it closes — the fastest way to turn a controlled loss into an account-threatening drawdown.',
+                evidence: avgDownTrades.slice(0, 3).map(t => `${t.asset}: new entry while previous position was still open and losing`),
+                evidenceTrades: avgDownTrades.slice(0, 5).map(t => ({
+                    timestamp: fmtTs(t.closedAt ?? t.createdAt),
+                    asset: t.asset,
+                    pnl: t.pnl ?? 0,
+                    durationLabel: t.durationSeconds ? fmtDur(t.durationSeconds) : undefined,
+                    context: `Added to ${t.asset} while previous loss was still open — averaging down`,
+                })),
+            });
+        }
+    }
+
+    // ── PATTERN 17: Tilt Cascade ──────────────────────────────────────────────
+    // 3+ consecutive losses where EACH is followed by a re-entry within 15 min —
+    // escalating urgency pattern (distinct from single revenge trade).
+    {
+        let cascadeCount = 0;
+        const cascadeTrades: Trade[] = [];
+        const evidenceStr: string[] = [];
+        let i = 0;
+        while (i < closed.length - 2) {
+            if ((closed[i].pnl ?? 0) >= 0) { i++; continue; }
+            // Start of a potential cascade
+            let j = i;
+            let cascadeLen = 0;
+            while (j < closed.length - 1) {
+                if ((closed[j].pnl ?? 0) >= 0) break; // win breaks the loss streak
+                const lossClose = new Date(closed[j].closedAt ?? closed[j].createdAt).getTime();
+                const nextOpen  = new Date(closed[j + 1].createdAt).getTime();
+                const elapsed   = (nextOpen - lossClose) / 60000; // minutes
+                if (elapsed <= 15) {
+                    cascadeLen++;
+                    j++;
+                } else break;
+            }
+            if (cascadeLen >= 2) { // 3+ losses each followed by quick re-entry
+                cascadeCount++;
+                const slice = closed.slice(i, j + 1);
+                slice.forEach((t, k) => {
+                    cascadeTrades.push(t);
+                    evidenceStr.push(`Loss #${k + 1}: ${t.asset} → -$${Math.abs(t.pnl ?? 0).toFixed(0)}, re-entered in <15min`);
+                });
+                i = j + 1;
+                continue;
+            }
+            i++;
+        }
+        if (cascadeCount > 0) {
+            const impact = cascadeTrades.reduce((s, t) => s + (t.pnl ?? 0), 0);
+            patterns.push({
+                name: 'Tilt Cascade', freq: cascadeCount, impact,
+                severity: 'CRITICAL',
+                desc: '3+ consecutive losses each followed by rapid re-entry (<15 min) — escalating urgency that compounds the drawdown with each attempt to recover.',
+                evidence: evidenceStr.slice(0, 4),
+                evidenceTrades: cascadeTrades.slice(0, 5).map(t => ({
+                    timestamp: fmtTs(t.closedAt ?? t.createdAt),
+                    asset: t.asset,
+                    pnl: t.pnl ?? 0,
+                    durationLabel: t.durationSeconds ? fmtDur(t.durationSeconds) : undefined,
+                    context: `Part of tilt cascade — rapid re-entry after consecutive losses`,
+                })),
+            });
+        }
+    }
+
+    // ── PATTERN 18: Sunday Trading ────────────────────────────────────────────
+    // Crypto entries on Sunday — illiquid, no US market structure, high-loss pattern.
+    {
+        const sundayTrades = closed.filter(t => estDay(t.createdAt) === 0 && (t.assetType === 'crypto' || TRADEIFY_CRYPTO_LIST.includes(t.asset)));
+        if (sundayTrades.length >= 3) {
+            const impact = sundayTrades.reduce((s, t) => s + (t.pnl ?? 0), 0);
+            const sundayWr = ((sundayTrades.filter(t => (t.pnl ?? 0) > 0).length / sundayTrades.length) * 100).toFixed(0);
+            const sundayLosses = sundayTrades.filter(t => (t.pnl ?? 0) < 0);
+            if (impact < 0) {
+                patterns.push({
+                    name: 'Sunday Trading', freq: sundayTrades.length, impact,
+                    severity: Math.abs(impact) > 300 ? 'HIGH' : 'WARNING',
+                    desc: 'Crypto trades on Sunday — no US market structure established, spreads widened, liquidity thin. Historically the highest-loss trading window.',
+                    evidence: [
+                        `${sundayTrades.length} Sunday crypto trades · Net: $${impact.toFixed(0)}`,
+                        `Sunday win rate: ${sundayWr}% vs overall market structure days`,
+                    ],
+                    evidenceTrades: sundayLosses.slice(0, 5).map(t => ({
+                        timestamp: fmtTs(t.closedAt ?? t.createdAt),
+                        asset: t.asset,
+                        pnl: t.pnl ?? 0,
+                        durationLabel: t.durationSeconds ? fmtDur(t.durationSeconds) : undefined,
+                        context: `Sunday crypto trade — no institutional market structure, thin order book`,
+                    })),
+                });
+            }
+        }
+    }
+
+    // ── PATTERN 19: Account Blow Precursor ────────────────────────────────────
+    // 3 consecutive red sessions, each worse than the last — highest statistical
+    // predictor of account termination.
+    {
+        let precursorCount = 0;
+        const precursorSessions: typeof sessions = [];
+        let i = 0;
+        while (i < sessions.length - 2) {
+            if (sessions[i].pnl >= 0) { i++; continue; }
+            let j = i;
+            while (j < sessions.length - 1 && sessions[j + 1].pnl < sessions[j].pnl) j++;
+            const runLen = j - i + 1;
+            if (runLen >= 3) {
+                precursorCount++;
+                precursorSessions.push(...sessions.slice(i, j + 1));
+                i = j + 1;
+                continue;
+            }
+            i++;
+        }
+        if (precursorCount > 0) {
+            const impact = precursorSessions.reduce((s, sess) => s + sess.pnl, 0);
+            const evidenceTrades: EvidenceTrade[] = [];
+            precursorSessions.slice(0, 3).forEach((sess, k) => {
+                const worst = [...sess.trades].sort((a, b) => (a.pnl ?? 0) - (b.pnl ?? 0)).slice(0, 1);
+                worst.forEach(t => evidenceTrades.push({
+                    timestamp: fmtTs(t.closedAt ?? t.createdAt),
+                    asset: t.asset,
+                    pnl: t.pnl ?? 0,
+                    context: `Session #${k + 1} of cascade: net $${sess.pnl.toFixed(0)} — each session worse than last`,
+                }));
+            });
+            patterns.push({
+                name: 'Account Blow Precursor', freq: precursorCount, impact,
+                severity: 'CRITICAL',
+                desc: '3+ consecutive red sessions, each worse than the previous — the highest-probability pattern preceding account blow. Immediate rule review required.',
+                evidence: precursorSessions.slice(0, 3).map((s, k) => `Session #${k + 1}: $${s.pnl.toFixed(0)} (${s.trades.length} trades)`),
+                evidenceTrades: evidenceTrades.slice(0, 5),
+            });
+        }
+    }
+
     // Sort worst impact first
     patterns.sort((a, b) => a.impact - b.impact);
 
     // ── 3. Risk score ─────────────────────────────────────────────────────────
     const revFreq = patterns.find(p => p.name === 'Revenge Trading')?.freq ?? 0;
     const revScore = revFreq > 0 ? Math.min(60, revFreq * 20) : 0;
-    const financialScore = closed.length > 0 && Math.abs(patterns.reduce((a, b) => a + (b.impact ?? 0), 0)) > (balance * 0.05) ? 25 : 0;
+    // Only count negative-impact patterns — net-positive behavior should not raise risk score
+    const behavDrag = Math.abs(patterns.reduce((a, b) => a + Math.min(0, b.impact ?? 0), 0));
+    const financialScore = closed.length > 0 && behavDrag > balance * 0.05 ? 25 : 0;
     const wrErosion = closed.length > 0 && (wins.length / Math.max(closed.length, 1) < 0.35) ? 15 : 0;
     const riskScore = closed.length === 0 ? 0 : Math.min(100, revScore + financialScore + wrErosion);
 
@@ -660,8 +845,8 @@ export function generateForensics(trades: Trade[], accountData: any) {
             if (microBroadPnl >= 0) return 'A';
             const microGross = microBroad.reduce((s, t) => s + Math.abs(t.pnl ?? 0), 0);
             const lossFraction = microGross > 0 ? Math.abs(microBroadPnl) / microGross : 1;
-            return lossFraction < 0.15 ? 'C' : lossFraction < 0.4 ? 'D' : 'F';
-        })(), desc: 'Net P&L on micro contracts (MES/MNQ/M2K/MCL etc.).' },
+            return lossFraction < 0.05 ? 'B' : lossFraction < 0.2 ? 'C' : lossFraction < 0.4 ? 'D' : 'F';
+        })(), desc: 'Net P&L on micro contracts (MES/MNQ/M2K/MCL etc.). A=profitable B=<5% net drag C=<20% D=<40% F=≥40%.' },
         { metric: 'First Hour Logic', grade: (() => {
             const fh = closed.filter(t => estHour(t.createdAt) < 10);
             if (fh.length === 0) return 'A';
@@ -672,8 +857,8 @@ export function generateForensics(trades: Trade[], accountData: any) {
         { metric: 'Session Caps', grade: (() => {
             if (sessions.length === 0) return '—';
             const maxT = Math.max(...sessions.map(s => s.trades.length));
-            return maxT <= 10 ? 'A' : maxT <= 15 ? 'B' : maxT <= 20 ? 'C' : 'D';
-        })(), desc: 'Max trades in one session. A≤10 B≤15 C≤20 D>20.' },
+            return maxT <= 10 ? 'A' : maxT <= 15 ? 'B' : maxT <= 25 ? 'C' : maxT <= 35 ? 'D' : 'F';
+        })(), desc: 'Max trades in one session. A≤10 B≤15 C≤25 D≤35 F>35.' },
         { metric: 'Instrument Focus', grade: (() => {
             const n = new Set(closed.map(t => t.asset)).size;
             return n <= 2 ? 'A' : n <= 4 ? 'B' : n <= 6 ? 'C' : 'F';

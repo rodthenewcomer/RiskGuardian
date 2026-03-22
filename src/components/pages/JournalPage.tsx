@@ -57,7 +57,7 @@ function fmtDayLabel(dateStr: string): string {
 }
 
 export default function JournalPage() {
-    const { trades, setTrades, deleteTrade, updateTradeNote, setActiveTab, account } = useAppStore();
+    const { trades, setTrades, deleteTrade, updateTradeNote, updateTradeFields, setActiveTab, account } = useAppStore();
     const { t } = useTranslation();
     const { language } = useAppStore();
     const lang = language ?? 'en';
@@ -284,25 +284,69 @@ export default function JournalPage() {
         return streak;
     }, [trades]);
 
-    // ── Discipline score 0–100 ────────────────────────────────
-    const disciplineScore = useMemo(() => {
-        if (closedTrades.length === 0) return 0;
-        let score = 100;
+    // ── Discipline score 0–100 (frequency-weighted, gradual penalties) ──────
+    const { disciplineScore, disciplineDelta } = useMemo(() => {
+        if (closedTrades.length === 0) return { disciplineScore: 0, disciplineDelta: 0 };
         const sorted = [...closedTrades].sort(
             (a, b) => new Date(a.closedAt ?? a.createdAt).getTime() - new Date(b.closedAt ?? b.createdAt).getTime()
         );
-        let revengeCount = 0;
-        for (let i = 1; i < sorted.length; i++) {
-            if (sorted[i - 1].outcome === 'loss') {
-                const gap = new Date(sorted[i].createdAt).getTime() - new Date(sorted[i - 1].closedAt ?? sorted[i - 1].createdAt).getTime();
-                if (gap < 5 * 60 * 1000) revengeCount++;
+
+        // Helper to compute score for a given slice
+        const computeScore = (trades: typeof sorted): number => {
+            if (trades.length === 0) return 0;
+            let s = 100;
+            // Revenge: frequency-weighted — each instance worth 5pts, max 35pts
+            // (vs old flat 10pts each regardless of frequency context)
+            let revengeCount = 0;
+            for (let i = 1; i < trades.length; i++) {
+                if (trades[i - 1].outcome === 'loss') {
+                    const gap = new Date(trades[i].createdAt).getTime()
+                        - new Date(trades[i - 1].closedAt ?? trades[i - 1].createdAt).getTime();
+                    if (gap < 5 * 60 * 1000) revengeCount++;
+                }
             }
+            // Weight by trade count: 1 revenge in 5 trades = worse than 1 in 50
+            const revengePct = (revengeCount / trades.length) * 100;
+            s -= Math.min(35, revengePct * 2 + revengeCount * 3);
+
+            // Win rate: gradual penalty
+            const wr = trades.length > 0 ? (trades.filter(t => t.outcome === 'win').length / trades.length) * 100 : 0;
+            if (wr < 30) s -= 25;
+            else if (wr < 40) s -= 18;
+            else if (wr < 50) s -= 10;
+            else if (wr < 55) s -= 3;
+
+            // Profit factor: gradual penalty
+            const gw = trades.filter(t => t.outcome === 'win').reduce((acc, t) => acc + (t.pnl ?? 0), 0);
+            const gl = trades.filter(t => t.outcome === 'loss').reduce((acc, t) => acc + Math.abs(t.pnl ?? 0), 0);
+            const pf = gl > 0 ? gw / gl : gw > 0 ? 99 : 0;
+            if (pf < 0.7) s -= 25;
+            else if (pf < 1.0) s -= 18;
+            else if (pf < 1.2) s -= 8;
+            else if (pf < 1.5) s -= 3;
+
+            // Traceability: gradual (penalizes only <20% annotated; 20–50% gets partial credit)
+            const withNotes = trades.filter(t => t.note && t.note.trim().length > 10).length;
+            const tracePct = (withNotes / trades.length) * 100;
+            if (tracePct < 10) s -= 10;
+            else if (tracePct < 20) s -= 6;
+            else if (tracePct < 40) s -= 2;
+
+            return Math.max(0, Math.min(100, Math.round(s)));
+        };
+
+        const currentScore = computeScore(sorted);
+
+        // Improvement velocity: compare last 10 trades vs previous 10
+        let delta = 0;
+        if (sorted.length >= 20) {
+            const recent = sorted.slice(-10);
+            const prior  = sorted.slice(-20, -10);
+            delta = computeScore(recent) - computeScore(prior);
         }
-        score -= Math.min(revengeCount * 10, 40);
-        if (winRate < 40) score -= 20; else if (winRate < 50) score -= 10;
-        if (profitFactor < 1) score -= 20; else if (profitFactor < 1.5) score -= 5;
-        return Math.max(0, Math.min(100, score));
-    }, [closedTrades, winRate, profitFactor]);
+
+        return { disciplineScore: currentScore, disciplineDelta: delta };
+    }, [closedTrades]);
 
     // ── Traceability: % trades annotated ─────────────────────
     const traceabilityScore = useMemo(() => {
@@ -541,15 +585,22 @@ export default function JournalPage() {
                     <div style={{ marginTop: 10, height: 3, background: '#1a1c24', borderRadius: 2, overflow: 'hidden' }}>
                         <div style={{ height: '100%', width: `${disciplineScore}%`, background: disciplineScore >= 80 ? '#FDC800' : disciplineScore >= 60 ? '#EAB308' : '#ff4757', transition: 'width 0.4s ease' }} />
                     </div>
-                    <span style={{ ...mono, fontSize: 9, color: '#4b5563', display: 'block', marginTop: 4 }}>
-                        {closedTrades.length === 0
-                            ? (lang === 'fr' ? 'Aucun trade clôturé' : 'No closed trades yet')
-                            : disciplineScore >= 80
-                            ? (lang === 'fr' ? 'Excellente discipline' : 'Excellent discipline')
-                            : disciplineScore >= 60
-                            ? (lang === 'fr' ? 'Quelques patterns à corriger' : 'Some patterns to correct')
-                            : (lang === 'fr' ? 'Trading émotionnel détecté' : 'Emotional trading detected')}
-                    </span>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 4 }}>
+                        <span style={{ ...mono, fontSize: 9, color: '#4b5563' }}>
+                            {closedTrades.length === 0
+                                ? (lang === 'fr' ? 'Aucun trade clôturé' : 'No closed trades yet')
+                                : disciplineScore >= 80
+                                ? (lang === 'fr' ? 'Excellente discipline' : 'Excellent discipline')
+                                : disciplineScore >= 60
+                                ? (lang === 'fr' ? 'Quelques patterns à corriger' : 'Some patterns to correct')
+                                : (lang === 'fr' ? 'Trading émotionnel détecté' : 'Emotional trading detected')}
+                        </span>
+                        {closedTrades.length >= 20 && (
+                            <span style={{ ...mono, fontSize: 9, fontWeight: 700, color: disciplineDelta > 5 ? '#FDC800' : disciplineDelta < -5 ? '#ff4757' : '#4b5563' }}>
+                                {disciplineDelta > 0 ? `↑+${disciplineDelta}` : disciplineDelta < 0 ? `↓${disciplineDelta}` : '→'} {lang === 'fr' ? 'vs 10 prev' : 'vs prev 10'}
+                            </span>
+                        )}
+                    </div>
                 </div>
 
                 {/* Traceability */}
@@ -1332,6 +1383,52 @@ export default function JournalPage() {
                                                                 }}
                                                                 style={{ ...mono, fontSize: 11, fontWeight: 700, padding: '7px 12px', background: 'rgba(255,71,87,0.1)', color: '#ff4757', border: '1px solid rgba(255,71,87,0.3)', cursor: 'pointer' }}
                                                             >{lang === 'fr' ? 'Marquer Perte' : 'Mark Lost'}</button>
+                                                        </div>
+
+                                                        {/* Bias / Setup / Exit classifiers */}
+                                                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 1, background: '#1a1c24', borderTop: '1px solid #1a1c24' }}>
+                                                            {[
+                                                                {
+                                                                    label: lang === 'fr' ? 'BIAIS COGNITIF' : 'COGNITIVE BIAS',
+                                                                    field: 'biasTag' as const,
+                                                                    options: ['Planned', 'FOMO', 'Revenge', 'Overconfidence', 'Loss Aversion'] as const,
+                                                                    current: trade.biasTag,
+                                                                    colors: { Planned: '#FDC800', FOMO: '#F97316', Revenge: '#ff4757', Overconfidence: '#EAB308', 'Loss Aversion': '#8b5cf6' },
+                                                                },
+                                                                {
+                                                                    label: lang === 'fr' ? 'QUALITÉ SETUP' : 'SETUP QUALITY',
+                                                                    field: 'setupType' as const,
+                                                                    options: ['A+', 'B', 'Impulse'] as const,
+                                                                    current: trade.setupType,
+                                                                    colors: { 'A+': '#FDC800', B: '#EAB308', Impulse: '#ff4757' },
+                                                                },
+                                                                {
+                                                                    label: lang === 'fr' ? 'RAISON SORTIE' : 'EXIT REASON',
+                                                                    field: 'exitReason' as const,
+                                                                    options: ['TP', 'SL', 'Manual', 'Margin'] as const,
+                                                                    current: trade.exitReason,
+                                                                    colors: { TP: '#FDC800', SL: '#ff4757', Manual: '#EAB308', Margin: '#ff4757' },
+                                                                },
+                                                            ].map(({ label, field, options, current, colors }) => (
+                                                                <div key={field} style={{ background: '#0b0e14', padding: '8px 10px' }}>
+                                                                    <div style={{ ...mono, fontSize: 8, color: '#4b5563', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 6 }}>{label}</div>
+                                                                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+                                                                        {options.map(opt => (
+                                                                            <button
+                                                                                key={opt}
+                                                                                onClick={() => updateTradeFields(trade.id, { [field]: current === opt ? undefined : opt })}
+                                                                                style={{
+                                                                                    ...mono, fontSize: 9, fontWeight: 700, padding: '2px 7px',
+                                                                                    border: `1px solid ${current === opt ? (colors as unknown as Record<string, string>)[opt] : '#1a1c24'}`,
+                                                                                    background: current === opt ? `${(colors as unknown as Record<string, string>)[opt]}18` : 'transparent',
+                                                                                    color: current === opt ? (colors as unknown as Record<string, string>)[opt] : '#6b7280',
+                                                                                    cursor: 'pointer', letterSpacing: '0.04em',
+                                                                                }}
+                                                                            >{opt}</button>
+                                                                        ))}
+                                                                    </div>
+                                                                </div>
+                                                            ))}
                                                         </div>
 
                                                         {/* Journal note */}
