@@ -631,7 +631,7 @@ export default function AnalyticsPage() {
 
     // Risk score components (recomputed for display)
     const revScore = Math.min(60, forensics.patterns.filter((p: any) => p.name === 'Revenge Trading').length > 0
-        ? forensics.patterns.find((p: any) => p.name === 'Revenge Trading').freq * 20 : 0);
+        ? (forensics.patterns.find((p: any) => p.name === 'Revenge Trading')?.freq ?? 0) * 20 : 0);
     const financialScore = Math.abs(behavioralCost) > (account.startingBalance ?? 50000) * 0.05 ? 25 : 0;
     const wrErosion = closed.length > 0 && winRate < 35 ? 15 : 0;
 
@@ -3187,17 +3187,41 @@ export default function AnalyticsPage() {
                                             const sevColor = isC ? '#ff4757' : p.severity === 'HIGH' ? '#EAB308' : '#fb923c';
                                             const sevBg = isC ? 'rgba(255,71,87,0.04)' : 'rgba(234,179,8,0.04)';
                                             const sevBorder = isC ? 'rgba(255,71,87,0.2)' : 'rgba(234,179,8,0.18)';
-                                            const prescription = p.name === 'Revenge Trading'
-                                                ? (lang === 'fr' ? 'Après tout trade perdant, pause obligatoire de 5 minutes avant la prochaine entrée. Sans exception. Programmez un minuteur. Journalisez votre état émotionnel avant de re-entrer. Une re-entrée rapide dans les 2 minutes après une perte a un taux de réussite statistiquement inférieur dans vos données.' : 'After any losing trade, mandatory 5-minute break before next entry. No exceptions. Set a timer. Journal your emotional state before re-entering. Rapid re-entry within 2 minutes of a loss has a statistically lower win rate in your data.')
-                                                : p.name === 'Held Losers'
-                                                ? (lang === 'fr' ? 'Fixez un temps de détention maximum strict sur les perdants : si une position est en perte et ouverte plus longtemps que votre temps moyen de détention gagnant, clôturez-la. Le temps en trade sur les perdants est un coût qui s\'accumule, pas une opportunité.' : 'Set a hard maximum hold time on losers: if a position is down and has been open longer than your avg win hold time, close it. Time-in-trade on losers is compounding cost, not opportunity.')
-                                                : p.name === 'Spike Vulnerability'
-                                                ? (lang === 'fr' ? 'Les stop-loss fermes sont non négociables sur les instruments volatils. Aucune position ne devrait être tenue à travers un événement de news/spike sans stop. Réduisez la taille ou sortez avant les catalyseurs connus.' : 'Hard stop losses are non-negotiable on volatile instruments. No position should be held through a news/spike event without a stop. Size down or exit before known catalysts.')
-                                                : p.name === 'Early Exit'
-                                                ? (lang === 'fr' ? 'Pour vos 20 prochains trades gagnants, ne sortez pas avant que votre stop soit atteint ou votre cible initiale atteinte. Enregistrez le P&L hypothétique. Les données vous montreront exactement combien vous laissez sur la table.' : 'For your next 20 winning trades, do not exit until either your stop is hit or your initial target is reached. Log the would-have-been P&L. The data will show you exactly how much you are leaving on the table.')
-                                                : p.name === 'Micro Overtrading'
-                                                ? (lang === 'fr' ? 'Plafonnez la fréquence des micro-contrats à 3 entrées par session par instrument. Le sur-trading de micro-contrats dilue votre avantage et augmente les frais de commission sur des marges déjà minces.' : 'Cap micro contract frequency to 3 entries per session per instrument. Overtrading micro contracts dilutes your edge and increases commission drag on already thin margins.')
-                                                : lang === 'fr' ? `Adressez la cause racine de ${p.name}. Revoyez les ${p.freq} occurrence${p.freq > 1 ? 's' : ''} et identifiez le déclencheur commun à toutes les instances.` : `Address the root cause of ${p.name}. Review ${p.freq} occurrence${p.freq > 1 ? 's' : ''} and identify the common trigger across all instances.`;
+                                            const triggerMap: Record<string, string> = {
+                                                'Revenge Trading': lang === 'fr' ? "Perte → re-entrée rapide dans les minutes suivantes. La pression émotionnelle supplante les critères d'entrée systématiques. Biais de confirmation maintenu malgré le rejet du marché." : 'Loss → rapid re-entry within minutes. Emotional pressure overrides entry criteria. Confirmation bias sustained despite market rejection.',
+                                                'Held Losers': lang === 'fr' ? "Position perdante ouverte bien plus longtemps que les gagnants moyens. L'espoir remplace la gestion du risque — attente d'un retournement que les données montrent rarément." : 'Losing position held far longer than avg winning trade. Hope displacing risk management — waiting for a reversal the data shows rarely comes.',
+                                                'Spike Vulnerability': lang === 'fr' ? "Perte massive en moins de 3 minutes — spike news ou stop-hunt. Aucun stop ferme en place au moment de l'événement." : 'Massive loss in under 3 minutes — news spike or stop-hunt. No hard stop was active at the time of the event.',
+                                                'Early Exit': lang === 'fr' ? "Positions gagnantes clôturées avant la cible structurelle. Peur d'un retournement motivant une sortie prématurée qui détruit l'asymétrie edge/risque." : 'Winners closed before structural target. Fear of reversal driving premature exit that destroys edge asymmetry.',
+                                                'Micro Overtrading': lang === 'fr' ? "Fréquence de trade au-dessus de la normale sur micro-contrats dans des sessions uniques. La fréquence sans avantage n'est que du saignement de commissions." : 'Above-normal micro contract frequency within single sessions. Frequency without edge is pure commission bleeding.',
+                                                'Overtrading': lang === 'fr' ? "Session dépassant 15 trades — chaque trade supplémentaire est pris hors des critères standards. L'analyse post-session montre systématiquement une dégradation du edge au-delà de 15." : 'Session exceeding 15 trades — every additional trade is taken outside standard criteria. Post-session analysis consistently shows edge degradation beyond 15 entries.',
+                                                'Loss Escalation': lang === 'fr' ? "Séquence de 3+ pertes consécutives où chaque perte est plus grande que la précédente — signal de sizing émotionnel ou de refus d'accepter la perte." : '3+ consecutive losses each larger than the last — signals emotional position sizing or refusal to accept the loss.',
+                                                'Low R:R Entry': lang === 'fr' ? "Entrées prises avec un R:R inférieur à 1.0 — le risque dépasse la récompense potentielle dès l'entrée. La probabilité mathématique est structurellement contre vous." : 'Entries taken with R:R below 1.0 — risk exceeds potential reward at entry. Mathematical expectancy is structurally against you on these trades.',
+                                                'Session Bleed': lang === 'fr' ? "Session verte qui s'inverse complètement. Le trader continue après un pic de profit au lieu d'appliquer un trailing profit-lock. Surconfiance après gains." : 'Profitable session that fully reverses. Trader continues past profit peak instead of applying a trailing profit-lock. Overconfidence after early gains.',
+                                                'Choppy Indecision': lang === 'fr' ? "W/L qui alternent 4+ fois dans une session — aucune direction soutenue, setups de faible qualité pris dans les deux sens sans conviction." : 'W/L alternates 4+ times — no sustained directional bias, low-quality setups taken in both directions without conviction.',
+                                                'Loss Concentration': lang === 'fr' ? "Un seul instrument représente >55% des pertes totales — surexposition ou gap structurel de edge sur cet actif spécifique." : 'One instrument responsible for >55% of total losses — over-exposure or structural edge gap on that specific asset.',
+                                                'Directional Bias Failure': lang === 'fr' ? "Une direction (long ou short) performe significativement moins bien que l'autre — votre edge ne s'applique pas aux deux directions de manière égale." : 'One direction (long or short) significantly underperforms the other — your edge does not apply equally to both sides of the market.',
+                                                'Late Session Deterioration': lang === 'fr' ? "Trades entrés après 15h00 EST avec P&L systématiquement négatif — fatigue cognitive, faible liquidité en fin de session, ou chasse aux mouvements manqués." : 'Trades entered after 3PM EST with consistently negative P&L — cognitive fatigue, lower liquidity, or chasing missed moves.',
+                                                'Monday Effect': lang === 'fr' ? "Sous-performance chronique le lundi — soit un problème de psychologie du reset de semaine, soit une inadéquation avec la structure de marché du lundi (gap risk, positionnement institutionnel)." : 'Chronic Monday underperformance — either psychological week-reset difficulty or a structural mismatch with Monday market dynamics.',
+                                                'Catastrophic Day': lang === 'fr' ? "Journée de trading avec perte >3% du compte — une seule session efface des semaines de travail. Absence de hard stop journalier ou refus de l'appliquer." : 'Single day loss >3% of account — one session erases weeks of work. Missing or ignored daily hard stop.',
+                                            };
+                                            const prescriptionMap: Record<string, string> = {
+                                                'Revenge Trading': lang === 'fr' ? "Pause obligatoire de 5 minutes après tout trade perdant. Programmez un minuteur. Journalisez votre état émotionnel avant de re-entrer. Si vous perdez 2 trades consécutifs : session terminée pour la journée." : 'Mandatory 5-minute break after every losing trade. Set a timer. Journal emotional state before re-entering. 2 consecutive losses = session over for the day.',
+                                                'Held Losers': lang === 'fr' ? "Stop de temps : si un trade perdant est ouvert plus longtemps que votre durée moyenne de trade gagnant, clôturez-le immédiatement. Aucune exception. Le temps sur les perdants est un coût qui s'accumule." : 'Time stop: if a losing trade is open longer than your avg winning trade duration, close it. No exceptions. Time-in-trade on losers is compounding cost.',
+                                                'Spike Vulnerability': lang === 'fr' ? "Stop-loss fermes non négociables sur tous les instruments volatils. Sortez ou réduisez la taille avant tout catalyseur news connu. Aucune position ne doit traverser un spike sans stop." : 'Hard stop losses non-negotiable on volatile instruments. Exit or size down before known news catalysts. No position survives a spike without a stop.',
+                                                'Early Exit': lang === 'fr' ? "Pour vos 20 prochains trades gagnants, ne sortez pas avant que la cible ou le stop soit atteint. Journalisez le P&L hypothétique. Les données vous montreront exactement ce que vous laissez sur la table." : 'For your next 20 winning trades, do not exit until target or stop is hit. Log the would-have-been P&L. The data will show exactly what you are leaving on the table.',
+                                                'Micro Overtrading': lang === 'fr' ? "Plafonnez à 3 entrées par session par instrument micro. La sur-fréquence dilue votre edge et génère des frais de commission sur des marges déjà minces." : 'Cap at 3 entries per session per micro instrument. Over-frequency dilutes edge and generates commission drag on already thin margins.',
+                                                'Overtrading': lang === 'fr' ? "Règle des 15 trades : quand vous atteignez 15 trades dans une session, arrêtez complètement. Pas de 16ème trade quelle que soit la situation. Évaluez votre P&L de session avant de continuer." : '15-trade rule: when you hit 15 trades in a session, stop completely. No 16th trade regardless of setup quality. Evaluate session P&L before any continuation.',
+                                                'Loss Escalation': lang === 'fr' ? "Réduisez la taille de 50% après chaque perte consécutive. N'augmentez jamais la taille pendant un drawdown. Après 3 pertes consécutives : session terminée." : 'Reduce size by 50% after each consecutive loss. Never increase size during a drawdown. After 3 consecutive losses: session is over.',
+                                                'Low R:R Entry': lang === 'fr' ? "Règle d'entrée stricte : aucun trade avec R:R < 1.5 n'est pris. Calculez le R:R avant chaque entrée dans l'outil Calculator. Si le ratio n'est pas là, le trade n'existe pas." : 'Hard entry rule: no trade with R:R below 1.5 is taken. Calculate R:R in Calculator before every entry. If the ratio is not there, the trade does not exist.',
+                                                'Session Bleed': lang === 'fr' ? "Implémentez un trailing profit-lock : si votre P&L de session atteint +$X, le minimum acceptable devient +$X/2. Si vous retombez à ce niveau, session terminée. Protégez les profits réalisés." : 'Implement trailing profit-lock: if session P&L reaches +$X, minimum acceptable becomes +$X/2. If P&L drops to that level, session ends. Protect realised profits.',
+                                                'Choppy Indecision': lang === 'fr' ? "Après 3 alternances W/L/W ou L/W/L dans une session, arrêtez de trader pour au moins 30 minutes. Le marché est en mode choppy — votre edge ne s'applique pas dans ces conditions." : 'After 3 W/L/W or L/W/L alternations in a session, stop trading for at least 30 minutes. The market is in choppy mode — your edge does not apply in these conditions.',
+                                                'Loss Concentration': lang === 'fr' ? `Réduisez l'exposition sur ${p.evidenceTrades[0]?.asset ?? 'cet instrument'} à 50% de votre taille normale jusqu'à ce que l'edge soit re-établi via 10 trades positifs consécutifs sur cet actif.` : `Reduce exposure on ${p.evidenceTrades[0]?.asset ?? 'this instrument'} to 50% of normal size until edge is re-established via 10 consecutive positive trades on that asset.`,
+                                                'Directional Bias Failure': lang === 'fr' ? "Suspendez la direction perdante jusqu'à ce que l'edge soit re-établi avec des données backtestées. Concentrez-vous exclusivement sur la direction rentable pendant les 30 prochains trades." : 'Suspend the losing direction until edge is re-established with backtested data. Focus exclusively on the profitable direction for the next 30 trades.',
+                                                'Late Session Deterioration': lang === 'fr' ? "Arrêtez de trader à 15h00 EST. Si vous voulez trader en fin de session, exigez un R:R minimum de 2.5 et réduisez la taille de 50%. Le coût cognitif de la fin de session n'est pas compensé par les bénéfices." : 'Stop trading at 3PM EST. If late session trading is required, demand minimum 2.5 R:R and reduce size by 50%. The cognitive cost of late session is not compensated by reward.',
+                                                'Monday Effect': lang === 'fr' ? "Lundi = taille réduite de 50% et R:R minimum de 2.0. Traitez le lundi comme un jour d'observation et de calibration, pas d'exécution maximale." : 'Monday = 50% reduced size and minimum 2.0 R:R required. Treat Monday as calibration and observation day, not maximum execution day.',
+                                                'Catastrophic Day': lang === 'fr' ? "Définissez votre hard stop journalier dans les Paramètres maintenant. Quand cette limite est atteinte, la session se termine — sans discussion, sans exception, sans override." : 'Set your daily hard stop in Settings now. When the limit is hit, the session ends — no discussion, no exceptions, no override.',
+                                            };
+                                            const prescription = prescriptionMap[p.name] ?? (lang === 'fr' ? `Adressez la cause racine de ${p.name}. Revoyez les ${p.freq} occurrence${p.freq > 1 ? 's' : ''} et identifiez le déclencheur commun.` : `Address root cause of ${p.name}. Review ${p.freq} occurrence${p.freq > 1 ? 's' : ''} and identify the common trigger.`);
                                             return (
                                                 <div key={i} style={{ background: sevBg, border: `1px solid ${sevBorder}`, overflow: 'hidden' }}>
                                                     {/* Pattern header */}
@@ -3220,12 +3244,39 @@ export default function AnalyticsPage() {
                                                         </div>
                                                     </div>
 
-                                                    {/* Description + evidence */}
+                                                    {/* Description + evidence timeline */}
                                                     <div style={{ padding: '16px 24px', borderBottom: `1px solid ${sevBorder}` }}>
-                                                        <p style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: '#8b949e', lineHeight: 1.8, margin: '0 0 12px 0' }}>{p.desc}</p>
-                                                        {p.evidence && p.evidence.length > 0 && (
+                                                        <p style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: '#8b949e', lineHeight: 1.8, margin: '0 0 16px 0' }}>{p.desc}</p>
+
+                                                        {/* ── TRADE EVIDENCE TIMELINE ── */}
+                                                        {p.evidenceTrades && p.evidenceTrades.length > 0 ? (
+                                                            <div>
+                                                                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+                                                                    <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#6b7280', letterSpacing: '0.12em', textTransform: 'uppercase' as const }}>{lang === 'fr' ? 'PREUVES — TRADES RÉELS' : 'EVIDENCE — REAL TRADES'}</div>
+                                                                    <div style={{ flex: 1, height: 1, background: `${sevColor}30` }} />
+                                                                    <div style={{ fontFamily: 'var(--font-mono)', fontSize: 8, color: '#4b5563' }}>{p.evidenceTrades.length} {lang === 'fr' ? 'entrée(s)' : 'entries'}</div>
+                                                                </div>
+                                                                <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                                                                    {p.evidenceTrades.map((ev: any, idx: number) => (
+                                                                        <div key={idx} style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '120px 64px 72px 1fr', gap: isMobile ? 2 : 8, alignItems: 'center', padding: '8px 12px', background: '#080a0f', borderLeft: `2px solid ${sevColor}50` }}>
+                                                                            {/* Timestamp */}
+                                                                            <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#6b7280' }}>{ev.timestamp}</div>
+                                                                            {/* Asset badge */}
+                                                                            <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, fontWeight: 700, color: '#38bdf8', border: '1px solid #38bdf820', padding: '1px 6px', display: 'inline-block', width: 'fit-content' }}>{ev.asset}</div>
+                                                                            {/* P&L */}
+                                                                            <div style={{ fontFamily: 'var(--font-mono)', fontSize: 11, fontWeight: 900, color: ev.pnl >= 0 ? '#FDC800' : '#ff4757' }}>
+                                                                                {ev.pnl >= 0 ? '+' : ''}${Math.abs(ev.pnl).toFixed(0)}
+                                                                                {ev.durationLabel && <span style={{ fontSize: 8, color: '#4b5563', marginLeft: 4 }}>{ev.durationLabel}</span>}
+                                                                            </div>
+                                                                            {/* Context */}
+                                                                            <div style={{ fontFamily: 'var(--font-sans)', fontSize: 10, color: '#8b949e', lineHeight: 1.5 }}>{ev.context}</div>
+                                                                        </div>
+                                                                    ))}
+                                                                </div>
+                                                            </div>
+                                                        ) : p.evidence && p.evidence.length > 0 ? (
                                                             <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                                                                <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#6b7280', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 4 }}>EVIDENCE</div>
+                                                                <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#6b7280', letterSpacing: '0.1em', textTransform: 'uppercase' as const, marginBottom: 4 }}>{lang === 'fr' ? 'PREUVES' : 'EVIDENCE'}</div>
                                                                 {p.evidence.map((ev: string, idx: number) => (
                                                                     <div key={idx} style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
                                                                         <div style={{ width: 4, height: 4, background: sevColor, flexShrink: 0, marginTop: 5, borderRadius: '50%' }} />
@@ -3233,7 +3284,7 @@ export default function AnalyticsPage() {
                                                                     </div>
                                                                 ))}
                                                             </div>
-                                                        )}
+                                                        ) : null}
                                                     </div>
 
                                                     {/* Trigger / Prescription */}
@@ -3241,12 +3292,7 @@ export default function AnalyticsPage() {
                                                         <div style={{ padding: '16px 24px', borderRight: `1px solid ${sevBorder}` }}>
                                                             <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#6b7280', letterSpacing: '0.1em', textTransform: 'uppercase', fontWeight: 700, marginBottom: 8 }}>TRIGGER PATTERN</div>
                                                             <p style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: '#8b949e', lineHeight: 1.7, margin: 0 }}>
-                                                                {p.name === 'Revenge Trading' && (lang === 'fr' ? 'Perte → re-entrée rapide dans les minutes suivantes. La pression émotionnelle supplante les critères d\'entrée systématiques. Biais de confirmation maintenu malgré le rejet du marché.' : 'Loss → rapid re-entry within minutes. Emotional pressure overrides systematic entry criteria. Confirmation bias maintained despite market rejection.')}
-                                                                {p.name === 'Held Losers' && (lang === 'fr' ? 'Position perdante ouverte bien plus longtemps que les trades gagnants moyens. L\'espoir remplace la gestion du risque — attente d\'un retournement que les données montrent rarément.' : 'Open losing position held significantly longer than average winning trades. Hope displacing risk management — waiting for a reversal that the data shows rarely comes.')}
-                                                                {p.name === 'Spike Vulnerability' && (lang === 'fr' ? 'Perte importante rapide en moins de 3 minutes — probablement un spike de news ou un stop-hunt. Pas de stop ferme en place pour limiter les dégâts.' : 'Rapid large loss in under 3 minutes — likely a news spike or stop-hunt event. No hard stop in place to limit damage.')}
-                                                                {p.name === 'Early Exit' && (lang === 'fr' ? 'Positions gagnantes clôturées avant d\'atteindre la cible structurelle. Prise de bénéfices prématurée motivée par la peur d\'un retournement. L\'asymétrie joue contre vous lorsque les gains sont coupés court.' : 'Winning positions closed before reaching structural target. Premature profit-taking driven by fear of reversal. Asymmetry works against you when wins are cut short.')}
-                                                                {p.name === 'Micro Overtrading' && (lang === 'fr' ? 'Fréquence de trade au-dessus de la normale sur les micro-contrats dans des sessions uniques. La fréquence sans avantage n\'est que du saignement de commissions.' : 'Above-normal trade frequency on micro contracts within single sessions. Frequency without edge is just commission bleeding.')}
-                                                                {!['Revenge Trading','Held Losers','Spike Vulnerability','Early Exit','Micro Overtrading'].includes(p.name) && (lang === 'fr' ? `Pattern récurrent détecté ${p.freq} fois dans votre historique de trades. Voir les preuves ci-dessus pour les instances spécifiques.` : `Recurring pattern detected ${p.freq} time${p.freq > 1 ? 's' : ''} across your trade history. See evidence above for specific instances.`)}
+                                                                {triggerMap[p.name] ?? (lang === 'fr' ? `Pattern récurrent détecté ${p.freq} fois. Voir les preuves ci-dessus.` : `Recurring pattern detected ${p.freq} time${p.freq > 1 ? 's' : ''}. See evidence above.`)}
                                                             </p>
                                                         </div>
                                                         <div style={{ padding: '16px 24px', background: 'rgba(253,200,0,0.02)' }}>
@@ -4502,7 +4548,7 @@ export default function AnalyticsPage() {
                         const rptBestTrade  = rptTrades.reduce((a, t) => (t.pnl ?? 0) > (a.pnl ?? 0) ? t : a, rptTrades[0] ?? { pnl: 0, asset: '—' } as typeof rptTrades[0]);
                         const rptWorstTrade = rptTrades.reduce((a, t) => (t.pnl ?? 0) < (a.pnl ?? 0) ? t : a, rptTrades[0] ?? { pnl: 0, asset: '—' } as typeof rptTrades[0]);
                         const rptRevScore = Math.min(60, rptForensics.patterns.filter((p: any) => p.name === 'Revenge Trading').length > 0
-                            ? rptForensics.patterns.find((p: any) => p.name === 'Revenge Trading').freq * 20 : 0);
+                            ? (rptForensics.patterns.find((p: any) => p.name === 'Revenge Trading')?.freq ?? 0) * 20 : 0);
                         const rptFinScore = Math.abs(rptBehavCost) > (account.startingBalance ?? 50000) * 0.05 ? 25 : 0;
                         const rptWrErosion = rptTrades.length > 0 && rptWinRate < 35 ? 15 : 0;
 
@@ -4962,6 +5008,120 @@ export default function AnalyticsPage() {
                                         </div>
                                     </div>
                                 )}
+
+                                {/* ── BEHAVIORAL HEALTH VERDICT ("Is he good?") ── */}
+                                {rptTrades.length >= 5 && (() => {
+                                    const criticalCount = rptForensics.patterns.filter((p: any) => p.severity === 'CRITICAL').length;
+                                    const highCount     = rptForensics.patterns.filter((p: any) => p.severity === 'HIGH').length;
+                                    const totalPatterns = rptForensics.patterns.length;
+                                    const behavCostPct  = rptGrossP > 0 ? Math.abs(rptBehavCost) / rptGrossP * 100 : 0;
+
+                                    // ── Compute 5 dimension scores (0–100, 100 = best) ──
+                                    const dimWinRate   = Math.min(100, Math.max(0, rptWinRate * 1.5));  // 0–100 from 0–67% WR
+                                    const dimPF        = Math.min(100, Math.max(0, (rptPF > 90 ? 100 : rptPF / 3 * 100)));  // PF 0-3 → 0-100
+                                    const dimBehav     = Math.min(100, Math.max(0, 100 - behavCostPct * 2));  // 50%+ behav cost → 0
+                                    const dimRisk      = Math.min(100, Math.max(0, 100 - rptForensics.riskScore));  // inverse risk score
+                                    const dimConsist   = rptSessions.length > 0
+                                        ? Math.min(100, Math.max(0, (rptGreenSess / rptSessions.length) * 100))
+                                        : 50;
+                                    const overallScore = Math.round((dimWinRate + dimPF + dimBehav + dimRisk + dimConsist) / 5);
+
+                                    // ── Verdict label ──
+                                    const verdict = criticalCount >= 2 || overallScore < 35
+                                        ? { label: lang === 'fr' ? 'CRITIQUE' : 'CRITICAL', color: '#ff4757', bg: 'rgba(255,71,87,0.07)', msg: lang === 'fr' ? 'Des problèmes comportementaux graves compromettent activement votre edge. Des corrections immédiates sont requises avant de continuer à trader à pleine taille.' : 'Serious behavioral issues are actively compromising your edge. Immediate corrections required before trading full size.' }
+                                        : criticalCount === 1 || overallScore < 55
+                                        ? { label: lang === 'fr' ? 'À SURVEILLER' : 'NEEDS WORK', color: '#EAB308', bg: 'rgba(234,179,8,0.06)', msg: lang === 'fr' ? 'Des patterns comportementaux significatifs existent. Le système est viable mais le coût comportemental réduit le potentiel de profit.' : 'Significant behavioral patterns exist. The system is viable but behavioral cost is reducing profit potential.' }
+                                        : totalPatterns <= 1 || overallScore >= 75
+                                        ? { label: lang === 'fr' ? 'BON TRADER' : 'SOLID TRADER', color: '#FDC800', bg: 'rgba(253,200,0,0.06)', msg: lang === 'fr' ? 'Votre performance comportementale est solide. Peu de fuites détectées, bonne cohérence de session. Continuez à appliquer votre protocole.' : 'Behavioral performance is solid. Few leaks detected, good session consistency. Continue applying your protocol.' }
+                                        : { label: lang === 'fr' ? 'CORRECT' : 'AVERAGE', color: '#38bdf8', bg: 'rgba(56,189,248,0.05)', msg: lang === 'fr' ? 'Performance dans la moyenne. Certains patterns existent mais sont contrôlables. Focalisez-vous sur les 1-2 patterns à plus fort coût.' : 'Average performance. Some patterns exist but are manageable. Focus on the 1–2 highest-cost patterns.' };
+
+                                    const dims = [
+                                        { label: lang === 'fr' ? 'Taux réussite' : 'Win Rate',   score: dimWinRate,  raw: `${rptWinRate.toFixed(1)}%` },
+                                        { label: lang === 'fr' ? 'Fact. profit' : 'Prof. Factor', score: dimPF,        raw: rptPF > 90 ? '∞' : rptPF.toFixed(2) },
+                                        { label: lang === 'fr' ? 'Comportement' : 'Behavior',     score: dimBehav,     raw: `-${behavCostPct.toFixed(0)}%` },
+                                        { label: lang === 'fr' ? 'Risque' : 'Risk',               score: dimRisk,      raw: `${rptForensics.riskScore}/100` },
+                                        { label: lang === 'fr' ? 'Cohérence' : 'Consistency',     score: dimConsist,   raw: `${rptSessions.length > 0 ? ((rptGreenSess / rptSessions.length) * 100).toFixed(0) : '—'}%` },
+                                    ];
+
+                                    // ── Priority fix (top 2 patterns by cost) ──
+                                    const topTwo = [...rptForensics.patterns].sort((a: any, b: any) => a.impact - b.impact).slice(0, 2);
+
+                                    return (
+                                        <div style={{ background: verdict.bg, border: `1px solid ${verdict.color}30`, borderLeft: `3px solid ${verdict.color}` }}>
+                                            {/* Verdict header */}
+                                            <div style={{ padding: '16px 20px 12px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap' as const, gap: 12, borderBottom: `1px solid ${verdict.color}20` }}>
+                                                <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                                                    <div style={{ fontFamily: QF, fontSize: 9, color: '#6b7280', letterSpacing: '0.15em' }}>{lang === 'fr' ? 'DIAGNOSTIC COMPORTEMENTAL' : 'BEHAVIORAL HEALTH VERDICT'}</div>
+                                                    <div style={{ fontFamily: QF, fontSize: 22, fontWeight: 900, color: verdict.color }}>{verdict.label}</div>
+                                                    <p style={{ fontFamily: 'var(--font-sans)', fontSize: 11, color: '#c9d1d9', lineHeight: 1.65, margin: 0, maxWidth: 520 }}>{verdict.msg}</p>
+                                                </div>
+                                                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
+                                                    <div style={{ fontFamily: QF, fontSize: 40, fontWeight: 900, color: verdict.color, lineHeight: 1 }}>{overallScore}</div>
+                                                    <div style={{ fontFamily: QF, fontSize: 9, color: '#6b7280' }}>/100</div>
+                                                    <div style={{ fontFamily: QF, fontSize: 8, color: '#4b5563', letterSpacing: '0.1em' }}>{lang === 'fr' ? 'SCORE GLOBAL' : 'OVERALL SCORE'}</div>
+                                                </div>
+                                            </div>
+
+                                            {/* 5 dimension radar bars */}
+                                            <div style={{ padding: '14px 20px', borderBottom: `1px solid ${verdict.color}15`, display: 'flex', flexDirection: 'column', gap: 8 }}>
+                                                <div style={{ fontFamily: QF, fontSize: 9, color: '#6b7280', letterSpacing: '0.1em', marginBottom: 4 }}>{lang === 'fr' ? 'DIMENSIONS DE PERFORMANCE' : 'PERFORMANCE DIMENSIONS'}</div>
+                                                {dims.map((d, i) => {
+                                                    const barColor = d.score >= 70 ? '#FDC800' : d.score >= 45 ? '#EAB308' : '#ff4757';
+                                                    return (
+                                                        <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                                                            <div style={{ fontFamily: QF, fontSize: 9, color: '#8b949e', width: isMobile ? 70 : 100, flexShrink: 0 }}>{d.label}</div>
+                                                            <div style={{ flex: 1, height: 6, background: '#1a1c24', position: 'relative' }}>
+                                                                <div style={{ position: 'absolute', left: 0, top: 0, height: '100%', width: `${d.score}%`, background: barColor }} />
+                                                            </div>
+                                                            <div style={{ fontFamily: QF, fontSize: 9, color: barColor, fontWeight: 700, width: 36, textAlign: 'right' as const }}>{Math.round(d.score)}</div>
+                                                            <div style={{ fontFamily: QF, fontSize: 9, color: '#4b5563', width: isMobile ? 32 : 48, textAlign: 'right' as const }}>{d.raw}</div>
+                                                        </div>
+                                                    );
+                                                })}
+                                            </div>
+
+                                            {/* Pattern count summary */}
+                                            <div style={{ padding: '10px 20px', borderBottom: `1px solid ${verdict.color}15`, display: 'flex', gap: 20, flexWrap: 'wrap' as const }}>
+                                                {[
+                                                    { label: lang === 'fr' ? 'Motifs critiques' : 'Critical patterns', value: criticalCount, color: '#ff4757' },
+                                                    { label: lang === 'fr' ? 'Motifs élevés' : 'High patterns',     value: highCount,     color: '#EAB308' },
+                                                    { label: lang === 'fr' ? 'Total détectés' : 'Total detected',   value: totalPatterns,  color: '#8b949e' },
+                                                    { label: lang === 'fr' ? 'Coût comportemental' : 'Behav. cost', value: `$${Math.abs(rptBehavCost).toFixed(0)}`, color: '#ff4757' },
+                                                ].map((k, i) => (
+                                                    <div key={i} style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                                                        <div style={{ fontFamily: QF, fontSize: 8, color: '#6b7280', letterSpacing: '0.1em' }}>{k.label.toUpperCase()}</div>
+                                                        <div style={{ fontFamily: QF, fontSize: 16, fontWeight: 900, color: k.color }}>{k.value}</div>
+                                                    </div>
+                                                ))}
+                                            </div>
+
+                                            {/* Top 2 priority fixes */}
+                                            {topTwo.length > 0 && (
+                                                <div style={{ padding: '12px 20px' }}>
+                                                    <div style={{ fontFamily: QF, fontSize: 9, color: '#6b7280', letterSpacing: '0.1em', marginBottom: 8 }}>{lang === 'fr' ? 'PRIORITÉS IMMÉDIATES' : 'IMMEDIATE PRIORITIES'}</div>
+                                                    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                                                        {topTwo.map((p: any, i: number) => {
+                                                            const pc = p.severity === 'CRITICAL' ? '#ff4757' : p.severity === 'HIGH' ? '#EAB308' : '#fb923c';
+                                                            return (
+                                                                <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                                                                    <div style={{ fontFamily: QF, fontSize: 10, fontWeight: 900, color: '#4b5563', flexShrink: 0 }}>#{i + 1}</div>
+                                                                    <div style={{ flex: 1, fontFamily: QF, fontSize: 10, color: '#c9d1d9', fontWeight: 700 }}>{p.name}</div>
+                                                                    <div style={{ fontFamily: QF, fontSize: 9, color: pc, border: `1px solid ${pc}40`, padding: '1px 6px' }}>{p.severity}</div>
+                                                                    <div style={{ fontFamily: QF, fontSize: 10, color: '#ff4757', fontWeight: 700, flexShrink: 0 }}>-${Math.abs(p.impact).toFixed(0)}</div>
+                                                                </div>
+                                                            );
+                                                        })}
+                                                    </div>
+                                                    <div style={{ marginTop: 10, fontFamily: 'var(--font-sans)', fontSize: 10, color: '#6b7280', lineHeight: 1.65 }}>
+                                                        {lang === 'fr'
+                                                            ? `→ Voir l'onglet PATTERNS pour les preuves horodatées et les prescriptions détaillées de chaque motif.`
+                                                            : `→ See the PATTERNS tab for timestamped evidence and detailed prescriptions for each pattern.`}
+                                                    </div>
+                                                </div>
+                                            )}
+                                        </div>
+                                    );
+                                })()}
 
                                 {/* ── CHART 3: BEHAVIORAL COST BAR ── */}
                                 {rptBehavData.length > 0 && (
