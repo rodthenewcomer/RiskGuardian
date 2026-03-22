@@ -1,7 +1,8 @@
 'use client';
 
 import styles from './AnalyticsPage.module.css';
-import { useState, useMemo, useRef, useEffect } from 'react';
+import { useState, useMemo, useRef, useEffect, useCallback } from 'react';
+import DateRangePicker from '@/components/ui/DateRangePicker';
 import { useAppStore, getTradingDay, type ReportSnapshot } from '@/store/appStore';
 import { useTranslation } from '@/i18n/useTranslation';
 import { useIsMobile } from '@/hooks/useIsMobile';
@@ -31,6 +32,7 @@ export default function AnalyticsPage() {
     const [activeTab, setActiveTab] = useState('OVERVIEW');
     const [dateFrom, setDateFrom] = useState('');
     const [dateTo, setDateTo] = useState('');
+    const [showPicker, setShowPicker] = useState(false);
     const [copied, setCopied] = useState(false);
     const [reportPeriod, setReportPeriod] = useState<'7D'|'30D'|'90D'|'ALL'>('ALL');
     const [snapshotSaved, setSnapshotSaved] = useState(false);
@@ -40,6 +42,8 @@ export default function AnalyticsPage() {
     const [customATo, setCustomATo] = useState('');
     const [customBFrom, setCustomBFrom] = useState('');
     const [customBTo, setCustomBTo] = useState('');
+    const [showPickerA, setShowPickerA] = useState(false);
+    const [showPickerB, setShowPickerB] = useState(false);
 
     // Sort chronological + apply date range filter
     // Date filter uses getTradingDay(closedAt) — trades held overnight are correctly attributed
@@ -78,6 +82,27 @@ export default function AnalyticsPage() {
 
     // Process Algorithmic Forensics — respects the active date filter
     const forensics = useMemo(() => generateForensics(filteredTradesWithDuration, account), [filteredTradesWithDuration, account]);
+
+    // Trade date set (all trades, unfiltered) — used for dots in the date picker
+    const allTradeDates = useMemo(() => {
+        const s = new Set<string>();
+        trades.forEach(t => { const d = (t.closedAt ?? t.createdAt).slice(0, 10); if (d) s.add(d); });
+        return s;
+    }, [trades]);
+
+    // Earliest trade ISO date — sets how far back the calendar scrolls
+    const earliestTradeISO = useMemo(() => {
+        if (!trades.length) return undefined;
+        return trades
+            .map(t => (t.closedAt ?? t.createdAt).slice(0, 10))
+            .sort()[0];
+    }, [trades]);
+
+    // Apply-filter callback for the date picker
+    const handlePickerApply = useCallback((from: string, to: string) => {
+        setDateFrom(from);
+        setDateTo(to);
+    }, []);
 
     const TABS: Array<{ key: string; label: string }> = [
         { key: 'OVERVIEW',    label: t.analytics.tabs.overview },
@@ -751,32 +776,42 @@ export default function AnalyticsPage() {
             {(() => {
                 const now = new Date();
                 const todayISO = now.toISOString().slice(0, 10);
-                const dow = now.getDay(); // 0=Sun
+                const dow = now.getDay();
                 const daysToMon = dow === 0 ? 6 : dow - 1;
-                const thisWeekMon = new Date(now.getTime() - daysToMon * 86400000).toISOString().slice(0, 10);
-                const lastWeekSun = new Date(now.getTime() - daysToMon * 86400000 - 86400000).toISOString().slice(0, 10);
-                const lastWeekMon = new Date(now.getTime() - (daysToMon + 6) * 86400000).toISOString().slice(0, 10);
+                const thisWeekMon  = new Date(now.getTime() - daysToMon * 86400000).toISOString().slice(0, 10);
+                const lastWeekSun  = new Date(now.getTime() - daysToMon * 86400000 - 86400000).toISOString().slice(0, 10);
+                const lastWeekMon  = new Date(now.getTime() - (daysToMon + 6) * 86400000).toISOString().slice(0, 10);
                 const thisMonthStart = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`;
                 const last30 = new Date(now.getTime() - 29 * 86400000).toISOString().slice(0, 10);
 
                 type Preset = { label: string; from: string; to: string };
                 const presets: Preset[] = [
-                    { label: lang === 'fr' ? 'AUJ.' : 'TODAY',      from: todayISO,      to: todayISO },
-                    { label: lang === 'fr' ? 'CETTE SEM.' : 'THIS WEEK', from: thisWeekMon, to: todayISO },
-                    { label: lang === 'fr' ? 'SEM. PRÉC.' : 'LAST WEEK', from: lastWeekMon, to: lastWeekSun },
-                    { label: lang === 'fr' ? 'CE MOIS' : 'THIS MONTH', from: thisMonthStart, to: todayISO },
-                    { label: '30D',                                   from: last30,        to: todayISO },
-                    { label: lang === 'fr' ? 'TOUT' : 'ALL',         from: '',            to: '' },
+                    { label: lang === 'fr' ? 'AUJ.'      : 'TODAY',      from: todayISO,      to: todayISO },
+                    { label: lang === 'fr' ? 'CETTE SEM.' : 'THIS WEEK', from: thisWeekMon,   to: todayISO },
+                    { label: lang === 'fr' ? 'SEM. PRÉC.' : 'LAST WEEK', from: lastWeekMon,   to: lastWeekSun },
+                    { label: lang === 'fr' ? 'CE MOIS'   : 'THIS MONTH', from: thisMonthStart, to: todayISO },
+                    { label: '30D',                                        from: last30,        to: todayISO },
+                    { label: lang === 'fr' ? 'TOUT'      : 'ALL',         from: '',            to: '' },
                 ];
-
                 const activePreset = presets.find(p => p.from === dateFrom && p.to === dateTo);
+
+                // Format the custom range trigger label
+                const fmtShort = (iso: string) => {
+                    if (!iso) return '';
+                    const [, m, d] = iso.split('-');
+                    return `${d}/${m}`;
+                };
+                const isCustom = filterActive && !activePreset;
+                const customLabel = isCustom
+                    ? `${fmtShort(dateFrom)}${dateTo ? ` → ${fmtShort(dateTo)}` : ''}`
+                    : lang === 'fr' ? 'PÉRIODE…' : 'CUSTOM…';
 
                 return (
                     <div style={{
                         borderBottom: '1px solid #1a1c24',
                         background: '#090909',
                         padding: isMobile ? '8px 12px' : '10px 32px',
-                        display: 'flex', alignItems: 'center', gap: isMobile ? 6 : 10, flexWrap: 'wrap',
+                        display: 'flex', alignItems: 'center', gap: isMobile ? 5 : 8, flexWrap: 'wrap',
                     }}>
                         {/* Preset buttons */}
                         {presets.map(p => {
@@ -789,7 +824,7 @@ export default function AnalyticsPage() {
                                     onClick={() => { setDateFrom(p.from); setDateTo(p.to); }}
                                     style={{
                                         fontFamily: 'var(--font-mono)', fontSize: isMobile ? 10 : 11, fontWeight: 700,
-                                        letterSpacing: '0.05em', padding: isMobile ? '5px 9px' : '6px 12px',
+                                        letterSpacing: '0.04em', padding: isMobile ? '6px 9px' : '7px 12px',
                                         background: isActive ? 'rgba(253,200,0,0.12)' : 'transparent',
                                         border: `1px solid ${isActive ? '#FDC800' : '#1a1c24'}`,
                                         color: isActive ? '#FDC800' : '#6b7280',
@@ -807,40 +842,62 @@ export default function AnalyticsPage() {
                         {/* Divider */}
                         <div style={{ width: 1, height: 18, background: '#1a1c24', marginLeft: 2, marginRight: 2, flexShrink: 0 }} />
 
-                        {/* Custom date inputs */}
-                        <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: '#4b5563', flexShrink: 0 }}>
-                            {lang === 'fr' ? 'DU' : 'FROM'}
-                        </span>
-                        <input
-                            type="date"
-                            className={styles.dateInput}
-                            value={dateFrom}
-                            onChange={e => setDateFrom(e.target.value)}
-                            style={{ padding: '4px 8px', fontSize: 11 }}
-                        />
-                        <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: '#4b5563', flexShrink: 0 }}>
-                            {lang === 'fr' ? 'AU' : 'TO'}
-                        </span>
-                        <input
-                            type="date"
-                            className={styles.dateInput}
-                            value={dateTo}
-                            onChange={e => setDateTo(e.target.value)}
-                            style={{ padding: '4px 8px', fontSize: 11 }}
-                        />
+                        {/* Calendar picker trigger */}
+                        <button
+                            onClick={() => setShowPicker(true)}
+                            style={{
+                                fontFamily: 'var(--font-mono)', fontSize: isMobile ? 10 : 11, fontWeight: 700,
+                                letterSpacing: '0.04em', padding: isMobile ? '6px 10px' : '7px 14px',
+                                background: isCustom ? 'rgba(253,200,0,0.12)' : 'transparent',
+                                border: `1px solid ${isCustom ? '#FDC800' : '#1a1c24'}`,
+                                color: isCustom ? '#FDC800' : '#6b7280',
+                                cursor: 'pointer', transition: 'all 0.12s',
+                                display: 'flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap',
+                            }}
+                            onMouseEnter={e => { if (!isCustom) { (e.currentTarget as HTMLButtonElement).style.borderColor = '#3a3c44'; (e.currentTarget as HTMLButtonElement).style.color = '#c9d1d9'; } }}
+                            onMouseLeave={e => { if (!isCustom) { (e.currentTarget as HTMLButtonElement).style.borderColor = '#1a1c24'; (e.currentTarget as HTMLButtonElement).style.color = '#6b7280'; } }}
+                        >
+                            {/* Calendar icon (inline SVG) */}
+                            <svg width="11" height="11" viewBox="0 0 12 12" fill="none" style={{ opacity: 0.7 }}>
+                                <rect x="1" y="2" width="10" height="9" rx="1" stroke="currentColor" strokeWidth="1.2" fill="none"/>
+                                <line x1="4" y1="1" x2="4" y2="3" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/>
+                                <line x1="8" y1="1" x2="8" y2="3" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/>
+                                <line x1="1" y1="5" x2="11" y2="5" stroke="currentColor" strokeWidth="0.8"/>
+                            </svg>
+                            {customLabel}
+                        </button>
+
+                        {/* Clear button — only when a filter is active */}
                         {filterActive && (
                             <button
-                                className={styles.dateClear}
                                 onClick={() => { setDateFrom(''); setDateTo(''); }}
-                                style={{ padding: '4px 10px', fontSize: 10 }}
-                                title={lang === 'fr' ? 'Effacer le filtre' : 'Clear filter'}
+                                style={{
+                                    fontFamily: 'var(--font-mono)', fontSize: 10, fontWeight: 700,
+                                    padding: isMobile ? '6px 9px' : '7px 10px',
+                                    background: 'transparent', border: '1px solid #2a2c34',
+                                    color: '#4b5563', cursor: 'pointer', letterSpacing: '0.04em',
+                                }}
                             >
-                                {lang === 'fr' ? 'EFFACER' : 'CLEAR'}
+                                ✕
                             </button>
                         )}
                     </div>
                 );
             })()}
+
+            {/* ── DateRangePicker modal ─────────────────────────────── */}
+            {showPicker && (
+                <DateRangePicker
+                    from={dateFrom}
+                    to={dateTo}
+                    tradeDates={allTradeDates}
+                    earliestISO={earliestTradeISO}
+                    onApply={handlePickerApply}
+                    onClose={() => setShowPicker(false)}
+                    isMobile={isMobile}
+                    lang={lang}
+                />
+            )}
 
             <div className={styles.topTabsWrapper}>
                 <div className={styles.topTabs}>
@@ -5949,46 +6006,105 @@ export default function AnalyticsPage() {
 
                                 {/* ── CUSTOM period picker (CUSTOM mode only) ── */}
                                 {compareMode === 'CUSTOM' && (
+                                    <>
                                     <div style={{ background: '#0d1117', border: '1px solid #1a1c24', padding: '16px 18px' }}>
                                         <div style={{ fontFamily: QF, fontSize: 10, color: '#FDC800', letterSpacing: '0.08em', marginBottom: 12 }}>
-                                            {lang === 'fr' ? 'PÉRIODE PERSONNALISÉE' : 'CUSTOM PERIODS'}
+                                            {lang === 'fr' ? 'PÉRIODES PERSONNALISÉES' : 'CUSTOM PERIODS'}
                                         </div>
-                                        <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 14 }}>
-                                            {/* Period A */}
+                                        <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 10 }}>
+                                            {/* Period A trigger */}
                                             <div style={{ background: '#090909', border: '1px solid #1a1c24', padding: '12px 14px' }}>
-                                                <div style={{ fontFamily: QF, fontSize: 9, color: '#8b949e', letterSpacing: '0.1em', marginBottom: 8 }}>A — {lang === 'fr' ? 'Période précédente' : 'Previous period'}</div>
-                                                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                                                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                                                        <span style={{ fontFamily: QF, fontSize: 9, color: '#4b5563', width: 24 }}>{lang === 'fr' ? 'DU' : 'FROM'}</span>
-                                                        <input type="date" className={styles.dateInput} value={customAFrom} onChange={e => setCustomAFrom(e.target.value)} style={{ fontSize: 11, padding: '4px 8px', flex: 1 }} />
-                                                    </div>
-                                                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                                                        <span style={{ fontFamily: QF, fontSize: 9, color: '#4b5563', width: 24 }}>{lang === 'fr' ? 'AU' : 'TO'}</span>
-                                                        <input type="date" className={styles.dateInput} value={customATo} onChange={e => setCustomATo(e.target.value)} style={{ fontSize: 11, padding: '4px 8px', flex: 1 }} />
-                                                    </div>
+                                                <div style={{ fontFamily: QF, fontSize: 9, color: '#8b949e', letterSpacing: '0.1em', marginBottom: 10 }}>
+                                                    A — {lang === 'fr' ? 'Période précédente' : 'Previous period'}
                                                 </div>
+                                                <button
+                                                    onClick={() => setShowPickerA(true)}
+                                                    style={{
+                                                        width: '100%', padding: '10px 12px', cursor: 'pointer',
+                                                        background: (customAFrom || customATo) ? 'rgba(253,200,0,0.07)' : '#0d1117',
+                                                        border: `1px solid ${(customAFrom || customATo) ? '#FDC80040' : '#2a2c34'}`,
+                                                        fontFamily: QF, fontSize: 12, fontWeight: 700,
+                                                        color: (customAFrom || customATo) ? '#FDC800' : '#4b5563',
+                                                        display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+                                                    }}
+                                                >
+                                                    <svg width="10" height="10" viewBox="0 0 12 12" fill="none" style={{ opacity: 0.7 }}>
+                                                        <rect x="1" y="2" width="10" height="9" rx="1" stroke="currentColor" strokeWidth="1.2" fill="none"/>
+                                                        <line x1="4" y1="1" x2="4" y2="3" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/>
+                                                        <line x1="8" y1="1" x2="8" y2="3" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/>
+                                                        <line x1="1" y1="5" x2="11" y2="5" stroke="currentColor" strokeWidth="0.8"/>
+                                                    </svg>
+                                                    {customAFrom
+                                                        ? `${customAFrom.slice(5)} → ${customATo ? customATo.slice(5) : '…'}`
+                                                        : (lang === 'fr' ? 'Choisir la période A' : 'Pick period A')}
+                                                </button>
+                                                {(customAFrom || customATo) && (
+                                                    <button onClick={() => { setCustomAFrom(''); setCustomATo(''); }} style={{ marginTop: 6, width: '100%', fontFamily: QF, fontSize: 9, color: '#4b5563', background: 'transparent', border: '1px solid #1a1c24', padding: '4px', cursor: 'pointer' }}>
+                                                        {lang === 'fr' ? 'Effacer A' : 'Clear A'}
+                                                    </button>
+                                                )}
                                             </div>
-                                            {/* Period B */}
-                                            <div style={{ background: '#090909', border: '2px solid #FDC80040', padding: '12px 14px' }}>
-                                                <div style={{ fontFamily: QF, fontSize: 9, color: '#FDC800', letterSpacing: '0.1em', marginBottom: 8 }}>B — {lang === 'fr' ? 'Période actuelle' : 'Current period'}</div>
-                                                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                                                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                                                        <span style={{ fontFamily: QF, fontSize: 9, color: '#4b5563', width: 24 }}>{lang === 'fr' ? 'DU' : 'FROM'}</span>
-                                                        <input type="date" className={styles.dateInput} value={customBFrom} onChange={e => setCustomBFrom(e.target.value)} style={{ fontSize: 11, padding: '4px 8px', flex: 1 }} />
-                                                    </div>
-                                                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                                                        <span style={{ fontFamily: QF, fontSize: 9, color: '#4b5563', width: 24 }}>{lang === 'fr' ? 'AU' : 'TO'}</span>
-                                                        <input type="date" className={styles.dateInput} value={customBTo} onChange={e => setCustomBTo(e.target.value)} style={{ fontSize: 11, padding: '4px 8px', flex: 1 }} />
-                                                    </div>
+                                            {/* Period B trigger */}
+                                            <div style={{ background: '#090909', border: '2px solid #FDC80025', padding: '12px 14px' }}>
+                                                <div style={{ fontFamily: QF, fontSize: 9, color: '#FDC800', letterSpacing: '0.1em', marginBottom: 10 }}>
+                                                    B — {lang === 'fr' ? 'Période actuelle' : 'Current period'}
                                                 </div>
+                                                <button
+                                                    onClick={() => setShowPickerB(true)}
+                                                    style={{
+                                                        width: '100%', padding: '10px 12px', cursor: 'pointer',
+                                                        background: (customBFrom || customBTo) ? 'rgba(253,200,0,0.12)' : '#0d1117',
+                                                        border: `1px solid ${(customBFrom || customBTo) ? '#FDC800' : '#2a2c34'}`,
+                                                        fontFamily: QF, fontSize: 12, fontWeight: 700,
+                                                        color: '#FDC800',
+                                                        display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+                                                    }}
+                                                >
+                                                    <svg width="10" height="10" viewBox="0 0 12 12" fill="none" style={{ opacity: 0.7 }}>
+                                                        <rect x="1" y="2" width="10" height="9" rx="1" stroke="currentColor" strokeWidth="1.2" fill="none"/>
+                                                        <line x1="4" y1="1" x2="4" y2="3" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/>
+                                                        <line x1="8" y1="1" x2="8" y2="3" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/>
+                                                        <line x1="1" y1="5" x2="11" y2="5" stroke="currentColor" strokeWidth="0.8"/>
+                                                    </svg>
+                                                    {customBFrom
+                                                        ? `${customBFrom.slice(5)} → ${customBTo ? customBTo.slice(5) : '…'}`
+                                                        : (lang === 'fr' ? 'Choisir la période B' : 'Pick period B')}
+                                                </button>
+                                                {(customBFrom || customBTo) && (
+                                                    <button onClick={() => { setCustomBFrom(''); setCustomBTo(''); }} style={{ marginTop: 6, width: '100%', fontFamily: QF, fontSize: 9, color: '#4b5563', background: 'transparent', border: '1px solid #1a1c24', padding: '4px', cursor: 'pointer' }}>
+                                                        {lang === 'fr' ? 'Effacer B' : 'Clear B'}
+                                                    </button>
+                                                )}
                                             </div>
                                         </div>
                                         {(!customAFrom || !customATo || !customBFrom || !customBTo) && (
-                                            <div style={{ fontFamily: QF, fontSize: 9, color: '#6b7280', marginTop: 10 }}>
-                                                {lang === 'fr' ? '↑ Renseignez les 4 dates pour comparer les deux périodes.' : '↑ Fill all 4 dates to compare the two periods.'}
+                                            <div style={{ fontFamily: QF, fontSize: 9, color: '#4b5563', marginTop: 10 }}>
+                                                {lang === 'fr' ? '↑ Sélectionnez les 2 périodes pour comparer les résultats.' : '↑ Select both periods to compare performance.'}
                                             </div>
                                         )}
                                     </div>
+
+                                    {/* Period A picker modal */}
+                                    {showPickerA && (
+                                        <DateRangePicker
+                                            from={customAFrom} to={customATo}
+                                            tradeDates={allTradeDates} earliestISO={earliestTradeISO}
+                                            onApply={(f, t) => { setCustomAFrom(f); setCustomATo(t); }}
+                                            onClose={() => setShowPickerA(false)}
+                                            isMobile={isMobile} lang={lang}
+                                        />
+                                    )}
+                                    {/* Period B picker modal */}
+                                    {showPickerB && (
+                                        <DateRangePicker
+                                            from={customBFrom} to={customBTo}
+                                            tradeDates={allTradeDates} earliestISO={earliestTradeISO}
+                                            onApply={(f, t) => { setCustomBFrom(f); setCustomBTo(t); }}
+                                            onClose={() => setShowPickerB(false)}
+                                            isMobile={isMobile} lang={lang}
+                                        />
+                                    )}
+                                    </>
                                 )}
 
                                 {/* ── Period headers ── */}
