@@ -736,10 +736,12 @@ export default function SimulatorPage() {
                                 </span>
                             </div>
                             <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                                {autoOptResults.map((opt, i) => {
-                                    const pct = autoOptResults[0].delta !== 0
-                                        ? (opt.delta / Math.abs(autoOptResults[0].delta)) * 100
-                                        : 0;
+                                {(() => {
+                                    const maxD = autoOptResults[0].delta;
+                                    const minD = autoOptResults[autoOptResults.length - 1].delta;
+                                    const range = maxD - minD || 1;
+                                    return autoOptResults.map((opt, i) => {
+                                    const pct = ((opt.delta - minD) / range) * 100;
                                     const positive = opt.delta > 0;
                                     return (
                                         <div key={opt.rule} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
@@ -758,7 +760,8 @@ export default function SimulatorPage() {
                                             </span>
                                         </div>
                                     );
-                                })}
+                                });
+                                })()}
                             </div>
                         </div>
                     )}
@@ -955,7 +958,7 @@ export default function SimulatorPage() {
                         {ts.title}
                     </div>
                     <div style={{ fontFamily: 'var(--font-sans)', fontSize: 10, color: '#4b5563' }}>
-                        {ts.subtitle.replace('your', `your ${closedCount}`).replace('tes', `tes ${closedCount}`)}
+                        {ts.subtitle.replace('{count}', String(closedCount))}
                     </div>
                 </div>
                 <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>

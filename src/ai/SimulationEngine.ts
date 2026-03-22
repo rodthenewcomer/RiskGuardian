@@ -299,7 +299,7 @@ export function runSimulation(
     const simTrades: SimTrade[] = [];
     // day → { actual pnl, sim pnl, trade count, blocked count }
     const actualDayMap: Record<string, { pnl: number; count: number }> = {};
-    const simDayMap:    Record<string, { pnl: number; blocked: number }> = {};
+    const simDayMap:    Record<string, { pnl: number; blocked: number; countIncluded: number }> = {};
     let globalConsec = 0;
 
     for (const t of sorted) {
@@ -307,7 +307,7 @@ export function runSimulation(
         const day = getTradingDay(t.closedAt ?? t.createdAt);
 
         if (!actualDayMap[day]) actualDayMap[day] = { pnl: 0, count: 0 };
-        if (!simDayMap[day])    simDayMap[day]    = { pnl: 0, blocked: 0 };
+        if (!simDayMap[day])    simDayMap[day]    = { pnl: 0, blocked: 0, countIncluded: 0 };
         actualDayMap[day].pnl   += pnl;
         actualDayMap[day].count += 1;
 
@@ -366,7 +366,7 @@ export function runSimulation(
                     }
                 }
                 if (!blocked && config.applyMaxTradesPerDay && (account.maxTradesPerDay ?? 0) > 0) {
-                    if (actualDayMap[day].count - 1 >= (account.maxTradesPerDay ?? 99)) {
+                    if (ds.countIncluded >= (account.maxTradesPerDay ?? 99)) {
                         blocked = true;
                         reason  = `Max ${account.maxTradesPerDay} trades/day reached`;
                     }
@@ -404,6 +404,7 @@ export function runSimulation(
         const effective = blocked ? 0 : adjPnl;
         ds.pnl   += effective;
         if (blocked) ds.blocked += 1;
+        else ds.countIncluded += 1;
         if (effective < 0) globalConsec++;
         else if (effective > 0) globalConsec = 0;
     }

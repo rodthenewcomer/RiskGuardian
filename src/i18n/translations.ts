@@ -432,7 +432,7 @@ export const translations = {
     simulator: {
       engine: 'SIMULATION ENGINE',
       title: 'What If?',
-      subtitle: 'Test rule sets & behavioral corrections against your real trades',
+      subtitle: 'Test rule sets & behavioral corrections against your {count} real trades',
       mode: 'SIMULATION MODE',
       run: 'RUN',
       reset: 'RESET',
@@ -869,7 +869,7 @@ export const translations = {
     simulator: {
       engine: 'MOTEUR DE SIMULATION',
       title: 'Et si… ?',
-      subtitle: 'Teste règles et corrections comportementales sur tes trades réels',
+      subtitle: 'Teste règles et corrections comportementales sur tes {count} trades réels',
       mode: 'MODE DE SIMULATION',
       run: 'LANCER',
       reset: 'RÉINITIALISER',
