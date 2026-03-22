@@ -4614,7 +4614,7 @@ export default function AnalyticsPage() {
                         // ── Chart data: daily P&L bars ──
                         const rptDailyMap: Record<string, number> = {};
                         rptTrades.forEach(t => {
-                            const d = (t.closedAt ?? t.createdAt).slice(0, 10);
+                            const d = getTradingDay(t.closedAt ?? t.createdAt);
                             rptDailyMap[d] = (rptDailyMap[d] ?? 0) + (t.pnl ?? 0);
                         });
                         const rptDailyData = Object.entries(rptDailyMap).sort(([a], [b]) => a.localeCompare(b)).map(([date, pnl]) => ({ date: date.slice(5), pnl: Math.round(pnl * 100) / 100 }));
@@ -5300,10 +5300,12 @@ export default function AnalyticsPage() {
 
                                 {/* ── SECTION 9: OPTIMAL DAILY HARD STOP ANALYSIS ── */}
                                 {rptTrades.length >= 5 && (() => {
-                                    // ── Day-level map ──
+                                    // ── Day-level map — use getTradingDay (5PM EST roll) not UTC slice ──
+                                    // slice(0,10) splits sessions that cross midnight UTC (trades after ~7PM EST
+                                    // land on the next calendar date, fragmenting one session's losses across days)
                                     const hsMap: Record<string, number> = {};
                                     rptTrades.forEach(t => {
-                                        const d = (t.closedAt ?? t.createdAt).slice(0, 10);
+                                        const d = getTradingDay(t.closedAt ?? t.createdAt);
                                         hsMap[d] = (hsMap[d] ?? 0) + (t.pnl ?? 0);
                                     });
                                     const allDayPnls  = Object.values(hsMap);
@@ -5331,17 +5333,20 @@ export default function AnalyticsPage() {
                                     const currentStop   = account.dailyLossLimit ?? 0;
 
                                     // ── Minimum logical stop ──
-                                    // A stop below 2× avgLossPerTrade would trigger after just 2 normal losing
-                                    // trades — interrupting healthy trading flow. We also require the stop to
-                                    // be at least 25% of avgWinningDay so it exceeds normal daily profit noise.
+                                    // Rule 1: Must clear 2× avgLossPerTrade (absorb at least 2 normal losing trades)
+                                    // Rule 2: Must clear avgLosingDay × 1.1 — a stop below your average losing day
+                                    //         would trigger on nearly every losing day, destroying edge.
+                                    // Rule 3: Natural ceiling = avgWinningDay — losing more than a full winning day
+                                    //         in one session is the clearest signal that something is wrong.
                                     const minStop = Math.max(
                                         avgLossPerTrade * 2,
-                                        avgWinningDay > 0 ? avgWinningDay * 0.25 : avgLossPerTrade * 2,
+                                        avgLosingDay * 1.1,
                                     );
+                                    // naturalStop = avgWinningDay: "you've now lost what you typically make on a good day"
+                                    const naturalStop = Math.round(avgWinningDay > 0 ? avgWinningDay : avgLosingDay * 1.5);
 
                                     // ── Candidate generation — increments of avgLossPerTrade ──
-                                    // This ensures every candidate represents a meaningful additional
-                                    // losing trade's worth of exposure, not an arbitrary dollar grid.
+                                    // Each step = one losing trade's worth of additional exposure.
                                     const step = Math.max(Math.round(avgLossPerTrade), 1);
                                     const candidates: number[] = [];
                                     let c = Math.ceil(minStop / step) * step;
@@ -5349,11 +5354,11 @@ export default function AnalyticsPage() {
                                         candidates.push(Math.round(c));
                                         c += step;
                                     }
-                                    // Anchor points: avgLosingDay, 50%/75% of avgWinningDay
+                                    // Key anchors: naturalStop (avgWinningDay), avgLosingDay×1.1, worstDay
                                     const anchors = [
-                                        Math.round(avgLosingDay),
-                                        avgWinningDay > 0 ? Math.round(avgWinningDay * 0.5)  : 0,
-                                        avgWinningDay > 0 ? Math.round(avgWinningDay * 0.75) : 0,
+                                        Math.round(minStop),
+                                        naturalStop,
+                                        Math.round(naturalStop * 1.25),
                                         Math.round(worstDay),
                                     ].filter(v => v >= minStop && v > 0);
                                     anchors.forEach(v => {
@@ -5365,10 +5370,14 @@ export default function AnalyticsPage() {
                                     candidates.sort((a, b) => a - b);
 
                                     // ── Simulation ──
-                                    // Outlier days = days where loss > 1.5× avgLosingDay.
-                                    // Stopping a normal losing day (≤ outlierThreshold) is a false positive
-                                    // that costs missed recovery opportunity the next day — penalized in score.
-                                    const outlierThreshold = avgLosingDay * 1.5;
+                                    // Outlier days = days where loss exceeds avgWinningDay OR 1.5× avgLosingDay.
+                                    // Either condition means the day is no longer "normal" losing — it's a spiral.
+                                    // Stopping a normal losing day (≤ outlierThreshold) is a false positive that
+                                    // costs missed recovery opportunity and penalizes the score.
+                                    const outlierThreshold = Math.min(
+                                        avgWinningDay > 0 ? avgWinningDay : Infinity,
+                                        avgLosingDay * 1.5,
+                                    );
                                     const sims = candidates.map(stop => {
                                         let saved = 0;
                                         let stoppedDays = 0;
@@ -5446,7 +5455,7 @@ export default function AnalyticsPage() {
                                                 {[
                                                     { label: lang === 'fr' ? 'PIRE JOURNÉE' : 'WORST DAY',             value: `-$${worstDay.toFixed(0)}`,          color: '#ff4757', note: lang === 'fr' ? 'plafond simulation' : 'simulation ceiling' },
                                                     { label: lang === 'fr' ? 'ESPÉRANCE/TRADE' : 'EXPECTANCY/TRADE',    value: `${expectancyTr >= 0 ? '+' : ''}$${expectancyTr.toFixed(2)}`, color: expectancyTr >= 0 ? '#FDC800' : '#ff4757', note: lang === 'fr' ? 'edge moyen' : 'mean edge' },
-                                                    { label: lang === 'fr' ? 'STOP MIN. LOGIQUE' : 'LOGICAL MIN. STOP', value: `$${Math.round(minStop)}`,           color: '#38bdf8', note: lang === 'fr' ? '2× perte moy./trade' : '2× avg loss/trade' },
+                                                    { label: lang === 'fr' ? 'STOP MIN. LOGIQUE' : 'LOGICAL MIN. STOP', value: `$${Math.round(minStop)}`,           color: '#38bdf8', note: lang === 'fr' ? 'max(2× perte, jour perd. moy.)' : 'max(2× avg loss, avg losing day)' },
                                                     { label: lang === 'fr' ? 'STOP ACTUEL' : 'CURRENT STOP',           value: currentStop > 0 ? `$${currentStop.toFixed(0)}` : lang === 'fr' ? 'Non défini' : 'Not set', color: currentStop > 0 ? (currentStop < minStop ? '#ff4757' : '#38bdf8') : '#4b5563', note: currentStop > 0 && currentStop < minStop ? (lang === 'fr' ? '⚠ trop serré' : '⚠ too tight') : (lang === 'fr' ? 'paramètre actif' : 'active parameter') },
                                                 ].map((k, i) => (
                                                     <div key={i} style={{ background: '#0d1117', padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: 4 }}>
@@ -5457,11 +5466,16 @@ export default function AnalyticsPage() {
                                                 ))}
                                             </div>
 
-                                            {/* Min stop rationale */}
-                                            <div style={{ background: 'rgba(56,189,248,0.05)', border: '1px solid #38bdf815', padding: '10px 14px', marginBottom: 16, fontFamily: QF, fontSize: 10, color: '#38bdf8', lineHeight: 1.65 }}>
+                                            {/* Min stop + natural stop rationale */}
+                                            <div style={{ background: 'rgba(56,189,248,0.05)', border: '1px solid #38bdf815', padding: '10px 14px', marginBottom: 8, fontFamily: QF, fontSize: 10, color: '#38bdf8', lineHeight: 1.65 }}>
                                                 {lang === 'fr'
-                                                    ? `Votre perte moyenne par trade est $${avgLossPerTrade.toFixed(0)}. Un hard stop en dessous de $${Math.round(minStop)} se déclencherait après seulement ${(minStop / avgLossPerTrade).toFixed(1)} trade${(minStop / avgLossPerTrade) > 1.1 ? 's' : ''} perdant${(minStop / avgLossPerTrade) > 1.1 ? 's' : ''} normaux — interrompant un flux sain. Les candidats démarrent à $${Math.round(minStop)} (2× votre perte moy.) et progressent par paliers de $${step} (1 perte moy./trade).`
-                                                    : `Your avg loss per trade is $${avgLossPerTrade.toFixed(0)}. A hard stop below $${Math.round(minStop)} would trigger after only ${(minStop / avgLossPerTrade).toFixed(1)} normal losing trade${(minStop / avgLossPerTrade) > 1.1 ? 's' : ''} — interrupting healthy flow. Candidates start at $${Math.round(minStop)} (2× your avg loss) and step by $${step} (1 avg losing trade).`}
+                                                    ? `Votre perte moyenne par trade est $${avgLossPerTrade.toFixed(0)} et votre jour perdant moyen est $${avgLosingDay.toFixed(0)}. Un stop en dessous de $${Math.round(minStop)} se déclencherait sur des jours perdants ordinaires — perturbant un flux sain. Les candidats démarrent à $${Math.round(minStop)} et progressent par paliers de $${step} (1 perte moy./trade).`
+                                                    : `Your avg loss per trade is $${avgLossPerTrade.toFixed(0)} and your avg losing day is $${avgLosingDay.toFixed(0)}. A stop below $${Math.round(minStop)} would trigger on ordinary losing days — disrupting healthy flow. Candidates start at $${Math.round(minStop)} and step by $${step} (1 avg losing trade).`}
+                                            </div>
+                                            <div style={{ background: 'rgba(253,200,0,0.05)', border: '1px solid #FDC80020', padding: '10px 14px', marginBottom: 16, fontFamily: QF, fontSize: 10, color: '#FDC800', lineHeight: 1.65 }}>
+                                                {lang === 'fr'
+                                                    ? `SEUIL NATUREL : $${naturalStop} (= votre journée gagnante moyenne). Quand votre perte dépasse ce que vous gagnez typiquement sur un bon jour, la journée est anormale par définition — c'est le signal d'arrêt le plus logique.`
+                                                    : `NATURAL THRESHOLD: $${naturalStop} (= your avg winning day). When your loss exceeds what you typically make on a good day, the session is abnormal by definition — this is the most logical stop signal.`}
                                             </div>
 
                                             {noOutliers ? (
@@ -5533,14 +5547,16 @@ export default function AnalyticsPage() {
                                                             </thead>
                                                             <tbody>
                                                                 {sims.map((s, i) => {
-                                                                    const isOpt = optSim ? s.stop === optSim.stop : false;
-                                                                    const isCur = currentStopSim ? s.stop === currentStopSim.stop : false;
-                                                                    const bg = isOpt ? 'rgba(253,200,0,0.06)' : isCur ? 'rgba(56,189,248,0.05)' : i % 2 === 0 ? '#0c0e13' : 'transparent';
+                                                                    const isOpt     = optSim ? s.stop === optSim.stop : false;
+                                                                    const isCur     = currentStopSim ? s.stop === currentStopSim.stop : false;
+                                                                    const isNatural = Math.abs(s.stop - naturalStop) < step * 0.4 && !isOpt;
+                                                                    const bg = isOpt ? 'rgba(253,200,0,0.06)' : isCur ? 'rgba(56,189,248,0.05)' : isNatural ? 'rgba(253,200,0,0.03)' : i % 2 === 0 ? '#0c0e13' : 'transparent';
                                                                     return (
                                                                         <tr key={i} style={{ borderBottom: '1px solid #1a1c24', background: bg }}>
                                                                             <td style={{ padding: '8px 12px', fontSize: 11 }}>
-                                                                                <span style={{ fontFamily: QF, fontWeight: 900, color: isOpt ? '#FDC800' : isCur ? '#38bdf8' : '#c9d1d9' }}>${s.stop}</span>
+                                                                                <span style={{ fontFamily: QF, fontWeight: 900, color: isOpt ? '#FDC800' : isCur ? '#38bdf8' : isNatural ? '#FDC800' : '#c9d1d9' }}>${s.stop}</span>
                                                                                 {isOpt && <span style={{ fontFamily: QF, fontSize: 8, color: '#FDC800', marginLeft: 6, border: '1px solid #FDC80050', padding: '1px 5px' }}>OPTIMAL</span>}
+                                                                                {isNatural && <span style={{ fontFamily: QF, fontSize: 8, color: '#EAB308', marginLeft: 6, border: '1px solid #EAB30850', padding: '1px 5px' }}>{lang === 'fr' ? 'NATUREL' : 'NATURAL'}</span>}
                                                                                 {isCur && !isOpt && <span style={{ fontFamily: QF, fontSize: 8, color: '#38bdf8', marginLeft: 6, border: '1px solid #38bdf850', padding: '1px 5px' }}>{lang === 'fr' ? 'ACTUEL' : 'CURRENT'}</span>}
                                                                             </td>
                                                                             <td style={{ padding: '8px 12px', fontSize: 11, color: s.outlierDaysStopped > 0 ? '#FDC800' : '#4b5563', textAlign: 'right' }}>{s.outlierDaysStopped}</td>
