@@ -34,6 +34,7 @@ export default function AnalyticsPage() {
     const [reportPeriod, setReportPeriod] = useState<'7D'|'30D'|'90D'|'ALL'>('ALL');
     const [snapshotSaved, setSnapshotSaved] = useState(false);
     const [compareSelected, setCompareSelected] = useState<string[]>([]);
+    const [compareMode, setCompareMode] = useState<'SNAPSHOT' | 'WOW' | 'MOM' | 'QOQ' | 'YOY'>('WOW');
 
     // Sort chronological + apply date range filter
     // Date filter uses getTradingDay(closedAt) — trades held overnight are correctly attributed
@@ -5153,232 +5154,440 @@ export default function AnalyticsPage() {
                         ); } // end REPORT tab
 
                         // ── COMPARE TAB ──
+                        const cmpNow = new Date();
                         const fmtSnap = (d: string) => new Date(d).toLocaleDateString(lang === 'fr' ? 'fr-FR' : 'en-US', { month: 'short', day: 'numeric', year: '2-digit' });
+                        const fmtD = (d: Date) => fmtSnap(d.toISOString());
                         const gradeC = (g: string) => g === 'A' ? '#FDC800' : g === 'B' ? '#00D4FF' : g === 'C' ? '#EAB308' : '#ff4757';
+                        const fmtDurS = (s: number) => s < 60 ? `${Math.round(s)}s` : s < 3600 ? `${Math.round(s / 60)}m` : `${(s / 3600).toFixed(1)}h`;
 
-                        // Multi-period comparison data (always available)
+                        // ── PERIOD STATS ENGINE ──
+                        const computePeriodStats = (from: Date, to: Date) => {
+                            const t = tradesWithDuration
+                                .filter(tr => {
+                                    if (tr.outcome !== 'win' && tr.outcome !== 'loss') return false;
+                                    const d = new Date(tr.closedAt ?? tr.createdAt);
+                                    return d >= from && d < to;
+                                })
+                                .sort((a, b) => new Date(a.closedAt ?? a.createdAt).getTime() - new Date(b.closedAt ?? b.createdAt).getTime());
+                            const wins = t.filter(tr => (tr.pnl ?? 0) > 0);
+                            const losses = t.filter(tr => (tr.pnl ?? 0) < 0);
+                            const netPnl = t.reduce((s, tr) => s + (tr.pnl ?? 0), 0);
+                            const grossP = wins.reduce((s, tr) => s + (tr.pnl ?? 0), 0);
+                            const grossL = losses.reduce((s, tr) => s + Math.abs(tr.pnl ?? 0), 0);
+                            const winRate = t.length > 0 ? (wins.length / t.length) * 100 : 0;
+                            const pf = grossL > 0 ? grossP / grossL : grossP > 0 ? 99 : 0;
+                            const avgWin = wins.length > 0 ? grossP / wins.length : 0;
+                            const avgLoss = losses.length > 0 ? grossL / losses.length : 0;
+                            const wlRatio = avgLoss > 0 ? avgWin / avgLoss : avgWin > 0 ? 99 : 0;
+                            const expectancy = t.length > 0 ? netPnl / t.length : 0;
+                            const withDur = t.filter(tr => (tr.durationSeconds ?? 0) > 0);
+                            const avgDuration = withDur.length > 0 ? withDur.reduce((s, tr) => s + (tr.durationSeconds ?? 0), 0) / withDur.length : 0;
+                            const hourPnl: Record<number, number> = {};
+                            t.forEach(tr => { const h = new Date(tr.closedAt ?? tr.createdAt).getUTCHours(); hourPnl[h] = (hourPnl[h] ?? 0) + (tr.pnl ?? 0); });
+                            const bhe = Object.entries(hourPnl).sort(([, a], [, b]) => (b as number) - (a as number))[0];
+                            const bestHour = bhe ? `${bhe[0]}:00 UTC` : '—';
+                            const f = t.length > 0 ? generateForensics(t.map(tr => ({ ...tr, outcome: (tr.outcome ?? 'open') as 'win' | 'loss' | 'open' | 'be' })), account) : null;
+                            const behavCost = f ? f.patterns.reduce((s: number, p: any) => s + Math.min(0, p.impact ?? 0), 0) : 0;
+                            const riskScore = f ? f.riskScore : 0;
+                            const sessions = f ? (f.sessions ?? []) : [];
+                            const greenSessions = sessions.filter((s: any) => s.pnl > 0).length;
+                            const topPattern: { name: string; impact: number; freq: number } | null = f && f.patterns.length > 0 ? f.patterns[0] : null;
+                            let cum = 0;
+                            const equity = t.map(tr => { cum += (tr.pnl ?? 0); return { pnl: Math.round(cum * 100) / 100 }; });
+                            return { count: t.length, netPnl, winRate, pf, avgWin, avgLoss, wlRatio, expectancy, avgDuration, bestHour, behavCost, riskScore, greenSessions, totalSessions: sessions.length, topPattern, equity };
+                        };
+
+                        // Auto-period ranges
+                        const AR = {
+                            WOW: { cf: new Date(cmpNow.getTime() - 7 * 864e5), ct: cmpNow, pf: new Date(cmpNow.getTime() - 14 * 864e5), pt: new Date(cmpNow.getTime() - 7 * 864e5), label: lang === 'fr' ? 'Semaine / Semaine' : 'Week over Week', pLbl: lang === 'fr' ? 'Sem. préc.' : 'Prev Week', nLbl: lang === 'fr' ? 'la semaine prochaine' : 'next week' },
+                            MOM: { cf: new Date(cmpNow.getTime() - 30 * 864e5), ct: cmpNow, pf: new Date(cmpNow.getTime() - 60 * 864e5), pt: new Date(cmpNow.getTime() - 30 * 864e5), label: lang === 'fr' ? 'Mois / Mois' : 'Month over Month', pLbl: lang === 'fr' ? 'Mois préc.' : 'Prev Month', nLbl: lang === 'fr' ? 'le mois prochain' : 'next month' },
+                            QOQ: { cf: new Date(cmpNow.getTime() - 90 * 864e5), ct: cmpNow, pf: new Date(cmpNow.getTime() - 180 * 864e5), pt: new Date(cmpNow.getTime() - 90 * 864e5), label: lang === 'fr' ? 'Trimestre / Trimestre' : 'Quarter over Quarter', pLbl: lang === 'fr' ? 'Trim. préc.' : 'Prev Quarter', nLbl: lang === 'fr' ? 'les 90 prochains jours' : 'next 90 days' },
+                            YOY: { cf: new Date(cmpNow.getTime() - 365 * 864e5), ct: cmpNow, pf: new Date(cmpNow.getTime() - 730 * 864e5), pt: new Date(cmpNow.getTime() - 365 * 864e5), label: lang === 'fr' ? 'Année / Année' : 'Year over Year', pLbl: lang === 'fr' ? 'Année préc.' : 'Prev Year', nLbl: lang === 'fr' ? "l'année prochaine" : 'next year' },
+                        } as const;
+
+                        // Multi-period summary (always available)
                         const multiPeriods = (['ALL', '90D', '30D', '7D'] as const).map(p => {
-                            const cutoff = p === 'ALL' ? new Date(0) : new Date(Date.now() - parseInt(p) * 86400000);
+                            const cutoff = p === 'ALL' ? new Date(0) : new Date(Date.now() - parseInt(p) * 864e5);
                             const t = p === 'ALL' ? closed : closed.filter(tr => new Date(tr.closedAt ?? tr.createdAt) >= cutoff);
                             const w = t.filter(tr => (tr.pnl ?? 0) > 0);
                             const l = t.filter(tr => (tr.pnl ?? 0) < 0);
                             const pnl = t.reduce((s, tr) => s + (tr.pnl ?? 0), 0);
                             const gp = w.reduce((s, tr) => s + (tr.pnl ?? 0), 0);
                             const gl = l.reduce((s, tr) => s + Math.abs(tr.pnl ?? 0), 0);
-                            const wr = t.length > 0 ? (w.length / t.length) * 100 : 0;
-                            const pf = gl > 0 ? gp / gl : gp > 0 ? 99 : 0;
-                            return { label: p, count: t.length, pnl, wr, pf };
+                            return { label: p, count: t.length, pnl, wr: t.length > 0 ? (w.length / t.length) * 100 : 0, pf: gl > 0 ? gp / gl : gp > 0 ? 99 : 0 };
                         });
 
-                        if (reportSnapshots.length === 0) {
-                            return (
-                                <motion.div key="compare-empty" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
-                                    <div style={{ ...CARD_S, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16, padding: '48px 24px', textAlign: 'center' as const }}>
-                                        <div style={{ fontFamily: QF, fontSize: 13, fontWeight: 700, color: '#fff' }}>{lang === 'fr' ? 'Aucun rapport sauvegardé' : 'No saved reports'}</div>
-                                        <p style={{ fontFamily: 'var(--font-sans)', fontSize: 12, color: '#6b7280', maxWidth: 320, lineHeight: 1.7, margin: 0 }}>
-                                            {lang === 'fr' ? "Sauvegardez un rapport depuis l'onglet REPORT pour commencer à comparer vos périodes. Bouton \"SAUVEGARDER RAPPORT\" en haut." : 'Save a report from the REPORT tab to start comparing trading periods. Use the "SAVE REPORT" button at the top of the Report tab.'}
-                                        </p>
-                                    </div>
-                                    <div>
-                                        <div style={{ ...SL, color: '#FDC800', marginBottom: 12 }}>{lang === 'fr' ? 'COMPARAISON MULTI-PÉRIODES' : 'MULTI-PERIOD COMPARISON'}</div>
-                                        <div style={{ overflowX: 'auto' }}>
-                                            <table style={{ width: '100%', borderCollapse: 'collapse', fontFamily: QF }}>
-                                                <thead><tr style={{ borderBottom: '1px solid #1a1c24' }}>
-                                                    {[lang === 'fr' ? 'PÉRIODE' : 'PERIOD', 'TRADES', 'P&L NET', lang === 'fr' ? 'TAUX' : 'WIN RATE', 'PF'].map((h, i) => (
-                                                        <th key={i} style={{ padding: '8px 16px', fontSize: 9, color: '#6b7280', textAlign: i === 0 ? 'left' : 'right', letterSpacing: '0.1em', fontWeight: 700 }}>{h}</th>
-                                                    ))}
-                                                </tr></thead>
-                                                <tbody>{multiPeriods.map((row, i) => (
-                                                    <tr key={i} style={{ borderBottom: '1px solid #1a1c24', background: i % 2 === 0 ? '#0c0e13' : 'transparent' }}>
-                                                        <td style={{ padding: '10px 16px', fontSize: 11, fontWeight: 900, color: '#FDC800' }}>{row.label}</td>
-                                                        <td style={{ padding: '10px 16px', fontSize: 11, color: '#c9d1d9', textAlign: 'right' }}>{row.count}</td>
-                                                        <td style={{ padding: '10px 16px', fontSize: 11, fontWeight: 700, color: row.pnl >= 0 ? '#FDC800' : '#ff4757', textAlign: 'right' }}>{row.pnl >= 0 ? '+' : ''}${row.pnl.toFixed(0)}</td>
-                                                        <td style={{ padding: '10px 16px', fontSize: 11, color: row.wr >= 55 ? '#FDC800' : row.wr >= 45 ? '#EAB308' : '#ff4757', textAlign: 'right' }}>{row.count > 0 ? `${row.wr.toFixed(1)}%` : '—'}</td>
-                                                        <td style={{ padding: '10px 16px', fontSize: 11, color: row.pf >= 1.5 ? '#FDC800' : row.pf >= 1 ? '#EAB308' : '#ff4757', textAlign: 'right' }}>{row.count > 0 ? (row.pf > 90 ? '∞' : row.pf.toFixed(2)) : '—'}</td>
-                                                    </tr>
-                                                ))}</tbody>
-                                            </table>
-                                        </div>
-                                    </div>
-                                </motion.div>
-                            );
-                        }
-
-                        // ── COMPARE: snapshots exist ──
+                        // ── RESOLVE ROWS A & B based on compareMode ──
                         const sortedSnaps = [...reportSnapshots].sort((a, b) => new Date(a.savedAt).getTime() - new Date(b.savedAt).getTime());
-                        const snapA = compareSelected.length > 0 ? sortedSnaps.find(s => s.id === compareSelected[0]) ?? sortedSnaps[sortedSnaps.length - 1] : sortedSnaps[sortedSnaps.length - 1];
-                        const snapBObj = compareSelected.length > 1 ? sortedSnaps.find(s => s.id === compareSelected[1]) ?? null : null;
-                        const compB = snapBObj ?? { netPnl: rptNetPnl, winRate: rptWinRate, profitFactor: rptPF, expectancy: rptExpectancy, grade, gradeScore, riskScore: rptForensics.riskScore, tradeCount: rptTrades.length, sessionCount: rptSessions.length, greenSessions: rptGreenSess, totalSessions: rptSessions.length, topPattern: rptTopPattern, behavioralCost: rptBehavCost, savedAt: new Date().toISOString(), periodLabel: `${reportPeriod} (${lang === 'fr' ? 'maintenant' : 'now'})`, id: 'now', projectedPnl: rptProjected, avgWin: rptAvgW, avgLoss: rptAvgL, wlRatio: rptWlRatio };
-                        const deltaRows = [
-                            { label: 'Net P&L', a: `${snapA.netPnl >= 0 ? '+' : ''}$${snapA.netPnl.toFixed(0)}`, b: `${compB.netPnl >= 0 ? '+' : ''}$${compB.netPnl.toFixed(0)}`, delta: compB.netPnl - snapA.netPnl, fmtD: (d: number) => `${d >= 0 ? '+' : ''}$${Math.abs(d).toFixed(0)}`, posGood: true },
-                            { label: lang === 'fr' ? 'Taux réussite' : 'Win Rate', a: `${snapA.winRate.toFixed(1)}%`, b: `${compB.winRate.toFixed(1)}%`, delta: compB.winRate - snapA.winRate, fmtD: (d: number) => `${d >= 0 ? '+' : ''}${d.toFixed(1)}%`, posGood: true },
-                            { label: 'Profit Factor', a: snapA.profitFactor > 90 ? '∞' : snapA.profitFactor.toFixed(2), b: compB.profitFactor > 90 ? '∞' : compB.profitFactor.toFixed(2), delta: compB.profitFactor - snapA.profitFactor, fmtD: (d: number) => `${d >= 0 ? '+' : ''}${d.toFixed(2)}`, posGood: true },
-                            { label: lang === 'fr' ? 'Espérance' : 'Expectancy', a: `$${snapA.expectancy.toFixed(0)}`, b: `$${compB.expectancy.toFixed(0)}`, delta: compB.expectancy - snapA.expectancy, fmtD: (d: number) => `${d >= 0 ? '+' : ''}$${d.toFixed(0)}`, posGood: true },
-                            { label: lang === 'fr' ? 'Score risque' : 'Risk Score', a: `${snapA.riskScore}/100`, b: `${compB.riskScore}/100`, delta: compB.riskScore - snapA.riskScore, fmtD: (d: number) => `${d >= 0 ? '+' : ''}${d.toFixed(0)}`, posGood: false },
-                            { label: lang === 'fr' ? 'Coût comport.' : 'Behavioral Cost', a: `-$${Math.abs(snapA.behavioralCost).toFixed(0)}`, b: `-$${Math.abs(compB.behavioralCost).toFixed(0)}`, delta: Math.abs(snapA.behavioralCost) - Math.abs(compB.behavioralCost), fmtD: (d: number) => `${d >= 0 ? (lang === 'fr' ? '-$' : '-$') : '+$'}${Math.abs(d).toFixed(0)} ${d >= 0 ? (lang === 'fr' ? 'réduit' : 'reduced') : (lang === 'fr' ? 'augmenté' : 'increased')}`, posGood: true },
-                            { label: lang === 'fr' ? 'Note globale' : 'Grade Score', a: `${snapA.grade} (${snapA.gradeScore})`, b: `${compB.grade} (${compB.gradeScore})`, delta: compB.gradeScore - snapA.gradeScore, fmtD: (d: number) => `${d >= 0 ? '+' : ''}${d.toFixed(0)}pts`, posGood: true },
-                        ];
+                        type CmpRow = {
+                            count: number; netPnl: number; winRate: number; pf: number;
+                            avgWin: number; avgLoss: number; wlRatio: number; expectancy: number;
+                            avgDuration: number; bestHour: string; behavCost: number; riskScore: number;
+                            greenSessions: number; totalSessions: number;
+                            topPattern: { name: string; impact: number; freq: number } | null;
+                            equity: Array<{ pnl: number }>; hdr: string; grade?: string; gradeScore?: number;
+                        };
+                        let rowA: CmpRow | null = null;
+                        let rowB: CmpRow | null = null;
+                        let nextLbl = lang === 'fr' ? 'la prochaine période' : 'the next period';
+                        let modeLbl = '';
+                        if (compareMode === 'SNAPSHOT' && sortedSnaps.length > 0) {
+                            const sA = compareSelected.length > 0 ? (sortedSnaps.find(s => s.id === compareSelected[0]) ?? sortedSnaps[sortedSnaps.length - 1]) : sortedSnaps[sortedSnaps.length - 1];
+                            const sB = compareSelected.length > 1 ? (sortedSnaps.find(s => s.id === compareSelected[1]) ?? null) : null;
+                            rowA = { count: sA.tradeCount, netPnl: sA.netPnl, winRate: sA.winRate, pf: sA.profitFactor, avgWin: sA.avgWin, avgLoss: sA.avgLoss, wlRatio: sA.wlRatio, expectancy: sA.expectancy, avgDuration: 0, bestHour: '—', behavCost: sA.behavioralCost, riskScore: sA.riskScore, greenSessions: sA.greenSessions, totalSessions: sA.totalSessions, topPattern: null, equity: [], hdr: `A · ${fmtSnap(sA.savedAt)} · ${sA.periodLabel}`, grade: sA.grade, gradeScore: sA.gradeScore };
+                            const bSrc = sB ?? { tradeCount: rptTrades.length, netPnl: rptNetPnl, winRate: rptWinRate, profitFactor: rptPF, avgWin: rptAvgW, avgLoss: rptAvgL, wlRatio: rptWlRatio, expectancy: rptExpectancy, behavioralCost: rptBehavCost, riskScore: rptForensics.riskScore, greenSessions: rptGreenSess, totalSessions: rptSessions.length, savedAt: new Date().toISOString(), periodLabel: `${reportPeriod} (${lang === 'fr' ? 'maintenant' : 'now'})`, grade: grade as string, gradeScore: gradeScore as number };
+                            rowB = { count: bSrc.tradeCount, netPnl: bSrc.netPnl, winRate: bSrc.winRate, pf: bSrc.profitFactor, avgWin: bSrc.avgWin, avgLoss: bSrc.avgLoss, wlRatio: bSrc.wlRatio, expectancy: bSrc.expectancy, avgDuration: 0, bestHour: '—', behavCost: bSrc.behavioralCost, riskScore: bSrc.riskScore, greenSessions: bSrc.greenSessions, totalSessions: bSrc.totalSessions, topPattern: rptForensics.patterns.length > 0 ? rptForensics.patterns[0] : null, equity: [], hdr: `B · ${fmtSnap(bSrc.savedAt)} · ${bSrc.periodLabel}`, grade: bSrc.grade, gradeScore: bSrc.gradeScore };
+                            modeLbl = lang === 'fr' ? 'Instantanés' : 'Snapshots';
+                        } else if (compareMode !== 'SNAPSHOT') {
+                            const r = AR[compareMode as keyof typeof AR];
+                            const prev = computePeriodStats(r.pf, r.pt);
+                            const cur = computePeriodStats(r.cf, r.ct);
+                            rowA = { ...prev, hdr: `A (${r.pLbl}): ${fmtD(r.pf)} → ${fmtD(r.pt)}` };
+                            rowB = { ...cur, hdr: `B (${lang === 'fr' ? 'Actuel' : 'Current'}): ${fmtD(r.cf)} → ${fmtD(cmpNow)}` };
+                            nextLbl = r.nLbl; modeLbl = r.label;
+                        }
+                        // ── DELTA METRICS (12) ──
+                        const dA = rowA, dB = rowB;
+                        const deltaMetrics = dA && dB ? [
+                            { key: 'pnl',  label: 'Net P&L',                                       aRaw: dA.netPnl,      bRaw: dB.netPnl,      fmt: (v: number) => `${v >= 0 ? '+' : ''}$${Math.abs(v).toFixed(0)}`,  posGood: true  as const },
+                            { key: 'cnt',  label: lang === 'fr' ? 'Nb Trades' : 'Trades Taken',    aRaw: dA.count,       bRaw: dB.count,       fmt: (v: number) => `${v}`,                                            posGood: null  as null  },
+                            { key: 'wr',   label: lang === 'fr' ? 'Taux Réussite' : 'Win Rate',    aRaw: dA.winRate,     bRaw: dB.winRate,     fmt: (v: number) => `${v.toFixed(1)}%`,                               posGood: true  as const },
+                            { key: 'pf',   label: 'Profit Factor',                                 aRaw: dA.pf,          bRaw: dB.pf,          fmt: (v: number) => v > 90 ? '∞' : `${v.toFixed(2)}`,                 posGood: true  as const },
+                            { key: 'exp',  label: lang === 'fr' ? 'Espérance' : 'Expectancy',      aRaw: dA.expectancy,  bRaw: dB.expectancy,  fmt: (v: number) => `${v >= 0 ? '+' : ''}$${v.toFixed(0)}`,           posGood: true  as const },
+                            { key: 'avgw', label: lang === 'fr' ? 'Gain Moyen' : 'Avg Win',        aRaw: dA.avgWin,      bRaw: dB.avgWin,      fmt: (v: number) => `$${v.toFixed(0)}`,                               posGood: true  as const },
+                            { key: 'avgl', label: lang === 'fr' ? 'Perte Moyenne' : 'Avg Loss',    aRaw: dA.avgLoss,     bRaw: dB.avgLoss,     fmt: (v: number) => `-$${v.toFixed(0)}`,                              posGood: false as const },
+                            { key: 'wlr',  label: lang === 'fr' ? 'Ratio G/P' : 'W/L Ratio',      aRaw: dA.wlRatio,     bRaw: dB.wlRatio,     fmt: (v: number) => v > 90 ? '∞' : `${v.toFixed(2)}:1`,              posGood: true  as const },
+                            { key: 'dur',  label: lang === 'fr' ? 'Durée Moy.' : 'Avg Duration',   aRaw: dA.avgDuration, bRaw: dB.avgDuration, fmt: (v: number) => fmtDurS(v),                                       posGood: null  as null  },
+                            { key: 'bc',   label: lang === 'fr' ? 'Coût Comport.' : 'Behav. Cost', aRaw: Math.abs(dA.behavCost), bRaw: Math.abs(dB.behavCost), fmt: (v: number) => `-$${v.toFixed(0)}`,             posGood: false as const },
+                            { key: 'risk', label: lang === 'fr' ? 'Score Risque' : 'Risk Score',   aRaw: dA.riskScore,   bRaw: dB.riskScore,   fmt: (v: number) => `${v}/100`,                                       posGood: false as const },
+                            { key: 'gs',   label: lang === 'fr' ? 'Sessions Vertes' : 'Green Sess %', aRaw: dA.totalSessions > 0 ? (dA.greenSessions / dA.totalSessions) * 100 : 0, bRaw: dB.totalSessions > 0 ? (dB.greenSessions / dB.totalSessions) * 100 : 0, fmt: (v: number) => `${v.toFixed(0)}%`, posGood: true as const },
+                        ].map(m => ({ ...m, delta: m.bRaw - m.aRaw, improved: m.posGood === true ? m.bRaw > m.aRaw : m.posGood === false ? m.bRaw < m.aRaw : false, regressed: m.posGood === true ? m.bRaw < m.aRaw : m.posGood === false ? m.bRaw > m.aRaw : false })) : [];
+                        const improvedCount = deltaMetrics.filter(m => m.improved).length;
+                        const regressedCount = deltaMetrics.filter(m => m.regressed).length;
+                        const stableCount = deltaMetrics.length - improvedCount - regressedCount;
+                        // ── NLP ──
+                        const progressItems: string[] = [];
+                        const regressionItems: string[] = [];
+                        const actions: string[] = [];
+                        if (dA && dB && dA.count > 0 && dB.count > 0) {
+                            if (dB.winRate > dA.winRate + 2) progressItems.push(`${lang === 'fr' ? 'Taux de réussite en hausse' : 'Win rate improved'}: ${dA.winRate.toFixed(1)}% → ${dB.winRate.toFixed(1)}% — ${lang === 'fr' ? 'meilleure sélectivité' : 'better trade selection'}`);
+                            if (dB.pf > dA.pf * 1.1 && dA.pf < 90) progressItems.push(`${lang === 'fr' ? 'Profit Factor amélioré' : 'Profit Factor improved'}: ${dA.pf.toFixed(2)} → ${dB.pf > 90 ? '∞' : dB.pf.toFixed(2)}`);
+                            if (dB.avgWin > dA.avgWin * 1.08 && dA.avgWin > 0) progressItems.push(`${lang === 'fr' ? 'Gains moyens plus élevés' : 'Average winners grew'}: $${dA.avgWin.toFixed(0)} → $${dB.avgWin.toFixed(0)} — ${lang === 'fr' ? 'vous laissez courir les gagnants' : 'letting winners run longer'}`);
+                            if (dB.avgLoss < dA.avgLoss * 0.92 && dA.avgLoss > 0) progressItems.push(`${lang === 'fr' ? 'Pertes moyennes réduites' : 'Average losers cut faster'}: $${dA.avgLoss.toFixed(0)} → $${dB.avgLoss.toFixed(0)} — ${lang === 'fr' ? 'stop-loss plus discipliné' : 'tighter stop discipline'}`);
+                            if (dB.riskScore < dA.riskScore - 5) progressItems.push(`${lang === 'fr' ? 'Score de risque réduit' : 'Risk score reduced'}: ${dA.riskScore} → ${dB.riskScore}`);
+                            if (Math.abs(dB.behavCost) < Math.abs(dA.behavCost) * 0.85 && dA.behavCost < 0) progressItems.push(`${lang === 'fr' ? 'Coût comportemental réduit' : 'Behavioral leaks reduced'}: $${Math.abs(dA.behavCost).toFixed(0)} → $${Math.abs(dB.behavCost).toFixed(0)}`);
+                            if (dB.netPnl > 0 && dA.netPnl <= 0) progressItems.push(lang === 'fr' ? 'Retour à la rentabilité — P&L net positif.' : 'Returned to profitability — positive net P&L.');
+                            if (dB.greenSessions > dA.greenSessions && dB.totalSessions > 0) progressItems.push(`${lang === 'fr' ? 'Plus de sessions vertes' : 'More green sessions'}: ${dA.greenSessions}/${dA.totalSessions} → ${dB.greenSessions}/${dB.totalSessions}`);
+                            if (dB.winRate < dA.winRate - 3) regressionItems.push(`${lang === 'fr' ? 'Taux de réussite en baisse' : 'Win rate declined'}: ${dA.winRate.toFixed(1)}% → ${dB.winRate.toFixed(1)}% — ${lang === 'fr' ? 'trop de setups de faible qualité' : 'too many low-quality setups taken'}`);
+                            if (dB.avgLoss > dA.avgLoss * 1.15 && dA.avgLoss > 0) regressionItems.push(`${lang === 'fr' ? 'Pertes moyennes plus grandes' : 'Avg loss increased'}: $${dA.avgLoss.toFixed(0)} → $${dB.avgLoss.toFixed(0)} (+${((dB.avgLoss / dA.avgLoss - 1) * 100).toFixed(0)}%) — ${lang === 'fr' ? 'stops ignorés ou déplacés' : 'stops moved or ignored'}`);
+                            if (dB.avgWin < dA.avgWin * 0.88 && dA.avgWin > 0) regressionItems.push(`${lang === 'fr' ? 'Gains moyens réduits' : 'Average winners shrinking'}: $${dA.avgWin.toFixed(0)} → $${dB.avgWin.toFixed(0)} — ${lang === 'fr' ? 'sorties trop précoces' : 'exiting winners too early'}`);
+                            if (dB.pf < dA.pf * 0.85 && dA.pf < 90 && dA.pf > 0) regressionItems.push(`${lang === 'fr' ? 'Profit Factor dégradé' : 'Profit Factor degraded'}: ${dA.pf.toFixed(2)} → ${dB.pf.toFixed(2)}`);
+                            if (dB.riskScore > dA.riskScore + 8) regressionItems.push(`${lang === 'fr' ? 'Score de risque en hausse' : 'Risk score elevated'}: ${dA.riskScore} → ${dB.riskScore} — ${lang === 'fr' ? 'comportements à risque détectés' : 'risky patterns detected'}`);
+                            if (Math.abs(dB.behavCost) > Math.abs(dA.behavCost) * 1.2 && dB.behavCost < 0) regressionItems.push(`${lang === 'fr' ? 'Coût comportemental en hausse' : 'Behavioral cost increased'}: $${Math.abs(dA.behavCost).toFixed(0)} → $${Math.abs(dB.behavCost).toFixed(0)}${dB.topPattern ? ` — ${lang === 'fr' ? 'leak' : 'top leak'}: ${dB.topPattern.name}` : ''}`);
+                            if (dB.count > dA.count * 1.35 && dB.netPnl < dA.netPnl) regressionItems.push(`${lang === 'fr' ? 'Surtrading détecté' : 'Overtrading detected'}: ${dA.count} → ${dB.count} trades ${lang === 'fr' ? 'avec P&L en baisse' : 'with declining P&L'}`);
+                            if (dB.winRate < dA.winRate - 4) actions.push(lang === 'fr' ? `Taux ${dB.winRate.toFixed(0)}% — notez chaque trade 1/2/3 (qualité setup). Refusez tout trade < 3.` : `Win rate ${dB.winRate.toFixed(0)}% — score each trade 1/2/3 on setup quality. Refuse anything below 3.`);
+                            if (dB.avgLoss > dA.avgLoss * 1.2 && dA.avgLoss > 0) actions.push(lang === 'fr' ? `Perte moy. $${dB.avgLoss.toFixed(0)} (+${((dB.avgLoss / dA.avgLoss - 1) * 100).toFixed(0)}%) — réduisez votre taille de position de 20% jusqu'à ce que les stops soient respectés.` : `Avg loss $${dB.avgLoss.toFixed(0)} (+${((dB.avgLoss / dA.avgLoss - 1) * 100).toFixed(0)}%) — reduce position size 20% until stop adherence is restored.`);
+                            if (dB.count > dA.count * 1.3) actions.push(lang === 'fr' ? `${dB.count - dA.count} trades de plus — fixez un plafond strict de ${Math.max(2, Math.ceil(dB.count * 0.7))} trades/session.` : `${dB.count - dA.count} more trades taken — hard cap of ${Math.max(2, Math.ceil(dB.count * 0.7))} trades/session.`);
+                            if (dB.avgWin < dA.avgWin * 0.9 && dA.avgWin > 0) actions.push(lang === 'fr' ? `Gains moy. en baisse de ${((1 - dB.avgWin / dA.avgWin) * 100).toFixed(0)}% — fixez un temps de détention minimum avant de clôturer un gagnant.` : `Avg winners down ${((1 - dB.avgWin / dA.avgWin) * 100).toFixed(0)}% — set a minimum hold time before closing any winning trade.`);
+                            if (dB.topPattern && Math.abs(dB.topPattern.impact) > 50) actions.push(lang === 'fr' ? `Pattern "${dB.topPattern.name}" coûte $${Math.abs(dB.topPattern.impact).toFixed(0)} sur ${dB.topPattern.freq} occurrences — fermez le terminal 15 min après chaque déclenchement.` : `Pattern "${dB.topPattern.name}" costs $${Math.abs(dB.topPattern.impact).toFixed(0)} × ${dB.topPattern.freq} — close terminal 15 min after each trigger.`);
+                            if (actions.length === 0) actions.push(lang === 'fr' ? `Performance solide — n'augmentez la taille de position que si le drawdown reste < 2% sur 10 trades consécutifs.` : `Solid performance — only increase position size if drawdown stays below 2% over 10 consecutive trades.`);
+                            actions.push(lang === 'fr' ? `Revue de journal: relisez chaque trade avant l'ouverture de ${nextLbl}. Identifiez le pattern répété et écrivez une règle explicite pour l'éviter.` : `Journal review: re-read every trade before ${nextLbl} opens. Identify the most repeated mistake and write one explicit rule to prevent it.`);
+                        }
+                        const explainerText = dA && dB && dB.count > 0 && dA.count > 0
+                            ? (lang === 'fr'
+                                ? `Cette période, vous avez pris ${dB.count} trades (${dB.count >= dA.count ? '+' : ''}${dB.count - dA.count} vs précédente) pour un P&L net de ${dB.netPnl >= 0 ? '+' : ''}$${dB.netPnl.toFixed(0)}. Votre taux de réussite ${dB.winRate > dA.winRate ? 'progresse' : 'recule'} de ${dA.winRate.toFixed(1)}% à ${dB.winRate.toFixed(1)}%, et le profit factor ${dB.pf > dA.pf ? "se renforce" : "se dégrade"} à ${dB.pf > 90 ? '∞' : dB.pf.toFixed(2)}. ${improvedCount > regressedCount ? 'Progression globale.' : regressedCount > improvedCount ? 'Régression globale — action requise.' : 'Performance stable.'}`
+                                : `This period you took ${dB.count} trades (${dB.count >= dA.count ? '+' : ''}${dB.count - dA.count} vs prior), net P&L ${dB.netPnl >= 0 ? '+' : ''}$${dB.netPnl.toFixed(0)}. Win rate ${dB.winRate > dA.winRate ? 'improved' : 'dropped'} ${dA.winRate.toFixed(1)}% → ${dB.winRate.toFixed(1)}%, profit factor ${dB.pf > dA.pf ? 'strengthened' : 'declined'} to ${dB.pf > 90 ? '∞' : dB.pf.toFixed(2)}. ${improvedCount > regressedCount ? 'Overall: progressing.' : regressedCount > improvedCount ? 'Overall: declining — act now.' : 'Overall: stable.'}`)
+                            : (lang === 'fr' ? 'Choisissez un mode de comparaison pour générer l\'analyse.' : 'Choose a comparison mode to generate the analysis.');
+                        // Chart data
+                        const radarData = dA && dB ? [
+                            { metric: 'WIN RATE', a: dA.winRate, b: dB.winRate },
+                            { metric: 'PF', a: Math.min(dA.pf > 90 ? 100 : dA.pf / 3 * 100, 100), b: Math.min(dB.pf > 90 ? 100 : dB.pf / 3 * 100, 100) },
+                            { metric: 'GRADE', a: dA.gradeScore ?? 50, b: dB.gradeScore ?? 50 },
+                            { metric: 'SAFETY', a: 100 - dA.riskScore, b: 100 - dB.riskScore },
+                            { metric: 'W/L', a: Math.min(dA.wlRatio / 3 * 100, 100), b: Math.min(dB.wlRatio / 3 * 100, 100) },
+                            { metric: 'EXPECT', a: Math.max(0, Math.min(dA.expectancy / 5, 100)), b: Math.max(0, Math.min(dB.expectancy / 5, 100)) },
+                        ] : [];
+                        const overlayMaxLen = dA && dB ? Math.max(dA.equity.length, dB.equity.length) : 0;
+                        const overlayData = dA && dB ? Array.from({ length: overlayMaxLen }, (_, i) => ({ i: i + 1, a: dA.equity[i]?.pnl ?? null, b: dB.equity[i]?.pnl ?? null })) : [];
+                        const groupedData = dA && dB ? [
+                            { name: 'P&L', a: dA.netPnl, b: dB.netPnl },
+                            { name: lang === 'fr' ? 'G.MOY' : 'AVG W', a: dA.avgWin, b: dB.avgWin },
+                            { name: lang === 'fr' ? 'P.MOY' : 'AVG L', a: -dA.avgLoss, b: -dB.avgLoss },
+                            { name: lang === 'fr' ? 'ESPÉR.' : 'EXPC.', a: dA.expectancy, b: dB.expectancy },
+                        ] : [];
+                        const trendVerdict = improvedCount > regressedCount ? { label: lang === 'fr' ? '↑ EN PROGRESSION' : '↑ IMPROVING', color: '#FDC800' } : regressedCount > improvedCount ? { label: lang === 'fr' ? '↓ EN RÉGRESSION' : '↓ DECLINING', color: '#ff4757' } : { label: '→ STABLE', color: '#EAB308' };
 
                         return (
-                            <motion.div key="compare" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
-                                {/* Snapshot library */}
+                            <motion.div key="compare" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} style={{ display: 'flex', flexDirection: 'column', gap: 28 }}>
+
+                                {/* ── 1. MODE SELECTOR ── */}
                                 <div>
-                                    <div style={{ ...SL, color: '#FDC800', marginBottom: 12 }}>{lang === 'fr' ? `HISTORIQUE DES RAPPORTS (${sortedSnaps.length})` : `REPORT HISTORY (${sortedSnaps.length})`}</div>
-                                    <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                                        {sortedSnaps.map((snap) => {
-                                            const isSelected = compareSelected.includes(snap.id);
-                                            const selIdx = compareSelected.indexOf(snap.id);
+                                    <div style={{ ...SL, color: '#FDC800', marginBottom: 8 }}>{lang === 'fr' ? 'MODE DE COMPARAISON' : 'COMPARISON MODE'}</div>
+                                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 1, background: '#1a1c24' }}>
+                                        {(['SNAPSHOT', 'WOW', 'MOM', 'QOQ', 'YOY'] as const).map(m => {
+                                            const lbls: Record<string, string> = { SNAPSHOT: lang === 'fr' ? 'PHOTOS' : 'SNAP', WOW: lang === 'fr' ? 'SEM/SEM' : 'W/W', MOM: lang === 'fr' ? 'MOIS' : 'M/M', QOQ: lang === 'fr' ? 'TRIM' : 'Q/Q', YOY: lang === 'fr' ? 'AN/AN' : 'Y/Y' };
+                                            const subs: Record<string, string> = { SNAPSHOT: lang === 'fr' ? 'Manuel' : 'Manual', WOW: '7d vs 7d', MOM: '30d vs 30d', QOQ: '90d vs 90d', YOY: '365d vs 365d' };
+                                            const active = compareMode === m;
                                             return (
-                                                <div key={snap.id} onClick={() => {
-                                                    if (isSelected) { setCompareSelected(prev => prev.filter(id => id !== snap.id)); }
-                                                    else if (compareSelected.length < 2) { setCompareSelected(prev => [...prev, snap.id]); }
-                                                    else { setCompareSelected([compareSelected[1], snap.id]); }
-                                                }} style={{ background: isSelected ? '#0f1520' : '#0d1117', border: `1px solid ${isSelected ? '#FDC80060' : '#1a1c24'}`, padding: '12px 16px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 12 }}>
-                                                    <div style={{ width: 20, height: 20, border: `2px solid ${isSelected ? '#FDC800' : '#3d4451'}`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, fontFamily: QF, fontSize: 10, fontWeight: 900, color: '#FDC800', background: isSelected ? '#FDC80015' : 'transparent' }}>
-                                                        {isSelected ? String.fromCharCode(64 + selIdx + 1) : ''}
-                                                    </div>
-                                                    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 2 }}>
-                                                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                                                            <span style={{ fontFamily: QF, fontSize: 11, fontWeight: 700, color: '#fff' }}>{fmtSnap(snap.savedAt)}</span>
-                                                            <span style={{ fontFamily: QF, fontSize: 9, color: gradeC(snap.grade), background: gradeC(snap.grade) + '15', border: `1px solid ${gradeC(snap.grade)}40`, padding: '1px 6px' }}>{snap.grade} · {snap.gradeScore}</span>
-                                                            <span style={{ fontFamily: QF, fontSize: 9, color: '#4b5563' }}>{snap.periodLabel}</span>
-                                                        </div>
-                                                        <div style={{ fontFamily: QF, fontSize: 9, color: '#6b7280', display: 'flex', gap: 16 }}>
-                                                            <span style={{ color: snap.netPnl >= 0 ? '#FDC800' : '#ff4757' }}>{snap.netPnl >= 0 ? '+' : ''}${snap.netPnl.toFixed(0)}</span>
-                                                            <span>WR {snap.winRate.toFixed(1)}%</span>
-                                                            <span>PF {snap.profitFactor > 90 ? '∞' : snap.profitFactor.toFixed(2)}</span>
-                                                            <span>{snap.tradeCount} trades</span>
-                                                        </div>
-                                                    </div>
-                                                    <button onClick={(e) => { e.stopPropagation(); deleteReportSnapshot(snap.id); setCompareSelected(prev => prev.filter(id => id !== snap.id)); }} style={{ fontFamily: QF, fontSize: 9, color: '#4b5563', background: 'transparent', border: 'none', cursor: 'pointer', padding: '2px 6px', flexShrink: 0 }}>✕</button>
-                                                </div>
+                                                <button key={m} onClick={() => setCompareMode(m)} style={{ padding: '10px 4px', fontFamily: QF, fontSize: 9, fontWeight: 700, background: active ? '#FDC800' : '#0d1117', color: active ? '#000' : '#6b7280', border: 'none', cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
+                                                    <span>{lbls[m]}</span>
+                                                    <span style={{ fontSize: 8, fontWeight: 400, opacity: 0.7 }}>{subs[m]}</span>
+                                                </button>
                                             );
                                         })}
                                     </div>
-                                    <div style={{ fontFamily: QF, fontSize: 9, color: '#4b5563', marginTop: 8 }}>
-                                        {lang === 'fr' ? "Sélectionnez jusqu'à 2 rapports. B = période actuelle si un seul sélectionné." : 'Select up to 2 reports. B = current period if only one selected.'}
-                                    </div>
                                 </div>
 
-                                {/* ── CHART 1: PERFORMANCE RADAR A vs B ── */}
-                                <div>
-                                    <div style={{ ...SL, color: '#FDC800', marginBottom: 12 }}>{lang === 'fr' ? 'PROFIL PERFORMANCE A vs B' : 'PERFORMANCE PROFILE A vs B'}</div>
-                                    <div style={{ background: '#0d1117', border: '1px solid #1a1c24', padding: '16px 8px 4px' }}>
-                                        {(() => {
-                                            const radarData = [
-                                                { metric: 'WIN RATE', a: snapA.winRate, b: compB.winRate },
-                                                { metric: 'PF', a: Math.min(snapA.profitFactor > 90 ? 100 : snapA.profitFactor / 3 * 100, 100), b: Math.min(compB.profitFactor > 90 ? 100 : compB.profitFactor / 3 * 100, 100) },
-                                                { metric: 'GRADE', a: snapA.gradeScore, b: compB.gradeScore },
-                                                { metric: 'SAFETY', a: 100 - snapA.riskScore, b: 100 - compB.riskScore },
-                                                { metric: 'W/L', a: Math.min(snapA.wlRatio / 3 * 100, 100), b: Math.min(compB.wlRatio / 3 * 100, 100) },
-                                                { metric: 'EXPECT', a: Math.max(0, Math.min(snapA.expectancy / 5, 100)), b: Math.max(0, Math.min(compB.expectancy / 5, 100)) },
-                                            ];
-                                            return (
-                                                <ResponsiveContainer width="100%" height={220}>
-                                                    <RadarChart data={radarData} margin={{ top: 8, right: 28, left: 28, bottom: 4 }}>
-                                                        <PolarGrid stroke="#1a1c24" />
-                                                        <PolarAngleAxis dataKey="metric" tick={{ fontFamily: 'var(--font-mono)', fontSize: 9, fill: '#8b949e' }} />
-                                                        <Radar name="A" dataKey="a" stroke="#6b7280" fill="#6b7280" fillOpacity={0.2} strokeWidth={2} dot={false} />
-                                                        <Radar name="B" dataKey="b" stroke="#FDC800" fill="#FDC800" fillOpacity={0.15} strokeWidth={2} dot={false} />
-                                                        <Legend iconType="line" iconSize={16} wrapperStyle={{ fontFamily: 'var(--font-mono)', fontSize: 9, paddingTop: 2 }} formatter={(v) => v === 'A' ? `A · ${fmtSnap(snapA.savedAt)}` : `B · ${fmtSnap(compB.savedAt)}`} />
-                                                        <Tooltip contentStyle={{ background: '#0d1117', border: '1px solid #1a1c24', borderRadius: 0, fontFamily: 'var(--font-mono)', fontSize: 10 }} formatter={(v: number | undefined) => v == null ? ['—', ''] : [`${v.toFixed(1)}/100`, '']} />
-                                                    </RadarChart>
-                                                </ResponsiveContainer>
-                                            );
-                                        })()}
+                                {/* ── 2. SNAPSHOT LIBRARY (SNAPSHOT mode only) ── */}
+                                {compareMode === 'SNAPSHOT' && (
+                                    <div>
+                                        <div style={{ ...SL, color: '#FDC800', marginBottom: 8 }}>{lang === 'fr' ? `HISTORIQUE (${sortedSnaps.length})` : `REPORT HISTORY (${sortedSnaps.length})`}</div>
+                                        {sortedSnaps.length === 0 ? (
+                                            <div style={{ ...CARD_S, padding: '24px 20px', textAlign: 'center' as const }}>
+                                                <div style={{ fontFamily: QF, fontSize: 11, color: '#6b7280', lineHeight: 1.7 }}>{lang === 'fr' ? "Aucun rapport sauvegardé. Allez dans l'onglet REPORT → bouton SAUVEGARDER RAPPORT." : 'No snapshots yet. Go to REPORT tab → press "SAVE REPORT".'}</div>
+                                            </div>
+                                        ) : (
+                                            <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                                                {sortedSnaps.map(snap => {
+                                                    const isSel = compareSelected.includes(snap.id);
+                                                    const selI = compareSelected.indexOf(snap.id);
+                                                    return (
+                                                        <div key={snap.id} onClick={() => { if (isSel) { setCompareSelected(p => p.filter(id => id !== snap.id)); } else if (compareSelected.length < 2) { setCompareSelected(p => [...p, snap.id]); } else { setCompareSelected([compareSelected[1], snap.id]); } }} style={{ background: isSel ? '#0f1520' : '#0d1117', border: `1px solid ${isSel ? '#FDC80060' : '#1a1c24'}`, padding: '10px 14px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 10 }}>
+                                                            <div style={{ width: 18, height: 18, border: `2px solid ${isSel ? '#FDC800' : '#3d4451'}`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, fontFamily: QF, fontSize: 9, fontWeight: 900, color: '#FDC800', background: isSel ? '#FDC80015' : 'transparent' }}>{isSel ? String.fromCharCode(64 + selI + 1) : ''}</div>
+                                                            <div style={{ flex: 1 }}>
+                                                                <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' as const }}>
+                                                                    <span style={{ fontFamily: QF, fontSize: 10, fontWeight: 700, color: '#fff' }}>{fmtSnap(snap.savedAt)}</span>
+                                                                    <span style={{ fontFamily: QF, fontSize: 9, color: gradeC(snap.grade), background: gradeC(snap.grade) + '15', border: `1px solid ${gradeC(snap.grade)}40`, padding: '1px 5px' }}>{snap.grade} · {snap.gradeScore}</span>
+                                                                    <span style={{ fontFamily: QF, fontSize: 9, color: '#4b5563' }}>{snap.periodLabel}</span>
+                                                                </div>
+                                                                <div style={{ fontFamily: QF, fontSize: 9, color: '#6b7280', display: 'flex', gap: 12, marginTop: 2 }}>
+                                                                    <span style={{ color: snap.netPnl >= 0 ? '#FDC800' : '#ff4757' }}>{snap.netPnl >= 0 ? '+' : ''}${snap.netPnl.toFixed(0)}</span>
+                                                                    <span>WR {snap.winRate.toFixed(1)}%</span><span>PF {snap.profitFactor > 90 ? '∞' : snap.profitFactor.toFixed(2)}</span><span>{snap.tradeCount}T</span>
+                                                                </div>
+                                                            </div>
+                                                            <button onClick={(e) => { e.stopPropagation(); deleteReportSnapshot(snap.id); setCompareSelected(p => p.filter(id => id !== snap.id)); }} style={{ fontFamily: QF, fontSize: 9, color: '#4b5563', background: 'transparent', border: 'none', cursor: 'pointer', padding: '2px 4px', flexShrink: 0 }}>✕</button>
+                                                        </div>
+                                                    );
+                                                })}
+                                            </div>
+                                        )}
+                                        {sortedSnaps.length > 0 && <div style={{ fontFamily: QF, fontSize: 9, color: '#4b5563', marginTop: 6 }}>{lang === 'fr' ? "Sélectionnez 2 rapports. B = données actuelles si 1 seul sélectionné." : 'Select 2 reports. B = current period if only 1 selected.'}</div>}
                                     </div>
-                                    <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#4b5563', marginTop: 4 }}>
-                                        {lang === 'fr' ? 'Métriques normalisées /100. PF plafonné 3x · Espérance plafonnée $500 · SAFETY = 100 − Score de risque' : 'All metrics normalized /100. PF capped at 3x · Expectancy capped $500 · SAFETY = 100 − Risk Score'}
-                                    </div>
-                                </div>
+                                )}
 
-                                {/* Delta comparison table */}
-                                <div>
-                                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12, flexWrap: 'wrap' as const, gap: 8 }}>
-                                        <div style={{ ...SL, color: '#FDC800', marginBottom: 0 }}>{lang === 'fr' ? 'COMPARAISON DELTA' : 'DELTA COMPARISON'}</div>
-                                        <div style={{ display: 'flex', gap: 6 }}>
-                                            {[{ s: snapA, i: 0 }, { s: compB, i: 1 }].map(({ s, i }) => (
-                                                <div key={i} style={{ fontFamily: QF, fontSize: 9, color: i === 0 ? '#8b949e' : '#00D4FF', background: i === 0 ? '#1a1c24' : 'rgba(0,212,255,0.08)', border: `1px solid ${i === 0 ? '#1a1c24' : '#00D4FF40'}`, padding: '3px 8px' }}>
-                                                    {String.fromCharCode(65 + i)}: {fmtSnap(s.savedAt)} · {s.periodLabel}
+                                {/* ── Period headers ── */}
+                                {dA && dB && (
+                                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 1, background: '#1a1c24' }}>
+                                        <div style={{ background: '#0d1117', padding: '10px 14px' }}>
+                                            <div style={{ fontFamily: QF, fontSize: 8, color: '#4b5563', letterSpacing: '0.1em', marginBottom: 2 }}>A {lang === 'fr' ? '(PRÉCÉDENT)' : '(PREV)'}</div>
+                                            <div style={{ fontFamily: QF, fontSize: 9, color: '#8b949e', wordBreak: 'break-all' as const }}>{dA.hdr}</div>
+                                        </div>
+                                        <div style={{ background: '#111827', padding: '10px 14px', borderLeft: '2px solid #FDC800' }}>
+                                            <div style={{ fontFamily: QF, fontSize: 8, color: '#FDC800', letterSpacing: '0.1em', marginBottom: 2 }}>B {lang === 'fr' ? '(ACTUEL)' : '(CURRENT)'}</div>
+                                            <div style={{ fontFamily: QF, fontSize: 9, color: '#c9d1d9', wordBreak: 'break-all' as const }}>{dB.hdr}</div>
+                                        </div>
+                                    </div>
+                                )}
+
+                                {/* ── PROGRESSION / REGRESSION BANNER ── */}
+                                {dA && dB && deltaMetrics.length > 0 && (
+                                    <div style={{ background: trendVerdict.color + '12', border: `1px solid ${trendVerdict.color}35`, padding: '14px 18px', display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap' as const }}>
+                                        <span style={{ fontFamily: QF, fontSize: 15, fontWeight: 900, color: trendVerdict.color }}>{trendVerdict.label}</span>
+                                        <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap' as const }}>
+                                            <span style={{ fontFamily: QF, fontSize: 10, color: '#FDC800' }}>↑ {improvedCount} {lang === 'fr' ? 'améliorées' : 'improved'}</span>
+                                            <span style={{ fontFamily: QF, fontSize: 10, color: '#ff4757' }}>↓ {regressedCount} {lang === 'fr' ? 'en recul' : 'regressed'}</span>
+                                            <span style={{ fontFamily: QF, fontSize: 10, color: '#6b7280' }}>→ {stableCount} {lang === 'fr' ? 'stables' : 'stable'}</span>
+                                            <span style={{ fontFamily: QF, fontSize: 10, color: '#4b5563' }}>/ {deltaMetrics.length} {lang === 'fr' ? 'métriques' : 'metrics'}</span>
+                                        </div>
+                                    </div>
+                                )}
+
+                                {/* ── CHART A: RADAR PERFORMANCE PROFILE ── */}
+                                {dA && dB && radarData.length > 0 && (
+                                    <div>
+                                        <div style={{ ...SL, color: '#FDC800', marginBottom: 10 }}>{lang === 'fr' ? 'PROFIL PERFORMANCE A vs B' : 'PERFORMANCE PROFILE A vs B'}</div>
+                                        <div style={{ background: '#0d1117', border: '1px solid #1a1c24', padding: '12px 8px 4px' }}>
+                                            <ResponsiveContainer width="100%" height={220}>
+                                                <RadarChart data={radarData} margin={{ top: 8, right: 28, left: 28, bottom: 4 }}>
+                                                    <PolarGrid stroke="#1a1c24" />
+                                                    <PolarAngleAxis dataKey="metric" tick={{ fontFamily: 'var(--font-mono)', fontSize: 9, fill: '#8b949e' }} />
+                                                    <Radar name="a" dataKey="a" stroke="#4b5563" fill="#4b5563" fillOpacity={0.2} strokeWidth={2} dot={false} />
+                                                    <Radar name="b" dataKey="b" stroke="#FDC800" fill="#FDC800" fillOpacity={0.15} strokeWidth={2} dot={false} />
+                                                    <Legend iconType="line" iconSize={14} wrapperStyle={{ fontFamily: 'var(--font-mono)', fontSize: 9, paddingTop: 2 }} formatter={(v) => v === 'a' ? `A (${lang === 'fr' ? 'Préc.' : 'Prev'})` : `B (${lang === 'fr' ? 'Actuel' : 'Current'})`} />
+                                                    <Tooltip contentStyle={{ background: '#0d1117', border: '1px solid #1a1c24', borderRadius: 0, fontFamily: 'var(--font-mono)', fontSize: 10 }} formatter={(v: number | undefined) => v == null ? ['—', ''] : [`${v.toFixed(1)}/100`, '']} />
+                                                </RadarChart>
+                                            </ResponsiveContainer>
+                                        </div>
+                                        <div style={{ fontFamily: QF, fontSize: 9, color: '#4b5563', marginTop: 4 }}>{lang === 'fr' ? 'Métriques normalisées /100. PF plafonné 3x · SAFETY = 100 − Risk Score' : 'All metrics /100. PF capped 3x · SAFETY = 100 − Risk Score'}</div>
+                                    </div>
+                                )}
+
+                                {/* ── CHART B: EQUITY CURVE OVERLAY ── */}
+                                {dA && dB && overlayData.length >= 2 && (
+                                    <div>
+                                        <div style={{ ...SL, color: '#FDC800', marginBottom: 10 }}>{lang === 'fr' ? 'COURBE DE CAPITAUX — SUPERPOSITION A vs B' : 'EQUITY CURVE OVERLAY — A vs B'}</div>
+                                        <div style={{ background: '#0d1117', border: '1px solid #1a1c24', padding: '12px 0 0' }}>
+                                            <ResponsiveContainer width="100%" height={180}>
+                                                <AreaChart data={overlayData} margin={{ top: 4, right: 16, left: 0, bottom: 0 }}>
+                                                    <defs>
+                                                        <linearGradient id="ovA" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="#4b5563" stopOpacity={0.3} /><stop offset="95%" stopColor="#4b5563" stopOpacity={0} /></linearGradient>
+                                                        <linearGradient id="ovB" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="#FDC800" stopOpacity={0.3} /><stop offset="95%" stopColor="#FDC800" stopOpacity={0} /></linearGradient>
+                                                    </defs>
+                                                    <CartesianGrid strokeDasharray="3 3" stroke="#1a1c24" vertical={false} />
+                                                    <XAxis dataKey="i" tick={{ fontFamily: 'var(--font-mono)', fontSize: 8, fill: '#4b5563' }} tickLine={false} axisLine={false} label={{ value: lang === 'fr' ? 'N° trade' : 'Trade #', position: 'insideBottomRight', offset: -4, style: { fontFamily: 'var(--font-mono)', fontSize: 8, fill: '#4b5563' } }} />
+                                                    <YAxis tick={{ fontFamily: 'var(--font-mono)', fontSize: 8, fill: '#4b5563' }} tickLine={false} axisLine={false} tickFormatter={(v) => `$${v >= 0 ? '' : '-'}${Math.abs(v) >= 1000 ? (Math.abs(v) / 1000).toFixed(1) + 'k' : Math.abs(v).toFixed(0)}`} width={48} />
+                                                    <ReferenceLine y={0} stroke="#3d4451" strokeDasharray="4 2" />
+                                                    <Tooltip contentStyle={{ background: '#0d1117', border: '1px solid #1a1c24', borderRadius: 0, fontFamily: 'var(--font-mono)', fontSize: 10 }} formatter={(v: number | undefined, name: string | undefined) => v == null ? ['—', name ?? ''] : [`${v >= 0 ? '+' : ''}$${v.toFixed(0)}`, name === 'a' ? `A (${lang === 'fr' ? 'Préc.' : 'Prev'})` : `B (${lang === 'fr' ? 'Actuel' : 'Current'})`]} />
+                                                    <Area type="monotone" dataKey="a" stroke="#4b5563" strokeWidth={2} fill="url(#ovA)" dot={false} connectNulls={false} />
+                                                    <Area type="monotone" dataKey="b" stroke="#FDC800" strokeWidth={2} fill="url(#ovB)" dot={false} connectNulls={false} />
+                                                </AreaChart>
+                                            </ResponsiveContainer>
+                                        </div>
+                                        <div style={{ fontFamily: QF, fontSize: 9, color: '#4b5563', marginTop: 4 }}>{lang === 'fr' ? 'Parcours cumulé par trade — gris = période A, jaune = période B.' : 'Cumulative P&L per trade — gray = period A, yellow = period B.'}</div>
+                                    </div>
+                                )}
+
+                                {/* ── CHART C: KEY METRICS GROUPED BAR ── */}
+                                {dA && dB && groupedData.length > 0 && (
+                                    <div>
+                                        <div style={{ ...SL, color: '#FDC800', marginBottom: 10 }}>{lang === 'fr' ? 'MÉTRIQUES CLÉS A vs B' : 'KEY METRICS A vs B'}</div>
+                                        <div style={{ background: '#0d1117', border: '1px solid #1a1c24', padding: '12px 0 4px' }}>
+                                            <ResponsiveContainer width="100%" height={170}>
+                                                <BarChart data={groupedData} margin={{ top: 4, right: 16, left: 0, bottom: 0 }} barGap={2} barCategoryGap="25%">
+                                                    <CartesianGrid strokeDasharray="3 3" stroke="#1a1c24" vertical={false} />
+                                                    <XAxis dataKey="name" tick={{ fontFamily: 'var(--font-mono)', fontSize: 8, fill: '#4b5563' }} tickLine={false} axisLine={false} />
+                                                    <YAxis tick={{ fontFamily: 'var(--font-mono)', fontSize: 8, fill: '#4b5563' }} tickLine={false} axisLine={false} tickFormatter={(v) => `$${v >= 0 ? '' : '-'}${Math.abs(v) >= 1000 ? (Math.abs(v) / 1000).toFixed(1) + 'k' : Math.abs(v).toFixed(0)}`} width={48} />
+                                                    <ReferenceLine y={0} stroke="#3d4451" />
+                                                    <Tooltip contentStyle={{ background: '#0d1117', border: '1px solid #1a1c24', borderRadius: 0, fontFamily: 'var(--font-mono)', fontSize: 10 }} formatter={(v: number | undefined, name: string | undefined) => v == null ? ['—', name ?? ''] : [`${v >= 0 ? '+' : ''}$${v.toFixed(0)}`, name === 'a' ? `A (${lang === 'fr' ? 'Préc.' : 'Prev'})` : `B (${lang === 'fr' ? 'Actuel' : 'Current'})`]} />
+                                                    <Bar name="a" dataKey="a" fill="#4b5563" fillOpacity={0.85} maxBarSize={28} radius={0} />
+                                                    <Bar name="b" dataKey="b" fill="#FDC800" fillOpacity={0.88} maxBarSize={28} radius={0} />
+                                                    <Legend iconType="square" iconSize={10} wrapperStyle={{ fontFamily: 'var(--font-mono)', fontSize: 9, paddingTop: 4 }} formatter={(v) => v === 'a' ? `A (${lang === 'fr' ? 'Préc.' : 'Prev'})` : `B (${lang === 'fr' ? 'Actuel' : 'Current'})`} />
+                                                </BarChart>
+                                            </ResponsiveContainer>
+                                        </div>
+                                    </div>
+                                )}
+
+                                {/* ── DELTA TABLE — 12 METRICS WITH VISUAL BARS ── */}
+                                {dA && dB && deltaMetrics.length > 0 && (
+                                    <div>
+                                        <div style={{ ...SL, color: '#FDC800', marginBottom: 10 }}>{lang === 'fr' ? 'TABLEAU DELTA — 12 MÉTRIQUES' : 'DELTA TABLE — 12 METRICS'}</div>
+                                        <div style={{ background: '#0d1117', border: '1px solid #1a1c24' }}>
+                                            <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr 1fr 1fr 56px' : '1.4fr 1fr 1fr 80px 110px', background: '#0c0e13', borderBottom: '1px solid #1a1c24' }}>
+                                                {[lang === 'fr' ? 'MÉTRIQUE' : 'METRIC', 'A', 'B', 'Δ', ...(isMobile ? [] : [lang === 'fr' ? 'BARRE' : 'BAR'])].map((h, i) => (
+                                                    <div key={i} style={{ padding: '8px 12px', fontFamily: QF, fontSize: 9, color: i === 2 ? '#FDC800' : '#4b5563', letterSpacing: '0.1em', fontWeight: 700, textAlign: i > 0 ? 'right' as const : 'left' as const }}>{h}</div>
+                                                ))}
+                                            </div>
+                                            {deltaMetrics.map((m, i) => {
+                                                const dColor = m.improved ? '#FDC800' : m.regressed ? '#ff4757' : '#6b7280';
+                                                const dSign = m.delta > 0 ? '↑' : m.delta < 0 ? '↓' : '→';
+                                                const barPct = Math.min(100, m.aRaw > 0 ? Math.abs(m.delta) / m.aRaw * 100 : 0);
+                                                return (
+                                                    <div key={m.key} style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr 1fr 1fr 56px' : '1.4fr 1fr 1fr 80px 110px', borderBottom: i < deltaMetrics.length - 1 ? '1px solid #111' : 'none', background: i % 2 === 0 ? '#0c0e13' : 'transparent' }}>
+                                                        <div style={{ padding: '9px 12px', fontFamily: QF, fontSize: 10, color: '#8b949e' }}>{m.label}</div>
+                                                        <div style={{ padding: '9px 12px', fontFamily: QF, fontSize: 10, color: '#4b5563', textAlign: 'right' as const }}>{m.fmt(m.aRaw)}</div>
+                                                        <div style={{ padding: '9px 12px', fontFamily: QF, fontSize: 10, color: '#c9d1d9', fontWeight: 700, textAlign: 'right' as const }}>{m.fmt(m.bRaw)}</div>
+                                                        <div style={{ padding: '9px 12px', fontFamily: QF, fontSize: 10, color: dColor, fontWeight: 900, textAlign: 'right' as const }}>{dSign} {m.delta !== 0 ? m.fmt(Math.abs(m.delta)) : '—'}</div>
+                                                        {!isMobile && (
+                                                            <div style={{ padding: '9px 12px', display: 'flex', alignItems: 'center' }}>
+                                                                <div style={{ flex: 1, height: 4, background: '#1a1c24', position: 'relative' }}>
+                                                                    <div style={{ position: 'absolute', left: 0, top: 0, height: '100%', width: `${barPct}%`, background: dColor }} />
+                                                                </div>
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                );
+                                            })}
+                                        </div>
+                                    </div>
+                                )}
+
+                                {/* ── 1 / WHAT HAPPENED ── */}
+                                {dA && dB && (
+                                    <div>
+                                        <div style={{ ...SL, color: '#38bdf8', marginBottom: 10 }}>{lang === 'fr' ? '1 / CE QUI S\'EST PASSÉ' : '1 / WHAT HAPPENED'}</div>
+                                        <div style={{ ...CARD_S, padding: '16px 18px', borderLeft: '3px solid #38bdf8' }}>
+                                            <p style={{ fontFamily: 'var(--font-sans)', fontSize: 12, color: '#c9d1d9', lineHeight: 1.75, margin: 0 }}>{explainerText}</p>
+                                        </div>
+                                    </div>
+                                )}
+
+                                {/* ── 2 / WHAT YOU DID WELL ── */}
+                                {progressItems.length > 0 && (
+                                    <div>
+                                        <div style={{ ...SL, color: '#FDC800', marginBottom: 10 }}>{lang === 'fr' ? '2 / CE QUE VOUS AVEZ BIEN FAIT' : '2 / WHAT YOU DID WELL'}</div>
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                                            {progressItems.map((item, i) => (
+                                                <div key={i} style={{ background: '#0d1117', borderLeft: '3px solid #FDC800', padding: '10px 14px', display: 'flex', gap: 10, alignItems: 'flex-start' }}>
+                                                    <span style={{ fontFamily: QF, fontSize: 10, color: '#FDC800', flexShrink: 0, marginTop: 1 }}>✓</span>
+                                                    <span style={{ fontFamily: 'var(--font-sans)', fontSize: 11, color: '#c9d1d9', lineHeight: 1.6 }}>{item}</span>
                                                 </div>
                                             ))}
                                         </div>
                                     </div>
-                                    <div style={{ overflowX: 'auto' }}>
-                                        <table style={{ width: '100%', borderCollapse: 'collapse', fontFamily: QF }}>
-                                            <thead><tr style={{ borderBottom: '1px solid #1a1c24' }}>
-                                                {[lang === 'fr' ? 'MÉTRIQUE' : 'METRIC', 'A', 'B', 'Δ'].map((h, i) => (
-                                                    <th key={i} style={{ padding: '8px 16px', fontSize: 9, color: i === 2 ? '#00D4FF' : '#6b7280', textAlign: i === 0 ? 'left' : 'right', letterSpacing: '0.1em', fontWeight: 700 }}>{h}</th>
-                                                ))}
-                                            </tr></thead>
-                                            <tbody>
-                                                {deltaRows.map((row, i) => {
-                                                    const dGood = row.posGood ? row.delta > 0 : row.delta < 0;
-                                                    const dColor = row.delta === 0 ? '#6b7280' : dGood ? '#FDC800' : '#ff4757';
-                                                    return (
-                                                        <tr key={i} style={{ borderBottom: '1px solid #0f1117', background: i % 2 === 0 ? '#0c0e13' : 'transparent' }}>
-                                                            <td style={{ padding: '10px 16px', fontSize: 10, color: '#8b949e' }}>{row.label}</td>
-                                                            <td style={{ padding: '10px 16px', fontSize: 11, color: '#6b7280', textAlign: 'right' }}>{row.a}</td>
-                                                            <td style={{ padding: '10px 16px', fontSize: 11, color: '#00D4FF', fontWeight: 700, textAlign: 'right' }}>{row.b}</td>
-                                                            <td style={{ padding: '10px 16px', fontSize: 11, fontWeight: 900, color: dColor, textAlign: 'right' }}>{row.fmtD(row.delta)}</td>
-                                                        </tr>
-                                                    );
-                                                })}
-                                            </tbody>
-                                        </table>
-                                    </div>
-                                    {/* Trend verdict */}
-                                    <div style={{ marginTop: 2, background: '#0d1117', border: '1px solid #1a1c24', padding: '14px 18px' }}>
-                                        {(() => {
-                                            const pos = deltaRows.filter(r => r.posGood ? r.delta > 0 : r.delta < 0).length;
-                                            const neg = deltaRows.filter(r => r.posGood ? r.delta < 0 : r.delta > 0).length;
-                                            const trend = pos > neg ? (lang === 'fr' ? '↑ EN PROGRESSION' : '↑ IMPROVING') : pos < neg ? (lang === 'fr' ? '↓ EN RÉGRESSION' : '↓ DECLINING') : '→ STABLE';
-                                            const tc = trend.startsWith('↑') ? '#FDC800' : trend.startsWith('↓') ? '#ff4757' : '#EAB308';
-                                            return (
-                                                <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' as const }}>
-                                                    <span style={{ fontFamily: QF, fontSize: 13, fontWeight: 900, color: tc }}>{trend}</span>
-                                                    <span style={{ fontFamily: QF, fontSize: 10, color: '#6b7280' }}>
-                                                        {lang === 'fr' ? `${pos}/${deltaRows.length} métriques améliorées entre le rapport A et le rapport B.` : `${pos}/${deltaRows.length} metrics improved between report A and report B.`}
-                                                    </span>
+                                )}
+
+                                {/* ── 3 / WHERE YOU REGRESSED ── */}
+                                {regressionItems.length > 0 && (
+                                    <div>
+                                        <div style={{ ...SL, color: '#ff4757', marginBottom: 10 }}>{lang === 'fr' ? '3 / OÙ VOUS AVEZ RÉGRESSÉ' : '3 / WHERE YOU REGRESSED'}</div>
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                                            {regressionItems.map((item, i) => (
+                                                <div key={i} style={{ background: '#0d1117', borderLeft: '3px solid #ff4757', padding: '10px 14px', display: 'flex', gap: 10, alignItems: 'flex-start' }}>
+                                                    <span style={{ fontFamily: QF, fontSize: 10, color: '#ff4757', flexShrink: 0, marginTop: 1 }}>⚠</span>
+                                                    <span style={{ fontFamily: 'var(--font-sans)', fontSize: 11, color: '#c9d1d9', lineHeight: 1.6 }}>{item}</span>
                                                 </div>
-                                            );
-                                        })()}
+                                            ))}
+                                        </div>
                                     </div>
-                                </div>
+                                )}
 
-                                {/* ── CHART 2: KEY METRICS GROUPED BAR A vs B ── */}
-                                <div>
-                                    <div style={{ ...SL, color: '#FDC800', marginBottom: 12 }}>{lang === 'fr' ? 'MÉTRIQUES CLÉS A vs B' : 'KEY METRICS A vs B'}</div>
-                                    <div style={{ background: '#0d1117', border: '1px solid #1a1c24', padding: '12px 0 4px' }}>
-                                        {(() => {
-                                            const grouped = [
-                                                { name: 'NET P&L', a: snapA.netPnl, b: compB.netPnl },
-                                                { name: lang === 'fr' ? 'MOY. GAIN' : 'AVG WIN', a: snapA.avgWin, b: compB.avgWin },
-                                                { name: lang === 'fr' ? 'MOY. PERTE' : 'AVG LOSS', a: -snapA.avgLoss, b: -compB.avgLoss },
-                                                { name: lang === 'fr' ? 'ESPÉR.' : 'EXPECT.', a: snapA.expectancy, b: compB.expectancy },
-                                            ];
-                                            return (
-                                                <ResponsiveContainer width="100%" height={180}>
-                                                    <BarChart data={grouped} margin={{ top: 4, right: 16, left: 0, bottom: 0 }} barGap={2} barCategoryGap="25%">
-                                                        <CartesianGrid strokeDasharray="3 3" stroke="#1a1c24" vertical={false} />
-                                                        <XAxis dataKey="name" tick={{ fontFamily: 'var(--font-mono)', fontSize: 8, fill: '#4b5563' }} tickLine={false} axisLine={false} />
-                                                        <YAxis tick={{ fontFamily: 'var(--font-mono)', fontSize: 8, fill: '#4b5563' }} tickLine={false} axisLine={false} tickFormatter={(v) => `$${v >= 0 ? '' : '-'}${Math.abs(v) >= 1000 ? (Math.abs(v) / 1000).toFixed(1) + 'k' : Math.abs(v).toFixed(0)}`} width={48} />
-                                                        <ReferenceLine y={0} stroke="#3d4451" />
-                                                        <Tooltip contentStyle={{ background: '#0d1117', border: '1px solid #1a1c24', borderRadius: 0, fontFamily: 'var(--font-mono)', fontSize: 10 }} formatter={(v: number | undefined, name: string | undefined) => v == null ? ['—', name ?? ''] : [`${v >= 0 ? '+' : ''}$${v.toFixed(0)}`, name === 'A' ? `A · ${fmtSnap(snapA.savedAt)}` : `B · ${fmtSnap(compB.savedAt)}`]} />
-                                                        <Bar name="A" dataKey="a" fill="#4b5563" fillOpacity={0.9} maxBarSize={28} radius={0} />
-                                                        <Bar name="B" dataKey="b" fill="#FDC800" fillOpacity={0.88} maxBarSize={28} radius={0} />
-                                                        <Legend iconType="square" iconSize={10} wrapperStyle={{ fontFamily: 'var(--font-mono)', fontSize: 9, paddingTop: 4 }} formatter={(v) => v === 'A' ? `A · ${fmtSnap(snapA.savedAt)}` : `B · ${fmtSnap(compB.savedAt)}`} />
-                                                    </BarChart>
-                                                </ResponsiveContainer>
-                                            );
-                                        })()}
+                                {/* ── 4 / ACTIONS ── */}
+                                {actions.length > 0 && (
+                                    <div>
+                                        <div style={{ ...SL, color: '#F97316', marginBottom: 10 }}>{lang === 'fr' ? `4 / ACTIONS POUR ${nextLbl.toUpperCase()}` : `4 / ACTIONS FOR ${nextLbl.toUpperCase()}`}</div>
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                                            {actions.map((action, i) => (
+                                                <div key={i} style={{ background: '#0d1117', borderLeft: '3px solid #F97316', padding: '12px 14px', display: 'flex', gap: 10, alignItems: 'flex-start' }}>
+                                                    <span style={{ fontFamily: QF, fontSize: 10, color: '#F97316', flexShrink: 0, fontWeight: 900, minWidth: 16 }}>{i + 1}</span>
+                                                    <span style={{ fontFamily: 'var(--font-sans)', fontSize: 11, color: '#c9d1d9', lineHeight: 1.65 }}>{action}</span>
+                                                </div>
+                                            ))}
+                                        </div>
                                     </div>
-                                </div>
+                                )}
 
-                                {/* Multi-period comparison */}
+                                {/* ── 5 / COACHING INSIGHTS ── */}
+                                {dB && dB.topPattern && Math.abs(dB.topPattern.impact) > 0 && (
+                                    <div>
+                                        <div style={{ ...SL, color: '#EAB308', marginBottom: 10 }}>{lang === 'fr' ? '5 / INSIGHTS COMPORTEMENTAUX' : '5 / COACHING INSIGHTS'}</div>
+                                        <div style={{ background: '#0d1117', border: '1px solid #EAB30830', borderLeft: '3px solid #EAB308', padding: '16px 18px', display: 'flex', flexDirection: 'column', gap: 10 }}>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' as const }}>
+                                                <div style={{ fontFamily: QF, fontSize: 11, fontWeight: 900, color: '#EAB308' }}>{dB.topPattern.name}</div>
+                                                <div style={{ fontFamily: QF, fontSize: 9, color: '#ff4757', background: '#ff475715', border: '1px solid #ff475730', padding: '2px 8px' }}>-${Math.abs(dB.topPattern.impact).toFixed(0)} · {dB.topPattern.freq}x</div>
+                                            </div>
+                                            <p style={{ fontFamily: 'var(--font-sans)', fontSize: 11, color: '#8b949e', lineHeight: 1.7, margin: 0 }}>
+                                                {lang === 'fr'
+                                                    ? `Ce pattern est votre principale fuite comportementale cette période. Il coûte $${Math.abs(dB.topPattern.impact).toFixed(0)} sur ${dB.topPattern.freq} occurrence${dB.topPattern.freq > 1 ? 's' : ''}. Corriger ce seul point peut transformer significativement votre P&L net.`
+                                                    : `This is your top behavioral leak this period. It costs $${Math.abs(dB.topPattern.impact).toFixed(0)} across ${dB.topPattern.freq} occurrence${dB.topPattern.freq > 1 ? 's' : ''}. Fixing this single pattern could meaningfully lift your net P&L.`}
+                                            </p>
+                                            {dA && dA.topPattern && dA.topPattern.name === dB.topPattern.name && (
+                                                <div style={{ fontFamily: QF, fontSize: 10, color: '#ff4757', background: '#ff475710', border: '1px solid #ff475730', padding: '8px 12px' }}>
+                                                    {lang === 'fr' ? `Ce pattern était déjà votre leak principal en période A — pattern chronique, nécessite une règle de trading explicite immédiate.` : `Same pattern was your top leak in period A too — this is chronic. You need an explicit trading rule for this specific trigger.`}
+                                                </div>
+                                            )}
+                                            {dB.bestHour !== '—' && (
+                                                <div style={{ fontFamily: QF, fontSize: 10, color: '#38bdf8' }}>
+                                                    {lang === 'fr' ? `Meilleure heure période B: ${dB.bestHour}` : `Best trading hour (period B): ${dB.bestHour}`}
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
+                                )}
+
+                                {/* ── MULTI-PERIOD PERFORMANCE ── */}
                                 <div>
-                                    <div style={{ ...SL, color: '#FDC800', marginBottom: 12 }}>{lang === 'fr' ? 'COMPARAISON MULTI-PÉRIODES' : 'MULTI-PERIOD COMPARISON'}</div>
-                                    {/* ── CHART 3: MULTI-PERIOD P&L BAR ── */}
+                                    <div style={{ ...SL, color: '#FDC800', marginBottom: 10 }}>{lang === 'fr' ? 'PERFORMANCE MULTI-PÉRIODES' : 'MULTI-PERIOD PERFORMANCE'}</div>
                                     <div style={{ background: '#0d1117', border: '1px solid #1a1c24', padding: '12px 0 4px', marginBottom: 2 }}>
                                         <ResponsiveContainer width="100%" height={110}>
                                             <BarChart data={multiPeriods} margin={{ top: 4, right: 16, left: 0, bottom: 0 }}>
@@ -5388,9 +5597,7 @@ export default function AnalyticsPage() {
                                                 <ReferenceLine y={0} stroke="#3d4451" />
                                                 <Tooltip contentStyle={{ background: '#0d1117', border: '1px solid #1a1c24', borderRadius: 0, fontFamily: 'var(--font-mono)', fontSize: 10 }} formatter={(v: number | undefined) => v == null ? ['—', ''] : [`${v >= 0 ? '+' : ''}$${v.toFixed(0)}`, lang === 'fr' ? 'P&L net' : 'Net P&L']} />
                                                 <Bar dataKey="pnl" maxBarSize={64} radius={0}>
-                                                    {multiPeriods.map((p, i) => (
-                                                        <Cell key={i} fill={p.pnl >= 0 ? '#FDC800' : '#ff4757'} fillOpacity={0.85} />
-                                                    ))}
+                                                    {multiPeriods.map((p, i) => <Cell key={i} fill={p.pnl >= 0 ? '#FDC800' : '#ff4757'} fillOpacity={0.85} />)}
                                                 </Bar>
                                             </BarChart>
                                         </ResponsiveContainer>
@@ -5399,16 +5606,16 @@ export default function AnalyticsPage() {
                                         <table style={{ width: '100%', borderCollapse: 'collapse', fontFamily: QF }}>
                                             <thead><tr style={{ borderBottom: '1px solid #1a1c24' }}>
                                                 {[lang === 'fr' ? 'PÉRIODE' : 'PERIOD', 'TRADES', 'P&L NET', lang === 'fr' ? 'TAUX' : 'WIN RATE', 'PF'].map((h, i) => (
-                                                    <th key={i} style={{ padding: '8px 16px', fontSize: 9, color: '#6b7280', textAlign: i === 0 ? 'left' : 'right', letterSpacing: '0.1em', fontWeight: 700 }}>{h}</th>
+                                                    <th key={i} style={{ padding: '8px 14px', fontSize: 9, color: '#6b7280', textAlign: i === 0 ? 'left' : 'right', letterSpacing: '0.1em', fontWeight: 700 }}>{h}</th>
                                                 ))}
                                             </tr></thead>
                                             <tbody>{multiPeriods.map((row, i) => (
                                                 <tr key={i} style={{ borderBottom: '1px solid #1a1c24', background: i % 2 === 0 ? '#0c0e13' : 'transparent' }}>
-                                                    <td style={{ padding: '10px 16px', fontSize: 11, fontWeight: 900, color: '#FDC800' }}>{row.label}</td>
-                                                    <td style={{ padding: '10px 16px', fontSize: 11, color: '#c9d1d9', textAlign: 'right' }}>{row.count}</td>
-                                                    <td style={{ padding: '10px 16px', fontSize: 11, fontWeight: 700, color: row.pnl >= 0 ? '#FDC800' : '#ff4757', textAlign: 'right' }}>{row.pnl >= 0 ? '+' : ''}${row.pnl.toFixed(0)}</td>
-                                                    <td style={{ padding: '10px 16px', fontSize: 11, color: row.wr >= 55 ? '#FDC800' : row.wr >= 45 ? '#EAB308' : '#ff4757', textAlign: 'right' }}>{row.count > 0 ? `${row.wr.toFixed(1)}%` : '—'}</td>
-                                                    <td style={{ padding: '10px 16px', fontSize: 11, color: row.pf >= 1.5 ? '#FDC800' : row.pf >= 1 ? '#EAB308' : '#ff4757', textAlign: 'right' }}>{row.count > 0 ? (row.pf > 90 ? '∞' : row.pf.toFixed(2)) : '—'}</td>
+                                                    <td style={{ padding: '9px 14px', fontSize: 11, fontWeight: 900, color: '#FDC800' }}>{row.label}</td>
+                                                    <td style={{ padding: '9px 14px', fontSize: 11, color: '#c9d1d9', textAlign: 'right' }}>{row.count}</td>
+                                                    <td style={{ padding: '9px 14px', fontSize: 11, fontWeight: 700, color: row.pnl >= 0 ? '#FDC800' : '#ff4757', textAlign: 'right' }}>{row.pnl >= 0 ? '+' : ''}${row.pnl.toFixed(0)}</td>
+                                                    <td style={{ padding: '9px 14px', fontSize: 11, color: row.wr >= 55 ? '#FDC800' : row.wr >= 45 ? '#EAB308' : '#ff4757', textAlign: 'right' }}>{row.count > 0 ? `${row.wr.toFixed(1)}%` : '—'}</td>
+                                                    <td style={{ padding: '9px 14px', fontSize: 11, color: row.pf >= 1.5 ? '#FDC800' : row.pf >= 1 ? '#EAB308' : '#ff4757', textAlign: 'right' }}>{row.count > 0 ? (row.pf > 90 ? '∞' : row.pf.toFixed(2)) : '—'}</td>
                                                 </tr>
                                             ))}</tbody>
                                         </table>
