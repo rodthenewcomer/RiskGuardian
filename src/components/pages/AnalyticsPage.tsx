@@ -5300,189 +5300,297 @@ export default function AnalyticsPage() {
 
                                 {/* ── SECTION 9: OPTIMAL DAILY HARD STOP ANALYSIS ── */}
                                 {rptTrades.length >= 5 && (() => {
-                                    // Group by calendar day (slice 0-10 of ISO string)
+                                    // ── Day-level map ──
                                     const hsMap: Record<string, number> = {};
                                     rptTrades.forEach(t => {
                                         const d = (t.closedAt ?? t.createdAt).slice(0, 10);
                                         hsMap[d] = (hsMap[d] ?? 0) + (t.pnl ?? 0);
                                     });
-                                    const allDayPnls = Object.values(hsMap);
-                                    const totalDays  = allDayPnls.length;
+                                    const allDayPnls  = Object.values(hsMap);
+                                    const totalDays   = allDayPnls.length;
+                                    const winDayPnls  = allDayPnls.filter(p => p >= 0);
                                     const lossDayAmts = allDayPnls.filter(p => p < 0).map(p => Math.abs(p)).sort((a, b) => b - a);
-                                    const winDayCount = allDayPnls.filter(p => p >= 0).length;
                                     if (lossDayAmts.length === 0) return null;
-                                    const maxLoss = lossDayAmts[0];
-                                    const avgLossDay = lossDayAmts.reduce((s, v) => s + v, 0) / lossDayAmts.length;
-                                    const currentStop = account.dailyLossLimit ?? 0;
 
-                                    // ── Grid search: simulate hard stop at each candidate level ──
-                                    const rawStep = maxLoss / 20;
-                                    const step = rawStep < 10 ? 10 : rawStep < 25 ? 25 : rawStep < 50 ? 50 : 100;
+                                    // ── Trade-level profile — the foundation of every candidate ──
+                                    const clTr = rptTrades.filter(t => t.outcome !== 'open' && t.pnl != null);
+                                    const lossTr = clTr.filter(t => t.pnl! < 0);
+                                    const winTr  = clTr.filter(t => t.pnl! > 0);
+                                    if (lossTr.length === 0) return null;
+
+                                    const avgLossPerTrade = lossTr.reduce((s, t) => s + Math.abs(t.pnl!), 0) / lossTr.length;
+                                    const avgWinPerTrade  = winTr.length > 0 ? winTr.reduce((s, t) => s + t.pnl!, 0) / winTr.length : 0;
+                                    const maxSingleLoss   = Math.max(...lossTr.map(t => Math.abs(t.pnl!)));
+                                    const winRateTr       = winTr.length / Math.max(1, clTr.length);
+                                    const expectancyTr    = winRateTr * avgWinPerTrade - (1 - winRateTr) * avgLossPerTrade;
+
+                                    // ── Day-level statistics ──
+                                    const avgWinningDay = winDayPnls.length > 0 ? winDayPnls.reduce((s, v) => s + v, 0) / winDayPnls.length : 0;
+                                    const avgLosingDay  = lossDayAmts.reduce((s, v) => s + v, 0) / lossDayAmts.length;
+                                    const worstDay      = lossDayAmts[0];
+                                    const currentStop   = account.dailyLossLimit ?? 0;
+
+                                    // ── Minimum logical stop ──
+                                    // A stop below 2× avgLossPerTrade would trigger after just 2 normal losing
+                                    // trades — interrupting healthy trading flow. We also require the stop to
+                                    // be at least 25% of avgWinningDay so it exceeds normal daily profit noise.
+                                    const minStop = Math.max(
+                                        avgLossPerTrade * 2,
+                                        avgWinningDay > 0 ? avgWinningDay * 0.25 : avgLossPerTrade * 2,
+                                    );
+
+                                    // ── Candidate generation — increments of avgLossPerTrade ──
+                                    // This ensures every candidate represents a meaningful additional
+                                    // losing trade's worth of exposure, not an arbitrary dollar grid.
+                                    const step = Math.max(Math.round(avgLossPerTrade), 1);
                                     const candidates: number[] = [];
-                                    for (let s = step; s <= maxLoss * 1.02; s += step) candidates.push(Math.round(s));
-                                    // Always include p25, p50 (median), p75 of loss days
-                                    const pctLoss = (p: number) => lossDayAmts[Math.floor((lossDayAmts.length - 1) * (1 - p))];
-                                    [pctLoss(0.75), pctLoss(0.5), pctLoss(0.25)].forEach(v => {
-                                        const r = Math.round(v / step) * step || step;
-                                        if (!candidates.includes(r)) candidates.push(r);
+                                    let c = Math.ceil(minStop / step) * step;
+                                    while (c <= worstDay * 1.05 && candidates.length < 20) {
+                                        candidates.push(Math.round(c));
+                                        c += step;
+                                    }
+                                    // Anchor points: avgLosingDay, 50%/75% of avgWinningDay
+                                    const anchors = [
+                                        Math.round(avgLosingDay),
+                                        avgWinningDay > 0 ? Math.round(avgWinningDay * 0.5)  : 0,
+                                        avgWinningDay > 0 ? Math.round(avgWinningDay * 0.75) : 0,
+                                        Math.round(worstDay),
+                                    ].filter(v => v >= minStop && v > 0);
+                                    anchors.forEach(v => {
+                                        if (!candidates.find(x => Math.abs(x - v) < step * 0.4)) candidates.push(v);
                                     });
-                                    if (currentStop > 0 && !candidates.includes(Math.round(currentStop))) candidates.push(Math.round(currentStop));
+                                    if (currentStop >= minStop) {
+                                        if (!candidates.find(x => Math.abs(x - currentStop) < step * 0.4)) candidates.push(Math.round(currentStop));
+                                    }
                                     candidates.sort((a, b) => a - b);
 
+                                    // ── Simulation ──
+                                    // Outlier days = days where loss > 1.5× avgLosingDay.
+                                    // Stopping a normal losing day (≤ outlierThreshold) is a false positive
+                                    // that costs missed recovery opportunity the next day — penalized in score.
+                                    const outlierThreshold = avgLosingDay * 1.5;
                                     const sims = candidates.map(stop => {
                                         let saved = 0;
                                         let stoppedDays = 0;
+                                        let outlierDaysStopped = 0;
+                                        let normalDaysInterrupted = 0;
                                         allDayPnls.forEach(pnl => {
-                                            if (pnl < -stop) { saved += Math.abs(pnl) - stop; stoppedDays++; }
+                                            if (pnl < -stop) {
+                                                saved += Math.abs(pnl) - stop;
+                                                stoppedDays++;
+                                                if (Math.abs(pnl) > outlierThreshold) outlierDaysStopped++;
+                                                else normalDaysInterrupted++;
+                                            }
                                         });
                                         const interventionRate = stoppedDays / Math.max(1, lossDayAmts.length);
-                                        // Score: maximize savings, penalise if >60% of loss days affected (too tight)
-                                        const score = saved * (1 - Math.max(0, (interventionRate - 0.6) * 2));
-                                        return { stop, saved: Math.round(saved * 100) / 100, stoppedDays, interventionRate, netPnlWithStop: Math.round((rptNetPnl + saved) * 100) / 100, score };
+                                        // Score = savings minus penalty for false positives on normal losing days
+                                        const score = saved - normalDaysInterrupted * Math.max(avgWinningDay, avgLossPerTrade) * 0.25;
+                                        return {
+                                            stop,
+                                            saved: Math.round(saved * 100) / 100,
+                                            stoppedDays,
+                                            outlierDaysStopped,
+                                            normalDaysInterrupted,
+                                            interventionRate,
+                                            netPnlWithStop: Math.round((rptNetPnl + saved) * 100) / 100,
+                                            score,
+                                        };
                                     }).filter(s => s.stoppedDays > 0);
 
-                                    if (sims.length === 0) return null;
-
-                                    // Optimal = highest score
-                                    const optSim = sims.reduce((b, s) => s.score > b.score ? s : b, sims[0]);
-                                    // Conservative = p25 equivalent (lightest that still saves something)
-                                    const consSim = sims[0];
-                                    const currentStopSim = currentStop > 0 ? sims.find(s => Math.abs(s.stop - currentStop) <= step * 0.6) ?? null : null;
-
-                                    // Chart: top 8 sims (most informative range)
-                                    const chartSims = sims.slice(0, Math.min(sims.length, 10));
+                                    // If no candidate triggers on any losing day, all days are within normal range
+                                    const noOutliers = sims.length === 0;
+                                    const optSim         = noOutliers ? null : sims.reduce((b, s) => s.score > b.score ? s : b, sims[0]);
+                                    const currentStopSim = currentStop >= minStop && !noOutliers
+                                        ? sims.find(s => Math.abs(s.stop - currentStop) < step * 0.6) ?? null
+                                        : null;
+                                    const chartSims = sims.slice(0, Math.min(sims.length, 12));
 
                                     return (
                                         <div>
                                             <div style={{ ...SL, color: '#ff4757', marginBottom: 6 }}>
                                                 {lang === 'fr' ? 'ANALYSE HARD STOP JOURNALIER — OPTIMISATION' : 'OPTIMAL DAILY HARD STOP ANALYSIS'}
                                             </div>
-                                            <p style={{ fontFamily: 'var(--font-sans)', fontSize: 11, color: '#6b7280', marginBottom: 14, lineHeight: 1.65 }}>
-                                                {lang === 'fr'
-                                                    ? `Basé sur ${totalDays} jours de trading (${lossDayAmts.length} jours perdants, ${winDayCount} jours gagnants). Le simulateur teste chaque niveau de hard stop et calcule exactement combien aurait été préservé.`
-                                                    : `Based on ${totalDays} trading days (${lossDayAmts.length} losing, ${winDayCount} winning). The simulator tests every stop level against your actual days and computes exactly how much would have been preserved.`}
-                                            </p>
 
-                                            {/* KPI strip */}
-                                            <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr 1fr' : 'repeat(4, 1fr)', gap: 1, background: '#1a1c24', marginBottom: 16 }}>
+                                            {/* Definition block */}
+                                            <div style={{ background: '#0b0e14', border: '1px solid #1a1c24', padding: '14px 18px', marginBottom: 14 }}>
+                                                <div style={{ fontFamily: QF, fontSize: 9, color: '#6b7280', letterSpacing: '0.1em', marginBottom: 8 }}>
+                                                    {lang === 'fr' ? 'QU\'EST-CE QU\'UN HARD STOP JOURNALIER ?' : 'WHAT IS A DAILY HARD STOP?'}
+                                                </div>
+                                                <p style={{ fontFamily: 'var(--font-sans)', fontSize: 11, color: '#8b949e', margin: 0, lineHeight: 1.65 }}>
+                                                    {lang === 'fr'
+                                                        ? `Un hard stop journalier est un plafond de perte absolu au-delà duquel vous arrêtez de trader pour la journée, sans exception. Son rôle est de vous protéger des jours catastrophiques — tilt, revanche, spirale de pertes — non pas d'interrompre les jours perdants normaux. Un stop trop serré se déclenche sur des jours ordinaires et détruit votre edge ; un stop trop large ne protège rien. L'objectif : cibler les jours anormaux sans toucher au flux sain.`
+                                                        : `A daily hard stop is an absolute loss ceiling beyond which you stop trading for the day — no exceptions. Its purpose is to protect you from catastrophic days driven by tilt, revenge trading, or loss spirals, not to interrupt normal losing days. A stop too tight triggers on ordinary days and destroys your edge; a stop too wide protects nothing. The goal: target abnormal days without touching healthy flow.`}
+                                                </p>
+                                            </div>
+
+                                            {/* Trading profile — row 1 */}
+                                            <div style={{ fontFamily: QF, fontSize: 9, color: '#6b7280', letterSpacing: '0.1em', marginBottom: 6 }}>
+                                                {lang === 'fr' ? 'PROFIL DE TRADING — BASE DU CALCUL' : 'YOUR TRADING PROFILE — BASIS OF CALCULATION'}
+                                            </div>
+                                            <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr 1fr' : 'repeat(4, 1fr)', gap: 1, background: '#1a1c24', marginBottom: 2 }}>
                                                 {[
-                                                    { label: lang === 'fr' ? 'PIRE JOURNÉE' : 'WORST DAY',    value: `-$${maxLoss.toFixed(0)}`,         color: '#ff4757' },
-                                                    { label: lang === 'fr' ? 'PERTE MOY./JOUR' : 'AVG LOSS DAY', value: `-$${avgLossDay.toFixed(0)}`,   color: '#EAB308' },
-                                                    { label: lang === 'fr' ? 'JOURS PERDANTS' : 'LOSING DAYS', value: `${lossDayAmts.length}/${totalDays}`, color: '#c9d1d9' },
-                                                    { label: lang === 'fr' ? 'STOP ACTUEL' : 'CURRENT STOP',  value: currentStop > 0 ? `$${currentStop.toFixed(0)}` : lang === 'fr' ? 'Non défini' : 'Not set', color: currentStop > 0 ? '#38bdf8' : '#4b5563' },
+                                                    { label: lang === 'fr' ? 'PERTE MOY./TRADE' : 'AVG LOSS/TRADE',    value: `-$${avgLossPerTrade.toFixed(0)}`,  color: '#ff4757', note: lang === 'fr' ? 'seuil min. = 2×' : 'min. threshold = 2×' },
+                                                    { label: lang === 'fr' ? 'GAIN MOY./TRADE' : 'AVG WIN/TRADE',      value: `+$${avgWinPerTrade.toFixed(0)}`,    color: '#FDC800', note: lang === 'fr' ? 'cible par trade' : 'target per trade' },
+                                                    { label: lang === 'fr' ? 'JOUR GAGNANT MOY.' : 'AVG WINNING DAY',  value: `+$${avgWinningDay.toFixed(0)}`,     color: '#FDC800', note: lang === 'fr' ? 'objectif journalier' : 'daily profit target' },
+                                                    { label: lang === 'fr' ? 'JOUR PERDANT MOY.' : 'AVG LOSING DAY',  value: `-$${avgLosingDay.toFixed(0)}`,      color: '#EAB308', note: lang === 'fr' ? 'perte normale/jour' : 'normal losing day' },
                                                 ].map((k, i) => (
                                                     <div key={i} style={{ background: '#0d1117', padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: 4 }}>
                                                         <div style={{ ...SL, marginBottom: 0 }}>{k.label}</div>
                                                         <div style={{ fontFamily: QF, fontSize: 18, fontWeight: 900, color: k.color }}>{k.value}</div>
+                                                        <div style={{ fontFamily: QF, fontSize: 9, color: '#4b5563' }}>{k.note}</div>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                            {/* Trading profile — row 2 */}
+                                            <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr 1fr' : 'repeat(4, 1fr)', gap: 1, background: '#1a1c24', marginBottom: 16 }}>
+                                                {[
+                                                    { label: lang === 'fr' ? 'PIRE JOURNÉE' : 'WORST DAY',             value: `-$${worstDay.toFixed(0)}`,          color: '#ff4757', note: lang === 'fr' ? 'plafond simulation' : 'simulation ceiling' },
+                                                    { label: lang === 'fr' ? 'ESPÉRANCE/TRADE' : 'EXPECTANCY/TRADE',    value: `${expectancyTr >= 0 ? '+' : ''}$${expectancyTr.toFixed(2)}`, color: expectancyTr >= 0 ? '#FDC800' : '#ff4757', note: lang === 'fr' ? 'edge moyen' : 'mean edge' },
+                                                    { label: lang === 'fr' ? 'STOP MIN. LOGIQUE' : 'LOGICAL MIN. STOP', value: `$${Math.round(minStop)}`,           color: '#38bdf8', note: lang === 'fr' ? '2× perte moy./trade' : '2× avg loss/trade' },
+                                                    { label: lang === 'fr' ? 'STOP ACTUEL' : 'CURRENT STOP',           value: currentStop > 0 ? `$${currentStop.toFixed(0)}` : lang === 'fr' ? 'Non défini' : 'Not set', color: currentStop > 0 ? (currentStop < minStop ? '#ff4757' : '#38bdf8') : '#4b5563', note: currentStop > 0 && currentStop < minStop ? (lang === 'fr' ? '⚠ trop serré' : '⚠ too tight') : (lang === 'fr' ? 'paramètre actif' : 'active parameter') },
+                                                ].map((k, i) => (
+                                                    <div key={i} style={{ background: '#0d1117', padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: 4 }}>
+                                                        <div style={{ ...SL, marginBottom: 0 }}>{k.label}</div>
+                                                        <div style={{ fontFamily: QF, fontSize: 18, fontWeight: 900, color: k.color }}>{k.value}</div>
+                                                        <div style={{ fontFamily: QF, fontSize: 9, color: '#4b5563' }}>{k.note}</div>
                                                     </div>
                                                 ))}
                                             </div>
 
-                                            {/* Savings curve chart */}
-                                            <div style={{ background: '#0d1117', border: '1px solid #1a1c24', padding: '12px 0 4px', marginBottom: 16 }}>
-                                                <div style={{ fontFamily: QF, fontSize: 9, color: '#6b7280', padding: '0 16px 8px', letterSpacing: '0.08em' }}>
-                                                    {lang === 'fr' ? 'ÉCONOMIES SIMULÉES PAR NIVEAU DE HARD STOP' : 'SIMULATED SAVINGS PER HARD STOP LEVEL'}
-                                                </div>
-                                                <ResponsiveContainer width="100%" height={140}>
-                                                    <ComposedChart data={chartSims} margin={{ top: 4, right: 16, left: 0, bottom: 0 }}>
-                                                        <CartesianGrid strokeDasharray="3 3" stroke="#1a1c24" vertical={false} />
-                                                        <XAxis dataKey="stop" tick={{ fontFamily: 'var(--font-mono)', fontSize: 8, fill: '#4b5563' }} tickLine={false} axisLine={false} tickFormatter={(v) => `$${v}`} />
-                                                        <YAxis yAxisId="l" tick={{ fontFamily: 'var(--font-mono)', fontSize: 8, fill: '#4b5563' }} tickLine={false} axisLine={false} tickFormatter={(v) => `$${Math.abs(v) >= 1000 ? (v / 1000).toFixed(1) + 'k' : v}`} width={44} />
-                                                        <YAxis yAxisId="r" orientation="right" tick={{ fontFamily: 'var(--font-mono)', fontSize: 8, fill: '#4b5563' }} tickLine={false} axisLine={false} tickFormatter={(v) => `${v}d`} width={28} />
-                                                        <Tooltip
-                                                            contentStyle={{ background: '#0d1117', border: '1px solid #1a1c24', borderRadius: 0, fontFamily: 'var(--font-mono)', fontSize: 10 }}
-                                                            formatter={(v: unknown, name: string | undefined) => {
-                                                                if (name === 'saved') return [`+$${Number(v).toFixed(0)}`, lang === 'fr' ? 'Économisé' : 'Saved'];
-                                                                if (name === 'stoppedDays') return [String(v), lang === 'fr' ? 'Jours arrêtés' : 'Days stopped'];
-                                                                return [String(v), name ?? ''];
-                                                            }}
-                                                            labelFormatter={(v) => `Stop: $${v}`}
-                                                        />
-                                                        {currentStop > 0 && <ReferenceLine yAxisId="l" x={Math.round(currentStop / step) * step} stroke="#38bdf8" strokeDasharray="4 2" label={{ value: lang === 'fr' ? 'Actuel' : 'Current', position: 'top', fill: '#38bdf8', fontSize: 8, fontFamily: 'var(--font-mono)' }} />}
-                                                        <ReferenceLine yAxisId="l" x={optSim.stop} stroke="#FDC800" strokeDasharray="4 2" label={{ value: lang === 'fr' ? 'Optimal' : 'Optimal', position: 'top', fill: '#FDC800', fontSize: 8, fontFamily: 'var(--font-mono)' }} />
-                                                        <Bar yAxisId="l" dataKey="saved" maxBarSize={40} radius={0}>
-                                                            {chartSims.map((s, i) => <Cell key={i} fill={s.stop === optSim.stop ? '#FDC800' : '#ff475750'} />)}
-                                                        </Bar>
-                                                        <Line yAxisId="r" type="monotone" dataKey="stoppedDays" stroke="#38bdf8" strokeWidth={1.5} dot={false} />
-                                                    </ComposedChart>
-                                                </ResponsiveContainer>
-                                                <div style={{ display: 'flex', gap: 16, padding: '0 16px 4px', flexWrap: 'wrap' as const }}>
-                                                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                                                        <div style={{ width: 10, height: 10, background: '#ff475750' }} />
-                                                        <span style={{ fontFamily: QF, fontSize: 9, color: '#6b7280' }}>{lang === 'fr' ? 'Économies simulées' : 'Simulated savings'}</span>
-                                                    </div>
-                                                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                                                        <div style={{ width: 10, height: 2, background: '#38bdf8' }} />
-                                                        <span style={{ fontFamily: QF, fontSize: 9, color: '#6b7280' }}>{lang === 'fr' ? 'Jours arrêtés' : 'Days triggered'}</span>
-                                                    </div>
-                                                </div>
+                                            {/* Min stop rationale */}
+                                            <div style={{ background: 'rgba(56,189,248,0.05)', border: '1px solid #38bdf815', padding: '10px 14px', marginBottom: 16, fontFamily: QF, fontSize: 10, color: '#38bdf8', lineHeight: 1.65 }}>
+                                                {lang === 'fr'
+                                                    ? `Votre perte moyenne par trade est $${avgLossPerTrade.toFixed(0)}. Un hard stop en dessous de $${Math.round(minStop)} se déclencherait après seulement ${(minStop / avgLossPerTrade).toFixed(1)} trade${(minStop / avgLossPerTrade) > 1.1 ? 's' : ''} perdant${(minStop / avgLossPerTrade) > 1.1 ? 's' : ''} normaux — interrompant un flux sain. Les candidats démarrent à $${Math.round(minStop)} (2× votre perte moy.) et progressent par paliers de $${step} (1 perte moy./trade).`
+                                                    : `Your avg loss per trade is $${avgLossPerTrade.toFixed(0)}. A hard stop below $${Math.round(minStop)} would trigger after only ${(minStop / avgLossPerTrade).toFixed(1)} normal losing trade${(minStop / avgLossPerTrade) > 1.1 ? 's' : ''} — interrupting healthy flow. Candidates start at $${Math.round(minStop)} (2× your avg loss) and step by $${step} (1 avg losing trade).`}
                                             </div>
 
-                                            {/* Simulation table */}
-                                            <div style={{ overflowX: 'auto', marginBottom: 16 }}>
-                                                <table style={{ width: '100%', borderCollapse: 'collapse', fontFamily: QF }}>
-                                                    <thead>
-                                                        <tr style={{ borderBottom: '1px solid #1a1c24' }}>
-                                                            {[lang === 'fr' ? 'HARD STOP' : 'HARD STOP', lang === 'fr' ? 'JOURS DÉCLENCHÉS' : 'DAYS TRIGGERED', lang === 'fr' ? 'ÉCONOMISÉ' : 'SAVED', lang === 'fr' ? 'P&L NET SIMULÉ' : 'SIMULATED NET P&L', lang === 'fr' ? 'TAUX INTV.' : 'INTV. RATE'].map((h, i) => (
-                                                                <th key={i} style={{ padding: '7px 12px', fontSize: 9, color: '#6b7280', textAlign: i === 0 ? 'left' : 'right', letterSpacing: '0.1em', fontWeight: 700 }}>{h}</th>
-                                                            ))}
-                                                        </tr>
-                                                    </thead>
-                                                    <tbody>
-                                                        {sims.map((s, i) => {
-                                                            const isOpt = s.stop === optSim.stop;
-                                                            const isCur = currentStopSim ? s.stop === currentStopSim.stop : false;
-                                                            const bg = isOpt ? 'rgba(253,200,0,0.06)' : isCur ? 'rgba(56,189,248,0.05)' : i % 2 === 0 ? '#0c0e13' : 'transparent';
-                                                            return (
-                                                                <tr key={i} style={{ borderBottom: '1px solid #1a1c24', background: bg }}>
-                                                                    <td style={{ padding: '8px 12px', fontSize: 11 }}>
-                                                                        <span style={{ fontFamily: QF, fontWeight: 900, color: isOpt ? '#FDC800' : isCur ? '#38bdf8' : '#c9d1d9' }}>${s.stop}</span>
-                                                                        {isOpt && <span style={{ fontFamily: QF, fontSize: 8, color: '#FDC800', marginLeft: 6, border: '1px solid #FDC80050', padding: '1px 5px' }}>{lang === 'fr' ? 'OPTIMAL' : 'OPTIMAL'}</span>}
-                                                                        {isCur && !isOpt && <span style={{ fontFamily: QF, fontSize: 8, color: '#38bdf8', marginLeft: 6, border: '1px solid #38bdf850', padding: '1px 5px' }}>{lang === 'fr' ? 'ACTUEL' : 'CURRENT'}</span>}
-                                                                    </td>
-                                                                    <td style={{ padding: '8px 12px', fontSize: 11, color: '#c9d1d9', textAlign: 'right' }}>{s.stoppedDays}</td>
-                                                                    <td style={{ padding: '8px 12px', fontSize: 11, fontWeight: 700, color: '#FDC800', textAlign: 'right' }}>+${s.saved.toFixed(0)}</td>
-                                                                    <td style={{ padding: '8px 12px', fontSize: 11, fontWeight: 700, color: s.netPnlWithStop >= 0 ? '#FDC800' : '#ff4757', textAlign: 'right' }}>{s.netPnlWithStop >= 0 ? '+' : ''}${s.netPnlWithStop.toFixed(0)}</td>
-                                                                    <td style={{ padding: '8px 12px', fontSize: 10, color: s.interventionRate <= 0.3 ? '#FDC800' : s.interventionRate <= 0.6 ? '#EAB308' : '#ff4757', textAlign: 'right' }}>{(s.interventionRate * 100).toFixed(0)}%</td>
-                                                                </tr>
-                                                            );
-                                                        })}
-                                                    </tbody>
-                                                </table>
-                                            </div>
-
-                                            {/* Recommendation card */}
-                                            <div style={{ background: '#0d1117', borderLeft: '3px solid #FDC800', border: '1px solid #FDC80030', borderLeftWidth: 3, padding: '16px 18px', display: 'flex', flexDirection: 'column', gap: 10 }}>
-                                                <div style={{ fontFamily: QF, fontSize: 11, fontWeight: 900, color: '#FDC800', letterSpacing: '0.08em' }}>
-                                                    {lang === 'fr' ? `RECOMMANDATION — HARD STOP À $${optSim.stop}` : `RECOMMENDATION — SET HARD STOP AT $${optSim.stop}`}
-                                                </div>
-                                                <p style={{ fontFamily: 'var(--font-sans)', fontSize: 11, color: '#c9d1d9', lineHeight: 1.7, margin: 0 }}>
+                                            {noOutliers ? (
+                                                <div style={{ background: 'rgba(253,200,0,0.06)', border: '1px solid #FDC80025', padding: '14px 18px', fontFamily: 'var(--font-sans)', fontSize: 11, color: '#FDC800', lineHeight: 1.65 }}>
                                                     {lang === 'fr'
-                                                        ? `Un hard stop journalier à $${optSim.stop} aurait déclenché sur ${optSim.stoppedDays} de vos ${lossDayAmts.length} jours perdants (${(optSim.interventionRate * 100).toFixed(0)}% d'intervention). Résultat : +$${optSim.saved.toFixed(0)} préservés — votre P&L net aurait été de ${optSim.netPnlWithStop >= 0 ? '+' : ''}$${optSim.netPnlWithStop.toFixed(0)} au lieu de ${rptNetPnl >= 0 ? '+' : ''}$${rptNetPnl.toFixed(0)}.`
-                                                        : `A $${optSim.stop} daily hard stop would have triggered on ${optSim.stoppedDays} of your ${lossDayAmts.length} losing days (${(optSim.interventionRate * 100).toFixed(0)}% intervention rate). Result: +$${optSim.saved.toFixed(0)} preserved — your net P&L would have been ${optSim.netPnlWithStop >= 0 ? '+' : ''}$${optSim.netPnlWithStop.toFixed(0)} instead of ${rptNetPnl >= 0 ? '+' : ''}$${rptNetPnl.toFixed(0)}.`}
-                                                </p>
-                                                {currentStop > 0 && currentStopSim && currentStopSim.stop !== optSim.stop && (
-                                                    <div style={{ fontFamily: QF, fontSize: 10, color: '#38bdf8', background: '#38bdf810', border: '1px solid #38bdf830', padding: '8px 12px', lineHeight: 1.6 }}>
-                                                        {lang === 'fr'
-                                                            ? `Votre stop actuel ($${currentStop.toFixed(0)}) aurait économisé $${currentStopSim.saved.toFixed(0)} sur ${currentStopSim.stoppedDays} jour${currentStopSim.stoppedDays > 1 ? 's' : ''}. Le stop optimal ($${optSim.stop}) économise $${(optSim.saved - currentStopSim.saved).toFixed(0)} de plus.`
-                                                            : `Your current stop ($${currentStop.toFixed(0)}) would have saved $${currentStopSim.saved.toFixed(0)} across ${currentStopSim.stoppedDays} day${currentStopSim.stoppedDays > 1 ? 's' : ''}. The optimal stop ($${optSim.stop}) captures $${(optSim.saved - currentStopSim.saved).toFixed(0)} more.`}
+                                                        ? `Aucun jour de trading ne dépasse le seuil d'intervention ($${Math.round(minStop)}). Vos jours perdants restent dans la plage normale — c'est un bon signe de consistance. Continuez à surveiller à mesure que votre historique grandit.`
+                                                        : `None of your trading days exceeded the intervention threshold ($${Math.round(minStop)}). Your losing days stay within the normal range — a good sign of consistency. Continue monitoring as your history grows.`}
+                                                </div>
+                                            ) : (
+                                                <>
+                                                    {/* Savings chart */}
+                                                    <div style={{ background: '#0d1117', border: '1px solid #1a1c24', padding: '12px 0 4px', marginBottom: 16 }}>
+                                                        <div style={{ fontFamily: QF, fontSize: 9, color: '#6b7280', padding: '0 16px 8px', letterSpacing: '0.08em' }}>
+                                                            {lang === 'fr' ? 'ÉCONOMIES SIMULÉES — CANDIDATS BASÉS SUR VOTRE PROFIL' : 'SIMULATED SAVINGS — CANDIDATES DERIVED FROM YOUR PROFILE'}
+                                                        </div>
+                                                        <ResponsiveContainer width="100%" height={150}>
+                                                            <ComposedChart data={chartSims} margin={{ top: 4, right: 16, left: 0, bottom: 0 }}>
+                                                                <CartesianGrid strokeDasharray="3 3" stroke="#1a1c24" vertical={false} />
+                                                                <XAxis dataKey="stop" tick={{ fontFamily: 'var(--font-mono)', fontSize: 8, fill: '#4b5563' }} tickLine={false} axisLine={false} tickFormatter={(v) => `$${v}`} />
+                                                                <YAxis yAxisId="l" tick={{ fontFamily: 'var(--font-mono)', fontSize: 8, fill: '#4b5563' }} tickLine={false} axisLine={false} tickFormatter={(v) => `$${Math.abs(v) >= 1000 ? (v / 1000).toFixed(1) + 'k' : v}`} width={44} />
+                                                                <YAxis yAxisId="r" orientation="right" tick={{ fontFamily: 'var(--font-mono)', fontSize: 8, fill: '#4b5563' }} tickLine={false} axisLine={false} tickFormatter={(v) => `${v}d`} width={28} />
+                                                                <Tooltip
+                                                                    contentStyle={{ background: '#0d1117', border: '1px solid #1a1c24', borderRadius: 0, fontFamily: 'var(--font-mono)', fontSize: 10 }}
+                                                                    formatter={(v: unknown, name: string | undefined) => {
+                                                                        if (name === 'saved') return [`+$${Number(v).toFixed(0)}`, lang === 'fr' ? 'Économisé' : 'Saved'];
+                                                                        if (name === 'stoppedDays') return [String(v), lang === 'fr' ? 'Jours arrêtés' : 'Days stopped'];
+                                                                        return [String(v), name ?? ''];
+                                                                    }}
+                                                                    labelFormatter={(v) => `Stop: $${v}`}
+                                                                />
+                                                                {currentStop >= minStop && <ReferenceLine yAxisId="l" x={currentStop} stroke="#38bdf8" strokeDasharray="4 2" label={{ value: lang === 'fr' ? 'Actuel' : 'Current', position: 'top', fill: '#38bdf8', fontSize: 8, fontFamily: 'var(--font-mono)' }} />}
+                                                                {optSim && <ReferenceLine yAxisId="l" x={optSim.stop} stroke="#FDC800" strokeDasharray="4 2" label={{ value: lang === 'fr' ? 'Optimal' : 'Optimal', position: 'top', fill: '#FDC800', fontSize: 8, fontFamily: 'var(--font-mono)' }} />}
+                                                                <Bar yAxisId="l" dataKey="saved" maxBarSize={40} radius={0}>
+                                                                    {chartSims.map((s, i) => <Cell key={i} fill={optSim && s.stop === optSim.stop ? '#FDC800' : s.normalDaysInterrupted > 0 ? '#ff475560' : '#38bdf840'} />)}
+                                                                </Bar>
+                                                                <Line yAxisId="r" type="monotone" dataKey="stoppedDays" stroke="#38bdf8" strokeWidth={1.5} dot={false} />
+                                                            </ComposedChart>
+                                                        </ResponsiveContainer>
+                                                        <div style={{ display: 'flex', gap: 16, padding: '0 16px 4px', flexWrap: 'wrap' as const }}>
+                                                            {[
+                                                                { color: '#FDC800',    label: lang === 'fr' ? 'Stop optimal' : 'Optimal stop' },
+                                                                { color: '#38bdf840',  label: lang === 'fr' ? 'Jours anormaux stoppés' : 'Outlier days stopped' },
+                                                                { color: '#ff475560',  label: lang === 'fr' ? 'Jours normaux interrompus' : 'Normal days interrupted' },
+                                                            ].map((leg, i) => (
+                                                                <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                                                                    <div style={{ width: 10, height: 10, background: leg.color }} />
+                                                                    <span style={{ fontFamily: QF, fontSize: 9, color: '#6b7280' }}>{leg.label}</span>
+                                                                </div>
+                                                            ))}
+                                                        </div>
                                                     </div>
-                                                )}
-                                                {currentStop === 0 && (
-                                                    <div style={{ fontFamily: QF, fontSize: 10, color: '#ff4757', background: '#ff475710', border: '1px solid #ff475730', padding: '8px 12px' }}>
-                                                        {lang === 'fr'
-                                                            ? `Aucun hard stop journalier configuré. Sans limite, votre pire journée a détruit $${maxLoss.toFixed(0)} en une seule session. Définissez $${optSim.stop} dans vos Paramètres → Limite de perte journalière.`
-                                                            : `No daily hard stop configured. Without a limit, your worst day destroyed $${maxLoss.toFixed(0)} in a single session. Set $${optSim.stop} in Settings → Daily Loss Limit.`}
+
+                                                    {/* Simulation table */}
+                                                    <div style={{ overflowX: 'auto', marginBottom: 16 }}>
+                                                        <table style={{ width: '100%', borderCollapse: 'collapse', fontFamily: QF }}>
+                                                            <thead>
+                                                                <tr style={{ borderBottom: '1px solid #1a1c24' }}>
+                                                                    {[
+                                                                        'HARD STOP',
+                                                                        lang === 'fr' ? 'JOURS ANORM.' : 'OUTLIER DAYS',
+                                                                        lang === 'fr' ? 'JOURS NORM.' : 'NORMAL DAYS',
+                                                                        lang === 'fr' ? 'ÉCONOMISÉ' : 'SAVED',
+                                                                        lang === 'fr' ? 'P&L NET SIMULÉ' : 'SIM. NET P&L',
+                                                                        lang === 'fr' ? 'TAUX INTV.' : 'INTV. RATE',
+                                                                    ].map((h, i) => (
+                                                                        <th key={i} style={{ padding: '7px 12px', fontSize: 9, color: '#6b7280', textAlign: i === 0 ? 'left' : 'right', letterSpacing: '0.1em', fontWeight: 700 }}>{h}</th>
+                                                                    ))}
+                                                                </tr>
+                                                            </thead>
+                                                            <tbody>
+                                                                {sims.map((s, i) => {
+                                                                    const isOpt = optSim ? s.stop === optSim.stop : false;
+                                                                    const isCur = currentStopSim ? s.stop === currentStopSim.stop : false;
+                                                                    const bg = isOpt ? 'rgba(253,200,0,0.06)' : isCur ? 'rgba(56,189,248,0.05)' : i % 2 === 0 ? '#0c0e13' : 'transparent';
+                                                                    return (
+                                                                        <tr key={i} style={{ borderBottom: '1px solid #1a1c24', background: bg }}>
+                                                                            <td style={{ padding: '8px 12px', fontSize: 11 }}>
+                                                                                <span style={{ fontFamily: QF, fontWeight: 900, color: isOpt ? '#FDC800' : isCur ? '#38bdf8' : '#c9d1d9' }}>${s.stop}</span>
+                                                                                {isOpt && <span style={{ fontFamily: QF, fontSize: 8, color: '#FDC800', marginLeft: 6, border: '1px solid #FDC80050', padding: '1px 5px' }}>OPTIMAL</span>}
+                                                                                {isCur && !isOpt && <span style={{ fontFamily: QF, fontSize: 8, color: '#38bdf8', marginLeft: 6, border: '1px solid #38bdf850', padding: '1px 5px' }}>{lang === 'fr' ? 'ACTUEL' : 'CURRENT'}</span>}
+                                                                            </td>
+                                                                            <td style={{ padding: '8px 12px', fontSize: 11, color: s.outlierDaysStopped > 0 ? '#FDC800' : '#4b5563', textAlign: 'right' }}>{s.outlierDaysStopped}</td>
+                                                                            <td style={{ padding: '8px 12px', fontSize: 11, color: s.normalDaysInterrupted > 0 ? '#ff4757' : '#4b5563', textAlign: 'right' }}>{s.normalDaysInterrupted}</td>
+                                                                            <td style={{ padding: '8px 12px', fontSize: 11, fontWeight: 700, color: '#FDC800', textAlign: 'right' }}>+${s.saved.toFixed(0)}</td>
+                                                                            <td style={{ padding: '8px 12px', fontSize: 11, fontWeight: 700, color: s.netPnlWithStop >= 0 ? '#FDC800' : '#ff4757', textAlign: 'right' }}>{s.netPnlWithStop >= 0 ? '+' : ''}${s.netPnlWithStop.toFixed(0)}</td>
+                                                                            <td style={{ padding: '8px 12px', fontSize: 10, color: s.interventionRate <= 0.3 ? '#FDC800' : s.interventionRate <= 0.6 ? '#EAB308' : '#ff4757', textAlign: 'right' }}>{(s.interventionRate * 100).toFixed(0)}%</td>
+                                                                        </tr>
+                                                                    );
+                                                                })}
+                                                            </tbody>
+                                                        </table>
                                                     </div>
-                                                )}
-                                                {consSim && consSim.stop !== optSim.stop && (
-                                                    <div style={{ fontFamily: QF, fontSize: 10, color: '#8b949e', lineHeight: 1.5 }}>
-                                                        {lang === 'fr'
-                                                            ? `Option conservatrice : $${consSim.stop} — déclenche seulement sur les pires jours (${(consSim.interventionRate * 100).toFixed(0)}% des jours perdants), économies de $${consSim.saved.toFixed(0)}.`
-                                                            : `Conservative option: $${consSim.stop} — triggers only on your worst outlier days (${(consSim.interventionRate * 100).toFixed(0)}% of losing days), saving $${consSim.saved.toFixed(0)}.`}
-                                                    </div>
-                                                )}
-                                            </div>
+
+                                                    {/* Recommendation card */}
+                                                    {optSim && (
+                                                        <div style={{ background: '#0d1117', borderLeft: '3px solid #FDC800', border: '1px solid #FDC80030', borderLeftWidth: 3, padding: '16px 18px', display: 'flex', flexDirection: 'column', gap: 10 }}>
+                                                            <div style={{ fontFamily: QF, fontSize: 11, fontWeight: 900, color: '#FDC800', letterSpacing: '0.08em' }}>
+                                                                {lang === 'fr' ? `RECOMMANDATION — HARD STOP À $${optSim.stop}` : `RECOMMENDATION — SET HARD STOP AT $${optSim.stop}`}
+                                                            </div>
+                                                            <p style={{ fontFamily: 'var(--font-sans)', fontSize: 11, color: '#c9d1d9', lineHeight: 1.7, margin: 0 }}>
+                                                                {lang === 'fr'
+                                                                    ? `Votre perte moyenne par trade est $${avgLossPerTrade.toFixed(0)} et votre journée gagnante typique rapporte $${avgWinningDay.toFixed(0)}. Un hard stop à $${optSim.stop} représente ${(optSim.stop / avgLossPerTrade).toFixed(1)}× votre perte moyenne — suffisant pour absorber une série de trades perdants normaux avant d'intervenir. Ce stop aurait déclenché sur ${optSim.stoppedDays} jour${optSim.stoppedDays > 1 ? 's' : ''} (${optSim.outlierDaysStopped} anormal${optSim.outlierDaysStopped !== 1 ? 's' : ''}, ${optSim.normalDaysInterrupted} normal${optSim.normalDaysInterrupted !== 1 ? 's' : ''}), préservant +$${optSim.saved.toFixed(0)} — P&L net simulé ${optSim.netPnlWithStop >= 0 ? '+' : ''}$${optSim.netPnlWithStop.toFixed(0)} au lieu de ${rptNetPnl >= 0 ? '+' : ''}$${rptNetPnl.toFixed(0)}.`
+                                                                    : `Your avg loss per trade is $${avgLossPerTrade.toFixed(0)} and your typical winning day returns $${avgWinningDay.toFixed(0)}. A hard stop at $${optSim.stop} is ${(optSim.stop / avgLossPerTrade).toFixed(1)}× your avg loss — enough to absorb a normal losing streak before intervening. This stop would have triggered on ${optSim.stoppedDays} day${optSim.stoppedDays > 1 ? 's' : ''} (${optSim.outlierDaysStopped} outlier, ${optSim.normalDaysInterrupted} normal), preserving +$${optSim.saved.toFixed(0)} — simulated net P&L ${optSim.netPnlWithStop >= 0 ? '+' : ''}$${optSim.netPnlWithStop.toFixed(0)} vs actual ${rptNetPnl >= 0 ? '+' : ''}$${rptNetPnl.toFixed(0)}.`}
+                                                            </p>
+                                                            {currentStop > 0 && currentStop < minStop && (
+                                                                <div style={{ fontFamily: QF, fontSize: 10, color: '#ff4757', background: '#ff475710', border: '1px solid #ff475730', padding: '8px 12px', lineHeight: 1.6 }}>
+                                                                    {lang === 'fr'
+                                                                        ? `Votre stop actuel ($${currentStop.toFixed(0)}) est sous le minimum logique ($${Math.round(minStop)}). Il se déclenche après ${(currentStop / avgLossPerTrade).toFixed(1)} perte${(currentStop / avgLossPerTrade) > 1 ? 's' : ''} moyenne${(currentStop / avgLossPerTrade) > 1 ? 's' : ''} — trop serré, il perturbe un trading sain.`
+                                                                        : `Your current stop ($${currentStop.toFixed(0)}) is below the logical minimum ($${Math.round(minStop)}). It triggers after ${(currentStop / avgLossPerTrade).toFixed(1)} avg loss${(currentStop / avgLossPerTrade) > 1 ? 'es' : ''} — too tight, it disrupts healthy trading.`}
+                                                                </div>
+                                                            )}
+                                                            {currentStop >= minStop && currentStopSim && currentStopSim.stop !== optSim.stop && (
+                                                                <div style={{ fontFamily: QF, fontSize: 10, color: '#38bdf8', background: '#38bdf810', border: '1px solid #38bdf830', padding: '8px 12px', lineHeight: 1.6 }}>
+                                                                    {lang === 'fr'
+                                                                        ? `Votre stop actuel ($${currentStop.toFixed(0)}) aurait économisé $${currentStopSim.saved.toFixed(0)} sur ${currentStopSim.stoppedDays} jour${currentStopSim.stoppedDays > 1 ? 's' : ''}. Le stop optimal ($${optSim.stop}) capte $${(optSim.saved - currentStopSim.saved).toFixed(0)} de plus avec ${optSim.normalDaysInterrupted} jour${optSim.normalDaysInterrupted !== 1 ? 's' : ''} normal${optSim.normalDaysInterrupted !== 1 ? 's' : ''} interrompu${optSim.normalDaysInterrupted !== 1 ? 's' : ''}.`
+                                                                        : `Your current stop ($${currentStop.toFixed(0)}) would have saved $${currentStopSim.saved.toFixed(0)} across ${currentStopSim.stoppedDays} day${currentStopSim.stoppedDays > 1 ? 's' : ''}. The optimal stop ($${optSim.stop}) captures $${(optSim.saved - currentStopSim.saved).toFixed(0)} more with ${optSim.normalDaysInterrupted} normal day${optSim.normalDaysInterrupted !== 1 ? 's' : ''} interrupted.`}
+                                                                </div>
+                                                            )}
+                                                            {currentStop === 0 && (
+                                                                <div style={{ fontFamily: QF, fontSize: 10, color: '#ff4757', background: '#ff475710', border: '1px solid #ff475730', padding: '8px 12px' }}>
+                                                                    {lang === 'fr'
+                                                                        ? `Aucun hard stop configuré. Sans limite, votre pire journée a détruit $${worstDay.toFixed(0)}. Définissez $${optSim.stop} dans Paramètres → Limite de perte journalière.`
+                                                                        : `No daily hard stop configured. Without a limit, your worst day destroyed $${worstDay.toFixed(0)}. Set $${optSim.stop} in Settings → Daily Loss Limit.`}
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                    )}
+                                                </>
+                                            )}
                                         </div>
                                     );
                                 })()}
