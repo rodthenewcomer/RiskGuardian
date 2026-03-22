@@ -85,6 +85,21 @@ export interface DailySession {
     guardTriggered: boolean;
 }
 
+/** Saved simulation scenario — max 3, oldest replaced when full */
+export interface SavedScenario {
+    id: string;
+    name: string;
+    savedAt: string;          // ISO timestamp
+    mode: string;             // SimMode
+    delta: number;            // net P&L delta vs actual
+    blockedCount: number;
+    modifiedCount: number;
+    savedCapital: number;
+    actualPnl: number;
+    simPnl: number;
+    config: Record<string, unknown>;
+}
+
 /** Snapshot of key performance metrics saved when user views the Report tab */
 export interface ReportSnapshot {
     id: string;
@@ -146,6 +161,9 @@ interface AppState {
     /** Saved report snapshots — persisted, max 20 */
     reportSnapshots: ReportSnapshot[];
 
+    /** Saved simulation scenarios — persisted, max 3 */
+    savedScenarios: SavedScenario[];
+
     // Actions
     completeOnboarding: () => void;
     resetOnboarding: () => void;
@@ -170,6 +188,8 @@ interface AppState {
     setTradingDayRollHour: (hour: number) => void;
     saveReportSnapshot: (snapshot: ReportSnapshot) => void;
     deleteReportSnapshot: (id: string) => void;
+    saveScenario: (scenario: SavedScenario) => void;
+    deleteScenario: (id: string) => void;
     /**
      * Auto-compute balance, highestBalance, and dailyLossLimit from trade history.
      * Called automatically after setTrades / addTrade / deleteTrade.
@@ -243,6 +263,7 @@ export const useAppStore = create<AppState>()(
         (set, get) => ({
             hasOnboarded: false,
             reportSnapshots: [],
+            savedScenarios: [],
             account: {
                 balance: 0,
                 dailyLossLimit: 0,
@@ -275,6 +296,7 @@ export const useAppStore = create<AppState>()(
                 trades: [],
                 dailySessions: [],
                 reportSnapshots: [],
+                savedScenarios: [],
                 activeTab: 'dashboard',
                 dxtradeConfig: null,
                 dxtradeLastSync: null,
@@ -292,6 +314,14 @@ export const useAppStore = create<AppState>()(
             })),
             deleteReportSnapshot: (id) => set((s) => ({
                 reportSnapshots: s.reportSnapshots.filter(r => r.id !== id),
+            })),
+
+            saveScenario: (scenario) => set((s) => ({
+                // Keep max 3 — drop oldest if full
+                savedScenarios: [...s.savedScenarios, scenario].slice(-3),
+            })),
+            deleteScenario: (id) => set((s) => ({
+                savedScenarios: s.savedScenarios.filter(sc => sc.id !== id),
             })),
 
             updateAccount: (settings) =>
@@ -433,6 +463,7 @@ export const useAppStore = create<AppState>()(
                 trades: s.trades.slice(0, 500), // 500 trades ≈ 150KB — well within localStorage 5MB limit
                 dailySessions: s.dailySessions.slice(-30),
                 reportSnapshots: s.reportSnapshots.slice(-20),
+                savedScenarios: s.savedScenarios,
                 dxtradeConfig: s.dxtradeConfig,
                 dxtradeLastSync: s.dxtradeLastSync,
                 language: s.language,

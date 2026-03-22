@@ -6,9 +6,10 @@ import {
     AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip,
     ResponsiveContainer, ReferenceLine,
 } from 'recharts';
-import { FlaskConical, Play, RotateCcw, ChevronDown, ChevronUp, TrendingUp, TrendingDown, Minus } from 'lucide-react';
+import { FlaskConical, Play, RotateCcw, ChevronDown, ChevronUp, TrendingUp, TrendingDown, Save, FolderOpen, Trash2, X } from 'lucide-react';
 import { useAppStore } from '@/store/appStore';
 import { useIsMobile } from '@/hooks/useIsMobile';
+import { useTranslation } from '@/i18n/useTranslation';
 import {
     runSimulation, DEFAULT_CONFIG,
     type SimulationConfig, type SimulationResult, type SimMode, type SimTrade,
@@ -100,17 +101,21 @@ function DeltaBadge({ delta, format = 'usd' }: { delta: number; format?: 'usd' |
 
 // ── Main page ────────────────────────────────────────────────────────────────
 export default function SimulatorPage() {
-    const { trades, account, language } = useAppStore();
+    const { trades, account, language, savedScenarios, saveScenario, deleteScenario } = useAppStore();
     const isMobile = useIsMobile();
     const lang     = language ?? 'en';
+    const { t }    = useTranslation();
+    const ts       = t.simulator;
 
-    const [config, setConfig]       = useState<SimulationConfig>(DEFAULT_CONFIG);
-    const [result, setResult]       = useState<SimulationResult | null>(null);
-    const [running, setRunning]     = useState(false);
-    const [isDirty, setIsDirty]     = useState(true);
+    const [config, setConfig]         = useState<SimulationConfig>(DEFAULT_CONFIG);
+    const [result, setResult]         = useState<SimulationResult | null>(null);
+    const [running, setRunning]       = useState(false);
+    const [isDirty, setIsDirty]       = useState(true);
     const [configOpen, setConfigOpen] = useState(true);
-    const [diffPage, setDiffPage]   = useState(0);
-    const DIFF_PAGE_SIZE            = 15;
+    const [diffPage, setDiffPage]     = useState(0);
+    const [saveName, setSaveName]     = useState('');
+    const [showSaveInput, setShowSaveInput] = useState(false);
+    const DIFF_PAGE_SIZE              = 15;
 
     const closedCount = useMemo(() =>
         trades.filter(t => t.outcome === 'win' || t.outcome === 'loss').length,
@@ -140,6 +145,31 @@ export default function SimulatorPage() {
         setConfig(DEFAULT_CONFIG);
         setResult(null);
         setIsDirty(true);
+    }
+
+    function handleSave() {
+        if (!result || !saveName.trim()) return;
+        saveScenario({
+            id: Date.now().toString(),
+            name: saveName.trim(),
+            savedAt: new Date().toISOString(),
+            mode: config.mode,
+            delta: result.delta,
+            blockedCount: result.blockedCount,
+            modifiedCount: result.modifiedCount,
+            savedCapital: result.savedCapital,
+            actualPnl: result.actual.pnl,
+            simPnl: result.simulated.pnl,
+            config: config as unknown as Record<string, unknown>,
+        });
+        setSaveName('');
+        setShowSaveInput(false);
+    }
+
+    function handleLoadScenario(sc: { config: Record<string, unknown> }) {
+        setConfig(sc.config as unknown as SimulationConfig);
+        setIsDirty(true);
+        setResult(null);
     }
 
     const modeMeta  = MODE_META[config.mode];
@@ -694,35 +724,140 @@ export default function SimulatorPage() {
                     <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4 }}>
                         <FlaskConical size={16} color={YEL} strokeWidth={1.8} />
                         <span style={{ fontFamily: QF, fontSize: 9, color: '#6b7280', letterSpacing: '0.15em' }}>
-                            {lang === 'fr' ? 'MOTEUR DE SIMULATION' : 'SIMULATION ENGINE'}
+                            {ts.engine}
                         </span>
                     </div>
                     <div style={{ fontFamily: QF, fontSize: isMobile ? 18 : 22, fontWeight: 900, color: '#fff', marginBottom: 3 }}>
-                        {lang === 'fr' ? 'Et si…?' : 'What If?'}
+                        {ts.title}
                     </div>
                     <div style={{ fontFamily: 'var(--font-sans)', fontSize: 10, color: '#4b5563' }}>
-                        {lang === 'fr'
-                            ? `Test de règles et corrections comportementales sur vos ${closedCount} trades réels`
-                            : `Test rule sets & behavioral corrections against your ${closedCount} real trades`}
+                        {ts.subtitle.replace('your', `your ${closedCount}`).replace('tes', `tes ${closedCount}`)}
                     </div>
                 </div>
-                {isDirty && !running && closedCount > 0 && (
-                    <button
-                        onClick={handleRun}
-                        style={{
-                            display: 'flex', alignItems: 'center', gap: 6,
-                            padding: '10px 18px', background: YEL,
-                            border: 'none', cursor: 'pointer',
-                            fontFamily: QF, fontSize: 10, fontWeight: 900, color: '#000',
-                            boxShadow: '0 0 16px rgba(253,200,0,0.3)',
-                            flexShrink: 0,
-                        }}
-                    >
-                        <Play size={12} strokeWidth={2.5} />
-                        {lang === 'fr' ? 'LANCER' : 'RUN'}
-                    </button>
-                )}
+                <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
+                    {result && !isDirty && (
+                        <button
+                            onClick={() => setShowSaveInput(s => !s)}
+                            style={{
+                                display: 'flex', alignItems: 'center', gap: 5,
+                                padding: '9px 14px', background: showSaveInput ? 'rgba(253,200,0,0.1)' : 'transparent',
+                                border: `1px solid ${showSaveInput ? YEL : BR}`, cursor: 'pointer',
+                                fontFamily: QF, fontSize: 9, fontWeight: 700, color: showSaveInput ? YEL : '#8b949e',
+                            }}
+                        >
+                            <Save size={11} />
+                            {ts.saveScenario}
+                        </button>
+                    )}
+                    {isDirty && !running && closedCount > 0 && (
+                        <button
+                            onClick={handleRun}
+                            style={{
+                                display: 'flex', alignItems: 'center', gap: 6,
+                                padding: '10px 18px', background: YEL,
+                                border: 'none', cursor: 'pointer',
+                                fontFamily: QF, fontSize: 10, fontWeight: 900, color: '#000',
+                                boxShadow: '0 0 16px rgba(253,200,0,0.3)',
+                            }}
+                        >
+                            <Play size={12} strokeWidth={2.5} />
+                            {ts.run}
+                        </button>
+                    )}
+                </div>
             </div>
+
+            {/* Save name input */}
+            <AnimatePresence>
+                {showSaveInput && (
+                    <motion.div
+                        initial={{ height: 0, opacity: 0 }}
+                        animate={{ height: 'auto', opacity: 1 }}
+                        exit={{ height: 0, opacity: 0 }}
+                        transition={{ duration: 0.18 }}
+                        style={{ overflow: 'hidden', background: 'rgba(253,200,0,0.05)', borderBottom: `1px solid rgba(253,200,0,0.2)` }}
+                    >
+                        <div style={{ padding: '12px 20px', display: 'flex', gap: 8, alignItems: 'center' }}>
+                            <input
+                                value={saveName}
+                                onChange={e => setSaveName(e.target.value)}
+                                onKeyDown={e => { if (e.key === 'Enter') handleSave(); if (e.key === 'Escape') setShowSaveInput(false); }}
+                                placeholder={ts.saveNamePlaceholder}
+                                maxLength={32}
+                                autoFocus
+                                style={{
+                                    flex: 1, background: C2, border: `1px solid ${BR}`,
+                                    padding: '8px 12px', fontFamily: QF, fontSize: 11, color: '#fff',
+                                    outline: 'none', maxWidth: 260,
+                                }}
+                            />
+                            <button
+                                onClick={handleSave}
+                                disabled={!saveName.trim()}
+                                style={{
+                                    padding: '8px 14px', background: saveName.trim() ? YEL : '#1a2030',
+                                    border: 'none', cursor: saveName.trim() ? 'pointer' : 'not-allowed',
+                                    fontFamily: QF, fontSize: 9, fontWeight: 900,
+                                    color: saveName.trim() ? '#000' : '#4b5563',
+                                }}
+                            >
+                                {ts.saveConfirm}
+                            </button>
+                            <button
+                                onClick={() => { setShowSaveInput(false); setSaveName(''); }}
+                                style={{ padding: '8px', background: 'none', border: `1px solid ${BR}`, cursor: 'pointer', color: '#4b5563' }}
+                            >
+                                <X size={12} />
+                            </button>
+                            <span style={{ fontFamily: QF, fontSize: 9, color: '#4b5563', marginLeft: 4 }}>
+                                {savedScenarios.length}/3 {savedScenarios.length === 1 ? ts.slotsUsed : ts.slotsUsedPlural}
+                            </span>
+                        </div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
+
+            {/* Saved scenarios panel */}
+            {savedScenarios.length > 0 && (
+                <div style={{ background: C2, borderBottom: `1px solid ${BR}`, padding: '12px 20px' }}>
+                    <div style={{ fontFamily: QF, fontSize: 9, color: '#6b7280', letterSpacing: '0.1em', marginBottom: 8 }}>
+                        {ts.savedScenarios}
+                    </div>
+                    <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                        {savedScenarios.map(sc => (
+                            <div
+                                key={sc.id}
+                                style={{
+                                    display: 'flex', alignItems: 'center', gap: 8,
+                                    background: C1, border: `1px solid ${BR}`,
+                                    padding: '7px 10px',
+                                }}
+                            >
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                                    <span style={{ fontFamily: QF, fontSize: 10, color: '#fff', fontWeight: 700 }}>{sc.name}</span>
+                                    <span style={{ fontFamily: QF, fontSize: 8, color: '#4b5563' }}>
+                                        {sc.mode} · {sc.delta >= 0 ? '+' : ''}${sc.delta.toFixed(0)}
+                                    </span>
+                                </div>
+                                <button
+                                    onClick={() => handleLoadScenario(sc)}
+                                    title={ts.load}
+                                    style={{ background: 'none', border: 'none', cursor: 'pointer', color: BLU, padding: 4 }}
+                                >
+                                    <FolderOpen size={12} />
+                                </button>
+                                <button
+                                    onClick={() => deleteScenario(sc.id)}
+                                    title={ts.delete}
+                                    style={{ background: 'none', border: 'none', cursor: 'pointer', color: RED, padding: 4 }}
+                                >
+                                    <Trash2 size={12} />
+                                </button>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            )}
 
             {/* Main content */}
             {isMobile ? (
@@ -737,7 +872,7 @@ export default function SimulatorPage() {
                                 fontFamily: QF, fontSize: 10, color: YEL, fontWeight: 700,
                             }}
                         >
-                            <span>{lang === 'fr' ? `CONFIGURATION — ${modeLabel}` : `CONFIG — ${modeLabel}`}</span>
+                            <span>{`${ts.configPanel} — ${modeLabel}`}</span>
                             {configOpen ? <ChevronUp size={14} color={YEL} /> : <ChevronDown size={14} color={YEL} />}
                         </button>
                         <AnimatePresence>
