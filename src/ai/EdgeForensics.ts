@@ -124,12 +124,19 @@ export function generateForensics(trades: Trade[], accountData: any) {
         const evidenceStr: string[] = [];
         for (let i = 0; i < closed.length - 1; i++) {
             if ((closed[i].pnl ?? 0) < 0) {
-                const lossTime = new Date(closed[i].closedAt ?? closed[i].createdAt).getTime();
+                // lossClose = when the losing trade CLOSED (the trigger moment)
+                const lossClose = new Date(closed[i].closedAt ?? closed[i].createdAt).getTime();
                 let count = 0, seqImp = 0;
                 for (let j = i + 1; j < closed.length; j++) {
+                    // Use OPEN TIME of the next trade to measure elapsed time since the loss.
+                    // If the next trade opened BEFORE the loss closed, it's a parallel position
+                    // (opened simultaneously) — NOT a re-entry. Skip it.
+                    const jOpenTime = new Date(closed[j].createdAt).getTime();
+                    if (jOpenTime < lossClose) continue; // parallel position — not revenge
+
                     const isCrypto = closed[j].assetType === 'crypto' || TRADEIFY_CRYPTO_LIST?.includes(closed[j].asset);
                     const windowMs = (isCrypto ? 5 : 30) * 60000;
-                    const elapsed = new Date(closed[j].closedAt ?? closed[j].createdAt).getTime() - lossTime;
+                    const elapsed = jOpenTime - lossClose; // time from loss close → next open
                     if (elapsed <= windowMs) {
                         count++;
                         seqImp += (closed[j].pnl ?? 0);
@@ -179,7 +186,14 @@ export function generateForensics(trades: Trade[], accountData: any) {
 
     // ── PATTERN 3: Early Exit ─────────────────────────────────────────────────
     {
-        const earlyWins = wins.filter(t => (t.durationSeconds ?? 0) > 0 && t.durationSeconds! < avgLossDur * 0.4);
+        // Threshold: duration < 50% of avg winning trade duration.
+        // Exclude any win that beats avgWinAmt — a trade that exceeds your avg win
+        // in dollar terms is efficient, not premature, regardless of how fast it ran.
+        const earlyWins = wins.filter(t =>
+            (t.durationSeconds ?? 0) > 0 &&
+            t.durationSeconds! < avgWinDur * 0.5 &&
+            (t.pnl ?? 0) < avgWinAmt
+        );
         if (earlyWins.length >= 3) {
             const earlyAvgPnl = earlyWins.reduce((s, t) => s + (t.pnl ?? 0), 0) / earlyWins.length;
             const forgone = Math.max(0, avgWinAmt - earlyAvgPnl);
@@ -192,14 +206,14 @@ export function generateForensics(trades: Trade[], accountData: any) {
                     evidence: [
                         `Early exit avg: $${earlyAvgPnl.toFixed(0)} vs full avg win: $${avgWinAmt.toFixed(0)}`,
                         `Est. foregone per trade: $${forgone.toFixed(0)}`,
-                        `Early hold: ${fmtDur(earlyWins.reduce((s, t) => s + (t.durationSeconds ?? 0), 0) / earlyWins.length)} avg vs ${fmtDur(avgWinDur)} avg win`,
+                        `Avg hold on early exits: ${fmtDur(earlyWins.reduce((s, t) => s + (t.durationSeconds ?? 0), 0) / earlyWins.length)} vs ${fmtDur(avgWinDur)} avg win duration`,
                     ],
                     evidenceTrades: earlyWins.slice(0, 5).map(t => ({
                         timestamp: fmtTs(t.closedAt ?? t.createdAt),
                         asset: t.asset,
                         pnl: t.pnl ?? 0,
                         durationLabel: fmtDur(t.durationSeconds ?? 0),
-                        context: `Exited ${fmtDur(t.durationSeconds ?? 0)} early — avg winner runs ${fmtDur(avgWinDur)}, left ~$${forgone.toFixed(0)} on table`,
+                        context: `Held ${fmtDur(t.durationSeconds ?? 0)} — avg winner runs ${fmtDur(avgWinDur)}, est. $${forgone.toFixed(0)} left on table`,
                     })),
                 });
             }
@@ -275,39 +289,59 @@ export function generateForensics(trades: Trade[], accountData: any) {
 
     // ── PATTERN 7: Loss Escalation ────────────────────────────────────────────
     {
+        // Build a de-duplicated sequential loss list.
+        // Parallel trades (multiple positions opened simultaneously) are collapsed
+        // into a single cluster so they don't generate fake "escalation" signals.
+        // Two trades are parallel if trade[j] opened BEFORE trade[i] closed.
+        const seqLosses: { pnl: number; trade: Trade }[] = [];
+        for (let i = 0; i < closed.length; i++) {
+            if ((closed[i].pnl ?? 0) >= 0) continue;
+            const iClose = new Date(closed[i].closedAt ?? closed[i].createdAt).getTime();
+            // Check if this trade is parallel to the previous loss (overlapping time window)
+            if (seqLosses.length > 0) {
+                const prev = seqLosses[seqLosses.length - 1].trade;
+                const prevClose = new Date(prev.closedAt ?? prev.createdAt).getTime();
+                const iOpen = new Date(closed[i].createdAt).getTime();
+                if (iOpen < prevClose) {
+                    // Parallel position — merge into the cluster (add to last entry's pnl)
+                    seqLosses[seqLosses.length - 1].pnl += (closed[i].pnl ?? 0);
+                    continue;
+                }
+            }
+            seqLosses.push({ pnl: closed[i].pnl ?? 0, trade: closed[i] });
+        }
+
         let freq = 0, impact = 0;
         const evidenceTrades: EvidenceTrade[] = [];
         const evidenceStr: string[] = [];
         let i = 0;
-        while (i < closed.length - 2) {
-            if ((closed[i].pnl ?? 0) < 0) {
-                let seqEnd = i;
-                let prev = Math.abs(closed[i].pnl ?? 0);
-                let j = i + 1;
-                while (j < closed.length && (closed[j].pnl ?? 0) < 0 && Math.abs(closed[j].pnl ?? 0) > prev) {
-                    prev = Math.abs(closed[j].pnl ?? 0);
-                    seqEnd = j;
-                    j++;
-                }
-                const seqLen = seqEnd - i + 1;
-                if (seqLen >= 3) {
-                    freq++;
-                    const seqTrades = closed.slice(i, seqEnd + 1);
-                    impact += seqTrades.reduce((s, t) => s + (t.pnl ?? 0), 0);
-                    seqTrades.forEach((t, k) => {
-                        const prevAmt = k > 0 ? Math.abs(seqTrades[k - 1].pnl ?? 0) : 0;
-                        const pct = prevAmt > 0 ? ((Math.abs(t.pnl ?? 0) / prevAmt - 1) * 100).toFixed(0) : '—';
-                        evidenceTrades.push({
-                            timestamp: fmtTs(t.closedAt ?? t.createdAt),
-                            asset: t.asset,
-                            pnl: t.pnl ?? 0,
-                            context: k === 0 ? `Loss #1 of escalation spiral` : `Loss #${k + 1} — ${pct}% larger than previous`,
-                        });
-                        evidenceStr.push(`${t.asset} ${fmtTs(t.closedAt ?? t.createdAt)}: -$${Math.abs(t.pnl ?? 0).toFixed(0)}${k > 0 ? ` (+${pct}% bigger)` : ''}`);
+        while (i < seqLosses.length - 2) {
+            let seqEnd = i;
+            let prev = Math.abs(seqLosses[i].pnl);
+            let j = i + 1;
+            while (j < seqLosses.length && seqLosses[j].pnl < 0 && Math.abs(seqLosses[j].pnl) > prev) {
+                prev = Math.abs(seqLosses[j].pnl);
+                seqEnd = j;
+                j++;
+            }
+            const seqLen = seqEnd - i + 1;
+            if (seqLen >= 3) {
+                freq++;
+                const seqSlice = seqLosses.slice(i, seqEnd + 1);
+                impact += seqSlice.reduce((s, e) => s + e.pnl, 0);
+                seqSlice.forEach((e, k) => {
+                    const prevAmt = k > 0 ? Math.abs(seqSlice[k - 1].pnl) : 0;
+                    const pct = prevAmt > 0 ? ((Math.abs(e.pnl) / prevAmt - 1) * 100).toFixed(0) : '—';
+                    evidenceTrades.push({
+                        timestamp: fmtTs(e.trade.closedAt ?? e.trade.createdAt),
+                        asset: e.trade.asset,
+                        pnl: e.pnl,
+                        context: k === 0 ? `Loss #1 of escalation spiral` : `Loss #${k + 1} — ${pct}% larger than previous`,
                     });
-                    i = seqEnd + 1;
-                    continue;
-                }
+                    evidenceStr.push(`${e.trade.asset} ${fmtTs(e.trade.closedAt ?? e.trade.createdAt)}: -$${Math.abs(e.pnl).toFixed(0)}${k > 0 ? ` (+${pct}% bigger)` : ''}`);
+                });
+                i = seqEnd + 1;
+                continue;
             }
             i++;
         }
