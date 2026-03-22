@@ -39,17 +39,17 @@ export default function Onboarding() {
     const lang = language ?? 'en';
 
     const stepLabels: Record<string, string> = {
-        firm: lang === 'fr' ? 'Société' : 'Firm',
-        balance: lang === 'fr' ? 'Solde' : 'Balance',
-        rules: lang === 'fr' ? 'Règles' : 'Rules',
-        asset: lang === 'fr' ? 'Actif' : 'Asset',
+        firm:    t.onboarding.stepFirm,
+        balance: t.onboarding.stepBalance,
+        rules:   t.onboarding.stepRules,
+        asset:   t.onboarding.stepAsset,
     };
 
     const ASSET_OPTIONS_LABELS: Record<string, { label: string; sub: string }> = {
-        crypto: { label: lang === 'fr' ? 'Crypto' : 'Crypto', sub: 'BTC, ETH, SOL, DOGE' },
-        futures: { label: lang === 'fr' ? 'Contrats à terme' : 'Futures', sub: 'ES, NQ, MNQ, MES, CL' },
-        forex: { label: 'Forex', sub: 'EUR/USD, GBP/USD, JPY' },
-        stocks: { label: lang === 'fr' ? 'Actions' : 'Stocks', sub: 'AAPL, TSLA, NVDA, SPY' },
+        crypto:  { label: t.onboarding.assetCryptoLabel,  sub: 'BTC, ETH, SOL, DOGE' },
+        futures: { label: t.onboarding.assetFuturesLabel, sub: 'ES, NQ, MNQ, MES, CL' },
+        forex:   { label: t.onboarding.assetForexLabel,   sub: 'EUR/USD, GBP/USD, JPY' },
+        stocks:  { label: t.onboarding.assetStocksLabel,  sub: 'AAPL, TSLA, NVDA, SPY' },
     };
 
     const [step, setStep] = useState<Step>('firm');

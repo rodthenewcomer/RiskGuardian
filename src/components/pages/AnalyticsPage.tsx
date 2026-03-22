@@ -65,17 +65,17 @@ export default function AnalyticsPage() {
     const forensics = useMemo(() => generateForensics(tradesWithDuration, account), [tradesWithDuration, account]);
 
     const TABS: Array<{ key: string; label: string }> = [
-        { key: 'OVERVIEW', label: lang === 'fr' ? 'APERÇU' : 'OVERVIEW' },
-        { key: 'DAILY', label: lang === 'fr' ? 'P&L JOURNALIER' : 'DAILY P&L' },
-        { key: 'INSTRUMENTS', label: lang === 'fr' ? 'INSTRUMENTS' : 'INSTRUMENTS' },
-        { key: 'SESSIONS', label: lang === 'fr' ? 'SESSIONS' : 'SESSIONS' },
-        { key: 'TIME', label: lang === 'fr' ? 'HORAIRES' : 'TIME' },
-        { key: 'STREAKS', label: lang === 'fr' ? 'SÉRIES' : 'STREAKS' },
-        { key: 'PATTERNS', label: lang === 'fr' ? `MOTIFS (${forensics.patterns.length})` : `PATTERNS (${forensics.patterns.length})` },
-        { key: 'SCORECARD', label: 'SCORECARD' },
-        { key: 'QUANT', label: 'QUANT' },
-        { key: 'REPORT', label: lang === 'fr' ? 'RAPPORT' : 'REPORT' },
-        { key: 'COMPARE', label: lang === 'fr' ? 'COMPARER' : 'COMPARE' },
+        { key: 'OVERVIEW',    label: t.analytics.tabs.overview },
+        { key: 'DAILY',       label: t.analytics.tabs.daily },
+        { key: 'INSTRUMENTS', label: t.analytics.tabs.instruments },
+        { key: 'SESSIONS',    label: t.analytics.tabs.sessions },
+        { key: 'TIME',        label: t.analytics.tabs.time },
+        { key: 'STREAKS',     label: t.analytics.tabs.streaks },
+        { key: 'PATTERNS',    label: `${t.analytics.tabs.patterns} (${forensics.patterns.length})` },
+        { key: 'SCORECARD',   label: t.analytics.tabs.scorecard },
+        { key: 'QUANT',       label: t.analytics.tabs.quant },
+        { key: 'REPORT',      label: t.analytics.tabs.report },
+        { key: 'COMPARE',     label: t.analytics.tabs.compare },
     ];
 
     // Core Metrics
@@ -801,7 +801,7 @@ export default function AnalyticsPage() {
 
                             {/* ── CRITICAL PATTERN CALLOUT (top pattern) ── */}
                             {forensics.patterns.length > 0 && (() => {
-                                const p = forensics.patterns[0];
+                                const p = [...forensics.patterns].sort((a: any, b: any) => Math.abs(b.impact ?? 0) - Math.abs(a.impact ?? 0))[0];
                                 return (
                                     <div style={{ background: '#0d1117', border: '1px solid #1a1c24', borderLeft: '3px solid #e60023', padding: '20px 24px', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 24, flexWrap: 'wrap' }}>
                                         <div style={{ flex: 1, minWidth: 240 }}>
@@ -3182,7 +3182,7 @@ export default function AnalyticsPage() {
                                     {/* ── DEEP PATTERN CARDS ── */}
                                     <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
                                         <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#6b7280', letterSpacing: '0.12em', textTransform: 'uppercase' }}>PATTERN DEEP DIVE</div>
-                                        {forensics.patterns.map((p: any, i: number) => {
+                                        {[...forensics.patterns].sort((a: any, b: any) => Math.abs(b.impact ?? 0) - Math.abs(a.impact ?? 0)).map((p: any, i: number) => {
                                             const isC = p.severity === 'CRITICAL';
                                             const sevColor = isC ? '#ff4757' : p.severity === 'HIGH' ? '#EAB308' : '#fb923c';
                                             const sevBg = isC ? 'rgba(255,71,87,0.04)' : 'rgba(234,179,8,0.04)';

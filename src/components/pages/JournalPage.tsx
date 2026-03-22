@@ -97,7 +97,8 @@ export default function JournalPage() {
     const calendarData = useMemo(() => {
         const year = calendarDate.getFullYear();
         const month = calendarDate.getMonth();
-        const firstDay = new Date(year, month, 1).getDay();
+        const rawFirstDay = new Date(year, month, 1).getDay(); // 0=Sun
+        const firstDay = rawFirstDay === 0 ? 6 : rawFirstDay - 1; // shift: Mon=0 … Sun=6
         const daysInMonth = new Date(year, month + 1, 0).getDate();
         let currentWeek: any[] = [];
         const weeks: any[] = [];
@@ -143,10 +144,21 @@ export default function JournalPage() {
         const file = e.target.files?.[0];
         if (!file) return;
         e.target.value = '';
+        // Validate file type and size (max 20MB)
+        if (!file.name.toLowerCase().endsWith('.pdf') && file.type !== 'application/pdf') {
+            setPdfStatus({ loading: false, msg: 'Invalid file — only PDF statements are supported.' });
+            return;
+        }
+        if (file.size > 20 * 1024 * 1024) {
+            setPdfStatus({ loading: false, msg: 'File too large — max 20MB.' });
+            return;
+        }
         setPdfStatus({ loading: true, msg: 'Parsing statement…' });
+        const timeout = setTimeout(() => setPdfStatus({ loading: false, msg: 'Timed out — statement may be unsupported.' }), 30_000);
         try {
             const { parseTradeifyPDF } = await import('@/lib/parseTradeifyPDF');
             const result = await parseTradeifyPDF(file);
+            clearTimeout(timeout);
             if (result.error) { setPdfStatus({ loading: false, msg: result.error }); return; }
             if (result.count === 0) { setPdfStatus({ loading: false, msg: 'No closed trades found in this statement.' }); return; }
             // Correct incremental merge: keep all existing non-PDF trades + old PDF trades
@@ -161,6 +173,7 @@ export default function JournalPage() {
                 ? ` · ${result.coverageStart} → ${result.coverageEnd}` : '';
             setPdfStatus({ loading: false, msg: `${newTrades.length} imported, ${oldKept.length} kept${coverage}` });
         } catch (err) {
+            clearTimeout(timeout);
             setPdfStatus({ loading: false, msg: `Import failed: ${err instanceof Error ? err.message : String(err)}` });
         }
     };
@@ -1364,7 +1377,7 @@ export default function JournalPage() {
                     </div>
                     <div className={styles.calendarGrid}>
                         <div className={styles.calendarHeaderRow}>
-                            {['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa', 'Wk'].map((d, i) => (
+                            {['Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa', 'Su', 'Wk'].map((d, i) => (
                                 <div key={i} className={styles.calendarDayName}>{d}</div>
                             ))}
                         </div>

@@ -191,7 +191,7 @@ export default function BottomNav() {
                                 : <Plus size={20} strokeWidth={2} className={styles.icon} />
                             }
                         </motion.div>
-                        <span className={styles.label}>{trayOpen ? 'Close' : 'More'}</span>
+                        <span className={styles.label}>{trayOpen ? t.nav.closeTray : t.nav.more}</span>
                     </button>
                 </div>
             </nav>

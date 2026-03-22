@@ -796,7 +796,8 @@ export function generateJournalInsights(
     // Weekly report
     const today = new Date();
     const weekStart = new Date(today);
-    weekStart.setDate(today.getDate() - today.getDay());
+    const dow = today.getDay();
+    weekStart.setDate(today.getDate() - (dow === 0 ? 6 : dow - 1)); // Monday-first
     const weeklyTrades = closed.filter(t => {
         try { return new Date(t.createdAt) >= weekStart; } catch { return false; }
     });

@@ -100,6 +100,11 @@ export default function BridgePage() {
             setRateLimited(false);
         } catch (e) {
             const msg = e instanceof Error ? e.message : 'Poll failed';
+            // Offline / network unreachable — show friendly error, keep polling silently
+            if (!navigator.onLine || msg.toLowerCase().includes('failed to fetch') || msg.toLowerCase().includes('network')) {
+                setPollError(lang === 'fr' ? 'Hors ligne — reconnexion automatique...' : 'Offline — auto-resuming when connection returns...');
+                return;
+            }
             // 429 — stop polling for 5 minutes to let the ban expire
             if (msg.includes('RATE LIMITED') || msg.includes('429')) {
                 const until = new Date(Date.now() + RATE_LIMIT_PAUSE);

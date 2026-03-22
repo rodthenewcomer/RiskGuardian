@@ -45,6 +45,10 @@ export default function AuthModal({ onClose, onSuccess }: AuthModalProps) {
             subtitle: 'Sync your trades across all devices',
             googleBtn: 'Continue with Google',
             or: 'or',
+            errEmailRequired: 'Email required',
+            errInvalidCredentials: 'Invalid email or password',
+            errEmailNotConfirmed: 'Please confirm your email before signing in',
+            errEmailInUse: 'Email already in use — sign in instead',
         },
         fr: {
             signin: 'Se connecter',
@@ -66,6 +70,10 @@ export default function AuthModal({ onClose, onSuccess }: AuthModalProps) {
             subtitle: 'Synchronisez vos trades sur tous vos appareils',
             googleBtn: 'Continuer avec Google',
             or: 'ou',
+            errEmailRequired: 'E-mail requis',
+            errInvalidCredentials: 'Email ou mot de passe incorrect',
+            errEmailNotConfirmed: 'Confirmez votre e-mail avant de vous connecter',
+            errEmailInUse: 'Cet e-mail est déjà utilisé',
         },
     }[lang];
 
@@ -83,7 +91,7 @@ export default function AuthModal({ onClose, onSuccess }: AuthModalProps) {
     async function handleSubmit(e: React.FormEvent) {
         e.preventDefault();
         setError(''); setSuccess('');
-        if (!email) { setError(lang === 'fr' ? 'E-mail requis' : 'Email required'); return; }
+        if (!email) { setError(T.errEmailRequired); return; }
 
         setLoading(true);
         try {
@@ -127,11 +135,11 @@ export default function AuthModal({ onClose, onSuccess }: AuthModalProps) {
             const msg = err instanceof Error ? err.message : String(err);
             // Translate common Supabase errors
             if (msg.includes('Invalid login credentials')) {
-                setError(lang === 'fr' ? 'Email ou mot de passe incorrect' : 'Invalid email or password');
+                setError(T.errInvalidCredentials);
             } else if (msg.includes('Email not confirmed')) {
-                setError(lang === 'fr' ? 'Confirmez votre e-mail avant de vous connecter' : 'Please confirm your email before signing in');
+                setError(T.errEmailNotConfirmed);
             } else if (msg.includes('User already registered')) {
-                setError(lang === 'fr' ? 'Cet e-mail est déjà utilisé' : 'Email already in use — sign in instead');
+                setError(T.errEmailInUse);
             } else {
                 setError(msg);
             }

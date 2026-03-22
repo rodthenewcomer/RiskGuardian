@@ -148,14 +148,14 @@ export default function Home() {
   }
 
   const pages: Record<string, React.ReactNode> = {
-    dashboard: <DashboardPage />,
-    terminal: <CommandPage />,
-    plan: <AIChatPage />,
-    analytics: <ErrorBoundary><AnalyticsPage /></ErrorBoundary>,
-    settings: <SettingsPage />,
-    journal: <JournalPage />,
-    calculator: <CommandPage />,
-    simulator: <SimulatorPage />,
+    dashboard:  <ErrorBoundary><DashboardPage /></ErrorBoundary>,
+    terminal:   <ErrorBoundary><CommandPage /></ErrorBoundary>,
+    plan:       <ErrorBoundary><AIChatPage /></ErrorBoundary>,
+    analytics:  <ErrorBoundary><AnalyticsPage /></ErrorBoundary>,
+    settings:   <ErrorBoundary><SettingsPage /></ErrorBoundary>,
+    journal:    <ErrorBoundary><JournalPage /></ErrorBoundary>,
+    calculator: <ErrorBoundary><CommandPage /></ErrorBoundary>,
+    simulator:  <ErrorBoundary><SimulatorPage /></ErrorBoundary>,
   };
 
   // Blank shell until Supabase session check completes — prevents flicker

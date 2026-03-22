@@ -268,9 +268,13 @@ export default function SettingsPage() {
     }
 
     const handleSave = () => {
-        const bal = parseFloat(balance) || account.balance;
-        const startBal = parseFloat(startingBalance) || bal;
-        const maxDrawUSD = (startBal * (parseFloat(maxDrawdownPct) || 0)) / 100;
+        const bal = Math.max(1, parseFloat(balance) || account.balance);
+        const startBal = Math.max(1, parseFloat(startingBalance) || bal);
+        const maxDrawUSD = (startBal * Math.min(100, Math.max(0, parseFloat(maxDrawdownPct) || 0))) / 100;
+        const rawDailyLimit = parseFloat(dailyLimit);
+        const validDailyLimit = rawDailyLimit > 0 ? rawDailyLimit : account.dailyLossLimit;
+        const rawMaxRisk = parseFloat(maxRisk);
+        const validMaxRisk = rawMaxRisk > 0 && rawMaxRisk <= 100 ? rawMaxRisk : account.maxRiskPercent;
         let leverage = account.leverage || 2;
         if (propFirm?.includes('Tradeify')) {
             if (propFirmType.includes('Evaluation')) leverage = 5;
@@ -278,9 +282,9 @@ export default function SettingsPage() {
         }
         updateAccount({
             balance: bal,
-            dailyLossLimit: parseFloat(dailyLimit) || account.dailyLossLimit,
+            dailyLossLimit: validDailyLimit,
             maxDrawdownLimit: maxDrawUSD,
-            maxRiskPercent: parseFloat(maxRisk) || account.maxRiskPercent,
+            maxRiskPercent: validMaxRisk,
             assetType,
             propFirm: propFirm === 'Custom (Build your own)' ? '' : propFirm,
             propFirmType: propFirmType as '1-Step Evaluation' | '2-Step Evaluation' | 'Instant Funding',

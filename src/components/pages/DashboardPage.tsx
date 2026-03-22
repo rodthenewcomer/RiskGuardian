@@ -11,13 +11,16 @@ import {
     ArrowRight, ChevronRight,
 } from 'lucide-react';
 import PnLChart from '@/components/analytics/PnLChart';
-import { useTranslation } from '@/i18n/useTranslation';
 import StreakBeads from '@/components/charts/StreakBeads';
 import DrawdownCurve from '@/components/charts/DrawdownCurve';
 import { ChartCard } from '@/components/charts/RiskGuardianPrimitives';
 
 const fadeUp = { hidden: { opacity: 0, y: 14 }, show: { opacity: 1, y: 0, transition: { ease: [0.16, 1, 0.3, 1] as const, duration: 0.45 } } };
 const stagger = { hidden: {}, show: { transition: { staggerChildren: 0.08 } } };
+
+// Daily guard thresholds
+const DANGER_THRESHOLD  = 90; // % used — red zone
+const WARNING_THRESHOLD = 60; // % used — yellow zone
 const tradeRowVariant = {
     hidden: { opacity: 0, x: -10 },
     show:  { opacity: 1,  x: 0,  transition: { ease: [0.16, 1, 0.3, 1] as const, duration: 0.35 } },
@@ -46,8 +49,6 @@ export default function DashboardPage() {
     const [mounted, setMounted] = useState(false);
     const [hoveredTrade, setHoveredTrade] = useState<string | null>(null);
     const isMobile = useIsMobile();
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    const { t } = useTranslation();
     const { language } = useAppStore();
     const lang = language ?? 'en';
     // eslint-disable-next-line
@@ -71,8 +72,8 @@ export default function DashboardPage() {
     const used       = mounted ? Math.max(manualUsed, todayActualLoss) : 0;
     const remaining  = mounted ? Math.max(0, account.dailyLossLimit - used) : account.dailyLossLimit;
     const usedPct   = account.dailyLossLimit > 0 ? Math.min(100, (used / account.dailyLossLimit) * 100) : 0;
-    const isDanger  = mounted && usedPct >= 90;
-    const isWarning = mounted && usedPct >= 60;
+    const isDanger  = mounted && usedPct >= DANGER_THRESHOLD;
+    const isWarning = mounted && usedPct >= WARNING_THRESHOLD;
     const maxPerTrade  = (account.balance * account.maxRiskPercent) / 100;
     const safeNextRisk = mounted ? Math.min(maxPerTrade, remaining) : maxPerTrade;
 

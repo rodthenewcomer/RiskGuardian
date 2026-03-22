@@ -61,10 +61,7 @@ export default function AIChatPage() {
     const lang = language ?? 'en';
 
     const SUGGESTIONS = lang === 'fr' ? SUGGESTIONS_FR : SUGGESTIONS_EN;
-
-    const welcomeContent = lang === 'fr'
-        ? `Je suis votre Coach IA. Je comprends le langage naturel pour toute question de trading :\n\n· Dimensionnement de position avec stops en points/ticks/pips\n· Risque en dollars depuis votre position\n· Specs d'instruments (valeur du point, taille du tick)\n· Éligibilité au paiement, analyse comportementale, edge stratégique\n\nEssayez : "NQ à 21450, stop 30 points, risque $500"`
-        : `I'm your AI Risk Coach. I understand natural language for any trading question:\n\n· Position sizing with point/tick/pip stops\n· Dollar risk from your actual position\n· Instrument specs (point value, tick size)\n· Payout eligibility, behavioral analysis, strategy edge\n\nTry: "NQ at 21450, 30 point stop, $500 risk"`;
+    const welcomeContent = t.aiCoach.welcomeContent;
 
     const [messages, setMessages] = useState<ChatMessage[]>([{
         id: 'welcome',
@@ -82,10 +79,10 @@ export default function AIChatPage() {
 
     const startVoiceInput = () => {
         const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-        if (!SpeechRecognition) { alert('Voice input not supported in this browser.'); return; }
+        if (!SpeechRecognition) { alert(t.aiCoach.voiceNotSupported); return; }
         if (recognitionRef.current) recognitionRef.current.abort();
         const recognition = new SpeechRecognition();
-        recognition.lang = 'en-US';
+        recognition.lang = lang === 'fr' ? 'fr-FR' : 'en-US';
         recognition.interimResults = true;
         recognition.continuous = false;
         recognitionRef.current = recognition;
@@ -96,7 +93,7 @@ export default function AIChatPage() {
         };
         recognition.onend = () => setIsListening(false);
         recognition.onerror = () => setIsListening(false);
-        recognition.start();
+        try { recognition.start(); } catch { setIsListening(false); }
     };
 
     const stopVoiceInput = () => {
@@ -179,8 +176,8 @@ export default function AIChatPage() {
                         <span className={styles.pulseDot} />
                     </div>
                     <div>
-                        <span style={{ ...mono, fontSize: 13, fontWeight: 900, color: '#fff', letterSpacing: '0.04em', display: 'block', lineHeight: 1 }}>{lang === 'fr' ? 'COACH IA' : 'ALGORITHMIC RISK COPILOT'}</span>
-                        <span style={{ ...lbl, display: 'block', marginTop: 3 }}>{lang === 'fr' ? 'Langage naturel · Intelligence temps réel' : 'Natural language · Real-time intelligence'}</span>
+                        <span style={{ ...mono, fontSize: 13, fontWeight: 900, color: '#fff', letterSpacing: '0.04em', display: 'block', lineHeight: 1 }}>{t.aiCoach.headerTitle}</span>
+                        <span style={{ ...lbl, display: 'block', marginTop: 3 }}>{t.aiCoach.headerSubtitle}</span>
                     </div>
                 </div>
                 <button
@@ -191,17 +188,17 @@ export default function AIChatPage() {
                     title="Reset chat"
                 >
                     <RotateCcw size={11} />
-                    <span style={{ ...mono, fontSize: 9, letterSpacing: '0.06em', textTransform: 'uppercase' as const }}>{lang === 'fr' ? 'EFFACER' : 'RESET'}</span>
+                    <span style={{ ...mono, fontSize: 9, letterSpacing: '0.06em', textTransform: 'uppercase' as const }}>{t.aiCoach.resetChat}</span>
                 </button>
             </div>
 
             {/* ── CONTEXT STRIP ───────────────────────────────── */}
             <div className={styles.contextStrip} style={{ borderBottom: divider, flexShrink: 0 }}>
                 {([
-                    { icon: <ShieldCheck size={9} color={dailyColor} />, lbl: lang === 'fr' ? 'Reste jour' : 'Daily Left',  val: `$${dailyLeft.toFixed(0)}`,  clr: dailyColor,   sub: `${Math.round(dailyLeftPct * 100)}% ${lang === 'fr' ? 'de la limite' : 'of limit'}` },
-                    { icon: <Zap size={9} color="#4b5563" />,            lbl: lang === 'fr' ? 'Risque sûr' : 'Safe Risk',   val: `$${maxRisk.toFixed(0)}`,    clr: '#e2e8f0',    sub: `${account.maxRiskPercent}% ${lang === 'fr' ? 'par trade' : 'per trade'}` },
-                    { icon: <Activity size={9} color="#4b5563" />,       lbl: lang === 'fr' ? 'Solde' : 'Balance',     val: balance >= 1000 ? `$${(balance / 1000).toFixed(1)}K` : `$${balance.toFixed(0)}`, clr: '#e2e8f0', sub: lang === 'fr' ? 'équité du compte' : 'account equity' },
-                    { icon: null,                                         lbl: lang === 'fr' ? 'Aujourd\'hui' : 'Today',       val: todayTrades.length.toString(), clr: todayPnl >= 0 ? '#FDC800' : '#ff4757', sub: todayTrades.length > 0 ? `${todayPnl >= 0 ? '+' : ''}$${todayPnl.toFixed(0)} P&L` : (lang === 'fr' ? 'aucun trade' : 'no trades yet') },
+                    { icon: <ShieldCheck size={9} color={dailyColor} />, lbl: t.aiCoach.contextDailyLeft, val: `$${dailyLeft.toFixed(0)}`,  clr: dailyColor,   sub: `${Math.round(dailyLeftPct * 100)}% ${t.aiCoach.contextOfLimit}` },
+                    { icon: <Zap size={9} color="#4b5563" />,            lbl: t.aiCoach.contextSafeRisk,  val: `$${maxRisk.toFixed(0)}`,    clr: '#e2e8f0',    sub: `${account.maxRiskPercent}% ${t.aiCoach.contextPerTrade}` },
+                    { icon: <Activity size={9} color="#4b5563" />,       lbl: t.aiCoach.contextBalance,   val: balance >= 1000 ? `$${(balance / 1000).toFixed(1)}K` : `$${balance.toFixed(0)}`, clr: '#e2e8f0', sub: t.aiCoach.contextAccountEquity },
+                    { icon: null,                                         lbl: t.aiCoach.contextToday,     val: todayTrades.length.toString(), clr: todayPnl >= 0 ? '#FDC800' : '#ff4757', sub: todayTrades.length > 0 ? `${todayPnl >= 0 ? '+' : ''}$${todayPnl.toFixed(0)} P&L` : t.aiCoach.contextNoTrades },
                 ] as const).map((s, i) => (
                     <div key={i} className={styles.contextCard}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: 4 }}>
@@ -239,7 +236,7 @@ export default function AIChatPage() {
                                 )}
                                 <div className={isUser ? styles.messageContentUser : undefined} style={{ display: 'flex', flexDirection: 'column', gap: 5, flex: isUser ? 'unset' : 1 }}>
                                     <span style={{ ...lbl, display: 'block', textAlign: isUser ? 'right' : 'left' }}>
-                                        {isUser ? (lang === 'fr' ? 'Vous' : 'You') : (lang === 'fr' ? 'Coach IA' : 'AI Coach')}
+                                        {isUser ? t.aiCoach.labelYou : t.aiCoach.labelCoach}
                                     </span>
                                     <div className={styles.messageBubble} style={{
                                         background: isUser ? 'rgba(253,200,0,0.04)' : '#0d1117',
@@ -283,7 +280,7 @@ export default function AIChatPage() {
                                 <Brain size={11} color="#FDC800" />
                             </div>
                             <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
-                                <span style={{ ...lbl, display: 'block' }}>{lang === 'fr' ? 'Coach IA' : 'AI Coach'}</span>
+                                <span style={{ ...lbl, display: 'block' }}>{t.aiCoach.labelCoach}</span>
                                 <div className={styles.messageBubble} style={{ background: '#0d1117', border: '1px solid #1a1c24', borderLeft: '2px solid #1f2937' }}>
                                     <div className={styles.typingDots}><span /><span /><span /></div>
                                 </div>
