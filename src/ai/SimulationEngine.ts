@@ -386,8 +386,8 @@ export function runSimulation(
                     reason  = '3+ escalating losses — session halted';
                 } else if (heldLoserIds.has(t.id) && (t.durationSeconds ?? 0) > 0) {
                     status  = 'capped';
-                    adjPnl  = pnl * (avgWinDur / t.durationSeconds!);
-                    reason  = `Held loser: capped at ${Math.round(avgWinDur / 60)}min avg win duration`;
+                    adjPnl  = (t.riskUSD ?? 0) > 0 ? -t.riskUSD! : pnl;
+                    reason  = `Held loser: replaced with planned stop-loss -$${Math.abs(adjPnl).toFixed(0)}`;
                 }
                 break;
         }
@@ -434,9 +434,19 @@ export function runSimulation(
         };
     });
 
-    // Sample to ≤ 120 points for chart performance
-    const step        = Math.max(1, Math.ceil(rawCurve.length / 120));
-    const equityCurve = rawCurve.filter((_, i) => i % step === 0 || i === rawCurve.length - 1);
+    // Sample to ≤ 120 points for chart performance while preserving local extrema
+    const step = Math.max(1, Math.ceil(rawCurve.length / 120));
+    const sampled = new Set<number>();
+    // Always include stride points and last point
+    rawCurve.forEach((_, i) => { if (i % step === 0 || i === rawCurve.length - 1) sampled.add(i); });
+    // Also preserve local extrema (peaks and troughs on actual curve)
+    for (let i = 1; i < rawCurve.length - 1; i++) {
+        const prev = rawCurve[i - 1].actual;
+        const curr = rawCurve[i].actual;
+        const next = rawCurve[i + 1].actual;
+        if ((curr >= prev && curr >= next) || (curr <= prev && curr <= next)) sampled.add(i);
+    }
+    const equityCurve = rawCurve.filter((_, i) => sampled.has(i)).sort((a, b) => a.i - b.i);
 
     // ── Final metrics ──────────────────────────────────────────────────────────
     const actual    = metricsFromPnls(sorted.map(t => t.pnl ?? 0));

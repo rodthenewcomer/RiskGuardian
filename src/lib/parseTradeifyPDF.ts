@@ -235,6 +235,7 @@ export async function parseTradeifyPDF(
         type TI = { str: string; x: number; absY: number };
         const items: TI[] = [];
 
+        let pageYOffset = 0;
         for (let p = 1; p <= pdf.numPages; p++) {
             const page = await pdf.getPage(p);
             const vp   = page.getViewport({ scale: 1 });
@@ -246,10 +247,11 @@ export async function parseTradeifyPDF(
                     items.push({
                         str: item.str.trim(),
                         x: item.transform[4],
-                        absY: (p - 1) * 20000 + (vp.height - item.transform[5]),
+                        absY: pageYOffset + (vp.height - item.transform[5]),
                     });
                 }
             }
+            pageYOffset += vp.height;
         }
 
         // Sort top-to-bottom, left-to-right; merge adjacent items

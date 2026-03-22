@@ -603,6 +603,7 @@ export function calcPositionSize(params: {
     symbol: string;
     isShort?: boolean;
     includeFees?: boolean;
+    leverage?: number;
 }): { size: number; unit: string; pointValue: number; comm: number; notional: number } {
     const { entry, stopLoss, riskAmt, assetType, symbol, includeFees = true } = params;
     const priceDiff = Math.abs(entry - stopLoss);
@@ -635,6 +636,27 @@ export function calcPositionSize(params: {
         : Math.round(rawSize * 100) / 100;
 
     const notional = finalSize * entry * (assetType === 'futures' ? pointVal : 1);
+
+    // Apply leverage cap: notional must not exceed balance × leverage
+    if (params.leverage && params.leverage > 0 && params.balance > 0) {
+        const maxNotional = params.balance * params.leverage;
+        if (notional > maxNotional) {
+            const capFactor = maxNotional / notional;
+            const cappedSize = assetType === 'futures'
+                ? Math.max(1, Math.round(finalSize * capFactor * 10) / 10)
+                : Math.round(finalSize * capFactor * 100) / 100;
+            const cappedNotional = cappedSize * entry * (assetType === 'futures' ? pointVal : 1);
+            const comm = includeFees ? cappedNotional * TRADEIFY_COMMISSION_RATE * 2 : 0;
+            return {
+                size: cappedSize,
+                unit,
+                pointValue: pointVal,
+                comm,
+                notional: cappedNotional,
+            };
+        }
+    }
+
     let comm = 0;
 
     // Tradeify 0.4% per leg × 2 (entry + exit = 0.8% round-trip)

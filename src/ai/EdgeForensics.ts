@@ -49,8 +49,9 @@ export interface PatternResult {
 
 const fmtTs = (iso: string): string => {
     const d = new Date(iso);
-    return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
-        + ' ' + d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    const estDate = new Date(d.toLocaleString('en-US', { timeZone: 'America/New_York' }));
+    return estDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+        + ' ' + estDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 };
 
 const fmtDur = (s: number): string =>
@@ -93,9 +94,11 @@ export function generateForensics(trades: Trade[], accountData: any) {
         let hasRevenge = false;
         for (let i = 0; i < ts.length - 1; i++) {
             if ((ts[i].pnl ?? 0) < 0) {
+                const isCrypto = ts[i].assetType === 'crypto' || TRADEIFY_CRYPTO_LIST.includes(ts[i].asset);
+                const windowMs = (isCrypto ? 5 : 30) * 60000;
                 const t1 = new Date(ts[i].closedAt ?? ts[i].createdAt).getTime();
-                const t2 = new Date(ts[i + 1].closedAt ?? ts[i + 1].createdAt).getTime();
-                if (t2 - t1 < 5 * 60000) { hasRevenge = true; break; }
+                const t2 = new Date(ts[i + 1].createdAt).getTime();
+                if (t2 - t1 < windowMs) { hasRevenge = true; break; }
             }
         }
         let tag: SessionGroup['tag'] = 'CLEAN';
@@ -134,7 +137,7 @@ export function generateForensics(trades: Trade[], accountData: any) {
                     const jOpenTime = new Date(closed[j].createdAt).getTime();
                     if (jOpenTime < lossClose) continue; // parallel position — not revenge
 
-                    const isCrypto = closed[j].assetType === 'crypto' || TRADEIFY_CRYPTO_LIST?.includes(closed[j].asset);
+                    const isCrypto = closed[j].assetType === 'crypto' || TRADEIFY_CRYPTO_LIST.includes(closed[j].asset);
                     const windowMs = (isCrypto ? 5 : 30) * 60000;
                     const elapsed = jOpenTime - lossClose; // time from loss close → next open
                     if (elapsed <= windowMs) {

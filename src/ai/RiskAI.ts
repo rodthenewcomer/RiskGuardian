@@ -28,7 +28,7 @@ export interface RiskGuardianResult {
     maxTradesLeft: number;
     drawdownFloor: number;
     proximityPct: number;       // 0–100: how close to daily limit
-    maxDrawdownPct: number;     // 0–100: how close to max drawdown
+    drawdownBufferPct: number;  // 0–100: drawdown buffer remaining (100 = full, 0 = at floor)
     survivalStatus: 'safe' | 'caution' | 'danger' | 'critical';
     recommendation: string;
     tradeWarning?: string;      // set when evaluating a specific trade risk
@@ -160,7 +160,7 @@ export function analyzeRiskGuardian(
     const safeRisk = Math.min(maxPerTrade, remainingDaily, remainingMax * 0.2);
     const maxTradesLeft = safeRisk > 0 ? Math.floor(remainingDaily / safeRisk) : 0;
     const proximityPct = account.dailyLossLimit > 0 ? (todayUsed / account.dailyLossLimit) * 100 : 0;
-    const maxDrawdownPct = account.maxDrawdownLimit && account.maxDrawdownLimit > 0
+    const drawdownBufferPct = account.maxDrawdownLimit && account.maxDrawdownLimit > 0
         ? ((account.balance - drawdownFloor) / account.maxDrawdownLimit) * 100
         : 100;
 
@@ -170,9 +170,10 @@ export function analyzeRiskGuardian(
     const W = (account as any).historicalWinRate ?? 0.5;  // default 50%
     const R = (account as any).historicalAvgRR   ?? 2.0;  // default 2R
     const kellyFull = W - (1 - W) / R;                    // full Kelly fraction
-    const kellyPct  = Math.max(0, kellyFull * 100);        // as percentage
+    const kellyPct  = kellyFull * 100;                     // true value (can be negative)
+    const kellyPctClamped = Math.max(0, kellyPct);         // for ratio computation only
     const actualPct = account.maxRiskPercent;
-    const kellyRatio = kellyPct > 0 ? actualPct / kellyPct : 0;
+    const kellyRatio = kellyPctClamped > 0 ? actualPct / kellyPctClamped : 0;
     let kellyNote = '';
     if (kellyFull <= 0) {
         kellyNote = 'Negative Kelly — current win rate / R:R combination has no mathematical edge. Do not increase size until stats improve.';
@@ -206,9 +207,9 @@ export function analyzeRiskGuardian(
 
     // Survival status
     let survivalStatus: RiskGuardianResult['survivalStatus'] = 'safe';
-    if (proximityPct >= 90 || maxDrawdownPct <= 10) survivalStatus = 'critical';
-    else if (proximityPct >= 70 || maxDrawdownPct <= 25) survivalStatus = 'danger';
-    else if (proximityPct >= 50 || maxDrawdownPct <= 40) survivalStatus = 'caution';
+    if (proximityPct >= 90 || drawdownBufferPct <= 10) survivalStatus = 'critical';
+    else if (proximityPct >= 70 || drawdownBufferPct <= 25) survivalStatus = 'danger';
+    else if (proximityPct >= 50 || drawdownBufferPct <= 40) survivalStatus = 'caution';
 
     // Smart recommendation
     let recommendation = '';
@@ -256,7 +257,7 @@ export function analyzeRiskGuardian(
         maxTradesLeft,
         drawdownFloor,
         proximityPct,
-        maxDrawdownPct,
+        drawdownBufferPct,
         survivalStatus,
         recommendation,
         tradeWarning,

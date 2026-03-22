@@ -48,26 +48,41 @@ export function scanViolations(
     // ── 2. Daily loss limit check ──────────────────────────────────
     const dailyLimit = account.dailyLossLimit ?? 0;
     if (dailyLimit > 0) {
-        // Group P&L by trading day
-        const byDay = new Map<string, number>();
+        // Group trades by trading day (sorted chronologically)
+        const byDay = new Map<string, typeof closed>();
         for (const t of closed) {
             const day = getTradingDay(t.closedAt ?? t.createdAt);
-            byDay.set(day, (byDay.get(day) ?? 0) + (t.pnl ?? 0));
+            if (!byDay.has(day)) byDay.set(day, []);
+            byDay.get(day)!.push(t);
         }
-        for (const [day, pnl] of byDay) {
-            const loss = -pnl; // positive = lost money
-            if (loss > dailyLimit) {
+        for (const [day, dayTrades] of byDay) {
+            // Walk trades in chronological order to find intraday breach point
+            dayTrades.sort((a, b) =>
+                new Date(a.closedAt ?? a.createdAt).getTime() - new Date(b.closedAt ?? b.createdAt).getTime()
+            );
+            let runningLoss = 0;
+            let breachTradeId: string | undefined;
+            for (const t of dayTrades) {
+                runningLoss -= t.pnl ?? 0;
+                if (runningLoss > dailyLimit && !breachTradeId) {
+                    breachTradeId = t.id;
+                    break;
+                }
+            }
+            const totalLoss = -dayTrades.reduce((s, t) => s + (t.pnl ?? 0), 0);
+            if (totalLoss > dailyLimit) {
                 violations.push({
                     type: 'daily_limit',
+                    tradeId: breachTradeId,
                     date: day,
-                    detail: `Lost $${loss.toFixed(0)} — exceeded $${dailyLimit.toLocaleString()} daily limit by $${(loss - dailyLimit).toFixed(0)}`,
+                    detail: `Lost $${totalLoss.toFixed(0)} — exceeded $${dailyLimit.toLocaleString()} daily limit by $${(totalLoss - dailyLimit).toFixed(0)}`,
                     severity: 'breach',
                 });
-            } else if (loss > dailyLimit * 0.9) {
+            } else if (totalLoss > dailyLimit * 0.9) {
                 violations.push({
                     type: 'daily_limit',
                     date: day,
-                    detail: `Lost $${loss.toFixed(0)} — within 10% of $${dailyLimit.toLocaleString()} daily limit`,
+                    detail: `Lost $${totalLoss.toFixed(0)} — within 10% of $${dailyLimit.toLocaleString()} daily limit`,
                     severity: 'warning',
                 });
             }
