@@ -119,10 +119,30 @@ export function generateForensics(trades: Trade[], accountData: any) {
     const lossTrades = closed.filter(t => (t.pnl ?? 0) < 0);
     const winsWithDur = wins.filter(t => (t.durationSeconds ?? 0) > 0);
     const lossesWithDur = lossTrades.filter(t => (t.durationSeconds ?? 0) > 0);
+    // avgWinDur / avgLossDur used by the scorecard (mean is fine for ratios)
     const avgWinDur = winsWithDur.length > 0 ? winsWithDur.reduce((s, t) => s + t.durationSeconds!, 0) / winsWithDur.length : 60;
     const avgLossDur = lossesWithDur.length > 0 ? lossesWithDur.reduce((s, t) => s + t.durationSeconds!, 0) / lossesWithDur.length : 60;
     const avgWinAmt = wins.length > 0 ? wins.reduce((s, t) => s + (t.pnl ?? 0), 0) / wins.length : 1;
     const avgLossAmt = lossTrades.length > 0 ? Math.abs(lossTrades.reduce((s, t) => s + (t.pnl ?? 0), 0)) / lossTrades.length : 1;
+
+    // ── Session-aware hold duration baseline ──────────────────────────────────
+    // Trades taken during US session (9am-4pm EST) are faster than overnight crypto.
+    // Using a global mean would flag slow off-hours trades as "held too long" incorrectly.
+    // We compute the MEDIAN (robust to outliers) per session type and use it per trade.
+    const medianOf = (arr: number[]): number => {
+        if (arr.length === 0) return 60;
+        const s = [...arr].sort((a, b) => a - b);
+        return s[Math.floor(s.length / 2)];
+    };
+    const usWinsWithDur  = winsWithDur.filter(t => { const h = estHour(t.createdAt); return h >= 9 && h < 17; });
+    const offWinsWithDur = winsWithDur.filter(t => { const h = estHour(t.createdAt); return h < 9  || h >= 17; });
+    const usMedianWinDur  = medianOf(usWinsWithDur.length  >= 3 ? usWinsWithDur.map(t => t.durationSeconds!)  : winsWithDur.map(t => t.durationSeconds!));
+    const offMedianWinDur = medianOf(offWinsWithDur.length >= 3 ? offWinsWithDur.map(t => t.durationSeconds!) : winsWithDur.map(t => t.durationSeconds!));
+    // Returns the appropriate median win hold for a trade entered at `iso`
+    const contextualWinDur = (iso: string): number => {
+        const h = estHour(iso);
+        return (h >= 9 && h < 17) ? usMedianWinDur : offMedianWinDur;
+    };
 
     const patterns: PatternResult[] = [];
 
@@ -138,10 +158,10 @@ export function generateForensics(trades: Trade[], accountData: any) {
                 let count = 0, seqImp = 0;
                 for (let j = i + 1; j < closed.length; j++) {
                     // Use OPEN TIME of the next trade to measure elapsed time since the loss.
-                    // If the next trade opened BEFORE the loss closed, it's a parallel position
-                    // (opened simultaneously) — NOT a re-entry. Skip it.
+                    // Skip if the trade opened BEFORE OR AT the same moment the loss closed —
+                    // that's a parallel/split entry, not an emotional re-entry.
                     const jOpenTime = new Date(closed[j].createdAt).getTime();
-                    if (jOpenTime < lossClose) continue; // parallel position — not revenge
+                    if (jOpenTime <= lossClose) continue; // parallel or simultaneous split — not revenge
 
                     const isCrypto = closed[j].assetType === 'crypto' || TRADEIFY_CRYPTO_LIST.includes(closed[j].asset);
                     const windowMs = (isCrypto ? 5 : 30) * 60000;
@@ -175,20 +195,25 @@ export function generateForensics(trades: Trade[], accountData: any) {
 
     // ── PATTERN 2: Held Losers ────────────────────────────────────────────────
     {
-        const held = lossTrades.filter(t => (t.durationSeconds ?? 0) > avgWinDur * 1.5);
+        // Use session-aware median baseline: off-hours losers compare to off-hours wins,
+        // not the global mean which is skewed by slow overnight sessions.
+        const held = lossTrades.filter(t =>
+            (t.durationSeconds ?? 0) > 0 &&
+            t.durationSeconds! > contextualWinDur(t.createdAt) * 1.5
+        );
         if (held.length > 0) {
             const impact = held.reduce((a, b) => a + (b.pnl ?? 0), 0);
             patterns.push({
                 name: 'Held Losers', freq: held.length, impact,
                 severity: impact < -400 || held.length > 5 ? 'CRITICAL' : 'WARNING',
-                desc: 'Losing trades held 50%+ longer than average winning trade — holding hope instead of executing stop.',
-                evidence: held.slice(0, 3).map(t => `${t.asset}: held ${fmtDur(t.durationSeconds ?? 0)} vs ${fmtDur(avgWinDur)} avg win`),
+                desc: 'Losing trades held 50%+ longer than the typical winning trade for that session type — holding hope instead of executing stop.',
+                evidence: held.slice(0, 3).map(t => `${t.asset}: held ${fmtDur(t.durationSeconds ?? 0)} vs ${fmtDur(contextualWinDur(t.createdAt))} session-avg win`),
                 evidenceTrades: held.slice(0, 5).map(t => ({
                     timestamp: fmtTs(t.closedAt ?? t.createdAt),
                     asset: t.asset,
                     pnl: t.pnl ?? 0,
                     durationLabel: fmtDur(t.durationSeconds ?? 0),
-                    context: `Held ${fmtDur(t.durationSeconds ?? 0)} — avg winner exits at ${fmtDur(avgWinDur)}`,
+                    context: `Held ${fmtDur(t.durationSeconds ?? 0)} — session-type avg winner exits at ${fmtDur(contextualWinDur(t.createdAt))}`,
                 })),
             });
         }
@@ -196,12 +221,13 @@ export function generateForensics(trades: Trade[], accountData: any) {
 
     // ── PATTERN 3: Early Exit ─────────────────────────────────────────────────
     {
-        // Threshold: duration < 50% of avg winning trade duration.
-        // Exclude any win that beats avgWinAmt — a trade that exceeds your avg win
-        // in dollar terms is efficient, not premature, regardless of how fast it ran.
+        // Threshold: duration < 50% of session-type median win duration.
+        // Using session-aware median prevents off-hours trades (naturally slower markets)
+        // from being falsely flagged as early exits against a US-session benchmark.
+        // Exclude any win that beats avgWinAmt — efficient in $ terms regardless of speed.
         const earlyWins = wins.filter(t =>
             (t.durationSeconds ?? 0) > 0 &&
-            t.durationSeconds! < avgWinDur * 0.5 &&
+            t.durationSeconds! < contextualWinDur(t.createdAt) * 0.5 &&
             (t.pnl ?? 0) < avgWinAmt
         );
         if (earlyWins.length >= 3) {
@@ -216,14 +242,14 @@ export function generateForensics(trades: Trade[], accountData: any) {
                     evidence: [
                         `Early exit avg: $${earlyAvgPnl.toFixed(0)} vs full avg win: $${avgWinAmt.toFixed(0)}`,
                         `Est. foregone per trade: $${forgone.toFixed(0)}`,
-                        `Avg hold on early exits: ${fmtDur(earlyWins.reduce((s, t) => s + (t.durationSeconds ?? 0), 0) / earlyWins.length)} vs ${fmtDur(avgWinDur)} avg win duration`,
+                        `Avg hold on early exits: ${fmtDur(earlyWins.reduce((s, t) => s + (t.durationSeconds ?? 0), 0) / earlyWins.length)} — session-type median win: ${fmtDur(usMedianWinDur)}`,
                     ],
                     evidenceTrades: earlyWins.slice(0, 5).map(t => ({
                         timestamp: fmtTs(t.closedAt ?? t.createdAt),
                         asset: t.asset,
                         pnl: t.pnl ?? 0,
                         durationLabel: fmtDur(t.durationSeconds ?? 0),
-                        context: `Held ${fmtDur(t.durationSeconds ?? 0)} — avg winner runs ${fmtDur(avgWinDur)}, est. $${forgone.toFixed(0)} left on table`,
+                        context: `Held ${fmtDur(t.durationSeconds ?? 0)} — session avg winner runs ${fmtDur(contextualWinDur(t.createdAt))}, est. $${forgone.toFixed(0)} left on table`,
                     })),
                 });
             }
@@ -329,7 +355,10 @@ export function generateForensics(trades: Trade[], accountData: any) {
             let seqEnd = i;
             let prev = Math.abs(seqLosses[i].pnl);
             let j = i + 1;
-            while (j < seqLosses.length && seqLosses[j].pnl < 0 && Math.abs(seqLosses[j].pnl) > prev) {
+            // Require each step to be ≥25% larger than the previous — filters out normal
+            // loss-size variance (a 5% or 8% increase is within ordinary execution noise).
+            // True escalation = meaningful size increase each time, signaling emotional re-sizing.
+            while (j < seqLosses.length && seqLosses[j].pnl < 0 && Math.abs(seqLosses[j].pnl) >= prev * 1.25) {
                 prev = Math.abs(seqLosses[j].pnl);
                 seqEnd = j;
                 j++;
@@ -386,10 +415,19 @@ export function generateForensics(trades: Trade[], accountData: any) {
 
     // ── PATTERN 9: Session Bleed ──────────────────────────────────────────────
     {
+        // Minimum meaningful peak: 25% of the trader's avg winning session P&L.
+        // A session peaking at +$94 when your avg winning session is +$800 is not
+        // worth flagging — stopping at $94 would be leaving 90% of potential on the table.
+        // Only flag if the peak was a genuine profit milestone worth protecting.
+        const winningSessions = sessions.filter(s => s.pnl > 0);
+        const avgWinSessPnl = winningSessions.length > 0
+            ? winningSessions.reduce((s, sess) => s + sess.pnl, 0) / winningSessions.length
+            : 100;
+        const minMeaningfulPeak = Math.max(avgWinSessPnl * 0.25, 50);
         const bleedSessions = sessions.filter(s => {
             let cum = 0, peak = 0;
             for (const t of s.trades) { cum += (t.pnl ?? 0); if (cum > peak) peak = cum; }
-            return peak > 0 && s.pnl < 0;
+            return peak >= minMeaningfulPeak && s.pnl < 0;
         });
         if (bleedSessions.length > 0) {
             // Behavioral cost = how much was surrendered from the peak, not the full session loss.
@@ -592,9 +630,13 @@ export function generateForensics(trades: Trade[], accountData: any) {
             if (!dayMap[d]) dayMap[d] = [];
             dayMap[d].push(t);
         });
+        // Use the account's configured daily loss limit if set — that IS the hard stop.
+        // Falling back to 3% of balance only when no explicit limit is configured.
+        const dailyLossLimit = Math.abs(accountData?.dailyLossLimit ?? 0);
+        const catThreshold = dailyLossLimit > 0 ? dailyLossLimit : balance * 0.03;
         const catDays = Object.entries(dayMap)
             .map(([date, ts]) => ({ date, pnl: ts.reduce((s, t) => s + (t.pnl ?? 0), 0), trades: ts }))
-            .filter(d => d.pnl < 0 && Math.abs(d.pnl) > balance * 0.03);
+            .filter(d => d.pnl < 0 && Math.abs(d.pnl) > catThreshold);
         if (catDays.length > 0) {
             const impact = catDays.reduce((s, d) => s + d.pnl, 0);
             const evidenceTrades: EvidenceTrade[] = [];
@@ -605,15 +647,18 @@ export function generateForensics(trades: Trade[], accountData: any) {
                         timestamp: fmtTs(t.closedAt ?? t.createdAt),
                         asset: t.asset,
                         pnl: t.pnl ?? 0,
-                        context: `Day total: -$${Math.abs(d.pnl).toFixed(0)} (${((Math.abs(d.pnl) / balance) * 100).toFixed(1)}% of account) — this trade: $${Math.abs(t.pnl ?? 0).toFixed(0)}`,
+                        context: `Day total: -$${Math.abs(d.pnl).toFixed(0)} (${((Math.abs(d.pnl) / balance) * 100).toFixed(1)}% of account, hard stop: $${catThreshold.toFixed(0)}) — this trade: $${Math.abs(t.pnl ?? 0).toFixed(0)}`,
                     });
                 });
             });
+            const thresholdLabel = dailyLossLimit > 0
+                ? `daily hard stop ($${dailyLossLimit.toFixed(0)})`
+                : `3% of account ($${(balance * 0.03).toFixed(0)})`;
             patterns.push({
                 name: 'Catastrophic Day', freq: catDays.length, impact,
                 severity: 'CRITICAL',
-                desc: `${catDays.length} trading day${catDays.length > 1 ? 's' : ''} with loss >3% of account — structural damage requiring immediate hard-stop enforcement.`,
-                evidence: catDays.slice(0, 3).map(d => `${d.date}: -$${Math.abs(d.pnl).toFixed(0)} (${((Math.abs(d.pnl) / balance) * 100).toFixed(1)}% of account)`),
+                desc: `${catDays.length} trading day${catDays.length > 1 ? 's' : ''} where loss exceeded the ${thresholdLabel} — structural damage from ignored hard stop.`,
+                evidence: catDays.slice(0, 3).map(d => `${d.date}: -$${Math.abs(d.pnl).toFixed(0)} vs limit $${catThreshold.toFixed(0)} (${((Math.abs(d.pnl) / catThreshold) * 100).toFixed(0)}% of limit)`),
                 evidenceTrades: evidenceTrades.slice(0, 5),
             });
         }
@@ -631,16 +676,23 @@ export function generateForensics(trades: Trade[], accountData: any) {
             assetTimelines[t.asset].opens.push(t);
             assetTimelines[t.asset].closes.push(t);
         }
-        // For each asset, find entries where a trade opened before the previous one closed
+        // For each asset, find entries where a trade opened before the previous one closed.
+        // Exclude SPLIT ENTRIES: when a trader intentionally splits their risk across
+        // 2-3 simultaneous orders (same setup, same direction), they all open within
+        // seconds/minutes of each other. Require a meaningful gap (≥3 min) between the
+        // original entry and the add-on to distinguish planned splits from averaging down.
+        const SPLIT_THRESHOLD_MS = 3 * 60 * 1000; // 3 minutes
         for (const [, timeline] of Object.entries(assetTimelines)) {
             const byOpen = [...timeline.opens].sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
             for (let i = 1; i < byOpen.length; i++) {
                 const prev = byOpen[i - 1];
                 const curr = byOpen[i];
+                const prevOpen  = new Date(prev.createdAt).getTime();
                 const prevClose = prev.closedAt ? new Date(prev.closedAt).getTime() : null;
-                const currOpen = new Date(curr.createdAt).getTime();
-                // curr opened before prev closed = parallel/averaging position
-                if (prevClose && currOpen < prevClose && (prev.pnl ?? 0) < 0) {
+                const currOpen  = new Date(curr.createdAt).getTime();
+                // curr opened before prev closed AND at least 3 min after prev opened
+                if (prevClose && currOpen < prevClose && (prev.pnl ?? 0) < 0
+                    && (currOpen - prevOpen) >= SPLIT_THRESHOLD_MS) {
                     avgDownTrades.push(curr);
                 }
             }
