@@ -13,7 +13,7 @@ import {
     RadarChart, Radar, PolarGrid, PolarAngleAxis, Legend,
     ComposedChart, Line,
 } from 'recharts';
-import { Target, AlertTriangle, Download, Link2, Check, Info, TrendingUp, TrendingDown, Activity, Clock } from 'lucide-react';
+import { Target, AlertTriangle, Download, Link2, Check, TrendingUp, TrendingDown, Activity, Clock } from 'lucide-react';
 import ComposedDailyChart, { addRollingAvg } from '@/components/charts/ComposedDailyChart';
 import InstrumentRadar, { type InstrumentMetric } from '@/components/charts/InstrumentRadar';
 import PnLHistogram from '@/components/charts/PnLHistogram';
@@ -35,7 +35,11 @@ export default function AnalyticsPage() {
     const [reportPeriod, setReportPeriod] = useState<'7D'|'30D'|'90D'|'ALL'>('ALL');
     const [snapshotSaved, setSnapshotSaved] = useState(false);
     const [compareSelected, setCompareSelected] = useState<string[]>([]);
-    const [compareMode, setCompareMode] = useState<'SNAPSHOT' | 'WOW' | 'MOM' | 'QOQ' | 'YOY'>('WOW');
+    const [compareMode, setCompareMode] = useState<'SNAPSHOT' | 'WOW' | 'MOM' | 'QOQ' | 'YOY' | 'CUSTOM'>('WOW');
+    const [customAFrom, setCustomAFrom] = useState('');
+    const [customATo, setCustomATo] = useState('');
+    const [customBFrom, setCustomBFrom] = useState('');
+    const [customBTo, setCustomBTo] = useState('');
 
     // Sort chronological + apply date range filter
     // Date filter uses getTradingDay(closedAt) — trades held overnight are correctly attributed
@@ -61,8 +65,19 @@ export default function AnalyticsPage() {
             : t.durationSeconds,
     })), [trades]);
 
-    // Process Algorithmic Forensics
-    const forensics = useMemo(() => generateForensics(tradesWithDuration, account), [tradesWithDuration, account]);
+    // When a date filter is active, restrict forensics to the same window
+    const filteredTradesWithDuration = useMemo(() => {
+        if (!dateFrom && !dateTo) return tradesWithDuration;
+        return tradesWithDuration.filter(t => {
+            const d = getTradingDay(t.closedAt ?? t.createdAt);
+            if (dateFrom && d < dateFrom) return false;
+            if (dateTo && d > dateTo) return false;
+            return true;
+        });
+    }, [tradesWithDuration, dateFrom, dateTo]);
+
+    // Process Algorithmic Forensics — respects the active date filter
+    const forensics = useMemo(() => generateForensics(filteredTradesWithDuration, account), [filteredTradesWithDuration, account]);
 
     const TABS: Array<{ key: string; label: string }> = [
         { key: 'OVERVIEW',    label: t.analytics.tabs.overview },
@@ -684,8 +699,8 @@ export default function AnalyticsPage() {
                             {lang === 'fr' ? 'Analytiques' : 'Analysis'}{reportRange ? ` · ${reportRange.fromShort} – ${reportRange.toShort}` : ''}
                         </h1>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
-                            <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: '#6b7280' }}>
-                                {closed.length} trades
+                            <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: filterActive ? '#FDC800' : '#6b7280' }}>
+                                {closed.length} {lang === 'fr' ? 'trades' : 'trades'}{filterActive ? (lang === 'fr' ? ' filtrés' : ' filtered') : ''}
                             </span>
                             {closed.length > 0 && (
                                 <>
@@ -694,14 +709,6 @@ export default function AnalyticsPage() {
                                         {netPnl >= 0 ? '+' : ''}${netPnl.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} {lang === 'fr' ? 'P&L net' : 'net P&L'}
                                     </span>
                                 </>
-                            )}
-                            {/* Date range pickers (compact) */}
-                            <span style={{ color: '#1a1c24' }}>·</span>
-                            <input type="date" className={styles.dateInput} value={dateFrom} onChange={e => setDateFrom(e.target.value)} style={{ padding: '3px 8px', fontSize: 11 }} />
-                            <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: '#6b7280' }}>to</span>
-                            <input type="date" className={styles.dateInput} value={dateTo} onChange={e => setDateTo(e.target.value)} style={{ padding: '3px 8px', fontSize: 11 }} />
-                            {(dateFrom || dateTo) && (
-                                <button className={styles.dateClear} onClick={() => { setDateFrom(''); setDateTo(''); }} style={{ padding: '3px 8px', fontSize: 10 }}>✕</button>
                             )}
                         </div>
                     </div>
@@ -739,6 +746,102 @@ export default function AnalyticsPage() {
                     </div>
                 </div>
             </div>
+
+            {/* ── Quick Date Filter Bar ─────────────────────────────── */}
+            {(() => {
+                const now = new Date();
+                const todayISO = now.toISOString().slice(0, 10);
+                const dow = now.getDay(); // 0=Sun
+                const daysToMon = dow === 0 ? 6 : dow - 1;
+                const thisWeekMon = new Date(now.getTime() - daysToMon * 86400000).toISOString().slice(0, 10);
+                const lastWeekSun = new Date(now.getTime() - daysToMon * 86400000 - 86400000).toISOString().slice(0, 10);
+                const lastWeekMon = new Date(now.getTime() - (daysToMon + 6) * 86400000).toISOString().slice(0, 10);
+                const thisMonthStart = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`;
+                const last30 = new Date(now.getTime() - 29 * 86400000).toISOString().slice(0, 10);
+
+                type Preset = { label: string; from: string; to: string };
+                const presets: Preset[] = [
+                    { label: lang === 'fr' ? 'AUJ.' : 'TODAY',      from: todayISO,      to: todayISO },
+                    { label: lang === 'fr' ? 'CETTE SEM.' : 'THIS WEEK', from: thisWeekMon, to: todayISO },
+                    { label: lang === 'fr' ? 'SEM. PRÉC.' : 'LAST WEEK', from: lastWeekMon, to: lastWeekSun },
+                    { label: lang === 'fr' ? 'CE MOIS' : 'THIS MONTH', from: thisMonthStart, to: todayISO },
+                    { label: '30D',                                   from: last30,        to: todayISO },
+                    { label: lang === 'fr' ? 'TOUT' : 'ALL',         from: '',            to: '' },
+                ];
+
+                const activePreset = presets.find(p => p.from === dateFrom && p.to === dateTo);
+
+                return (
+                    <div style={{
+                        borderBottom: '1px solid #1a1c24',
+                        background: '#090909',
+                        padding: isMobile ? '8px 12px' : '10px 32px',
+                        display: 'flex', alignItems: 'center', gap: isMobile ? 6 : 10, flexWrap: 'wrap',
+                    }}>
+                        {/* Preset buttons */}
+                        {presets.map(p => {
+                            const isActive = p.label === (lang === 'fr' ? 'TOUT' : 'ALL')
+                                ? !dateFrom && !dateTo
+                                : activePreset?.label === p.label;
+                            return (
+                                <button
+                                    key={p.label}
+                                    onClick={() => { setDateFrom(p.from); setDateTo(p.to); }}
+                                    style={{
+                                        fontFamily: 'var(--font-mono)', fontSize: isMobile ? 10 : 11, fontWeight: 700,
+                                        letterSpacing: '0.05em', padding: isMobile ? '5px 9px' : '6px 12px',
+                                        background: isActive ? 'rgba(253,200,0,0.12)' : 'transparent',
+                                        border: `1px solid ${isActive ? '#FDC800' : '#1a1c24'}`,
+                                        color: isActive ? '#FDC800' : '#6b7280',
+                                        cursor: 'pointer', transition: 'all 0.12s',
+                                        whiteSpace: 'nowrap',
+                                    }}
+                                    onMouseEnter={e => { if (!isActive) { (e.currentTarget as HTMLButtonElement).style.borderColor = '#3a3c44'; (e.currentTarget as HTMLButtonElement).style.color = '#c9d1d9'; } }}
+                                    onMouseLeave={e => { if (!isActive) { (e.currentTarget as HTMLButtonElement).style.borderColor = '#1a1c24'; (e.currentTarget as HTMLButtonElement).style.color = '#6b7280'; } }}
+                                >
+                                    {p.label}
+                                </button>
+                            );
+                        })}
+
+                        {/* Divider */}
+                        <div style={{ width: 1, height: 18, background: '#1a1c24', marginLeft: 2, marginRight: 2, flexShrink: 0 }} />
+
+                        {/* Custom date inputs */}
+                        <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: '#4b5563', flexShrink: 0 }}>
+                            {lang === 'fr' ? 'DU' : 'FROM'}
+                        </span>
+                        <input
+                            type="date"
+                            className={styles.dateInput}
+                            value={dateFrom}
+                            onChange={e => setDateFrom(e.target.value)}
+                            style={{ padding: '4px 8px', fontSize: 11 }}
+                        />
+                        <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: '#4b5563', flexShrink: 0 }}>
+                            {lang === 'fr' ? 'AU' : 'TO'}
+                        </span>
+                        <input
+                            type="date"
+                            className={styles.dateInput}
+                            value={dateTo}
+                            onChange={e => setDateTo(e.target.value)}
+                            style={{ padding: '4px 8px', fontSize: 11 }}
+                        />
+                        {filterActive && (
+                            <button
+                                className={styles.dateClear}
+                                onClick={() => { setDateFrom(''); setDateTo(''); }}
+                                style={{ padding: '4px 10px', fontSize: 10 }}
+                                title={lang === 'fr' ? 'Effacer le filtre' : 'Clear filter'}
+                            >
+                                {lang === 'fr' ? 'EFFACER' : 'CLEAR'}
+                            </button>
+                        )}
+                    </div>
+                );
+            })()}
+
             <div className={styles.topTabsWrapper}>
                 <div className={styles.topTabs}>
                     {TABS.map(({ key, label }) => (
@@ -752,20 +855,6 @@ export default function AnalyticsPage() {
                 </div>
             </div>
 
-            {filterActive && (
-                <div style={{
-                    display: 'flex', alignItems: 'center', gap: 8,
-                    padding: '7px 16px',
-                    background: 'rgba(251, 191, 36, 0.04)',
-                    borderBottom: '1px solid rgba(251, 191, 36, 0.18)',
-                    fontFamily: 'var(--font-mono)', fontSize: 10, color: '#fbbf24',
-                    letterSpacing: '0.05em',
-                }}>
-                    <Info size={11} />
-                    <span>{lang === 'fr' ? `FILTRE ACTIF — trades hors ${dateFrom || '…'} → ${dateTo || '…'} masqués.` : `DATE FILTER ACTIVE — trades outside ${dateFrom || '…'} → ${dateTo || '…'} are hidden.`}</span>
-                    <button onClick={() => { setDateFrom(''); setDateTo(''); }} style={{ marginLeft: 'auto', background: 'transparent', border: '1px solid rgba(251,191,36,0.3)', color: '#fbbf24', padding: '2px 8px', cursor: 'pointer', fontSize: 10, fontFamily: 'var(--font-mono)' }}>CLEAR</button>
-                </div>
-            )}
 
             <div
                 className={styles.content}
@@ -5712,6 +5801,15 @@ export default function AnalyticsPage() {
                             const bSrc = sB ?? { tradeCount: rptTrades.length, netPnl: rptNetPnl, winRate: rptWinRate, profitFactor: rptPF, avgWin: rptAvgW, avgLoss: rptAvgL, wlRatio: rptWlRatio, expectancy: rptExpectancy, behavioralCost: rptBehavCost, riskScore: rptForensics.riskScore, greenSessions: rptGreenSess, totalSessions: rptSessions.length, savedAt: new Date().toISOString(), periodLabel: `${reportPeriod} (${lang === 'fr' ? 'maintenant' : 'now'})`, grade: grade as string, gradeScore: gradeScore as number };
                             rowB = { count: bSrc.tradeCount, netPnl: bSrc.netPnl, winRate: bSrc.winRate, pf: bSrc.profitFactor, avgWin: bSrc.avgWin, avgLoss: bSrc.avgLoss, wlRatio: bSrc.wlRatio, expectancy: bSrc.expectancy, avgDuration: 0, bestHour: '—', behavCost: bSrc.behavioralCost, riskScore: bSrc.riskScore, greenSessions: bSrc.greenSessions, totalSessions: bSrc.totalSessions, topPattern: rptForensics.patterns.length > 0 ? rptForensics.patterns[0] : null, equity: [], hdr: `B · ${fmtSnap(bSrc.savedAt)} · ${bSrc.periodLabel}`, grade: bSrc.grade, gradeScore: bSrc.gradeScore };
                             modeLbl = lang === 'fr' ? 'Instantanés' : 'Snapshots';
+                        } else if (compareMode === 'CUSTOM') {
+                            if (customAFrom && customATo && customBFrom && customBTo) {
+                                const prev = computePeriodStats(new Date(customAFrom), new Date(customATo + 'T23:59:59'));
+                                const cur = computePeriodStats(new Date(customBFrom), new Date(customBTo + 'T23:59:59'));
+                                rowA = { ...prev, hdr: `A: ${customAFrom} → ${customATo}` };
+                                rowB = { ...cur, hdr: `B: ${customBFrom} → ${customBTo}` };
+                                modeLbl = lang === 'fr' ? 'Périodes personnalisées' : 'Custom Periods';
+                                nextLbl = lang === 'fr' ? 'la prochaine période' : 'the next period';
+                            }
                         } else if (compareMode !== 'SNAPSHOT') {
                             const r = AR[compareMode as keyof typeof AR];
                             const prev = computePeriodStats(r.pf, r.pt);
@@ -5797,10 +5895,10 @@ export default function AnalyticsPage() {
                                 {/* ── 1. MODE SELECTOR ── */}
                                 <div>
                                     <div style={{ ...SL, color: '#FDC800', marginBottom: 8 }}>{lang === 'fr' ? 'MODE DE COMPARAISON' : 'COMPARISON MODE'}</div>
-                                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 1, background: '#1a1c24' }}>
-                                        {(['SNAPSHOT', 'WOW', 'MOM', 'QOQ', 'YOY'] as const).map(m => {
-                                            const lbls: Record<string, string> = { SNAPSHOT: lang === 'fr' ? 'PHOTOS' : 'SNAP', WOW: lang === 'fr' ? 'SEM/SEM' : 'W/W', MOM: lang === 'fr' ? 'MOIS' : 'M/M', QOQ: lang === 'fr' ? 'TRIM' : 'Q/Q', YOY: lang === 'fr' ? 'AN/AN' : 'Y/Y' };
-                                            const subs: Record<string, string> = { SNAPSHOT: lang === 'fr' ? 'Manuel' : 'Manual', WOW: '7d vs 7d', MOM: '30d vs 30d', QOQ: '90d vs 90d', YOY: '365d vs 365d' };
+                                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: 1, background: '#1a1c24' }}>
+                                        {(['SNAPSHOT', 'WOW', 'MOM', 'QOQ', 'YOY', 'CUSTOM'] as const).map(m => {
+                                            const lbls: Record<string, string> = { SNAPSHOT: lang === 'fr' ? 'PHOTOS' : 'SNAP', WOW: lang === 'fr' ? 'SEM/SEM' : 'W/W', MOM: lang === 'fr' ? 'MOIS' : 'M/M', QOQ: lang === 'fr' ? 'TRIM' : 'Q/Q', YOY: lang === 'fr' ? 'AN/AN' : 'Y/Y', CUSTOM: lang === 'fr' ? 'PERSO' : 'CUSTOM' };
+                                            const subs: Record<string, string> = { SNAPSHOT: lang === 'fr' ? 'Manuel' : 'Manual', WOW: '7d vs 7d', MOM: '30d vs 30d', QOQ: '90d vs 90d', YOY: '365d vs 365d', CUSTOM: 'A vs B' };
                                             const active = compareMode === m;
                                             return (
                                                 <button key={m} onClick={() => setCompareMode(m)} style={{ padding: '10px 4px', fontFamily: QF, fontSize: 9, fontWeight: 700, background: active ? '#FDC800' : '#0d1117', color: active ? '#000' : '#6b7280', border: 'none', cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
@@ -5846,6 +5944,50 @@ export default function AnalyticsPage() {
                                             </div>
                                         )}
                                         {sortedSnaps.length > 0 && <div style={{ fontFamily: QF, fontSize: 9, color: '#4b5563', marginTop: 6 }}>{lang === 'fr' ? "Sélectionnez 2 rapports. B = données actuelles si 1 seul sélectionné." : 'Select 2 reports. B = current period if only 1 selected.'}</div>}
+                                    </div>
+                                )}
+
+                                {/* ── CUSTOM period picker (CUSTOM mode only) ── */}
+                                {compareMode === 'CUSTOM' && (
+                                    <div style={{ background: '#0d1117', border: '1px solid #1a1c24', padding: '16px 18px' }}>
+                                        <div style={{ fontFamily: QF, fontSize: 10, color: '#FDC800', letterSpacing: '0.08em', marginBottom: 12 }}>
+                                            {lang === 'fr' ? 'PÉRIODE PERSONNALISÉE' : 'CUSTOM PERIODS'}
+                                        </div>
+                                        <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 14 }}>
+                                            {/* Period A */}
+                                            <div style={{ background: '#090909', border: '1px solid #1a1c24', padding: '12px 14px' }}>
+                                                <div style={{ fontFamily: QF, fontSize: 9, color: '#8b949e', letterSpacing: '0.1em', marginBottom: 8 }}>A — {lang === 'fr' ? 'Période précédente' : 'Previous period'}</div>
+                                                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                                                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                                        <span style={{ fontFamily: QF, fontSize: 9, color: '#4b5563', width: 24 }}>{lang === 'fr' ? 'DU' : 'FROM'}</span>
+                                                        <input type="date" className={styles.dateInput} value={customAFrom} onChange={e => setCustomAFrom(e.target.value)} style={{ fontSize: 11, padding: '4px 8px', flex: 1 }} />
+                                                    </div>
+                                                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                                        <span style={{ fontFamily: QF, fontSize: 9, color: '#4b5563', width: 24 }}>{lang === 'fr' ? 'AU' : 'TO'}</span>
+                                                        <input type="date" className={styles.dateInput} value={customATo} onChange={e => setCustomATo(e.target.value)} style={{ fontSize: 11, padding: '4px 8px', flex: 1 }} />
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            {/* Period B */}
+                                            <div style={{ background: '#090909', border: '2px solid #FDC80040', padding: '12px 14px' }}>
+                                                <div style={{ fontFamily: QF, fontSize: 9, color: '#FDC800', letterSpacing: '0.1em', marginBottom: 8 }}>B — {lang === 'fr' ? 'Période actuelle' : 'Current period'}</div>
+                                                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                                                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                                        <span style={{ fontFamily: QF, fontSize: 9, color: '#4b5563', width: 24 }}>{lang === 'fr' ? 'DU' : 'FROM'}</span>
+                                                        <input type="date" className={styles.dateInput} value={customBFrom} onChange={e => setCustomBFrom(e.target.value)} style={{ fontSize: 11, padding: '4px 8px', flex: 1 }} />
+                                                    </div>
+                                                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                                        <span style={{ fontFamily: QF, fontSize: 9, color: '#4b5563', width: 24 }}>{lang === 'fr' ? 'AU' : 'TO'}</span>
+                                                        <input type="date" className={styles.dateInput} value={customBTo} onChange={e => setCustomBTo(e.target.value)} style={{ fontSize: 11, padding: '4px 8px', flex: 1 }} />
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        {(!customAFrom || !customATo || !customBFrom || !customBTo) && (
+                                            <div style={{ fontFamily: QF, fontSize: 9, color: '#6b7280', marginTop: 10 }}>
+                                                {lang === 'fr' ? '↑ Renseignez les 4 dates pour comparer les deux périodes.' : '↑ Fill all 4 dates to compare the two periods.'}
+                                            </div>
+                                        )}
                                     </div>
                                 )}
 
