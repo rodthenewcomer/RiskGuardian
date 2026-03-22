@@ -1,6 +1,7 @@
 'use client';
 
 import styles from './JournalPage.module.css';
+import DateRangePicker from '@/components/ui/DateRangePicker';
 import { useState, useMemo, useRef, useEffect } from 'react';
 import { useAppStore } from '@/store/appStore';
 import { useTranslation } from '@/i18n/useTranslation';
@@ -84,7 +85,41 @@ export default function JournalPage() {
 
     // ── EdgeForensics dashboard state ─────────────────────────
     const [journalTab, setJournalTab] = useState<'trades' | 'notes' | 'insights'>('trades');
-    const [timeFilter, setTimeFilter] = useState<'month' | '3m' | 'ytd' | 'all'>('all');
+    const [journalPreset, setJournalPreset] = useState<'TODAY'|'WEEK'|'LAST_WEEK'|'MONTH'|'30D'|'ALL'|'CUSTOM'>('ALL');
+    const [journalDateFrom, setJournalDateFrom] = useState('');
+    const [journalDateTo, setJournalDateTo] = useState('');
+    const [showJournalPicker, setShowJournalPicker] = useState(false);
+    // Compute effective date range from preset
+    const { filterFrom, filterTo } = useMemo(() => {
+        const now = new Date();
+        const toStr = (d: Date) => d.toISOString().slice(0, 10);
+        const today = toStr(now);
+        switch (journalPreset) {
+            case 'TODAY': return { filterFrom: today, filterTo: today };
+            case 'WEEK': {
+                const d = new Date(now);
+                d.setDate(d.getDate() - ((d.getDay() + 6) % 7));
+                return { filterFrom: toStr(d), filterTo: today };
+            }
+            case 'LAST_WEEK': {
+                const thisMonday = new Date(now);
+                thisMonday.setDate(thisMonday.getDate() - ((thisMonday.getDay() + 6) % 7));
+                const lastMonday = new Date(thisMonday); lastMonday.setDate(lastMonday.getDate() - 7);
+                const lastSunday = new Date(thisMonday); lastSunday.setDate(lastSunday.getDate() - 1);
+                return { filterFrom: toStr(lastMonday), filterTo: toStr(lastSunday) };
+            }
+            case 'MONTH': {
+                return { filterFrom: `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`, filterTo: today };
+            }
+            case '30D': {
+                const from = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+                return { filterFrom: toStr(from), filterTo: today };
+            }
+            case 'CUSTOM': return { filterFrom: journalDateFrom, filterTo: journalDateTo };
+            default: return { filterFrom: '', filterTo: '' }; // ALL
+        }
+    }, [journalPreset, journalDateFrom, journalDateTo]);
+
     const [ritualDismissed, setRitualDismissed] = useState(false);
     const [chartsExpanded, setChartsExpanded] = useState(true);
 
@@ -364,16 +399,13 @@ export default function JournalPage() {
 
     // ── Time-filtered trades for KPIs + charts ────────────────
     const timeFilteredTrades = useMemo(() => {
-        const now = new Date();
-        const cutoff = timeFilter === 'month'
-            ? new Date(now.getFullYear(), now.getMonth(), 1)
-            : timeFilter === '3m'
-            ? new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000)
-            : timeFilter === 'ytd'
-            ? new Date(now.getFullYear(), 0, 1)
-            : new Date(0);
-        return closedTrades.filter(t => new Date(t.closedAt ?? t.createdAt) >= cutoff);
-    }, [closedTrades, timeFilter]);
+        return closedTrades.filter(t => {
+            const d = getTradingDay(t.closedAt ?? t.createdAt);
+            if (filterFrom && d < filterFrom) return false;
+            if (filterTo && d > filterTo) return false;
+            return true;
+        });
+    }, [closedTrades, filterFrom, filterTo]);
 
     const tfWins = timeFilteredTrades.filter(t => t.outcome === 'win');
     const tfLosses = timeFilteredTrades.filter(t => t.outcome === 'loss');
@@ -383,6 +415,41 @@ export default function JournalPage() {
     const tfAvgLoss = tfLosses.length > 0 ? Math.abs(tfLosses.reduce((s, t) => s + (t.pnl ?? 0), 0)) / tfLosses.length : 0;
     const tfPf = tfAvgLoss > 0 ? tfAvgWin / tfAvgLoss : tfAvgWin > 0 ? 99 : 0;
     const tfExpectancy = timeFilteredTrades.length > 0 ? tfPnl / timeFilteredTrades.length : 0;
+
+    // ── Hold-time format helper ──────────────────────────────────
+    const fmtSecs = (s: number): string => {
+        if (s <= 0) return '—';
+        const m = Math.floor(s / 60);
+        if (m < 60) return `${m}m`;
+        const h = Math.floor(m / 60); const rem = m % 60;
+        return rem > 0 ? `${h}h ${rem}m` : `${h}h`;
+    };
+
+    // ── Extra metrics for KPI strip ──────────────────────────────
+    const tfWinsWithDur = tfWins.filter(t => (t.durationSeconds ?? 0) > 0);
+    const tfLossesWithDur = tfLosses.filter(t => (t.durationSeconds ?? 0) > 0);
+    const tfAvgWinDur = tfWinsWithDur.length > 0 ? tfWinsWithDur.reduce((s, t) => s + (t.durationSeconds ?? 0), 0) / tfWinsWithDur.length : 0;
+    const tfAvgLossDur = tfLossesWithDur.length > 0 ? tfLossesWithDur.reduce((s, t) => s + (t.durationSeconds ?? 0), 0) / tfLossesWithDur.length : 0;
+    const tfBestTrade = timeFilteredTrades.length > 0 ? timeFilteredTrades.reduce((b, t) => (t.pnl ?? 0) > (b?.pnl ?? -Infinity) ? t : b, timeFilteredTrades[0]) : null;
+    const tfWorstTrade = timeFilteredTrades.length > 0 ? timeFilteredTrades.reduce((b, t) => (t.pnl ?? 0) < (b?.pnl ?? Infinity) ? t : b, timeFilteredTrades[0]) : null;
+    const tfDailyMap = useMemo(() => {
+        const m: Record<string, number> = {};
+        timeFilteredTrades.forEach(t => { const d = getTradingDay(t.closedAt ?? t.createdAt); m[d] = (m[d] ?? 0) + (t.pnl ?? 0); });
+        return Object.values(m);
+    }, [timeFilteredTrades]);
+    const tfBestDay = tfDailyMap.length > 0 ? Math.max(...tfDailyMap) : 0;
+    const tfWorstDay = tfDailyMap.length > 0 ? Math.min(...tfDailyMap) : 0;
+    const tfWlRatio = tfAvgLoss > 0 ? tfAvgWin / tfAvgLoss : 0;
+    // Max consecutive wins/losses in filtered period
+    const [tfMaxConsecW, tfMaxConsecL] = useMemo(() => {
+        let maxW = 0, maxL = 0, curW = 0, curL = 0;
+        const sorted = [...timeFilteredTrades].sort((a, b) => new Date(a.closedAt ?? a.createdAt).getTime() - new Date(b.closedAt ?? b.createdAt).getTime());
+        sorted.forEach(t => {
+            if ((t.pnl ?? 0) > 0) { curW++; curL = 0; if (curW > maxW) maxW = curW; }
+            else if ((t.pnl ?? 0) < 0) { curL++; curW = 0; if (curL > maxL) maxL = curL; }
+        });
+        return [maxW, maxL];
+    }, [timeFilteredTrades]);
 
     // ── Equity curve (cumulative P&L over time) ───────────────
     const equityCurveData = useMemo(() => {
@@ -448,6 +515,15 @@ export default function JournalPage() {
         let filtered = [...trades];
         if (filter !== 'all') filtered = filtered.filter(t => t.outcome === filter);
         if (assetFilter) filtered = filtered.filter(t => t.asset === assetFilter);
+        // Apply date range filter
+        if (filterFrom || filterTo) {
+            filtered = filtered.filter(t => {
+                const d = getTradingDay(t.closedAt ?? t.createdAt);
+                if (filterFrom && d < filterFrom) return false;
+                if (filterTo && d > filterTo) return false;
+                return true;
+            });
+        }
         // Most recent first
         filtered.sort((a, b) => new Date(b.closedAt ?? b.createdAt).getTime() - new Date(a.closedAt ?? a.createdAt).getTime());
         const dayMap: Record<string, typeof trades> = {};
@@ -693,44 +769,86 @@ export default function JournalPage() {
                 ))}
             </div>
 
-            {/* Time filter pills + KPI strip */}
+            {/* Date range selector + KPI strip */}
             {(journalTab === 'trades' || journalTab === 'insights') && (
                 <>
-                    {/* Time filter */}
-                    <div style={{ padding: isMobile ? '8px 14px' : '10px 20px', borderBottom: divider, display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
-                        <span style={{ ...mono, fontSize: 9, color: '#4b5563', letterSpacing: '0.1em', textTransform: 'uppercase' as const, marginRight: 4 }}>
+                    {/* Date range preset bar */}
+                    <div style={{ padding: isMobile ? '8px 14px' : '10px 20px', borderBottom: divider, display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', position: 'relative' }}>
+                        <span style={{ ...mono, fontSize: 9, color: '#4b5563', letterSpacing: '0.1em', textTransform: 'uppercase' as const, marginRight: 4, flexShrink: 0 }}>
                             {lang === 'fr' ? 'Période' : 'Period'}
                         </span>
                         {([
-                            { id: 'month', label: lang === 'fr' ? 'CE MOIS' : 'THIS MONTH' },
-                            { id: '3m', label: lang === 'fr' ? '3 MOIS' : 'LAST 3M' },
-                            { id: 'ytd', label: lang === 'fr' ? 'YTD' : 'YTD' },
-                            { id: 'all', label: lang === 'fr' ? 'TOUT' : 'ALL TIME' },
+                            { id: 'TODAY',     label: lang === 'fr' ? 'AUJ.' : 'TODAY' },
+                            { id: 'WEEK',      label: lang === 'fr' ? 'CETTE SEM.' : 'THIS WEEK' },
+                            { id: 'LAST_WEEK', label: lang === 'fr' ? 'SEMAINE PASS.' : 'LAST WEEK' },
+                            { id: 'MONTH',     label: lang === 'fr' ? 'CE MOIS' : 'THIS MONTH' },
+                            { id: '30D',       label: '30D' },
+                            { id: 'ALL',       label: lang === 'fr' ? 'TOUT' : 'ALL' },
                         ] as const).map(f => (
-                            <button key={f.id} onClick={() => setTimeFilter(f.id)}
+                            <button key={f.id} onClick={() => setJournalPreset(f.id)}
                                 style={{
                                     ...mono, fontSize: 9, fontWeight: 700, letterSpacing: '0.08em', padding: '4px 10px',
-                                    background: timeFilter === f.id ? '#FDC800' : 'transparent',
-                                    color: timeFilter === f.id ? '#000' : '#4b5563',
-                                    border: `1px solid ${timeFilter === f.id ? '#FDC800' : '#1a1c24'}`,
+                                    background: journalPreset === f.id ? '#FDC800' : 'transparent',
+                                    color: journalPreset === f.id ? '#000' : '#4b5563',
+                                    border: `1px solid ${journalPreset === f.id ? '#FDC800' : '#1a1c24'}`,
                                     cursor: 'pointer', transition: 'all 0.15s',
                                 }}>
                                 {f.label}
                             </button>
                         ))}
+                        <button onClick={() => { setJournalPreset('CUSTOM'); setShowJournalPicker(p => !p); }}
+                            style={{
+                                ...mono, fontSize: 9, fontWeight: 700, letterSpacing: '0.08em', padding: '4px 10px',
+                                background: journalPreset === 'CUSTOM' ? '#FDC800' : 'transparent',
+                                color: journalPreset === 'CUSTOM' ? '#000' : '#4b5563',
+                                border: `1px solid ${journalPreset === 'CUSTOM' ? '#FDC800' : '#1a1c24'}`,
+                                cursor: 'pointer',
+                            }}>
+                            {journalPreset === 'CUSTOM' && journalDateFrom ? `${journalDateFrom.slice(5)} → ${journalDateTo.slice(5) || '...'}` : (lang === 'fr' ? 'PERSO…' : 'CUSTOM…')}
+                        </button>
                         <span style={{ ...mono, fontSize: 9, color: '#4b5563', marginLeft: 'auto' }}>
                             {timeFilteredTrades.length} {lang === 'fr' ? 'trades' : 'trades'}
+                            {(filterFrom || filterTo) && (
+                                <button onClick={() => { setJournalPreset('ALL'); setJournalDateFrom(''); setJournalDateTo(''); }}
+                                    style={{ ...mono, fontSize: 9, color: '#ff4757', background: 'none', border: 'none', cursor: 'pointer', marginLeft: 8 }}>
+                                    ✕ {lang === 'fr' ? 'effacer' : 'clear'}
+                                </button>
+                            )}
                         </span>
+                        {/* Custom date picker overlay */}
+                        {showJournalPicker && (
+                            <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 200 /* custom picker z-index */ }}>
+                                <DateRangePicker
+                                    from={journalDateFrom}
+                                    to={journalDateTo}
+                                    tradeDates={new Set(trades.map(t => (t.closedAt ?? t.createdAt).slice(0, 10)))}
+                                    onApply={(from, to) => { setJournalDateFrom(from); setJournalDateTo(to); setJournalPreset('CUSTOM'); }}
+                                    onClose={() => setShowJournalPicker(false)}
+                                    isMobile={isMobile}
+                                    lang={lang}
+                                />
+                            </div>
+                        )}
                     </div>
 
-                    {/* KPI strip */}
+                    {/* KPI strip — 12 metrics */}
                     {(() => {
                         const kpis = [
-                            { k: 'Net P&L',                                            v: timeFilteredTrades.length > 0 ? `${tfPnl >= 0 ? '+' : ''}$${Math.abs(tfPnl).toLocaleString(undefined, { maximumFractionDigits: 2 })}` : '—', c: timeFilteredTrades.length > 0 ? (tfPnl >= 0 ? '#FDC800' : '#ff4757') : '#4b5563', sub: timeFilteredTrades.length > 0 ? `${tfWins.length}W · ${tfLosses.length}L` : '—' },
-                            { k: lang === 'fr' ? 'Taux réussite' : 'Win Rate',         v: timeFilteredTrades.length > 0 ? `${tfWinRate}%` : '—', c: tfWinRate >= 55 ? '#FDC800' : tfWinRate >= 45 ? '#EAB308' : timeFilteredTrades.length > 0 ? '#ff4757' : '#4b5563', sub: `${timeFilteredTrades.length} ${lang === 'fr' ? 'clôturés' : 'closed'}` },
-                            { k: lang === 'fr' ? 'Fact. profit' : 'Profit Factor',     v: timeFilteredTrades.length > 0 ? (tfPf > 90 ? '∞' : tfPf.toFixed(2)) : '—', c: tfPf >= 1.5 ? '#FDC800' : tfPf >= 1 ? '#EAB308' : timeFilteredTrades.length > 0 ? '#ff4757' : '#4b5563', sub: tfAvgLoss > 0 ? `${tfPf.toFixed(2)}x` : '—' },
-                            { k: lang === 'fr' ? 'Espérance' : 'Expectancy',           v: timeFilteredTrades.length > 0 ? `${tfExpectancy >= 0 ? '+' : ''}$${Math.abs(tfExpectancy).toFixed(2)}` : '—', c: tfExpectancy >= 0 ? '#38bdf8' : '#ff4757', sub: lang === 'fr' ? 'par trade' : 'per trade' },
-                            { k: lang === 'fr' ? 'Moy. Gain / Perte' : 'Avg Win/Loss', v: tfWins.length > 0 ? `$${tfAvgWin.toFixed(0)}` : '—', c: '#FDC800', sub: tfLosses.length > 0 ? `vs $${tfAvgLoss.toFixed(0)} loss` : '—' },
+                            { k: 'Net P&L',                                              v: timeFilteredTrades.length > 0 ? `${tfPnl >= 0 ? '+' : ''}$${Math.abs(tfPnl).toLocaleString(undefined, { maximumFractionDigits: 2 })}` : '—', c: timeFilteredTrades.length > 0 ? (tfPnl >= 0 ? '#FDC800' : '#ff4757') : '#4b5563', sub: timeFilteredTrades.length > 0 ? `${tfWins.length}W · ${tfLosses.length}L` : '—' },
+                            { k: lang === 'fr' ? 'Taux réussite' : 'Win Rate',           v: timeFilteredTrades.length > 0 ? `${tfWinRate}%` : '—', c: tfWinRate >= 55 ? '#FDC800' : tfWinRate >= 45 ? '#EAB308' : timeFilteredTrades.length > 0 ? '#ff4757' : '#4b5563', sub: `${timeFilteredTrades.length} ${lang === 'fr' ? 'clôturés' : 'closed'}` },
+                            { k: lang === 'fr' ? 'Fact. profit' : 'Profit Factor',       v: timeFilteredTrades.length > 0 ? (tfPf > 90 ? '∞' : tfPf.toFixed(2)) : '—', c: tfPf >= 1.5 ? '#FDC800' : tfPf >= 1 ? '#EAB308' : timeFilteredTrades.length > 0 ? '#ff4757' : '#4b5563', sub: tfAvgLoss > 0 ? `${tfPf.toFixed(2)}x` : '—' },
+                            { k: lang === 'fr' ? 'Espérance' : 'Expectancy',             v: timeFilteredTrades.length > 0 ? `${tfExpectancy >= 0 ? '+' : ''}$${Math.abs(tfExpectancy).toFixed(2)}` : '—', c: tfExpectancy >= 0 ? '#38bdf8' : '#ff4757', sub: lang === 'fr' ? 'par trade' : 'per trade' },
+                            { k: lang === 'fr' ? 'Moy. gain' : 'Avg Win',                v: tfWins.length > 0 ? `+$${tfAvgWin.toFixed(0)}` : '—', c: '#FDC800', sub: `${tfWins.length} ${lang === 'fr' ? 'gagnants' : 'winners'}` },
+                            { k: lang === 'fr' ? 'Moy. perte' : 'Avg Loss',              v: tfLosses.length > 0 ? `-$${tfAvgLoss.toFixed(0)}` : '—', c: '#ff4757', sub: `${tfLosses.length} ${lang === 'fr' ? 'perdants' : 'losers'}` },
+                            { k: lang === 'fr' ? 'Durée moy. gain' : 'Avg Win Hold',    v: fmtSecs(tfAvgWinDur), c: '#FDC800', sub: lang === 'fr' ? 'temps moyen gagnant' : 'avg winner hold time' },
+                            { k: lang === 'fr' ? 'Durée moy. perte' : 'Avg Loss Hold',  v: fmtSecs(tfAvgLossDur), c: '#ff4757', sub: lang === 'fr' ? 'temps moyen perdant' : 'avg loser hold time' },
+                            { k: lang === 'fr' ? 'Meilleur trade' : 'Best Trade',        v: tfBestTrade ? `+$${(tfBestTrade.pnl ?? 0).toFixed(0)}` : '—', c: '#FDC800', sub: tfBestTrade ? tfBestTrade.asset : '—' },
+                            { k: lang === 'fr' ? 'Pire trade' : 'Worst Trade',           v: tfWorstTrade ? `-$${Math.abs(tfWorstTrade.pnl ?? 0).toFixed(0)}` : '—', c: '#ff4757', sub: tfWorstTrade ? tfWorstTrade.asset : '—' },
+                            { k: lang === 'fr' ? 'Meilleure journée' : 'Best Day',       v: tfBestDay > 0 ? `+$${tfBestDay.toFixed(0)}` : '—', c: '#FDC800', sub: lang === 'fr' ? 'P&L journée max' : 'top day P&L' },
+                            { k: lang === 'fr' ? 'Pire journée' : 'Worst Day',           v: tfWorstDay < 0 ? `-$${Math.abs(tfWorstDay).toFixed(0)}` : '—', c: '#ff4757', sub: lang === 'fr' ? 'P&L journée min' : 'worst day P&L' },
+                            { k: lang === 'fr' ? 'Ratio G/P' : 'W/L Ratio',             v: tfWlRatio > 0 ? `${tfWlRatio.toFixed(2)}:1` : '—', c: tfWlRatio >= 1.5 ? '#FDC800' : tfWlRatio >= 1 ? '#EAB308' : '#ff4757', sub: `$${tfAvgWin.toFixed(0)} / $${tfAvgLoss.toFixed(0)}` },
+                            { k: lang === 'fr' ? 'Sér. max gains' : 'Max Win Streak',    v: tfMaxConsecW > 0 ? `${tfMaxConsecW}` : '—', c: '#FDC800', sub: lang === 'fr' ? 'gains consécutifs' : 'consecutive wins' },
+                            { k: lang === 'fr' ? 'Sér. max pertes' : 'Max Loss Streak',  v: tfMaxConsecL > 0 ? `${tfMaxConsecL}` : '—', c: '#ff4757', sub: lang === 'fr' ? 'pertes consécutives' : 'consecutive losses' },
                         ];
                         return isMobile ? (
                             <div style={{ borderBottom: divider, position: 'relative' }}>
@@ -746,9 +864,9 @@ export default function JournalPage() {
                                 <div style={{ position: 'absolute', right: 0, top: 0, bottom: 0, width: 40, background: 'linear-gradient(to left, #0d1117 0%, transparent 100%)', pointerEvents: 'none' }} />
                             </div>
                         ) : (
-                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5,1fr)', borderBottom: divider }}>
-                                {kpis.map((s, i, arr) => (
-                                    <div key={i} style={{ padding: '14px 16px', borderRight: i < arr.length - 1 ? divider : 'none', background: '#0d1117' }}>
+                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5,1fr)', borderBottom: divider, borderTop: '1px solid #1a1c24', borderLeft: '1px solid #1a1c24' }}>
+                                {kpis.map((s, i) => (
+                                    <div key={i} style={{ padding: '14px 16px', borderRight: divider, borderBottom: '1px solid #1a1c24', background: '#0d1117' }}>
                                         <span style={lbl}>{s.k}</span>
                                         <span style={{ ...mono, fontSize: 20, fontWeight: 800, color: s.c, letterSpacing: '-0.02em', display: 'block', marginTop: 4, lineHeight: 1 }}>{s.v}</span>
                                         <span style={{ ...mono, fontSize: 9, color: '#4b5563', display: 'block', marginTop: 3 }}>{s.sub}</span>

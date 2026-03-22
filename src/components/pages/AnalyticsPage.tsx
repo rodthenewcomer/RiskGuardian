@@ -659,6 +659,27 @@ export default function AnalyticsPage() {
         ? wins.reduce((s, t) => s + (t.durationSeconds ?? 0), 0) / wins.length : 0;
     const avgLossDuration = losses.length > 0
         ? losses.reduce((s, t) => s + (t.durationSeconds ?? 0), 0) / losses.length : 0;
+
+    // Best / worst single trade and best / worst single day
+    const bestTrade = closed.length > 0 ? closed.reduce((b, t) => (t.pnl ?? 0) > (b?.pnl ?? -Infinity) ? t : b, closed[0]) : null;
+    const worstTrade = closed.length > 0 ? closed.reduce((b, t) => (t.pnl ?? 0) < (b?.pnl ?? Infinity) ? t : b, closed[0]) : null;
+    const dailyPnlMap = useMemo(() => {
+        const m: Record<string, number> = {};
+        closed.forEach(t => { const d = getTradingDay(t.closedAt ?? t.createdAt); m[d] = (m[d] ?? 0) + (t.pnl ?? 0); });
+        return Object.values(m);
+    }, [closed]);
+    const bestDayPnl = dailyPnlMap.length > 0 ? Math.max(...dailyPnlMap) : 0;
+    const worstDayPnl = dailyPnlMap.length > 0 ? Math.min(...dailyPnlMap) : 0;
+    // Max consecutive wins / losses
+    const [maxConsecWins, maxConsecLosses] = useMemo(() => {
+        let maxW = 0, maxL = 0, curW = 0, curL = 0;
+        closed.forEach(t => {
+            if ((t.pnl ?? 0) > 0) { curW++; curL = 0; if (curW > maxW) maxW = curW; }
+            else if ((t.pnl ?? 0) < 0) { curL++; curW = 0; if (curL > maxL) maxL = curL; }
+        });
+        return [maxW, maxL];
+    }, [closed]);
+
     const fmtDuration = (s: number) => {
         if (s <= 0) return '—';
         const m = Math.floor(s / 60); const sec = Math.floor(s % 60);
@@ -998,29 +1019,66 @@ export default function AnalyticsPage() {
                                     { label: lang === 'fr' ? 'DURÉE MOY.' : 'AVG DURATION',      value: fmtDuration((avgWinDuration * wins.length + avgLossDuration * losses.length) / Math.max(1, closed.length)), color: '#c9d1d9', sub: `${wins.length + losses.length} closed trades` },
                                     { label: lang === 'fr' ? 'RATIO G/P $' : 'W/L RATIO $',     value: wlRatio > 0 ? `${wlRatio.toFixed(2)}:1` : '—', color: wlRatio >= 1.5 ? '#FDC800' : wlRatio >= 1 ? '#EAB308' : '#ff4757', sub: `$${avgWin.toFixed(0)} avg win · $${avgLoss.toFixed(0)} loss` },
                                 ];
+                                const kpiBoxes2 = [
+                                    { label: lang === 'fr' ? 'MOY. GAIN' : 'AVG WIN',           value: wins.length > 0 ? `+$${avgWin.toFixed(0)}` : '—', color: '#FDC800', sub: `${wins.length} ${lang === 'fr' ? 'trades gagnants' : 'winning trades'}` },
+                                    { label: lang === 'fr' ? 'MOY. PERTE' : 'AVG LOSS',          value: losses.length > 0 ? `-$${avgLoss.toFixed(0)}` : '—', color: '#ff4757', sub: `${losses.length} ${lang === 'fr' ? 'trades perdants' : 'losing trades'}` },
+                                    { label: lang === 'fr' ? 'DUR. MOY. GAIN' : 'AVG WIN HOLD', value: fmtDuration(avgWinDuration), color: '#FDC800', sub: lang === 'fr' ? 'durée moy. gagnant' : 'avg winner hold time' },
+                                    { label: lang === 'fr' ? 'DUR. MOY. PERTE' : 'AVG LOSS HOLD', value: fmtDuration(avgLossDuration), color: '#ff4757', sub: lang === 'fr' ? 'durée moy. perdant' : 'avg loser hold time' },
+                                    { label: lang === 'fr' ? 'MEILLEUR TRADE' : 'BEST TRADE',   value: bestTrade ? `+$${(bestTrade.pnl ?? 0).toFixed(0)}` : '—', color: '#FDC800', sub: bestTrade ? bestTrade.asset : '—' },
+                                    { label: lang === 'fr' ? 'PIRE TRADE' : 'WORST TRADE',      value: worstTrade ? `-$${Math.abs(worstTrade.pnl ?? 0).toFixed(0)}` : '—', color: '#ff4757', sub: worstTrade ? worstTrade.asset : '—' },
+                                    { label: lang === 'fr' ? 'MEILLEURE JOURNÉE' : 'BEST DAY',  value: bestDayPnl > 0 ? `+$${bestDayPnl.toFixed(0)}` : '—', color: '#FDC800', sub: lang === 'fr' ? 'P&L max par jour' : 'top day P&L' },
+                                    { label: lang === 'fr' ? 'PIRE JOURNÉE' : 'WORST DAY',      value: worstDayPnl < 0 ? `-$${Math.abs(worstDayPnl).toFixed(0)}` : '—', color: '#ff4757', sub: lang === 'fr' ? 'P&L min par jour' : 'worst day P&L' },
+                                    { label: lang === 'fr' ? 'TRADES TOTAL' : 'TOTAL TRADES',   value: closed.length > 0 ? `${closed.length}` : '—', color: '#c9d1d9', sub: `${wins.length}W / ${losses.length}L` },
+                                    { label: lang === 'fr' ? 'SÉR. MAX GAINS' : 'MAX WIN STREAK', value: maxConsecWins > 0 ? `${maxConsecWins}` : '—', color: '#FDC800', sub: lang === 'fr' ? 'gains consécutifs' : 'consecutive wins' },
+                                    { label: lang === 'fr' ? 'SÉR. MAX PERTES' : 'MAX LOSS STREAK', value: maxConsecLosses > 0 ? `${maxConsecLosses}` : '—', color: '#ff4757', sub: lang === 'fr' ? 'pertes consécutives' : 'consecutive losses' },
+                                    { label: lang === 'fr' ? 'PLUS GRAND WIN' : 'LARGEST WIN',  value: bestTrade && (bestTrade.pnl ?? 0) > 0 ? `+$${(bestTrade.pnl ?? 0).toFixed(0)}` : '—', color: '#FDC800', sub: bestTrade ? bestTrade.asset : '—' },
+                                ];
                                 return isMobile ? (
-                                    <div style={{ position: 'relative', borderTop: '1px solid #1a1c24' }}>
-                                        <div style={{ display: 'flex', overflowX: 'auto', scrollSnapType: 'x mandatory', WebkitOverflowScrolling: 'touch', scrollbarWidth: 'none', msOverflowStyle: 'none' } as React.CSSProperties}>
-                                            {kpiBoxes.map((k, i) => (
-                                                <div key={i} style={{ flexShrink: 0, minWidth: 140, padding: '16px 14px', borderRight: '1px solid #1a1c24', borderBottom: '1px solid #1a1c24', scrollSnapAlign: 'start', background: '#0d1117', display: 'flex', flexDirection: 'column', gap: 6 }}>
+                                    <>
+                                        <div style={{ position: 'relative', borderTop: '1px solid #1a1c24' }}>
+                                            <div style={{ display: 'flex', overflowX: 'auto', scrollSnapType: 'x mandatory', WebkitOverflowScrolling: 'touch', scrollbarWidth: 'none', msOverflowStyle: 'none' } as React.CSSProperties}>
+                                                {kpiBoxes.map((k, i) => (
+                                                    <div key={i} style={{ flexShrink: 0, minWidth: 140, padding: '16px 14px', borderRight: '1px solid #1a1c24', borderBottom: '1px solid #1a1c24', scrollSnapAlign: 'start', background: '#0d1117', display: 'flex', flexDirection: 'column', gap: 6 }}>
+                                                        <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#6b7280', letterSpacing: '0.1em', textTransform: 'uppercase' }}>{k.label}</span>
+                                                        <span style={{ fontFamily: 'var(--font-mono)', fontSize: 20, fontWeight: 700, color: k.color, lineHeight: 1, textShadow: `0 0 12px ${k.color}22` }}>{k.value}</span>
+                                                        <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: '#6b7280' }}>{k.sub}</span>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                            <div style={{ position: 'absolute', right: 0, top: 0, bottom: 0, width: 48, background: 'linear-gradient(to left, #0B0E14 0%, transparent 100%)', pointerEvents: 'none' }} />
+                                        </div>
+                                        {/* Second row — mobile */}
+                                        <div style={{ display: 'flex', overflowX: 'auto', scrollSnapType: 'x mandatory', WebkitOverflowScrolling: 'touch', scrollbarWidth: 'none', msOverflowStyle: 'none', borderTop: '1px solid #1a1c24' } as React.CSSProperties}>
+                                            {kpiBoxes2.map((k, i) => (
+                                                <div key={i} style={{ flexShrink: 0, minWidth: 140, padding: '14px', borderRight: '1px solid #1a1c24', borderBottom: '1px solid #1a1c24', scrollSnapAlign: 'start', background: '#0b0e14', display: 'flex', flexDirection: 'column', gap: 4 }}>
                                                     <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#6b7280', letterSpacing: '0.1em', textTransform: 'uppercase' }}>{k.label}</span>
-                                                    <span style={{ fontFamily: 'var(--font-mono)', fontSize: 20, fontWeight: 700, color: k.color, lineHeight: 1, textShadow: `0 0 12px ${k.color}22` }}>{k.value}</span>
+                                                    <span style={{ fontFamily: 'var(--font-mono)', fontSize: 18, fontWeight: 700, color: k.color, lineHeight: 1, textShadow: `0 0 12px ${k.color}22` }}>{k.value}</span>
                                                     <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: '#6b7280' }}>{k.sub}</span>
                                                 </div>
                                             ))}
                                         </div>
-                                        <div style={{ position: 'absolute', right: 0, top: 0, bottom: 0, width: 48, background: 'linear-gradient(to left, #0B0E14 0%, transparent 100%)', pointerEvents: 'none' }} />
-                                    </div>
+                                    </>
                                 ) : (
-                                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', borderTop: '1px solid #1a1c24', borderLeft: '1px solid #1a1c24' }}>
-                                        {kpiBoxes.map((k, i) => (
-                                            <div key={i} style={{ padding: '20px 24px', borderBottom: '1px solid #1a1c24', borderRight: '1px solid #1a1c24', background: '#0d1117', display: 'flex', flexDirection: 'column', gap: 6 }}>
-                                                <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#6b7280', letterSpacing: '0.1em', textTransform: 'uppercase' }}>{k.label}</span>
-                                                <span style={{ fontFamily: 'var(--font-mono)', fontSize: 22, fontWeight: 700, color: k.color, lineHeight: 1, textShadow: `0 0 12px ${k.color}22` }}>{k.value}</span>
-                                                <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: '#6b7280' }}>{k.sub}</span>
-                                            </div>
-                                        ))}
-                                    </div>
+                                    <>
+                                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', borderTop: '1px solid #1a1c24', borderLeft: '1px solid #1a1c24' }}>
+                                            {kpiBoxes.map((k, i) => (
+                                                <div key={i} style={{ padding: '20px 24px', borderBottom: '1px solid #1a1c24', borderRight: '1px solid #1a1c24', background: '#0d1117', display: 'flex', flexDirection: 'column', gap: 6 }}>
+                                                    <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#6b7280', letterSpacing: '0.1em', textTransform: 'uppercase' }}>{k.label}</span>
+                                                    <span style={{ fontFamily: 'var(--font-mono)', fontSize: 22, fontWeight: 700, color: k.color, lineHeight: 1, textShadow: `0 0 12px ${k.color}22` }}>{k.value}</span>
+                                                    <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: '#6b7280' }}>{k.sub}</span>
+                                                </div>
+                                            ))}
+                                        </div>
+                                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', borderLeft: '1px solid #1a1c24' }}>
+                                            {kpiBoxes2.map((k, i) => (
+                                                <div key={i} style={{ padding: '16px 24px', borderBottom: '1px solid #1a1c24', borderRight: '1px solid #1a1c24', background: '#0b0e14', display: 'flex', flexDirection: 'column', gap: 4 }}>
+                                                    <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#6b7280', letterSpacing: '0.1em', textTransform: 'uppercase' }}>{k.label}</span>
+                                                    <span style={{ fontFamily: 'var(--font-mono)', fontSize: 18, fontWeight: 700, color: k.color, lineHeight: 1, textShadow: `0 0 12px ${k.color}22` }}>{k.value}</span>
+                                                    <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: '#6b7280' }}>{k.sub}</span>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </>
                                 );
                             })()}
 
