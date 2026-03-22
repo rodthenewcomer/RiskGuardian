@@ -193,7 +193,7 @@ export default function CommandPage() {
         const levMax    = isTrdfy
             ? (isInstant ? 2 : isBtcEth ? 5 : 2)
             : (account.leverage ?? 100);
-        const levUsed   = account.balance > 0 ? res.notional / account.balance : 0;
+        const levUsed   = account.startingBalance > 0 ? res.notional / account.startingBalance : 0;
 
         const overLev   = levUsed > levMax + 0.01;
         const overDaily = effectiveRisk   > remaining + 0.01;
