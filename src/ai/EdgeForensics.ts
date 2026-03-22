@@ -325,64 +325,71 @@ export function generateForensics(trades: Trade[], accountData: any) {
 
     // ── PATTERN 7: Loss Escalation ────────────────────────────────────────────
     {
-        // Build a de-duplicated sequential loss list.
-        // Parallel trades (multiple positions opened simultaneously) are collapsed
-        // into a single cluster so they don't generate fake "escalation" signals.
-        // Two trades are parallel if trade[j] opened BEFORE trade[i] closed.
-        const seqLosses: { pnl: number; trade: Trade }[] = [];
+        // Build CONSECUTIVE loss runs — any WIN between two losses breaks the sequence.
+        // Losses within a run are de-duplicated for parallel positions (same as before).
+        // Escalation can only be detected within a single uninterrupted loss streak.
+        type LossEntry = { pnl: number; trade: Trade };
+        const lossRuns: LossEntry[][] = [];
+        let currentRun: LossEntry[] = [];
         for (let i = 0; i < closed.length; i++) {
-            if ((closed[i].pnl ?? 0) >= 0) continue;
-            const iClose = new Date(closed[i].closedAt ?? closed[i].createdAt).getTime();
-            // Check if this trade is parallel to the previous loss (overlapping time window)
-            if (seqLosses.length > 0) {
-                const prev = seqLosses[seqLosses.length - 1].trade;
+            if ((closed[i].pnl ?? 0) >= 0) {
+                // Win — break the current run
+                if (currentRun.length > 0) { lossRuns.push(currentRun); currentRun = []; }
+                continue;
+            }
+            // Loss: check if parallel to the previous loss in the current run
+            if (currentRun.length > 0) {
+                const prev = currentRun[currentRun.length - 1].trade;
                 const prevClose = new Date(prev.closedAt ?? prev.createdAt).getTime();
                 const iOpen = new Date(closed[i].createdAt).getTime();
                 if (iOpen < prevClose) {
-                    // Parallel position — merge into the cluster (add to last entry's pnl)
-                    seqLosses[seqLosses.length - 1].pnl += (closed[i].pnl ?? 0);
+                    // Parallel — merge into last cluster
+                    currentRun[currentRun.length - 1].pnl += (closed[i].pnl ?? 0);
                     continue;
                 }
             }
-            seqLosses.push({ pnl: closed[i].pnl ?? 0, trade: closed[i] });
+            currentRun.push({ pnl: closed[i].pnl ?? 0, trade: closed[i] });
         }
+        if (currentRun.length > 0) lossRuns.push(currentRun);
 
         let freq = 0, impact = 0;
         const evidenceTrades: EvidenceTrade[] = [];
         const evidenceStr: string[] = [];
-        let i = 0;
-        while (i < seqLosses.length - 2) {
-            let seqEnd = i;
-            let prev = Math.abs(seqLosses[i].pnl);
-            let j = i + 1;
-            // Require each step to be ≥25% larger than the previous — filters out normal
-            // loss-size variance (a 5% or 8% increase is within ordinary execution noise).
-            // True escalation = meaningful size increase each time, signaling emotional re-sizing.
-            while (j < seqLosses.length && seqLosses[j].pnl < 0 && Math.abs(seqLosses[j].pnl) >= prev * 1.25) {
-                prev = Math.abs(seqLosses[j].pnl);
-                seqEnd = j;
-                j++;
-            }
-            const seqLen = seqEnd - i + 1;
-            if (seqLen >= 3) {
-                freq++;
-                const seqSlice = seqLosses.slice(i, seqEnd + 1);
-                impact += seqSlice.reduce((s, e) => s + e.pnl, 0);
-                seqSlice.forEach((e, k) => {
-                    const prevAmt = k > 0 ? Math.abs(seqSlice[k - 1].pnl) : 0;
-                    const pct = prevAmt > 0 ? ((Math.abs(e.pnl) / prevAmt - 1) * 100).toFixed(0) : '—';
-                    evidenceTrades.push({
-                        timestamp: fmtTs(e.trade.closedAt ?? e.trade.createdAt),
-                        asset: e.trade.asset,
-                        pnl: e.pnl,
-                        context: k === 0 ? `Loss #1 of escalation spiral` : `Loss #${k + 1} — ${pct}% larger than previous`,
+
+        // Search for escalation sequences within each consecutive loss run
+        for (const run of lossRuns) {
+            let i = 0;
+            while (i < run.length - 2) {
+                let seqEnd = i;
+                let prev = Math.abs(run[i].pnl);
+                let j = i + 1;
+                // Require ≥25% step — filters out normal execution variance
+                while (j < run.length && Math.abs(run[j].pnl) >= prev * 1.25) {
+                    prev = Math.abs(run[j].pnl);
+                    seqEnd = j;
+                    j++;
+                }
+                const seqLen = seqEnd - i + 1;
+                if (seqLen >= 3) {
+                    freq++;
+                    const seqSlice = run.slice(i, seqEnd + 1);
+                    impact += seqSlice.reduce((s, e) => s + e.pnl, 0);
+                    seqSlice.forEach((e, k) => {
+                        const prevAmt = k > 0 ? Math.abs(seqSlice[k - 1].pnl) : 0;
+                        const pct = prevAmt > 0 ? ((Math.abs(e.pnl) / prevAmt - 1) * 100).toFixed(0) : '—';
+                        evidenceTrades.push({
+                            timestamp: fmtTs(e.trade.closedAt ?? e.trade.createdAt),
+                            asset: e.trade.asset,
+                            pnl: e.pnl,
+                            context: k === 0 ? `Loss #1 of escalation spiral` : `Loss #${k + 1} — ${pct}% larger than previous`,
+                        });
+                        evidenceStr.push(`${e.trade.asset} ${fmtTs(e.trade.closedAt ?? e.trade.createdAt)}: -$${Math.abs(e.pnl).toFixed(0)}${k > 0 ? ` (+${pct}% bigger)` : ''}`);
                     });
-                    evidenceStr.push(`${e.trade.asset} ${fmtTs(e.trade.closedAt ?? e.trade.createdAt)}: -$${Math.abs(e.pnl).toFixed(0)}${k > 0 ? ` (+${pct}% bigger)` : ''}`);
-                });
-                i = seqEnd + 1;
-                continue;
+                    i = seqEnd + 1;
+                    continue;
+                }
+                i++;
             }
-            i++;
         }
         if (freq > 0) patterns.push({
             name: 'Loss Escalation', freq, impact,
@@ -733,6 +740,11 @@ export function generateForensics(trades: Trade[], accountData: any) {
                 const lossClose = new Date(closed[j].closedAt ?? closed[j].createdAt).getTime();
                 const nextOpen  = new Date(closed[j + 1].createdAt).getTime();
                 const elapsed   = (nextOpen - lossClose) / 60000; // minutes
+                if (elapsed <= 0) {
+                    // Parallel/simultaneous entry — skip without breaking or counting the cascade
+                    j++;
+                    continue;
+                }
                 if (elapsed <= 15) {
                     cascadeLen++;
                     j++;
