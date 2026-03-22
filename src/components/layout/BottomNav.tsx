@@ -2,7 +2,7 @@
 
 import styles from './BottomNav.module.css';
 import { useAppStore } from '@/store/appStore';
-import { LayoutDashboard, Terminal, BookOpen, Brain, BarChart2, Settings2 } from 'lucide-react';
+import { LayoutDashboard, Terminal, BookOpen, Brain, BarChart2, Settings2, FlaskConical } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { useTranslation } from '@/i18n/useTranslation';
 
@@ -12,6 +12,7 @@ const TAB_IDS = [
     { id: 'journal' as const, icon: BookOpen },
     { id: 'plan' as const, icon: Brain },
     { id: 'analytics' as const, icon: BarChart2 },
+    { id: 'simulator' as const, icon: FlaskConical },
     { id: 'settings' as const, icon: Settings2 },
 ];
 
@@ -25,6 +26,7 @@ export default function BottomNav() {
         journal: t.nav.journal,
         plan: t.nav.aiCoach,
         analytics: t.nav.analytics,
+        simulator: t.nav.simulator,
         settings: t.nav.settings,
     };
 

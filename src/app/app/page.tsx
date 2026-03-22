@@ -11,6 +11,7 @@ import AIChatPage from '@/components/pages/AIChatPage';
 import AnalyticsPage from '@/components/pages/AnalyticsPage';
 import SettingsPage from '@/components/pages/SettingsPage';
 import JournalPage from '@/components/pages/JournalPage';
+import SimulatorPage from '@/components/pages/SimulatorPage';
 import Onboarding from '@/components/pages/Onboarding';
 import AuthPage from '@/components/auth/AuthPage';
 import AuthModal from '@/components/auth/AuthModal';
@@ -29,7 +30,7 @@ const pageVariants = {
   exit: { opacity: 0, y: -6 },
 };
 
-const VALID_TABS = new Set(['dashboard', 'terminal', 'plan', 'analytics', 'settings', 'journal', 'calculator']);
+const VALID_TABS = new Set(['dashboard', 'terminal', 'plan', 'analytics', 'settings', 'journal', 'calculator', 'simulator']);
 
 export default function Home() {
   const [mounted, setMounted] = useState(false);
@@ -154,6 +155,7 @@ export default function Home() {
     settings: <SettingsPage />,
     journal: <JournalPage />,
     calculator: <CommandPage />,
+    simulator: <SimulatorPage />,
   };
 
   // Blank shell until Supabase session check completes — prevents flicker

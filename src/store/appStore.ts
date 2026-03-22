@@ -125,7 +125,7 @@ interface AppState {
     account: AccountSettings;
     trades: TradeSession[];
     dailySessions: DailySession[];
-    activeTab: 'dashboard' | 'terminal' | 'calculator' | 'plan' | 'journal' | 'analytics' | 'settings';
+    activeTab: 'dashboard' | 'terminal' | 'calculator' | 'plan' | 'journal' | 'analytics' | 'settings' | 'simulator';
 
     /** DXTrade live connection (null = not connected) */
     dxtradeConfig: DXTradeConfig | null;

@@ -5,7 +5,7 @@ import styles from './Sidebar.module.css';
 import { useAppStore } from '@/store/appStore';
 import {
     LayoutDashboard, Terminal,
-    BookOpen, BarChart2, Settings, Brain, LogOut, User
+    BookOpen, BarChart2, Settings, Brain, LogOut, User, FlaskConical
 } from 'lucide-react';
 import { useTranslation } from '@/i18n/useTranslation';
 import { supabase } from '@/lib/supabase';
@@ -17,6 +17,7 @@ const TAB_IDS = [
     { id: 'plan', Icon: Brain },
     { id: 'journal', Icon: BookOpen },
     { id: 'analytics', Icon: BarChart2 },
+    { id: 'simulator', Icon: FlaskConical },
     { id: 'settings', Icon: Settings },
 ] as const;
 
@@ -41,6 +42,7 @@ export default function Sidebar() {
         plan: t.nav.aiCoach,
         journal: t.nav.journal,
         analytics: t.nav.analytics,
+        simulator: t.nav.simulator,
         settings: t.nav.settings,
     };
 

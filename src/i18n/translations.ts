@@ -10,6 +10,7 @@ export const translations = {
       aiCoach: 'AI Coach',
       analytics: 'Analytics',
       settings: 'Settings',
+      simulator: 'Simulator',
     },
     // HEADER
     header: {
@@ -437,6 +438,7 @@ export const translations = {
       aiCoach: 'Coach IA',
       analytics: 'Analytiques',
       settings: 'Paramètres',
+      simulator: 'Simulateur',
     },
     header: {
       balance: 'Solde',
