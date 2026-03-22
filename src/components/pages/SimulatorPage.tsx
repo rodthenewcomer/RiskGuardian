@@ -6,13 +6,13 @@ import {
     AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip,
     ResponsiveContainer, ReferenceLine,
 } from 'recharts';
-import { FlaskConical, Play, RotateCcw, ChevronDown, ChevronUp, TrendingUp, TrendingDown, Save, FolderOpen, Trash2, X } from 'lucide-react';
+import { FlaskConical, Play, RotateCcw, ChevronDown, ChevronUp, TrendingUp, TrendingDown, Save, FolderOpen, Trash2, X, Download, Zap } from 'lucide-react';
 import { useAppStore } from '@/store/appStore';
 import { useIsMobile } from '@/hooks/useIsMobile';
 import { useTranslation } from '@/i18n/useTranslation';
 import {
-    runSimulation, DEFAULT_CONFIG,
-    type SimulationConfig, type SimulationResult, type SimMode, type SimTrade,
+    runSimulation, autoOptimize, DEFAULT_CONFIG,
+    type SimulationConfig, type SimulationResult, type SimMode, type SimTrade, type AutoOptimizeRule,
 } from '@/ai/SimulationEngine';
 
 const QF  = 'var(--font-mono)';
@@ -114,8 +114,25 @@ export default function SimulatorPage() {
     const [configOpen, setConfigOpen] = useState(true);
     const [diffPage, setDiffPage]     = useState(0);
     const [saveName, setSaveName]     = useState('');
-    const [showSaveInput, setShowSaveInput] = useState(false);
-    const DIFF_PAGE_SIZE              = 15;
+    const [showSaveInput, setShowSaveInput]     = useState(false);
+    const [autoOptResults, setAutoOptResults]   = useState<AutoOptimizeRule[] | null>(null);
+    const [showDailyBreakdown, setShowDailyBreakdown] = useState(false);
+    const DIFF_PAGE_SIZE = 15; // trades per page in diff table
+
+    // ── Derived from actual trades ─────────────────────────────────────────
+    const avgWinDurMin = useMemo(() => {
+        const wins = trades.filter(t => (t.pnl ?? 0) > 0 && (t.durationSeconds ?? 0) > 0);
+        if (!wins.length) return 60;
+        return Math.round(wins.reduce((s, t) => s + t.durationSeconds!, 0) / wins.length / 60);
+    }, [trades]);
+
+    // Unique assets from closed trades — for FILTER mode whitelist
+    const uniqueAssets = useMemo(() =>
+        [...new Set(trades.filter(t => t.outcome !== 'open').map(t => t.asset))].sort(),
+    [trades]);
+
+    // EST hours available in actual data — expand to full 6–22 range
+    const EST_HOURS = Array.from({ length: 17 }, (_, i) => i + 6); // 6:00–22:00
 
     const closedCount = useMemo(() =>
         trades.filter(t => t.outcome === 'win' || t.outcome === 'loss').length,
@@ -128,13 +145,19 @@ export default function SimulatorPage() {
 
     function handleRun() {
         setRunning(true);
-        // Slight delay to let UI update (running state) before heavy computation
+        // 60ms delay lets React flush the "RUNNING…" state before blocking computation
         setTimeout(() => {
             try {
                 const r = runSimulation(trades, account, config);
                 setResult(r);
                 setIsDirty(false);
                 setDiffPage(0);
+                // Auto-optimize only meaningful in BEHAVIORAL mode
+                if (config.mode === 'BEHAVIORAL') {
+                    setAutoOptResults(autoOptimize(trades, account));
+                } else {
+                    setAutoOptResults(null);
+                }
             } finally {
                 setRunning(false);
             }
@@ -144,7 +167,9 @@ export default function SimulatorPage() {
     function handleReset() {
         setConfig(DEFAULT_CONFIG);
         setResult(null);
+        setAutoOptResults(null);
         setIsDirty(true);
+        setShowDailyBreakdown(false);
     }
 
     function handleSave() {
@@ -176,10 +201,37 @@ export default function SimulatorPage() {
     const modeLabel = lang === 'fr' ? modeMeta.labelFr : modeMeta.label;
     const modeDesc  = lang === 'fr' ? modeMeta.descFr  : modeMeta.desc;
 
-    // Diff table pagination
+    // Diff table — blocked/capped trades sorted by absolute P&L descending (largest impact first)
     const diffTrades = useMemo(() =>
-        result ? result.simTrades.filter(st => st.status !== 'included').slice().sort((a, b) => Math.abs(a.original.pnl ?? 0) - Math.abs(b.original.pnl ?? 0) > 0 ? -1 : 1) : [],
+        result
+            ? result.simTrades
+                .filter(st => st.status !== 'included')
+                .slice()
+                .sort((a, b) => Math.abs(b.original.pnl ?? 0) - Math.abs(a.original.pnl ?? 0))
+            : [],
     [result]);
+
+    // CSV export of diff table
+    function handleExportCSV() {
+        if (!diffTrades.length) return;
+        const headers = ['Status', 'Date', 'Asset', 'PnL', 'Adj PnL', 'Reason'];
+        const rows = diffTrades.map(st => [
+            st.status.toUpperCase(),
+            (st.original.closedAt ?? st.original.createdAt).slice(0, 10),
+            st.original.asset,
+            (st.original.pnl ?? 0).toFixed(2),
+            st.adjPnl.toFixed(2),
+            `"${(st.reason ?? '').replace(/"/g, "'")}"`,
+        ].join(','));
+        const csv = [headers.join(','), ...rows].join('\n');
+        const blob = new Blob([csv], { type: 'text/csv' });
+        const url  = URL.createObjectURL(blob);
+        const a    = document.createElement('a');
+        a.href     = url;
+        a.download = `simulator-${config.mode.toLowerCase()}-${new Date().toISOString().slice(0,10)}.csv`;
+        a.click();
+        URL.revokeObjectURL(url);
+    }
     const diffPage_trades = diffTrades.slice(diffPage * DIFF_PAGE_SIZE, (diffPage + 1) * DIFF_PAGE_SIZE);
     const diffTotalPages  = Math.ceil(diffTrades.length / DIFF_PAGE_SIZE);
 
@@ -230,7 +282,7 @@ export default function SimulatorPage() {
                         />
                         <ToggleRow
                             label={lang === 'fr' ? 'Plafonner les Losers Tenus' : 'Cap Held Losers'}
-                            sub={lang === 'fr' ? `Clore à ${Math.round(60)} durée moy. gagnant` : 'Close at avg winning trade duration'}
+                            sub={lang === 'fr' ? `Clore à ${avgWinDurMin}min durée moy. gagnante` : `Cap at ${avgWinDurMin}min avg winning trade duration`}
                             on={config.capHeldLosers}
                             onChange={() => patch('capHeldLosers', !config.capHeldLosers)}
                         />
@@ -336,8 +388,8 @@ export default function SimulatorPage() {
                         <div style={{ fontFamily: QF, fontSize: 9, color: '#6b7280', letterSpacing: '0.1em', marginBottom: 8 }}>
                             {lang === 'fr' ? 'FILTRE HORAIRE EST' : 'EST HOUR FILTER'}
                         </div>
-                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 1, background: BR }}>
-                            {[8, 9, 10, 11, 12, 13, 14, 15].map(h => {
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: 1, background: BR }}>
+                            {EST_HOURS.map(h => {
                                 const on = config.allowedHoursEST.includes(h);
                                 return (
                                     <button
@@ -345,20 +397,54 @@ export default function SimulatorPage() {
                                         onClick={() => {
                                             const next = on
                                                 ? config.allowedHoursEST.filter(x => x !== h)
-                                                : [...config.allowedHoursEST, h];
+                                                : [...config.allowedHoursEST, h].sort((a, b) => a - b);
                                             patch('allowedHoursEST', next);
                                         }}
                                         style={{
                                             background: on ? 'rgba(253,200,0,0.1)' : C2,
-                                            border: 'none', padding: '8px 4px', cursor: 'pointer',
-                                            fontFamily: QF, fontSize: 10, color: on ? YEL : '#4b5563',
+                                            border: 'none', padding: '7px 2px', cursor: 'pointer',
+                                            fontFamily: QF, fontSize: 9, color: on ? YEL : '#4b5563',
+                                            fontWeight: on ? 700 : 400,
                                         }}
                                     >
-                                        {h}:00
+                                        {h}h
                                     </button>
                                 );
                             })}
                         </div>
+                        {/* Asset whitelist from actual trades */}
+                        {uniqueAssets.length > 0 && (
+                            <>
+                                <div style={{ fontFamily: QF, fontSize: 9, color: '#6b7280', letterSpacing: '0.1em', marginBottom: 8, marginTop: 20 }}>
+                                    {lang === 'fr' ? 'FILTRE PAR ACTIF' : 'ASSET FILTER'}
+                                </div>
+                                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+                                    {uniqueAssets.map(asset => {
+                                        const on = config.allowedAssets.includes(asset);
+                                        return (
+                                            <button
+                                                key={asset}
+                                                onClick={() => {
+                                                    const next = on
+                                                        ? config.allowedAssets.filter(a => a !== asset)
+                                                        : [...config.allowedAssets, asset];
+                                                    patch('allowedAssets', next);
+                                                }}
+                                                style={{
+                                                    background: on ? 'rgba(56,189,248,0.12)' : C2,
+                                                    border: `1px solid ${on ? BLU : BR}`,
+                                                    padding: '5px 10px', cursor: 'pointer',
+                                                    fontFamily: QF, fontSize: 9,
+                                                    color: on ? BLU : '#4b5563', fontWeight: on ? 700 : 400,
+                                                }}
+                                            >
+                                                {asset}
+                                            </button>
+                                        );
+                                    })}
+                                </div>
+                            </>
+                        )}
                     </div>
                 )}
             </div>
@@ -601,6 +687,32 @@ export default function SimulatorPage() {
                                             fmt:    'usd' as const,
                                             aColor: YEL, sColor: YEL,
                                         },
+                                        {
+                                            label:  lang === 'fr' ? 'Espérance / trade' : 'Expectancy / trade',
+                                            actual: `${result.actual.expectancy >= 0 ? '+' : ''}$${result.actual.expectancy.toFixed(2)}`,
+                                            sim:    `${result.simulated.expectancy >= 0 ? '+' : ''}$${result.simulated.expectancy.toFixed(2)}`,
+                                            delta:  result.simulated.expectancy - result.actual.expectancy,
+                                            fmt:    'usd' as const,
+                                            aColor: result.actual.expectancy >= 0 ? GRN : RED,
+                                            sColor: result.simulated.expectancy >= 0 ? GRN : RED,
+                                        },
+                                        {
+                                            label:  lang === 'fr' ? 'Série gagnante max' : 'Max Win Streak',
+                                            actual: String(result.actual.maxWinStreak),
+                                            sim:    String(result.simulated.maxWinStreak),
+                                            delta:  result.simulated.maxWinStreak - result.actual.maxWinStreak,
+                                            fmt:    'count' as const,
+                                            aColor: YEL, sColor: YEL,
+                                        },
+                                        {
+                                            label:  lang === 'fr' ? 'Série perdante max' : 'Max Lose Streak',
+                                            actual: String(result.actual.maxLoseStreak),
+                                            sim:    String(result.simulated.maxLoseStreak),
+                                            // lower is better — invert sign for DeltaBadge
+                                            delta:  result.actual.maxLoseStreak - result.simulated.maxLoseStreak,
+                                            fmt:    'count' as const,
+                                            aColor: RED, sColor: result.simulated.maxLoseStreak < result.actual.maxLoseStreak ? GRN : RED,
+                                        },
                                     ].map((row, i) => (
                                         <tr key={i} style={{ borderBottom: `1px solid ${BR}`, background: i % 2 === 0 ? '#0c0e13' : 'transparent' }}>
                                             <td style={{ padding: '10px 14px', fontSize: 10, color: '#8b949e' }}>{row.label}</td>
@@ -614,6 +726,108 @@ export default function SimulatorPage() {
                         </div>
                     </div>
 
+                    {/* AUTO-OPTIMIZE RANKING */}
+                    {autoOptResults && autoOptResults.length > 0 && (
+                        <div style={{ background: C1, border: `1px solid ${BR}`, padding: '16px 18px' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+                                <Zap size={13} color={YEL} />
+                                <span style={{ fontFamily: QF, fontSize: 9, color: '#6b7280', letterSpacing: '0.1em' }}>
+                                    {lang === 'fr' ? 'OPTIMISEUR — QUELLE RÈGLE AIDE LE PLUS ?' : 'AUTO-OPTIMIZE — WHICH SINGLE RULE HELPS MOST?'}
+                                </span>
+                            </div>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                                {autoOptResults.map((opt, i) => {
+                                    const pct = autoOptResults[0].delta !== 0
+                                        ? (opt.delta / Math.abs(autoOptResults[0].delta)) * 100
+                                        : 0;
+                                    const positive = opt.delta > 0;
+                                    return (
+                                        <div key={opt.rule} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                                            <span style={{ fontFamily: QF, fontSize: 9, color: '#4b5563', width: 14, textAlign: 'right' }}>#{i+1}</span>
+                                            <span style={{ fontFamily: QF, fontSize: 10, color: '#c9d1d9', flex: 1 }}>
+                                                {lang === 'fr' ? opt.labelFr : opt.label}
+                                            </span>
+                                            <div style={{ width: 80, height: 4, background: '#1a1c24', position: 'relative', overflow: 'hidden' }}>
+                                                <div style={{ position: 'absolute', left: 0, top: 0, height: '100%', width: `${Math.max(0, pct)}%`, background: positive ? GRN : RED, transition: 'width 0.4s' }} />
+                                            </div>
+                                            <span style={{ fontFamily: QF, fontSize: 10, fontWeight: 700, color: positive ? GRN : RED, minWidth: 60, textAlign: 'right' }}>
+                                                {positive ? '+' : ''}${opt.delta.toFixed(0)}
+                                            </span>
+                                            <span style={{ fontFamily: QF, fontSize: 8, color: '#4b5563', minWidth: 50, textAlign: 'right' }}>
+                                                {opt.blockedCount} {lang === 'fr' ? 'bloqués' : 'blocked'}
+                                            </span>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        </div>
+                    )}
+
+                    {/* DAILY BREAKDOWN */}
+                    {result.dailyBreakdown.length > 0 && (
+                        <div>
+                            <button
+                                onClick={() => setShowDailyBreakdown(o => !o)}
+                                style={{
+                                    width: '100%', display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                                    background: C1, border: `1px solid ${BR}`, padding: '10px 16px',
+                                    cursor: 'pointer', fontFamily: QF, fontSize: 9, color: '#6b7280', letterSpacing: '0.1em',
+                                }}
+                            >
+                                <span>{lang === 'fr' ? `DÉTAIL PAR JOUR — ${result.dailyBreakdown.length} JOURS` : `DAY-BY-DAY BREAKDOWN — ${result.dailyBreakdown.length} DAYS`}</span>
+                                {showDailyBreakdown ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
+                            </button>
+                            <AnimatePresence>
+                                {showDailyBreakdown && (
+                                    <motion.div
+                                        initial={{ height: 0, opacity: 0 }}
+                                        animate={{ height: 'auto', opacity: 1 }}
+                                        exit={{ height: 0, opacity: 0 }}
+                                        transition={{ duration: 0.2 }}
+                                        style={{ overflow: 'hidden' }}
+                                    >
+                                        <div style={{ overflowX: 'auto' }}>
+                                            <table style={{ width: '100%', borderCollapse: 'collapse', fontFamily: QF }}>
+                                                <thead>
+                                                    <tr style={{ borderBottom: `1px solid ${BR}`, background: '#0c0e13' }}>
+                                                        {[
+                                                            lang === 'fr' ? 'JOUR' : 'DAY',
+                                                            lang === 'fr' ? 'RÉEL' : 'ACTUAL',
+                                                            lang === 'fr' ? 'SIMULÉ' : 'SIMULATED',
+                                                            'DELTA',
+                                                            lang === 'fr' ? 'TRADES' : 'TRADES',
+                                                            lang === 'fr' ? 'BLOQUÉS' : 'BLOCKED',
+                                                        ].map((h, i) => (
+                                                            <th key={i} style={{ padding: '7px 10px', fontSize: 8, color: '#4b5563', textAlign: i === 0 ? 'left' : 'right', letterSpacing: '0.08em', fontWeight: 700 }}>{h}</th>
+                                                        ))}
+                                                    </tr>
+                                                </thead>
+                                                <tbody>
+                                                    {result.dailyBreakdown.map((d, i) => (
+                                                        <tr key={d.day} style={{ borderBottom: `1px solid ${BR}`, background: i % 2 === 0 ? '#0c0e13' : 'transparent' }}>
+                                                            <td style={{ padding: '7px 10px', fontSize: 10, color: '#8b949e' }}>{d.day}</td>
+                                                            <td style={{ padding: '7px 10px', fontSize: 10, fontWeight: 700, color: d.actualPnl >= 0 ? YEL : RED, textAlign: 'right' }}>
+                                                                {d.actualPnl >= 0 ? '+' : ''}${Math.abs(d.actualPnl).toFixed(0)}
+                                                            </td>
+                                                            <td style={{ padding: '7px 10px', fontSize: 10, fontWeight: 700, color: d.simPnl >= 0 ? GRN : RED, textAlign: 'right' }}>
+                                                                {d.simPnl >= 0 ? '+' : ''}${Math.abs(d.simPnl).toFixed(0)}
+                                                            </td>
+                                                            <td style={{ padding: '7px 10px', textAlign: 'right' }}>
+                                                                <DeltaBadge delta={d.delta} format="usd" />
+                                                            </td>
+                                                            <td style={{ padding: '7px 10px', fontSize: 9, color: '#6b7280', textAlign: 'right' }}>{d.tradeCount}</td>
+                                                            <td style={{ padding: '7px 10px', fontSize: 9, color: d.blockedCount > 0 ? RED : '#4b5563', textAlign: 'right' }}>{d.blockedCount}</td>
+                                                        </tr>
+                                                    ))}
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    </motion.div>
+                                )}
+                            </AnimatePresence>
+                        </div>
+                    )}
+
                     {/* TRADE DIFF TABLE */}
                     {diffTrades.length > 0 && (
                         <div>
@@ -621,15 +835,25 @@ export default function SimulatorPage() {
                                 <div style={{ fontFamily: QF, fontSize: 9, color: '#6b7280', letterSpacing: '0.1em' }}>
                                     {lang === 'fr' ? `JOURNAL DES MODIFICATIONS — ${diffTrades.length} TRADES` : `SIMULATION LOG — ${diffTrades.length} TRADES AFFECTED`}
                                 </div>
-                                {result && (
+                                <div style={{ display: 'flex', gap: 8 }}>
                                     <button
-                                        onClick={handleReset}
+                                        onClick={handleExportCSV}
+                                        title={lang === 'fr' ? 'Exporter en CSV' : 'Export CSV'}
                                         style={{ display: 'flex', alignItems: 'center', gap: 5, background: 'none', border: `1px solid ${BR}`, padding: '5px 10px', cursor: 'pointer', fontFamily: QF, fontSize: 9, color: '#6b7280' }}
                                     >
-                                        <RotateCcw size={10} />
-                                        {lang === 'fr' ? 'RESET' : 'RESET'}
+                                        <Download size={10} />
+                                        CSV
                                     </button>
-                                )}
+                                    {result && (
+                                        <button
+                                            onClick={handleReset}
+                                            style={{ display: 'flex', alignItems: 'center', gap: 5, background: 'none', border: `1px solid ${BR}`, padding: '5px 10px', cursor: 'pointer', fontFamily: QF, fontSize: 9, color: '#6b7280' }}
+                                        >
+                                            <RotateCcw size={10} />
+                                            {lang === 'fr' ? 'RESET' : 'RESET'}
+                                        </button>
+                                    )}
+                                </div>
                             </div>
                             <div style={{ overflowX: 'auto' }}>
                                 <table style={{ width: '100%', borderCollapse: 'collapse', fontFamily: QF }}>
