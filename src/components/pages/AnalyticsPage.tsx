@@ -11,6 +11,7 @@ import {
     PieChart, Pie, Cell, ResponsiveContainer, BarChart, Bar, XAxis, Tooltip, YAxis, ReferenceLine,
     AreaChart, Area, CartesianGrid, ScatterChart, Scatter, ZAxis,
     RadarChart, Radar, PolarGrid, PolarAngleAxis, Legend,
+    ComposedChart, Line,
 } from 'recharts';
 import { Target, AlertTriangle, Download, Link2, Check, Info, TrendingUp, TrendingDown, Activity, Clock } from 'lucide-react';
 import ComposedDailyChart, { addRollingAvg } from '@/components/charts/ComposedDailyChart';
@@ -5137,7 +5138,196 @@ export default function AnalyticsPage() {
                                     </div>
                                 )}
 
-                                {/* ── SECTION 9: NEXT SESSION RULES ── */}
+                                {/* ── SECTION 9: OPTIMAL DAILY HARD STOP ANALYSIS ── */}
+                                {rptTrades.length >= 5 && (() => {
+                                    // Group by calendar day (slice 0-10 of ISO string)
+                                    const hsMap: Record<string, number> = {};
+                                    rptTrades.forEach(t => {
+                                        const d = (t.closedAt ?? t.createdAt).slice(0, 10);
+                                        hsMap[d] = (hsMap[d] ?? 0) + (t.pnl ?? 0);
+                                    });
+                                    const allDayPnls = Object.values(hsMap);
+                                    const totalDays  = allDayPnls.length;
+                                    const lossDayAmts = allDayPnls.filter(p => p < 0).map(p => Math.abs(p)).sort((a, b) => b - a);
+                                    const winDayCount = allDayPnls.filter(p => p >= 0).length;
+                                    if (lossDayAmts.length === 0) return null;
+                                    const maxLoss = lossDayAmts[0];
+                                    const avgLossDay = lossDayAmts.reduce((s, v) => s + v, 0) / lossDayAmts.length;
+                                    const currentStop = account.dailyLossLimit ?? 0;
+
+                                    // ── Grid search: simulate hard stop at each candidate level ──
+                                    const rawStep = maxLoss / 20;
+                                    const step = rawStep < 10 ? 10 : rawStep < 25 ? 25 : rawStep < 50 ? 50 : 100;
+                                    const candidates: number[] = [];
+                                    for (let s = step; s <= maxLoss * 1.02; s += step) candidates.push(Math.round(s));
+                                    // Always include p25, p50 (median), p75 of loss days
+                                    const pctLoss = (p: number) => lossDayAmts[Math.floor((lossDayAmts.length - 1) * (1 - p))];
+                                    [pctLoss(0.75), pctLoss(0.5), pctLoss(0.25)].forEach(v => {
+                                        const r = Math.round(v / step) * step || step;
+                                        if (!candidates.includes(r)) candidates.push(r);
+                                    });
+                                    if (currentStop > 0 && !candidates.includes(Math.round(currentStop))) candidates.push(Math.round(currentStop));
+                                    candidates.sort((a, b) => a - b);
+
+                                    const sims = candidates.map(stop => {
+                                        let saved = 0;
+                                        let stoppedDays = 0;
+                                        allDayPnls.forEach(pnl => {
+                                            if (pnl < -stop) { saved += Math.abs(pnl) - stop; stoppedDays++; }
+                                        });
+                                        const interventionRate = stoppedDays / Math.max(1, lossDayAmts.length);
+                                        // Score: maximize savings, penalise if >60% of loss days affected (too tight)
+                                        const score = saved * (1 - Math.max(0, (interventionRate - 0.6) * 2));
+                                        return { stop, saved: Math.round(saved * 100) / 100, stoppedDays, interventionRate, netPnlWithStop: Math.round((rptNetPnl + saved) * 100) / 100, score };
+                                    }).filter(s => s.stoppedDays > 0);
+
+                                    if (sims.length === 0) return null;
+
+                                    // Optimal = highest score
+                                    const optSim = sims.reduce((b, s) => s.score > b.score ? s : b, sims[0]);
+                                    // Conservative = p25 equivalent (lightest that still saves something)
+                                    const consSim = sims[0];
+                                    const currentStopSim = currentStop > 0 ? sims.find(s => Math.abs(s.stop - currentStop) <= step * 0.6) ?? null : null;
+
+                                    // Chart: top 8 sims (most informative range)
+                                    const chartSims = sims.slice(0, Math.min(sims.length, 10));
+
+                                    return (
+                                        <div>
+                                            <div style={{ ...SL, color: '#ff4757', marginBottom: 6 }}>
+                                                {lang === 'fr' ? 'ANALYSE HARD STOP JOURNALIER — OPTIMISATION' : 'OPTIMAL DAILY HARD STOP ANALYSIS'}
+                                            </div>
+                                            <p style={{ fontFamily: 'var(--font-sans)', fontSize: 11, color: '#6b7280', marginBottom: 14, lineHeight: 1.65 }}>
+                                                {lang === 'fr'
+                                                    ? `Basé sur ${totalDays} jours de trading (${lossDayAmts.length} jours perdants, ${winDayCount} jours gagnants). Le simulateur teste chaque niveau de hard stop et calcule exactement combien aurait été préservé.`
+                                                    : `Based on ${totalDays} trading days (${lossDayAmts.length} losing, ${winDayCount} winning). The simulator tests every stop level against your actual days and computes exactly how much would have been preserved.`}
+                                            </p>
+
+                                            {/* KPI strip */}
+                                            <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr 1fr' : 'repeat(4, 1fr)', gap: 1, background: '#1a1c24', marginBottom: 16 }}>
+                                                {[
+                                                    { label: lang === 'fr' ? 'PIRE JOURNÉE' : 'WORST DAY',    value: `-$${maxLoss.toFixed(0)}`,         color: '#ff4757' },
+                                                    { label: lang === 'fr' ? 'PERTE MOY./JOUR' : 'AVG LOSS DAY', value: `-$${avgLossDay.toFixed(0)}`,   color: '#EAB308' },
+                                                    { label: lang === 'fr' ? 'JOURS PERDANTS' : 'LOSING DAYS', value: `${lossDayAmts.length}/${totalDays}`, color: '#c9d1d9' },
+                                                    { label: lang === 'fr' ? 'STOP ACTUEL' : 'CURRENT STOP',  value: currentStop > 0 ? `$${currentStop.toFixed(0)}` : lang === 'fr' ? 'Non défini' : 'Not set', color: currentStop > 0 ? '#38bdf8' : '#4b5563' },
+                                                ].map((k, i) => (
+                                                    <div key={i} style={{ background: '#0d1117', padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: 4 }}>
+                                                        <div style={{ ...SL, marginBottom: 0 }}>{k.label}</div>
+                                                        <div style={{ fontFamily: QF, fontSize: 18, fontWeight: 900, color: k.color }}>{k.value}</div>
+                                                    </div>
+                                                ))}
+                                            </div>
+
+                                            {/* Savings curve chart */}
+                                            <div style={{ background: '#0d1117', border: '1px solid #1a1c24', padding: '12px 0 4px', marginBottom: 16 }}>
+                                                <div style={{ fontFamily: QF, fontSize: 9, color: '#6b7280', padding: '0 16px 8px', letterSpacing: '0.08em' }}>
+                                                    {lang === 'fr' ? 'ÉCONOMIES SIMULÉES PAR NIVEAU DE HARD STOP' : 'SIMULATED SAVINGS PER HARD STOP LEVEL'}
+                                                </div>
+                                                <ResponsiveContainer width="100%" height={140}>
+                                                    <ComposedChart data={chartSims} margin={{ top: 4, right: 16, left: 0, bottom: 0 }}>
+                                                        <CartesianGrid strokeDasharray="3 3" stroke="#1a1c24" vertical={false} />
+                                                        <XAxis dataKey="stop" tick={{ fontFamily: 'var(--font-mono)', fontSize: 8, fill: '#4b5563' }} tickLine={false} axisLine={false} tickFormatter={(v) => `$${v}`} />
+                                                        <YAxis yAxisId="l" tick={{ fontFamily: 'var(--font-mono)', fontSize: 8, fill: '#4b5563' }} tickLine={false} axisLine={false} tickFormatter={(v) => `$${Math.abs(v) >= 1000 ? (v / 1000).toFixed(1) + 'k' : v}`} width={44} />
+                                                        <YAxis yAxisId="r" orientation="right" tick={{ fontFamily: 'var(--font-mono)', fontSize: 8, fill: '#4b5563' }} tickLine={false} axisLine={false} tickFormatter={(v) => `${v}d`} width={28} />
+                                                        <Tooltip
+                                                            contentStyle={{ background: '#0d1117', border: '1px solid #1a1c24', borderRadius: 0, fontFamily: 'var(--font-mono)', fontSize: 10 }}
+                                                            formatter={(v: unknown, name: string | undefined) => {
+                                                                if (name === 'saved') return [`+$${Number(v).toFixed(0)}`, lang === 'fr' ? 'Économisé' : 'Saved'];
+                                                                if (name === 'stoppedDays') return [String(v), lang === 'fr' ? 'Jours arrêtés' : 'Days stopped'];
+                                                                return [String(v), name ?? ''];
+                                                            }}
+                                                            labelFormatter={(v) => `Stop: $${v}`}
+                                                        />
+                                                        {currentStop > 0 && <ReferenceLine yAxisId="l" x={Math.round(currentStop / step) * step} stroke="#38bdf8" strokeDasharray="4 2" label={{ value: lang === 'fr' ? 'Actuel' : 'Current', position: 'top', fill: '#38bdf8', fontSize: 8, fontFamily: 'var(--font-mono)' }} />}
+                                                        <ReferenceLine yAxisId="l" x={optSim.stop} stroke="#FDC800" strokeDasharray="4 2" label={{ value: lang === 'fr' ? 'Optimal' : 'Optimal', position: 'top', fill: '#FDC800', fontSize: 8, fontFamily: 'var(--font-mono)' }} />
+                                                        <Bar yAxisId="l" dataKey="saved" maxBarSize={40} radius={0}>
+                                                            {chartSims.map((s, i) => <Cell key={i} fill={s.stop === optSim.stop ? '#FDC800' : '#ff475750'} />)}
+                                                        </Bar>
+                                                        <Line yAxisId="r" type="monotone" dataKey="stoppedDays" stroke="#38bdf8" strokeWidth={1.5} dot={false} />
+                                                    </ComposedChart>
+                                                </ResponsiveContainer>
+                                                <div style={{ display: 'flex', gap: 16, padding: '0 16px 4px', flexWrap: 'wrap' as const }}>
+                                                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                                                        <div style={{ width: 10, height: 10, background: '#ff475750' }} />
+                                                        <span style={{ fontFamily: QF, fontSize: 9, color: '#6b7280' }}>{lang === 'fr' ? 'Économies simulées' : 'Simulated savings'}</span>
+                                                    </div>
+                                                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                                                        <div style={{ width: 10, height: 2, background: '#38bdf8' }} />
+                                                        <span style={{ fontFamily: QF, fontSize: 9, color: '#6b7280' }}>{lang === 'fr' ? 'Jours arrêtés' : 'Days triggered'}</span>
+                                                    </div>
+                                                </div>
+                                            </div>
+
+                                            {/* Simulation table */}
+                                            <div style={{ overflowX: 'auto', marginBottom: 16 }}>
+                                                <table style={{ width: '100%', borderCollapse: 'collapse', fontFamily: QF }}>
+                                                    <thead>
+                                                        <tr style={{ borderBottom: '1px solid #1a1c24' }}>
+                                                            {[lang === 'fr' ? 'HARD STOP' : 'HARD STOP', lang === 'fr' ? 'JOURS DÉCLENCHÉS' : 'DAYS TRIGGERED', lang === 'fr' ? 'ÉCONOMISÉ' : 'SAVED', lang === 'fr' ? 'P&L NET SIMULÉ' : 'SIMULATED NET P&L', lang === 'fr' ? 'TAUX INTV.' : 'INTV. RATE'].map((h, i) => (
+                                                                <th key={i} style={{ padding: '7px 12px', fontSize: 9, color: '#6b7280', textAlign: i === 0 ? 'left' : 'right', letterSpacing: '0.1em', fontWeight: 700 }}>{h}</th>
+                                                            ))}
+                                                        </tr>
+                                                    </thead>
+                                                    <tbody>
+                                                        {sims.map((s, i) => {
+                                                            const isOpt = s.stop === optSim.stop;
+                                                            const isCur = currentStopSim ? s.stop === currentStopSim.stop : false;
+                                                            const bg = isOpt ? 'rgba(253,200,0,0.06)' : isCur ? 'rgba(56,189,248,0.05)' : i % 2 === 0 ? '#0c0e13' : 'transparent';
+                                                            return (
+                                                                <tr key={i} style={{ borderBottom: '1px solid #1a1c24', background: bg }}>
+                                                                    <td style={{ padding: '8px 12px', fontSize: 11 }}>
+                                                                        <span style={{ fontFamily: QF, fontWeight: 900, color: isOpt ? '#FDC800' : isCur ? '#38bdf8' : '#c9d1d9' }}>${s.stop}</span>
+                                                                        {isOpt && <span style={{ fontFamily: QF, fontSize: 8, color: '#FDC800', marginLeft: 6, border: '1px solid #FDC80050', padding: '1px 5px' }}>{lang === 'fr' ? 'OPTIMAL' : 'OPTIMAL'}</span>}
+                                                                        {isCur && !isOpt && <span style={{ fontFamily: QF, fontSize: 8, color: '#38bdf8', marginLeft: 6, border: '1px solid #38bdf850', padding: '1px 5px' }}>{lang === 'fr' ? 'ACTUEL' : 'CURRENT'}</span>}
+                                                                    </td>
+                                                                    <td style={{ padding: '8px 12px', fontSize: 11, color: '#c9d1d9', textAlign: 'right' }}>{s.stoppedDays}</td>
+                                                                    <td style={{ padding: '8px 12px', fontSize: 11, fontWeight: 700, color: '#FDC800', textAlign: 'right' }}>+${s.saved.toFixed(0)}</td>
+                                                                    <td style={{ padding: '8px 12px', fontSize: 11, fontWeight: 700, color: s.netPnlWithStop >= 0 ? '#FDC800' : '#ff4757', textAlign: 'right' }}>{s.netPnlWithStop >= 0 ? '+' : ''}${s.netPnlWithStop.toFixed(0)}</td>
+                                                                    <td style={{ padding: '8px 12px', fontSize: 10, color: s.interventionRate <= 0.3 ? '#FDC800' : s.interventionRate <= 0.6 ? '#EAB308' : '#ff4757', textAlign: 'right' }}>{(s.interventionRate * 100).toFixed(0)}%</td>
+                                                                </tr>
+                                                            );
+                                                        })}
+                                                    </tbody>
+                                                </table>
+                                            </div>
+
+                                            {/* Recommendation card */}
+                                            <div style={{ background: '#0d1117', borderLeft: '3px solid #FDC800', border: '1px solid #FDC80030', borderLeftWidth: 3, padding: '16px 18px', display: 'flex', flexDirection: 'column', gap: 10 }}>
+                                                <div style={{ fontFamily: QF, fontSize: 11, fontWeight: 900, color: '#FDC800', letterSpacing: '0.08em' }}>
+                                                    {lang === 'fr' ? `RECOMMANDATION — HARD STOP À $${optSim.stop}` : `RECOMMENDATION — SET HARD STOP AT $${optSim.stop}`}
+                                                </div>
+                                                <p style={{ fontFamily: 'var(--font-sans)', fontSize: 11, color: '#c9d1d9', lineHeight: 1.7, margin: 0 }}>
+                                                    {lang === 'fr'
+                                                        ? `Un hard stop journalier à $${optSim.stop} aurait déclenché sur ${optSim.stoppedDays} de vos ${lossDayAmts.length} jours perdants (${(optSim.interventionRate * 100).toFixed(0)}% d'intervention). Résultat : +$${optSim.saved.toFixed(0)} préservés — votre P&L net aurait été de ${optSim.netPnlWithStop >= 0 ? '+' : ''}$${optSim.netPnlWithStop.toFixed(0)} au lieu de ${rptNetPnl >= 0 ? '+' : ''}$${rptNetPnl.toFixed(0)}.`
+                                                        : `A $${optSim.stop} daily hard stop would have triggered on ${optSim.stoppedDays} of your ${lossDayAmts.length} losing days (${(optSim.interventionRate * 100).toFixed(0)}% intervention rate). Result: +$${optSim.saved.toFixed(0)} preserved — your net P&L would have been ${optSim.netPnlWithStop >= 0 ? '+' : ''}$${optSim.netPnlWithStop.toFixed(0)} instead of ${rptNetPnl >= 0 ? '+' : ''}$${rptNetPnl.toFixed(0)}.`}
+                                                </p>
+                                                {currentStop > 0 && currentStopSim && currentStopSim.stop !== optSim.stop && (
+                                                    <div style={{ fontFamily: QF, fontSize: 10, color: '#38bdf8', background: '#38bdf810', border: '1px solid #38bdf830', padding: '8px 12px', lineHeight: 1.6 }}>
+                                                        {lang === 'fr'
+                                                            ? `Votre stop actuel ($${currentStop.toFixed(0)}) aurait économisé $${currentStopSim.saved.toFixed(0)} sur ${currentStopSim.stoppedDays} jour${currentStopSim.stoppedDays > 1 ? 's' : ''}. Le stop optimal ($${optSim.stop}) économise $${(optSim.saved - currentStopSim.saved).toFixed(0)} de plus.`
+                                                            : `Your current stop ($${currentStop.toFixed(0)}) would have saved $${currentStopSim.saved.toFixed(0)} across ${currentStopSim.stoppedDays} day${currentStopSim.stoppedDays > 1 ? 's' : ''}. The optimal stop ($${optSim.stop}) captures $${(optSim.saved - currentStopSim.saved).toFixed(0)} more.`}
+                                                    </div>
+                                                )}
+                                                {currentStop === 0 && (
+                                                    <div style={{ fontFamily: QF, fontSize: 10, color: '#ff4757', background: '#ff475710', border: '1px solid #ff475730', padding: '8px 12px' }}>
+                                                        {lang === 'fr'
+                                                            ? `Aucun hard stop journalier configuré. Sans limite, votre pire journée a détruit $${maxLoss.toFixed(0)} en une seule session. Définissez $${optSim.stop} dans vos Paramètres → Limite de perte journalière.`
+                                                            : `No daily hard stop configured. Without a limit, your worst day destroyed $${maxLoss.toFixed(0)} in a single session. Set $${optSim.stop} in Settings → Daily Loss Limit.`}
+                                                    </div>
+                                                )}
+                                                {consSim && consSim.stop !== optSim.stop && (
+                                                    <div style={{ fontFamily: QF, fontSize: 10, color: '#8b949e', lineHeight: 1.5 }}>
+                                                        {lang === 'fr'
+                                                            ? `Option conservatrice : $${consSim.stop} — déclenche seulement sur les pires jours (${(consSim.interventionRate * 100).toFixed(0)}% des jours perdants), économies de $${consSim.saved.toFixed(0)}.`
+                                                            : `Conservative option: $${consSim.stop} — triggers only on your worst outlier days (${(consSim.interventionRate * 100).toFixed(0)}% of losing days), saving $${consSim.saved.toFixed(0)}.`}
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </div>
+                                    );
+                                })()}
+
+                                {/* ── SECTION 10: NEXT SESSION RULES ── */}
                                 <div>
                                     <div style={{ ...SL, color: '#FDC800', marginBottom: 14 }}>{lang === 'fr' ? 'RÈGLES POUR LA PROCHAINE SESSION' : 'NEXT SESSION RULES'}</div>
                                     <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
