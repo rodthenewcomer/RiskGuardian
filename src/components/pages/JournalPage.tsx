@@ -58,7 +58,7 @@ function fmtDayLabel(dateStr: string): string {
 }
 
 export default function JournalPage() {
-    const { trades, setTrades, deleteTrade, updateTradeNote, updateTradeFields, setActiveTab, account } = useAppStore();
+    const { trades, setTrades, deleteTrade, updateTradeNote, updateTradeFields, setActiveTab, account, dayNotes, updateDayNote } = useAppStore();
     const { t } = useTranslation();
     const { language } = useAppStore();
     const lang = language ?? 'en';
@@ -67,6 +67,8 @@ export default function JournalPage() {
     const [viewMode, setViewMode] = useState<'list' | 'calendar'>('list');
     const [calendarDate, setCalendarDate] = useState(new Date());
     const [calendarDir, setCalendarDir] = useState<1 | -1>(1);
+    const [selectedDay, setSelectedDay] = useState<string | null>(null);
+    const [dayNoteInput, setDayNoteInput] = useState('');
     const [pdfStatus, setPdfStatus] = useState<{ loading: boolean; msg: string }>({ loading: false, msg: '' });
     const [filter, setFilter] = useState<'all' | 'win' | 'loss' | 'open'>('all');
     const [assetFilter, setAssetFilter] = useState('');
@@ -82,6 +84,11 @@ export default function JournalPage() {
         window.addEventListener('resize', check);
         return () => window.removeEventListener('resize', check);
     }, []);
+
+    // Sync day note input when selected day changes
+    useEffect(() => {
+        if (selectedDay) setDayNoteInput(dayNotes?.[selectedDay] ?? '');
+    }, [selectedDay, dayNotes]);
 
     // ── EdgeForensics dashboard state ─────────────────────────
     const [journalTab, setJournalTab] = useState<'trades' | 'notes' | 'insights'>('trades');
@@ -1581,6 +1588,7 @@ export default function JournalPage() {
 
             {/* ── CALENDAR VIEW ───────────────────────────────── */}
             {journalTab === 'trades' && trades.length > 0 && viewMode === 'calendar' && (
+                <>
                 <motion.div initial={{ opacity: 0, scale: 0.98 }} animate={{ opacity: 1, scale: 1 }} className={styles.calendarContainer} style={isMobile ? { borderRadius: 0, margin: 0 } : {}}>
                     <div className={styles.calendarHeader}>
                         <div className={styles.calendarNav}>
@@ -1606,8 +1614,17 @@ export default function JournalPage() {
                             >
                                 {calendarData.weeks.map((week, wi) => (
                                     <div key={wi} className={styles.calendarRow}>
-                                        {week.days.map((dayData: { day: number; isCurrentMonth: boolean; isToday: boolean; pnl: number; tradesCount: number; }, i: number) => (
-                                            <div key={i} className={`${styles.calendarCell} ${!dayData.isCurrentMonth ? styles.calendarCellOut : ''} ${dayData.isToday ? styles.calendarCellToday : ''} ${dayData.pnl > 0 ? styles.pnlPositiveFill : dayData.pnl < 0 ? styles.pnlNegativeFill : ''}`}>
+                                        {week.days.map((dayData: { day: number; isCurrentMonth: boolean; isToday: boolean; pnl: number; tradesCount: number; date?: string; }, i: number) => (
+                                            <div
+                                                key={i}
+                                                className={`${styles.calendarCell} ${!dayData.isCurrentMonth ? styles.calendarCellOut : ''} ${dayData.isToday ? styles.calendarCellToday : ''} ${dayData.pnl > 0 ? styles.pnlPositiveFill : dayData.pnl < 0 ? styles.pnlNegativeFill : ''} ${dayData.isCurrentMonth && dayData.tradesCount > 0 ? styles.calendarCellClickable : ''} ${dayData.date && selectedDay === dayData.date ? styles.calendarCellSelected : ''}`}
+                                                onClick={() => {
+                                                    if (dayData.isCurrentMonth && dayData.date) {
+                                                        setSelectedDay(prev => prev === dayData.date ? null : dayData.date!);
+                                                    }
+                                                }}
+                                                style={dayData.isCurrentMonth && dayData.tradesCount > 0 ? { cursor: 'pointer' } : undefined}
+                                            >
                                                 <span className={styles.calendarCellDate}>{dayData.day}</span>
                                                 <div className={styles.calendarCellContent}>
                                                     {dayData.tradesCount > 0 && (
@@ -1616,6 +1633,9 @@ export default function JournalPage() {
                                                                 {dayData.pnl >= 0 ? '+' : '-'}${Math.abs(dayData.pnl).toFixed(2)}
                                                             </span>
                                                             <span className={styles.calendarTrades}>{dayData.tradesCount} {dayData.tradesCount === 1 ? 'trade' : 'trades'}</span>
+                                                            {dayNotes?.[dayData.date ?? ''] && (
+                                                                <span style={{ display: 'block', marginTop: 2, width: 5, height: 5, borderRadius: '50%', background: '#FDC800', margin: '2px auto 0' }} />
+                                                            )}
                                                         </>
                                                     )}
                                                 </div>
@@ -1634,6 +1654,180 @@ export default function JournalPage() {
                         </AnimatePresence>
                     </div>
                 </motion.div>
+
+            {/* Day detail panel */}
+            <AnimatePresence>
+                {selectedDay && (() => {
+                    const dayTrades = trades
+                        .filter(t => getTradingDay(t.closedAt ?? t.createdAt) === selectedDay)
+                        .sort((a, b) => new Date(a.closedAt ?? a.createdAt).getTime() - new Date(b.closedAt ?? b.createdAt).getTime());
+                    const dayPnl = dayTrades.reduce((s, t) => s + (t.pnl ?? 0), 0);
+                    const wins = dayTrades.filter(t => t.outcome === 'win').length;
+                    const losses = dayTrades.filter(t => t.outcome === 'loss').length;
+                    const winRate = dayTrades.length > 0 ? Math.round((wins / dayTrades.length) * 100) : 0;
+                    const bestTrade = dayTrades.reduce((b, t) => (t.pnl ?? 0) > (b?.pnl ?? -Infinity) ? t : b, dayTrades[0]);
+                    const worstTrade = dayTrades.reduce((b, t) => (t.pnl ?? 0) < (b?.pnl ?? Infinity) ? t : b, dayTrades[0]);
+                    // Intraday equity curve
+                    let cumPnl = 0;
+                    const curveData = dayTrades.map(t => {
+                        cumPnl += t.pnl ?? 0;
+                        return {
+                            label: fmtTime(t.closedAt ?? t.createdAt),
+                            pnl: Math.round(cumPnl * 100) / 100,
+                            trade: t,
+                        };
+                    });
+                    // Format date label
+                    const d = new Date(selectedDay + 'T12:00:00Z');
+                    const dateLabel = d.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
+                    return (
+                        <motion.div
+                            key={selectedDay}
+                            initial={{ opacity: 0, y: -8 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            exit={{ opacity: 0, y: -8 }}
+                            transition={{ duration: 0.18, ease: [0.16, 1, 0.3, 1] }}
+                            style={{ background: '#0d1117', border: '1px solid #1a1c24', borderTop: 'none', padding: isMobile ? '16px 14px' : '20px 24px' }}
+                        >
+                            {/* Header */}
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+                                <div>
+                                    <span style={{ ...mono, fontSize: 12, fontWeight: 700, color: '#fff', display: 'block' }}>{dateLabel}</span>
+                                    <span style={{ ...mono, fontSize: 10, color: '#4b5563' }}>
+                                        {lang === 'fr' ? `${dayTrades.length} trade${dayTrades.length !== 1 ? 's' : ''}` : `${dayTrades.length} trade${dayTrades.length !== 1 ? 's' : ''}`}
+                                    </span>
+                                </div>
+                                <button
+                                    onClick={() => setSelectedDay(null)}
+                                    style={{ background: 'none', border: '1px solid #1a1c24', color: '#4b5563', cursor: 'pointer', padding: '4px 10px', ...mono, fontSize: 11 }}
+                                >
+                                    ✕
+                                </button>
+                            </div>
+
+                            {/* Day KPI row */}
+                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8, marginBottom: 16 }}>
+                                {[
+                                    { label: lang === 'fr' ? 'P&L Net' : 'Net P&L', value: `${dayPnl >= 0 ? '+' : ''}$${dayPnl.toFixed(2)}`, color: dayPnl >= 0 ? '#FDC800' : '#ff4757' },
+                                    { label: lang === 'fr' ? 'Taux gain' : 'Win Rate', value: `${winRate}%`, color: winRate >= 60 ? '#FDC800' : winRate >= 40 ? '#EAB308' : '#ff4757' },
+                                    { label: lang === 'fr' ? 'Gains / Pertes' : 'W / L', value: `${wins} / ${losses}`, color: '#c9d1d9' },
+                                    { label: lang === 'fr' ? 'Trades' : 'Trades', value: String(dayTrades.length), color: '#c9d1d9' },
+                                ].map(k => (
+                                    <div key={k.label} style={{ background: '#0b0e14', border: '1px solid #1a1c24', padding: '10px 12px' }}>
+                                        <span style={{ ...mono, fontSize: 9, color: '#4b5563', textTransform: 'uppercase' as const, letterSpacing: '0.08em', display: 'block', marginBottom: 4 }}>{k.label}</span>
+                                        <span style={{ ...mono, fontSize: 16, fontWeight: 900, color: k.color }}>{k.value}</span>
+                                    </div>
+                                ))}
+                            </div>
+
+                            {/* Best / Worst */}
+                            {dayTrades.length > 1 && (
+                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 16 }}>
+                                    <div style={{ background: '#0b0e14', border: '1px solid #1a1c24', padding: '10px 12px' }}>
+                                        <span style={{ ...mono, fontSize: 9, color: '#4b5563', textTransform: 'uppercase' as const, letterSpacing: '0.08em', display: 'block', marginBottom: 4 }}>
+                                            {lang === 'fr' ? 'Meilleur trade' : 'Best Trade'}
+                                        </span>
+                                        <span style={{ ...mono, fontSize: 13, fontWeight: 700, color: '#FDC800' }}>{bestTrade?.asset} +${(bestTrade?.pnl ?? 0).toFixed(2)}</span>
+                                    </div>
+                                    <div style={{ background: '#0b0e14', border: '1px solid #1a1c24', padding: '10px 12px' }}>
+                                        <span style={{ ...mono, fontSize: 9, color: '#4b5563', textTransform: 'uppercase' as const, letterSpacing: '0.08em', display: 'block', marginBottom: 4 }}>
+                                            {lang === 'fr' ? 'Pire trade' : 'Worst Trade'}
+                                        </span>
+                                        <span style={{ ...mono, fontSize: 13, fontWeight: 700, color: '#ff4757' }}>{worstTrade?.asset} ${(worstTrade?.pnl ?? 0).toFixed(2)}</span>
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Intraday equity curve */}
+                            {curveData.length > 1 && (
+                                <div style={{ marginBottom: 16 }}>
+                                    <span style={{ ...mono, fontSize: 9, color: '#4b5563', textTransform: 'uppercase' as const, letterSpacing: '0.08em', display: 'block', marginBottom: 8 }}>
+                                        {lang === 'fr' ? 'Courbe intraday' : 'Intraday Curve'}
+                                    </span>
+                                    <ResponsiveContainer width="100%" height={90}>
+                                        <AreaChart data={curveData} margin={{ top: 4, right: 0, left: 0, bottom: 0 }}>
+                                            <defs>
+                                                <linearGradient id="dayGrad" x1="0" y1="0" x2="0" y2="1">
+                                                    <stop offset="5%" stopColor={dayPnl >= 0 ? '#FDC800' : '#ff4757'} stopOpacity={0.25} />
+                                                    <stop offset="95%" stopColor={dayPnl >= 0 ? '#FDC800' : '#ff4757'} stopOpacity={0} />
+                                                </linearGradient>
+                                            </defs>
+                                            <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" />
+                                            <XAxis dataKey="label" tick={{ fill: '#4b5563', fontSize: 9, fontFamily: 'var(--font-mono)' }} axisLine={false} tickLine={false} />
+                                            <YAxis tick={{ fill: '#4b5563', fontSize: 9, fontFamily: 'var(--font-mono)' }} axisLine={false} tickLine={false} width={42}
+                                                tickFormatter={(v: number) => `$${v >= 0 ? '+' : ''}${v}`} />
+                                            <RechartTooltip
+                                                contentStyle={{ background: '#0d1117', border: '1px solid #1a1c24', borderRadius: 2 }}
+                                                labelStyle={{ color: '#8b949e', fontSize: 10, fontFamily: 'var(--font-mono)' }}
+                                                itemStyle={{ color: '#FDC800', fontSize: 11, fontFamily: 'var(--font-mono)' }}
+                                                formatter={(v: number | undefined) => [`$${(v ?? 0).toFixed(2)}`, 'Cumulative P&L']}
+                                            />
+                                            <Area type="monotone" dataKey="pnl" stroke={dayPnl >= 0 ? '#FDC800' : '#ff4757'} strokeWidth={2} fill="url(#dayGrad)" dot={false} activeDot={{ r: 4 }} />
+                                        </AreaChart>
+                                    </ResponsiveContainer>
+                                </div>
+                            )}
+
+                            {/* Trade list */}
+                            {dayTrades.length > 0 && (
+                                <div style={{ marginBottom: 16 }}>
+                                    <span style={{ ...mono, fontSize: 9, color: '#4b5563', textTransform: 'uppercase' as const, letterSpacing: '0.08em', display: 'block', marginBottom: 8 }}>
+                                        {lang === 'fr' ? 'Trades du jour' : 'Trades'}
+                                    </span>
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                                        {dayTrades.map(t => (
+                                            <div key={t.id} style={{ display: 'grid', gridTemplateColumns: '1fr 60px 60px 70px 60px', gap: 8, alignItems: 'center', padding: '8px 10px', background: '#090909', border: '1px solid #1a1c24' }}>
+                                                <div>
+                                                    <span style={{ ...mono, fontSize: 11, fontWeight: 700, color: '#fff' }}>{t.asset}</span>
+                                                    <span style={{ ...mono, fontSize: 9, color: '#4b5563', marginLeft: 6 }}>{t.isShort ? '▼ SHORT' : '▲ LONG'}</span>
+                                                </div>
+                                                <span style={{ ...mono, fontSize: 9, color: '#6b7280' }}>{fmtTime(t.closedAt ?? t.createdAt)}</span>
+                                                <span style={{ ...mono, fontSize: 9, color: '#6b7280' }}>{calcHoldTime(t.createdAt, t.closedAt)}</span>
+                                                <span style={{ ...mono, fontSize: 11, fontWeight: 700, color: (t.pnl ?? 0) >= 0 ? '#FDC800' : '#ff4757', textAlign: 'right' as const }}>
+                                                    {(t.pnl ?? 0) >= 0 ? '+' : ''}${(t.pnl ?? 0).toFixed(2)}
+                                                </span>
+                                                <span style={{ ...mono, fontSize: 9, fontWeight: 700, color: t.outcome === 'win' ? '#FDC800' : t.outcome === 'loss' ? '#ff4757' : '#F97316', textAlign: 'center' as const, border: `1px solid ${t.outcome === 'win' ? '#FDC800' : t.outcome === 'loss' ? '#ff4757' : '#F97316'}`, padding: '1px 4px' }}>
+                                                    {t.outcome?.toUpperCase() ?? 'OPEN'}
+                                                </span>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Day journal note */}
+                            <div>
+                                <span style={{ ...mono, fontSize: 9, color: '#4b5563', textTransform: 'uppercase' as const, letterSpacing: '0.08em', display: 'block', marginBottom: 8 }}>
+                                    {lang === 'fr' ? 'Note du jour' : 'Day Journal Entry'}
+                                </span>
+                                <textarea
+                                    value={dayNoteInput}
+                                    onChange={e => setDayNoteInput(e.target.value)}
+                                    onBlur={() => updateDayNote(selectedDay, dayNoteInput)}
+                                    placeholder={lang === 'fr'
+                                        ? 'Biais directionnel, qualité des setups, émotions, leçons retenues…'
+                                        : 'Directional bias, setup quality, emotions, lessons learned…'}
+                                    rows={4}
+                                    style={{
+                                        width: '100%', boxSizing: 'border-box', background: '#090909', border: '1px solid #1a1c24',
+                                        color: '#c9d1d9', padding: '10px 12px', resize: 'vertical', outline: 'none',
+                                        ...mono, fontSize: 12, lineHeight: 1.6,
+                                    }}
+                                />
+                                {dayNoteInput !== (dayNotes?.[selectedDay] ?? '') && (
+                                    <button
+                                        onClick={() => updateDayNote(selectedDay, dayNoteInput)}
+                                        style={{ marginTop: 6, ...mono, fontSize: 10, fontWeight: 700, padding: '5px 14px', background: '#FDC800', color: '#000', border: 'none', cursor: 'pointer' }}
+                                    >
+                                        {lang === 'fr' ? 'Sauvegarder' : 'Save Note'}
+                                    </button>
+                                )}
+                            </div>
+                        </motion.div>
+                    );
+                })()}
+            </AnimatePresence>
+                </>
             )}
         </div>
     );

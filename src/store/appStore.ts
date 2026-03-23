@@ -170,6 +170,9 @@ interface AppState {
     /** Saved simulation scenarios — persisted, max 3 */
     savedScenarios: SavedScenario[];
 
+    /** Per-day journal notes — keyed by YYYY-MM-DD trading day */
+    dayNotes: Record<string, string>;
+
     // Actions
     completeOnboarding: () => void;
     resetOnboarding: () => void;
@@ -204,6 +207,7 @@ interface AppState {
      * Skips update if startingBalance is not set.
      */
     autoSync: () => void;
+    updateDayNote: (date: string, note: string) => void;
 }
 
 /**
@@ -271,6 +275,7 @@ export const useAppStore = create<AppState>()(
             hasOnboarded: false,
             reportSnapshots: [],
             savedScenarios: [],
+            dayNotes: {},
             account: {
                 balance: 0,
                 dailyLossLimit: 0,
@@ -367,6 +372,11 @@ export const useAppStore = create<AppState>()(
             updateTradeFields: (id, fields) =>
                 set((s) => ({
                     trades: s.trades.map((t) => (t.id === id ? { ...t, ...fields } : t)),
+                })),
+
+            updateDayNote: (date, note) =>
+                set((s) => ({
+                    dayNotes: { ...s.dayNotes, [date]: note },
                 })),
 
             setActiveTab: (tab) => set({ activeTab: tab }),
