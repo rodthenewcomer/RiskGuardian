@@ -1,7 +1,7 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import { useAppStore } from '@/store/appStore';
+import { useEffect, useRef, useState } from 'react';
+import { useAppStore, type TradeSession } from '@/store/appStore';
 import Header from '@/components/layout/Header';
 import Sidebar from '@/components/layout/Sidebar';
 import BottomNav from '@/components/layout/BottomNav';
@@ -19,7 +19,7 @@ import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { AnimatePresence, motion } from 'framer-motion';
 import { ToastContainer } from '@/components/ui/Toast';
 import { supabase } from '@/lib/supabase';
-import { fullSync, pushAccountSettings, pushDailySessions, pullFullAccountSettings, pushTrades, pullDayData, pushDayData } from '@/lib/supabaseSync';
+import { fullSync, pushAccountSettings, pushDailySessions, pullFullAccountSettings, pushTrades, pullDayData, pushDayData, deleteAllTrades, deleteTrade as supabaseDeleteTrade } from '@/lib/supabaseSync';
 
 // Force dynamic rendering — prevents prerender failures when Supabase env vars absent on deploy
 export const dynamic = 'force-dynamic';
@@ -58,15 +58,22 @@ export default function Home() {
     setUserEmail,
     showAuthModal,
     setShowAuthModal,
+    clearUserData,
   } = useAppStore();
 
+  // Tracks previous trade IDs so we can detect deletions and push them to Supabase
+  // immediately rather than waiting for a debounced upsert (which skips empty arrays).
+  const prevTradeIdsRef = useRef<Set<string>>(new Set());
+  const prevSyncedUserIdRef = useRef<string | null>(null);
+
   // ── Pull all cloud data into the store after login / session restore ──
-  // Called on both explicit sign-in and automatic session restore on a new device.
-  // Uses Promise.allSettled so a partial failure (e.g. day_data table missing) never
-  // blocks the rest of the sync.
-  async function syncFromCloud(uid: string, isFirstLogin = false) {
+  // tradesOverride: pass [] when switching users so the old user's local trades
+  // are never pushed to the new account. When undefined, uses the store's current trades.
+  async function syncFromCloud(uid: string, isFirstLogin = false, tradesOverride?: TradeSession[]) {
+    const localTrades = tradesOverride !== undefined ? tradesOverride : trades;
+
     // Bidirectional trade sync
-    const tradeResult = await fullSync(trades, uid).catch(() => null);
+    const tradeResult = await fullSync(localTrades, uid).catch(() => null);
     if (tradeResult) setTrades(tradeResult);
 
     // Account settings — remote wins on login; push local if no remote row yet
@@ -131,9 +138,41 @@ export default function Home() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // ── Auto-sync trades to Supabase on mutations (debounced 2s) ──
+  // ── Auto-sync trades to Supabase — tracks deletions and pushes them immediately ──
   useEffect(() => {
-    if (!userId || trades.length === 0) return;
+    if (!userId) return;
+
+    // When the active user changes, reset the tracking ref so we don't misidentify
+    // a full store clear (user switch) as individual deletions.
+    if (prevSyncedUserIdRef.current !== userId) {
+      prevSyncedUserIdRef.current = userId;
+      prevTradeIdsRef.current = new Set(trades.map((t: TradeSession) => t.id));
+      // Don't process deletions on the first render for this user — just initialise.
+      if (trades.length > 0) {
+        const timer = setTimeout(() => {
+          pushTrades(trades, userId).catch(console.error);
+        }, 2000);
+        return () => clearTimeout(timer);
+      }
+      return;
+    }
+
+    const currentIds = new Set(trades.map((t: TradeSession) => t.id));
+    const deletedIds = [...prevTradeIdsRef.current].filter(id => !currentIds.has(id));
+
+    if (deletedIds.length > 0) {
+      // All trades removed at once — use bulk delete for efficiency
+      if (currentIds.size === 0) {
+        deleteAllTrades(userId).catch(console.error);
+      } else {
+        deletedIds.forEach(id => supabaseDeleteTrade(id, userId).catch(console.error));
+      }
+    }
+
+    prevTradeIdsRef.current = currentIds;
+
+    if (trades.length === 0) return;
+
     const timer = setTimeout(() => {
       pushTrades(trades, userId).catch(console.error);
     }, 2000);
@@ -172,10 +211,18 @@ export default function Home() {
 
   // ── Auth success handler ──────────────────────────────────────
   async function handleAuthSuccess(uid: string, email: string) {
+    // If a different user was previously stored, wipe their local data so it is
+    // never pushed into the new user's cloud account.
+    const isUserSwitch = userId !== null && userId !== uid;
+    if (isUserSwitch) {
+      clearUserData();
+    }
     setUserId(uid);
     setUserEmail(email);
     setShowAuthModal(false);
-    await syncFromCloud(uid, true);
+    // Pass [] as tradesOverride when switching users so fullSync doesn't merge
+    // the previous user's trades into the incoming account.
+    await syncFromCloud(uid, true, isUserSwitch ? [] : undefined);
   }
 
   const pages: Record<string, React.ReactNode> = {

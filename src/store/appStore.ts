@@ -249,6 +249,12 @@ interface AppState {
     autoSync: () => void;
     updateDayNote: (date: string, note: string) => void;
     saveDayJournalEntry: (date: string, entry: DayJournalEntry) => void;
+    /**
+     * Wipe all user-specific data from the local store without touching
+     * account settings or preferences. Called when a different user logs in
+     * so the previous user's local data is never pushed to the new account.
+     */
+    clearUserData: () => void;
 }
 
 /**
@@ -430,6 +436,14 @@ export const useAppStore = create<AppState>()(
                 set((s) => ({
                     dayJournalEntries: { ...s.dayJournalEntries, [date]: entry },
                 })),
+
+            clearUserData: () => set({
+                trades: [],
+                dayNotes: {},
+                dayJournalEntries: {},
+                dailySessions: [],
+                reportSnapshots: [],
+            }),
 
             setActiveTab: (tab) => set({ activeTab: tab }),
 

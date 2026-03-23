@@ -4,6 +4,7 @@ import styles from './JournalPage.module.css';
 import DateRangePicker from '@/components/ui/DateRangePicker';
 import { useState, useMemo, useRef, useEffect } from 'react';
 import { useAppStore } from '@/store/appStore';
+import { deleteAllTrades } from '@/lib/supabaseSync';
 import { useTranslation } from '@/i18n/useTranslation';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -59,7 +60,7 @@ function fmtDayLabel(dateStr: string): string {
 }
 
 export default function JournalPage() {
-    const { trades, setTrades, deleteTrade, updateTradeNote, updateTradeFields, setActiveTab, account, dayNotes, updateDayNote, dayJournalEntries, saveDayJournalEntry } = useAppStore();
+    const { trades, setTrades, deleteTrade, updateTradeNote, updateTradeFields, setActiveTab, account, dayNotes, updateDayNote, dayJournalEntries, saveDayJournalEntry, userId } = useAppStore();
     const { t } = useTranslation();
     const { language } = useAppStore();
     const lang = language ?? 'en';
@@ -621,7 +622,7 @@ export default function JournalPage() {
                         </button>
                     )}
                     {trades.length > 0 && (
-                        <button onClick={() => { if (window.confirm(`Delete all ${trades.length} trades? This cannot be undone.`)) setTrades([]); }}
+                        <button onClick={() => { if (window.confirm(`Delete all ${trades.length} trades? This cannot be undone.`)) { setTrades([]); if (userId) deleteAllTrades(userId).catch(console.error); } }}
                             style={{ ...mono, display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, fontWeight: 700, padding: '7px 12px', background: 'transparent', color: '#ff4757', border: '1px solid rgba(255,71,87,0.25)', cursor: 'pointer' }}>
                             <Trash2 size={12} /> {lang === 'fr' ? 'Tout effacer' : 'Clear all'}
                         </button>
