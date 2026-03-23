@@ -141,6 +141,27 @@ export interface DXTradeConfig {
     connectedAt: string;  // ISO timestamp of last successful login
 }
 
+export interface DayJournalEntry {
+    date: string;
+    sessionType: 'pre' | 'post' | 'weekly';
+    setupType?: string;
+    marketCondition?: string;
+    plannedRR?: string;
+    entryReason?: string;
+    exitReason?: string;
+    actualRR?: string;
+    linkedTradeIds?: string;
+    tags: string[];
+    wentWell?: string;
+    wouldChange?: string;
+    moods: string[];
+    sessionNote?: string;
+    ruleViolations: string[];
+    sessionRating?: number;
+    goalsMet?: boolean;
+    savedAt: string;
+}
+
 interface AppState {
     hasOnboarded: boolean;
     account: AccountSettings;
@@ -172,6 +193,9 @@ interface AppState {
 
     /** Per-day journal notes — keyed by YYYY-MM-DD trading day */
     dayNotes: Record<string, string>;
+
+    /** Full session journal entries — keyed by YYYY-MM-DD trading day */
+    dayJournalEntries: Record<string, DayJournalEntry>;
 
     // Actions
     completeOnboarding: () => void;
@@ -208,6 +232,7 @@ interface AppState {
      */
     autoSync: () => void;
     updateDayNote: (date: string, note: string) => void;
+    saveDayJournalEntry: (date: string, entry: DayJournalEntry) => void;
 }
 
 /**
@@ -276,6 +301,7 @@ export const useAppStore = create<AppState>()(
             reportSnapshots: [],
             savedScenarios: [],
             dayNotes: {},
+            dayJournalEntries: {},
             account: {
                 balance: 0,
                 dailyLossLimit: 0,
@@ -377,6 +403,11 @@ export const useAppStore = create<AppState>()(
             updateDayNote: (date, note) =>
                 set((s) => ({
                     dayNotes: { ...s.dayNotes, [date]: note },
+                })),
+
+            saveDayJournalEntry: (date, entry) =>
+                set((s) => ({
+                    dayJournalEntries: { ...s.dayJournalEntries, [date]: entry },
                 })),
 
             setActiveTab: (tab) => set({ activeTab: tab }),
@@ -496,6 +527,8 @@ export const useAppStore = create<AppState>()(
                 tradingDayRollHour: s.tradingDayRollHour,
                 userId: s.userId,
                 userEmail: s.userEmail,
+                dayNotes: s.dayNotes,
+                dayJournalEntries: s.dayJournalEntries,
             }),
         }
     )

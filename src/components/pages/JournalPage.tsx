@@ -19,6 +19,7 @@ import { TRADEIFY_CRYPTO_LIST, FUTURES_SPECS, getTradingDay } from '@/store/appS
 import { ChartCard } from '@/components/charts/RiskGuardianPrimitives';
 import StreakBeads from '@/components/charts/StreakBeads';
 import MonthlyCalendarHeatmap from '@/components/charts/MonthlyCalendarHeatmap';
+import DayJournalForm from '@/components/journal/DayJournalForm';
 
 function guessAssetType(symbol: string): 'crypto' | 'forex' | 'futures' | 'stocks' {
     const s = symbol.toUpperCase().replace(/[^A-Z0-9]/g, '');
@@ -58,7 +59,7 @@ function fmtDayLabel(dateStr: string): string {
 }
 
 export default function JournalPage() {
-    const { trades, setTrades, deleteTrade, updateTradeNote, updateTradeFields, setActiveTab, account, dayNotes, updateDayNote } = useAppStore();
+    const { trades, setTrades, deleteTrade, updateTradeNote, updateTradeFields, setActiveTab, account, dayNotes, updateDayNote, dayJournalEntries, saveDayJournalEntry } = useAppStore();
     const { t } = useTranslation();
     const { language } = useAppStore();
     const lang = language ?? 'en';
@@ -69,6 +70,7 @@ export default function JournalPage() {
     const [calendarDir, setCalendarDir] = useState<1 | -1>(1);
     const [selectedDay, setSelectedDay] = useState<string | null>(null);
     const [dayNoteInput, setDayNoteInput] = useState('');
+    const [showJournalForm, setShowJournalForm] = useState(false);
     const [pdfStatus, setPdfStatus] = useState<{ loading: boolean; msg: string }>({ loading: false, msg: '' });
     const [filter, setFilter] = useState<'all' | 'win' | 'loss' | 'open'>('all');
     const [assetFilter, setAssetFilter] = useState('');
@@ -1667,6 +1669,7 @@ export default function JournalPage() {
                     const winRate = dayTrades.length > 0 ? Math.round((wins / dayTrades.length) * 100) : 0;
                     const bestTrade = dayTrades.reduce((b, t) => (t.pnl ?? 0) > (b?.pnl ?? -Infinity) ? t : b, dayTrades[0]);
                     const worstTrade = dayTrades.reduce((b, t) => (t.pnl ?? 0) < (b?.pnl ?? Infinity) ? t : b, dayTrades[0]);
+                    const existingEntry = dayJournalEntries?.[selectedDay];
                     // Intraday equity curve
                     let cumPnl = 0;
                     const curveData = dayTrades.map(t => {
@@ -1681,71 +1684,35 @@ export default function JournalPage() {
                     const d = new Date(selectedDay + 'T12:00:00Z');
                     const dateLabel = d.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
                     return (
+                        <>
                         <motion.div
                             key={selectedDay}
                             initial={{ opacity: 0, y: -8 }}
                             animate={{ opacity: 1, y: 0 }}
                             exit={{ opacity: 0, y: -8 }}
                             transition={{ duration: 0.18, ease: [0.16, 1, 0.3, 1] }}
-                            style={{ background: '#0d1117', border: '1px solid #1a1c24', borderTop: 'none', padding: isMobile ? '16px 14px' : '20px 24px' }}
+                            style={{ background: '#0d1117', border: '1px solid #1a1c24', borderTop: 'none' }}
                         >
                             {/* Header */}
-                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
-                                <div>
-                                    <span style={{ ...mono, fontSize: 12, fontWeight: 700, color: '#fff', display: 'block' }}>{dateLabel}</span>
-                                    <span style={{ ...mono, fontSize: 10, color: '#4b5563' }}>
-                                        {lang === 'fr' ? `${dayTrades.length} trade${dayTrades.length !== 1 ? 's' : ''}` : `${dayTrades.length} trade${dayTrades.length !== 1 ? 's' : ''}`}
+                            <div style={{ padding: isMobile ? '14px' : '16px 20px', borderBottom: '1px solid #1a1c24', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+                                    <span style={{ ...mono, fontSize: 13, fontWeight: 700, color: '#fff' }}>{dateLabel}</span>
+                                    <span style={{ ...mono, fontSize: 13, fontWeight: 700, color: dayPnl >= 0 ? '#FDC800' : '#ff4757' }}>
+                                        {lang === 'fr' ? 'Net :' : 'Net:'} {dayPnl >= 0 ? '+' : ''}${dayPnl.toFixed(2)}
                                     </span>
+                                    <span style={{ ...mono, fontSize: 11, color: '#4b5563' }}>· {dayTrades.length} trade{dayTrades.length !== 1 ? 's' : ''}</span>
                                 </div>
-                                <button
-                                    onClick={() => setSelectedDay(null)}
-                                    style={{ background: 'none', border: '1px solid #1a1c24', color: '#4b5563', cursor: 'pointer', padding: '4px 10px', ...mono, fontSize: 11 }}
-                                >
+                                <button onClick={() => setSelectedDay(null)}
+                                    style={{ background: 'none', border: 'none', color: '#4b5563', cursor: 'pointer', padding: 4, display: 'flex', alignItems: 'center' }}>
                                     ✕
                                 </button>
                             </div>
 
-                            {/* Day KPI row */}
-                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8, marginBottom: 16 }}>
-                                {[
-                                    { label: lang === 'fr' ? 'P&L Net' : 'Net P&L', value: `${dayPnl >= 0 ? '+' : ''}$${dayPnl.toFixed(2)}`, color: dayPnl >= 0 ? '#FDC800' : '#ff4757' },
-                                    { label: lang === 'fr' ? 'Taux gain' : 'Win Rate', value: `${winRate}%`, color: winRate >= 60 ? '#FDC800' : winRate >= 40 ? '#EAB308' : '#ff4757' },
-                                    { label: lang === 'fr' ? 'Gains / Pertes' : 'W / L', value: `${wins} / ${losses}`, color: '#c9d1d9' },
-                                    { label: lang === 'fr' ? 'Trades' : 'Trades', value: String(dayTrades.length), color: '#c9d1d9' },
-                                ].map(k => (
-                                    <div key={k.label} style={{ background: '#0b0e14', border: '1px solid #1a1c24', padding: '10px 12px' }}>
-                                        <span style={{ ...mono, fontSize: 9, color: '#4b5563', textTransform: 'uppercase' as const, letterSpacing: '0.08em', display: 'block', marginBottom: 4 }}>{k.label}</span>
-                                        <span style={{ ...mono, fontSize: 16, fontWeight: 900, color: k.color }}>{k.value}</span>
-                                    </div>
-                                ))}
-                            </div>
-
-                            {/* Best / Worst */}
-                            {dayTrades.length > 1 && (
-                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 16 }}>
-                                    <div style={{ background: '#0b0e14', border: '1px solid #1a1c24', padding: '10px 12px' }}>
-                                        <span style={{ ...mono, fontSize: 9, color: '#4b5563', textTransform: 'uppercase' as const, letterSpacing: '0.08em', display: 'block', marginBottom: 4 }}>
-                                            {lang === 'fr' ? 'Meilleur trade' : 'Best Trade'}
-                                        </span>
-                                        <span style={{ ...mono, fontSize: 13, fontWeight: 700, color: '#FDC800' }}>{bestTrade?.asset} +${(bestTrade?.pnl ?? 0).toFixed(2)}</span>
-                                    </div>
-                                    <div style={{ background: '#0b0e14', border: '1px solid #1a1c24', padding: '10px 12px' }}>
-                                        <span style={{ ...mono, fontSize: 9, color: '#4b5563', textTransform: 'uppercase' as const, letterSpacing: '0.08em', display: 'block', marginBottom: 4 }}>
-                                            {lang === 'fr' ? 'Pire trade' : 'Worst Trade'}
-                                        </span>
-                                        <span style={{ ...mono, fontSize: 13, fontWeight: 700, color: '#ff4757' }}>{worstTrade?.asset} ${(worstTrade?.pnl ?? 0).toFixed(2)}</span>
-                                    </div>
-                                </div>
-                            )}
-
                             {/* Intraday equity curve */}
-                            {curveData.length > 1 && (
-                                <div style={{ marginBottom: 16 }}>
-                                    <span style={{ ...mono, fontSize: 9, color: '#4b5563', textTransform: 'uppercase' as const, letterSpacing: '0.08em', display: 'block', marginBottom: 8 }}>
-                                        {lang === 'fr' ? 'Courbe intraday' : 'Intraday Curve'}
-                                    </span>
-                                    <ResponsiveContainer width="100%" height={90}>
-                                        <AreaChart data={curveData} margin={{ top: 4, right: 0, left: 0, bottom: 0 }}>
+                            {curveData.length > 0 && (
+                                <div style={{ padding: isMobile ? '14px' : '16px 20px', borderBottom: '1px solid #1a1c24' }}>
+                                    <ResponsiveContainer width="100%" height={120}>
+                                        <AreaChart data={curveData} margin={{ top: 4, right: 12, left: 0, bottom: 0 }}>
                                             <defs>
                                                 <linearGradient id="dayGrad" x1="0" y1="0" x2="0" y2="1">
                                                     <stop offset="5%" stopColor={dayPnl >= 0 ? '#FDC800' : '#ff4757'} stopOpacity={0.25} />
@@ -1754,76 +1721,138 @@ export default function JournalPage() {
                                             </defs>
                                             <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" />
                                             <XAxis dataKey="label" tick={{ fill: '#4b5563', fontSize: 9, fontFamily: 'var(--font-mono)' }} axisLine={false} tickLine={false} />
-                                            <YAxis tick={{ fill: '#4b5563', fontSize: 9, fontFamily: 'var(--font-mono)' }} axisLine={false} tickLine={false} width={42}
-                                                tickFormatter={(v: number) => `$${v >= 0 ? '+' : ''}${v}`} />
+                                            <YAxis tick={{ fill: '#4b5563', fontSize: 9, fontFamily: 'var(--font-mono)' }} axisLine={false} tickLine={false} width={48}
+                                                tickFormatter={(v: number) => `$${v >= 0 ? '+' : ''}${v.toFixed(0)}`} />
                                             <RechartTooltip
                                                 contentStyle={{ background: '#0d1117', border: '1px solid #1a1c24', borderRadius: 2 }}
                                                 labelStyle={{ color: '#8b949e', fontSize: 10, fontFamily: 'var(--font-mono)' }}
                                                 itemStyle={{ color: '#FDC800', fontSize: 11, fontFamily: 'var(--font-mono)' }}
-                                                formatter={(v: number | undefined) => [`$${(v ?? 0).toFixed(2)}`, 'Cumulative P&L']}
+                                                formatter={(v: number | undefined) => [`$${(v ?? 0).toFixed(2)}`, lang === 'fr' ? 'P&L cumulé' : 'Cumulative P&L']}
                                             />
-                                            <Area type="monotone" dataKey="pnl" stroke={dayPnl >= 0 ? '#FDC800' : '#ff4757'} strokeWidth={2} fill="url(#dayGrad)" dot={false} activeDot={{ r: 4 }} />
+                                            <Area type="monotone" dataKey="pnl" stroke={dayPnl >= 0 ? '#FDC800' : '#ff4757'} strokeWidth={2} fill="url(#dayGrad)" dot={{ r: 3, fill: dayPnl >= 0 ? '#FDC800' : '#ff4757' }} activeDot={{ r: 5 }} />
                                         </AreaChart>
                                     </ResponsiveContainer>
                                 </div>
                             )}
 
-                            {/* Trade list */}
-                            {dayTrades.length > 0 && (
-                                <div style={{ marginBottom: 16 }}>
-                                    <span style={{ ...mono, fontSize: 9, color: '#4b5563', textTransform: 'uppercase' as const, letterSpacing: '0.08em', display: 'block', marginBottom: 8 }}>
-                                        {lang === 'fr' ? 'Trades du jour' : 'Trades'}
-                                    </span>
-                                    <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                                        {dayTrades.map(t => (
-                                            <div key={t.id} style={{ display: 'grid', gridTemplateColumns: '1fr 60px 60px 70px 60px', gap: 8, alignItems: 'center', padding: '8px 10px', background: '#090909', border: '1px solid #1a1c24' }}>
-                                                <div>
-                                                    <span style={{ ...mono, fontSize: 11, fontWeight: 700, color: '#fff' }}>{t.asset}</span>
-                                                    <span style={{ ...mono, fontSize: 9, color: '#4b5563', marginLeft: 6 }}>{t.isShort ? '▼ SHORT' : '▲ LONG'}</span>
-                                                </div>
-                                                <span style={{ ...mono, fontSize: 9, color: '#6b7280' }}>{fmtTime(t.closedAt ?? t.createdAt)}</span>
-                                                <span style={{ ...mono, fontSize: 9, color: '#6b7280' }}>{calcHoldTime(t.createdAt, t.closedAt)}</span>
-                                                <span style={{ ...mono, fontSize: 11, fontWeight: 700, color: (t.pnl ?? 0) >= 0 ? '#FDC800' : '#ff4757', textAlign: 'right' as const }}>
-                                                    {(t.pnl ?? 0) >= 0 ? '+' : ''}${(t.pnl ?? 0).toFixed(2)}
-                                                </span>
-                                                <span style={{ ...mono, fontSize: 9, fontWeight: 700, color: t.outcome === 'win' ? '#FDC800' : t.outcome === 'loss' ? '#ff4757' : '#F97316', textAlign: 'center' as const, border: `1px solid ${t.outcome === 'win' ? '#FDC800' : t.outcome === 'loss' ? '#ff4757' : '#F97316'}`, padding: '1px 4px' }}>
-                                                    {t.outcome?.toUpperCase() ?? 'OPEN'}
-                                                </span>
-                                            </div>
-                                        ))}
+                            {/* SESSION NOT LOGGED banner */}
+                            {!existingEntry ? (
+                                <div style={{ padding: isMobile ? '12px 14px' : '14px 20px', borderBottom: '1px solid #1a1c24', borderLeft: '3px solid rgba(253,200,0,0.4)', background: 'rgba(253,200,0,0.04)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+                                    <div>
+                                        <span style={{ ...mono, fontSize: 9, fontWeight: 700, color: '#FDC800', letterSpacing: '0.1em', display: 'block', marginBottom: 2 }}>
+                                            {lang === 'fr' ? 'SESSION NON JOURNALISÉE' : 'SESSION NOT LOGGED'}
+                                        </span>
+                                        <span style={{ ...mono, fontSize: 11, color: '#8b949e' }}>
+                                            {dayPnl >= 0
+                                                ? (lang === 'fr'
+                                                    ? `Tu as eu un jour à +$${dayPnl.toFixed(2)}. Consigne l'état émotionnel qui l'a produit — pour le reproduire.`
+                                                    : `You had a +$${dayPnl.toFixed(2)} day. Log what emotional state drove it — so you can replicate it.`)
+                                                : (lang === 'fr'
+                                                    ? `Journée à -$${Math.abs(dayPnl).toFixed(2)}. Identifie les violations pour ne pas les répéter.`
+                                                    : `You had a -$${Math.abs(dayPnl).toFixed(2)} day. Identify the violations so you don't repeat them.`)}
+                                        </span>
                                     </div>
+                                    <button onClick={() => setShowJournalForm(true)}
+                                        style={{ ...mono, fontSize: 11, fontWeight: 700, padding: '8px 16px', background: '#FDC800', color: '#000', border: 'none', cursor: 'pointer', whiteSpace: 'nowrap', flexShrink: 0 }}>
+                                        {lang === 'fr' ? 'Journaliser →' : 'Log this session →'}
+                                    </button>
+                                </div>
+                            ) : (
+                                /* Session logged summary */
+                                <div style={{ padding: isMobile ? '12px 14px' : '14px 20px', borderBottom: '1px solid #1a1c24', background: 'rgba(253,200,0,0.04)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                                        <span style={{ ...mono, fontSize: 9, fontWeight: 700, color: '#FDC800', letterSpacing: '0.1em' }}>
+                                            {lang === 'fr' ? 'SESSION JOURNALISÉE' : 'SESSION LOGGED'}
+                                        </span>
+                                        {existingEntry.sessionRating && (
+                                            <span style={{ ...mono, fontSize: 10, color: '#FDC800' }}>
+                                                {'★'.repeat(existingEntry.sessionRating)}{'☆'.repeat(5 - existingEntry.sessionRating)}
+                                            </span>
+                                        )}
+                                        {existingEntry.moods.length > 0 && (
+                                            <span style={{ ...mono, fontSize: 10, color: '#8b949e' }}>
+                                                {existingEntry.moods.slice(0, 3).join(', ')}
+                                            </span>
+                                        )}
+                                    </div>
+                                    <button onClick={() => setShowJournalForm(true)}
+                                        style={{ ...mono, fontSize: 10, fontWeight: 700, padding: '5px 12px', background: 'transparent', color: '#FDC800', border: '1px solid rgba(253,200,0,0.3)', cursor: 'pointer' }}>
+                                        {lang === 'fr' ? 'Modifier' : 'Edit'}
+                                    </button>
                                 </div>
                             )}
 
-                            {/* Day journal note */}
-                            <div>
-                                <span style={{ ...mono, fontSize: 9, color: '#4b5563', textTransform: 'uppercase' as const, letterSpacing: '0.08em', display: 'block', marginBottom: 8 }}>
-                                    {lang === 'fr' ? 'Note du jour' : 'Day Journal Entry'}
-                                </span>
-                                <textarea
-                                    value={dayNoteInput}
-                                    onChange={e => setDayNoteInput(e.target.value)}
-                                    onBlur={() => updateDayNote(selectedDay, dayNoteInput)}
-                                    placeholder={lang === 'fr'
-                                        ? 'Biais directionnel, qualité des setups, émotions, leçons retenues…'
-                                        : 'Directional bias, setup quality, emotions, lessons learned…'}
-                                    rows={4}
-                                    style={{
-                                        width: '100%', boxSizing: 'border-box', background: '#090909', border: '1px solid #1a1c24',
-                                        color: '#c9d1d9', padding: '10px 12px', resize: 'vertical', outline: 'none',
-                                        ...mono, fontSize: 12, lineHeight: 1.6,
-                                    }}
-                                />
-                                {dayNoteInput !== (dayNotes?.[selectedDay] ?? '') && (
-                                    <button
-                                        onClick={() => updateDayNote(selectedDay, dayNoteInput)}
-                                        style={{ marginTop: 6, ...mono, fontSize: 10, fontWeight: 700, padding: '5px 14px', background: '#FDC800', color: '#000', border: 'none', cursor: 'pointer' }}
-                                    >
-                                        {lang === 'fr' ? 'Sauvegarder' : 'Save Note'}
-                                    </button>
-                                )}
-                            </div>
+                            {/* Trade list table */}
+                            {dayTrades.length > 0 && (
+                                <div>
+                                    {/* Table header */}
+                                    <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr 50px 60px 70px' : '80px 60px 1fr 60px 60px 80px 70px 60px', gap: 0, borderBottom: '1px solid #1a1c24', padding: isMobile ? '6px 14px' : '6px 20px', background: '#090909' }}>
+                                        {(isMobile
+                                            ? [lang === 'fr' ? 'SYMBOLE' : 'SYMBOL', lang === 'fr' ? 'SENS' : 'SIDE', lang === 'fr' ? 'DURÉE' : 'DURATION', 'P&L']
+                                            : ['DATE', 'TIME', lang === 'fr' ? 'SYMBOLE' : 'SYMBOL', lang === 'fr' ? 'SENS' : 'SIDE', 'QTY', lang === 'fr' ? 'ENTRÉE' : 'ENTRY', lang === 'fr' ? 'DURÉE' : 'DURATION', 'P&L']
+                                        ).map(h => (
+                                            <span key={h} style={{ ...mono, fontSize: 9, color: '#4b5563', letterSpacing: '0.08em', textAlign: h === 'P&L' ? 'right' as const : 'left' as const }}>{h}</span>
+                                        ))}
+                                    </div>
+                                    {dayTrades.map((t, idx) => (
+                                        <div key={t.id} style={{
+                                            display: 'grid',
+                                            gridTemplateColumns: isMobile ? '1fr 50px 60px 70px' : '80px 60px 1fr 60px 60px 80px 70px 60px',
+                                            gap: 0, alignItems: 'center',
+                                            padding: isMobile ? '10px 14px' : '10px 20px',
+                                            borderBottom: idx < dayTrades.length - 1 ? '1px solid #1a1c24' : 'none',
+                                            background: idx % 2 === 0 ? 'transparent' : 'rgba(255,255,255,0.01)',
+                                        }}>
+                                            {!isMobile && (
+                                                <>
+                                                    <span style={{ ...mono, fontSize: 11, color: '#6b7280' }}>
+                                                        {new Date(t.closedAt ?? t.createdAt).toLocaleDateString('en-US', { month: 'numeric', day: 'numeric', year: '2-digit' })}
+                                                    </span>
+                                                    <span style={{ ...mono, fontSize: 11, color: '#6b7280' }}>{fmtTime(t.closedAt ?? t.createdAt)}</span>
+                                                </>
+                                            )}
+                                            <span style={{ ...mono, fontSize: 12, fontWeight: 700, color: '#fff' }}>{t.asset}</span>
+                                            <span style={{ ...mono, fontSize: 10, fontWeight: 700, color: t.isShort ? '#38bdf8' : '#FDC800', padding: '2px 6px', border: `1px solid ${t.isShort ? '#38bdf8' : '#FDC800'}`, textAlign: 'center' as const, width: 'fit-content' }}>
+                                                {t.isShort ? 'SHORT' : 'LONG'}
+                                            </span>
+                                            {!isMobile && (
+                                                <>
+                                                    <span style={{ ...mono, fontSize: 11, color: '#6b7280' }}>{t.lotSize ?? '—'}</span>
+                                                    <span style={{ ...mono, fontSize: 11, color: '#6b7280' }}>{t.entry ? `$${t.entry.toFixed(2)}` : '—'}</span>
+                                                </>
+                                            )}
+                                            <span style={{ ...mono, fontSize: 11, color: '#6b7280' }}>{calcHoldTime(t.createdAt, t.closedAt)}</span>
+                                            <span style={{ ...mono, fontSize: 12, fontWeight: 700, color: (t.pnl ?? 0) >= 0 ? '#FDC800' : '#ff4757', textAlign: 'right' as const }}>
+                                                {(t.pnl ?? 0) >= 0 ? '+' : ''}${(t.pnl ?? 0).toFixed(2)}
+                                            </span>
+                                        </div>
+                                    ))}
+                                    {/* Day total row */}
+                                    <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr 50px 60px 70px' : '80px 60px 1fr 60px 60px 80px 70px 60px', gap: 0, padding: isMobile ? '10px 14px' : '10px 20px', borderTop: '1px solid #1a1c24', background: '#090909' }}>
+                                        <span style={{ ...mono, fontSize: 10, fontWeight: 700, color: '#4b5563', gridColumn: isMobile ? '1/4' : '1/8' }}>
+                                            {dateLabel} · {lang === 'fr' ? 'Net :' : 'Net:'} {dayTrades.length} {lang === 'fr' ? 'trades' : 'trades'}
+                                        </span>
+                                        <span style={{ ...mono, fontSize: 12, fontWeight: 900, color: dayPnl >= 0 ? '#FDC800' : '#ff4757', textAlign: 'right' as const }}>
+                                            {dayPnl >= 0 ? '+' : ''}${dayPnl.toFixed(2)}
+                                        </span>
+                                    </div>
+                                </div>
+                            )}
                         </motion.div>
+
+                        {/* Full session journal form modal */}
+                        {showJournalForm && (
+                            <DayJournalForm
+                                date={selectedDay!}
+                                dateLabel={dateLabel}
+                                dayPnl={dayPnl}
+                                existing={existingEntry}
+                                lang={lang}
+                                onSave={(entry) => saveDayJournalEntry(selectedDay!, entry)}
+                                onClose={() => setShowJournalForm(false)}
+                            />
+                        )}
+                        </>
                     );
                 })()}
             </AnimatePresence>
