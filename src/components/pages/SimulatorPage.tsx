@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
     AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip,
@@ -12,7 +12,7 @@ import { useIsMobile } from '@/hooks/useIsMobile';
 import { useTranslation } from '@/i18n/useTranslation';
 import {
     runSimulation, autoOptimize, DEFAULT_CONFIG,
-    type SimulationConfig, type SimulationResult, type SimMode, type SimTrade, type AutoOptimizeRule,
+    type SimulationConfig, type SimulationResult, type SimMode, type AutoOptimizeRule,
 } from '@/ai/SimulationEngine';
 
 const QF  = 'var(--font-mono)';
@@ -24,6 +24,59 @@ const YEL = '#FDC800';
 const RED = '#ff4757';
 const BLU = '#38bdf8';
 const GRN = '#4ade80';
+
+// ── Guidance tip ─────────────────────────────────────────────────────────────
+function GuideTip({ en, fr, lang, above }: { en: string; fr: string; lang: string; above?: boolean }) {
+    const [open, setOpen] = useState(false);
+    const ref = useRef<HTMLDivElement>(null);
+
+    useEffect(() => {
+        if (!open) return;
+        function handler(e: MouseEvent) {
+            if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+        }
+        document.addEventListener('mousedown', handler);
+        return () => document.removeEventListener('mousedown', handler);
+    }, [open]);
+
+    return (
+        <div ref={ref} style={{ position: 'relative', display: 'inline-flex', alignItems: 'center' }}>
+            <button
+                onClick={e => { e.stopPropagation(); setOpen(o => !o); }}
+                aria-label="Help"
+                style={{
+                    width: 14, height: 14, borderRadius: '50%',
+                    background: open ? 'rgba(253,200,0,0.15)' : '#1a2030',
+                    border: `1px solid ${open ? YEL : '#2a3040'}`,
+                    cursor: 'pointer', display: 'inline-flex',
+                    alignItems: 'center', justifyContent: 'center',
+                    fontFamily: QF, fontSize: 8, color: open ? YEL : '#4b5563',
+                    fontWeight: 700, flexShrink: 0, lineHeight: 1,
+                    transition: 'all 0.15s',
+                }}
+            >
+                ?
+            </button>
+            {open && (
+                <div style={{
+                    position: 'absolute',
+                    [above ? 'bottom' : 'top']: 'calc(100% + 6px)',
+                    left: '50%', transform: 'translateX(-50%)',
+                    zIndex: 60, /* z-60: guide tip, above content below modals */
+                    minWidth: 220, maxWidth: 280,
+                    background: '#0d1117', border: '1px solid #1a1c24',
+                    borderLeft: `2px solid ${YEL}`,
+                    padding: '10px 12px',
+                    boxShadow: '0 8px 24px rgba(0,0,0,0.6)',
+                }}>
+                    <p style={{ fontFamily: 'var(--font-sans)', fontSize: 10, color: '#c9d1d9', lineHeight: 1.55, margin: 0 }}>
+                        {lang === 'fr' ? fr : en}
+                    </p>
+                </div>
+            )}
+        </div>
+    );
+}
 
 // ── Toggle component ─────────────────────────────────────────────────────────
 function Toggle({ on, onChange }: { on: boolean; onChange: () => void }) {
@@ -51,7 +104,10 @@ function Toggle({ on, onChange }: { on: boolean; onChange: () => void }) {
 }
 
 // ── Toggle row ───────────────────────────────────────────────────────────────
-function ToggleRow({ label, sub, on, onChange }: { label: string; sub?: string; on: boolean; onChange: () => void }) {
+function ToggleRow({ label, sub, on, onChange, tipEn, tipFr, lang }: {
+    label: string; sub?: string; on: boolean; onChange: () => void;
+    tipEn?: string; tipFr?: string; lang?: string;
+}) {
     return (
         <div
             onClick={onChange}
@@ -64,7 +120,10 @@ function ToggleRow({ label, sub, on, onChange }: { label: string; sub?: string; 
             }}
         >
             <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                <span style={{ fontFamily: QF, fontSize: 11, color: on ? YEL : '#c9d1d9', fontWeight: on ? 700 : 400 }}>{label}</span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <span style={{ fontFamily: QF, fontSize: 11, color: on ? YEL : '#c9d1d9', fontWeight: on ? 700 : 400 }}>{label}</span>
+                    {tipEn && lang && <GuideTip en={tipEn} fr={tipFr ?? tipEn} lang={lang} />}
+                </div>
                 {sub && <span style={{ fontFamily: QF, fontSize: 9, color: '#4b5563' }}>{sub}</span>}
             </div>
             <Toggle on={on} onChange={onChange} />
@@ -78,6 +137,26 @@ const MODE_META: Record<SimMode, { label: string; labelFr: string; desc: string;
     RULE_COMPLIANCE:  { label: 'Rule Compliance',  labelFr: 'Règles',           desc: 'Enforce your account rules retroactively',   descFr: 'Appliquer vos règles rétroactivement' },
     RISK_SIZING:      { label: 'Risk Sizing',      labelFr: 'Taille du risque', desc: 'Rescale all trades to a target risk %',      descFr: 'Recalibrer toutes vos prises de risque' },
     FILTER:           { label: 'Filter Setup',     labelFr: 'Filtrer',          desc: 'Only count trades matching criteria',         descFr: 'Comptabiliser les trades selon des filtres' },
+};
+
+// ── Extended mode guidance ────────────────────────────────────────────────────
+const MODE_GUIDE: Record<SimMode, { en: string; fr: string }> = {
+    BEHAVIORAL:      {
+        en: 'Replays your history without detected emotional patterns. Each rule is applied independently — disable all to see the baseline, enable one at a time to isolate each habit\'s dollar cost. Use Auto-Optimize after to rank which single rule has the highest impact.',
+        fr: 'Rejoue votre historique sans les patterns émotionnels détectés. Chaque règle s\'applique indépendamment — désactivez-les toutes pour voir la base, activez-en une à la fois pour isoler le coût de chaque habitude. Utilisez ensuite l\'Auto-Optimiseur.',
+    },
+    RULE_COMPLIANCE: {
+        en: 'Shows your P&L if you had never breached your account\'s guard rules. Trades taken after a daily loss limit breach are removed; trades after a consecutive-loss cap are removed; days with too many trades are trimmed. Configure your rules in Settings → Guard Rules.',
+        fr: 'Montre votre P&L si vous n\'aviez jamais enfreint les règles de garde de votre compte. Les trades après un dépassement de la limite de perte quotidienne sont supprimés ; les trades après un plafond de pertes consécutives sont supprimés. Configurez vos règles dans Paramètres → Règles de Garde.',
+    },
+    RISK_SIZING:     {
+        en: 'Rescales every trade to an identical risk % of your starting balance, as if you had used consistent position sizing throughout. Useful for isolating whether your edge is real or inflated by randomly oversizing winning trades.',
+        fr: 'Recalibre chaque trade à un risque % identique de votre solde initial, comme si vous aviez utilisé un sizing cohérent. Utile pour isoler si votre edge est réel ou gonflé par un oversizing aléatoire sur les trades gagnants.',
+    },
+    FILTER:          {
+        en: 'Counts only trades that meet your criteria (minimum R:R ratio at entry, EST entry hour, and asset whitelist). Shows whether applying a selectivity filter before entering would improve your statistics.',
+        fr: 'Comptabilise uniquement les trades qui respectent vos critères (R:R minimum à l\'entrée, heure d\'entrée en EST, liste blanche d\'actifs). Montre si l\'application d\'un filtre de sélectivité avant l\'entrée améliorerait vos statistiques.',
+    },
 };
 
 // ── Delta indicator ──────────────────────────────────────────────────────────
@@ -240,8 +319,13 @@ export default function SimulatorPage() {
         <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
             {/* Mode grid */}
             <div style={{ padding: '16px 16px 0' }}>
-                <div style={{ fontFamily: QF, fontSize: 9, color: '#6b7280', letterSpacing: '0.1em', marginBottom: 10 }}>
-                    {lang === 'fr' ? 'MODE DE SIMULATION' : 'SIMULATION MODE'}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 10 }}>
+                    <span style={{ fontFamily: QF, fontSize: 9, color: '#6b7280', letterSpacing: '0.1em' }}>
+                        {lang === 'fr' ? 'MODE DE SIMULATION' : 'SIMULATION MODE'}
+                    </span>
+                    <GuideTip lang={lang}
+                        en="Each mode replays your closed trade history with a different rule set. Start with Behavioral to identify emotional patterns, then Rule Compliance to quantify breaches. Run → read the delta → save the scenario."
+                        fr="Chaque mode rejoue votre historique de trades fermés avec un ensemble de règles différent. Commencez par Comportemental pour identifier les patterns émotionnels, puis Règles pour quantifier les infractions." />
                 </div>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 1, background: BR, marginBottom: 16 }}>
                     {(Object.keys(MODE_META) as SimMode[]).map(m => {
@@ -265,8 +349,9 @@ export default function SimulatorPage() {
                         );
                     })}
                 </div>
-                <div style={{ fontFamily: 'var(--font-sans)', fontSize: 10, color: '#6b7280', lineHeight: 1.5, marginBottom: 14, padding: '8px 10px', background: C2, border: `1px solid ${BR}` }}>
-                    {modeDesc}
+                <div style={{ fontFamily: 'var(--font-sans)', fontSize: 10, color: '#6b7280', lineHeight: 1.5, marginBottom: 14, padding: '8px 10px', background: C2, border: `1px solid ${BR}`, display: 'flex', alignItems: 'flex-start', gap: 8 }}>
+                    <span style={{ flex: 1 }}>{modeDesc}</span>
+                    <GuideTip lang={lang} en={MODE_GUIDE[config.mode].en} fr={MODE_GUIDE[config.mode].fr} />
                 </div>
             </div>
 
@@ -279,24 +364,36 @@ export default function SimulatorPage() {
                             sub={lang === 'fr' ? 'Bloquer les ré-entrées < 5min après une perte' : 'Block re-entries < 5min after a loss'}
                             on={config.removeRevengeTrades}
                             onChange={() => patch('removeRevengeTrades', !config.removeRevengeTrades)}
+                            lang={lang}
+                            tipEn="A re-entry within 5 minutes of closing a losing trade. Usually driven by frustration — the goal is recovery, not a setup. Removing these isolates your P&L without emotional re-entries."
+                            tipFr="Une ré-entrée dans les 5 minutes suivant la clôture d'un trade perdant. Généralement motivée par la frustration. Supprimer ces trades isole votre P&L sans ré-entrées émotionnelles."
                         />
                         <ToggleRow
                             label={lang === 'fr' ? 'Plafonner les Losers Tenus' : 'Cap Held Losers'}
                             sub={lang === 'fr' ? `Clore à ${avgWinDurMin}min durée moy. gagnante` : `Cap at ${avgWinDurMin}min avg winning trade duration`}
                             on={config.capHeldLosers}
                             onChange={() => patch('capHeldLosers', !config.capHeldLosers)}
+                            lang={lang}
+                            tipEn="Losing trades held significantly longer than your average winner. The simulation closes them at your average winning duration — approximating what disciplined exits would have yielded."
+                            tipFr="Les trades perdants tenus nettement plus longtemps que votre gagnant moyen. La simulation les clôture à votre durée gagnante moyenne — approximant ce que des sorties disciplinées auraient rapporté."
                         />
                         <ToggleRow
                             label={lang === 'fr' ? 'Session Bleed Lock' : 'Session Bleed Lock'}
                             sub={lang === 'fr' ? 'Stopper si session < 50% du pic' : 'Stop when session falls below 50% of peak'}
                             on={config.applySessionBleedLock}
                             onChange={() => patch('applySessionBleedLock', !config.applySessionBleedLock)}
+                            lang={lang}
+                            tipEn="Stops trading once your session P&L falls below 50% of its intra-session peak. Simulates a drawdown protection rule that many prop firms enforce — prevents giving back gains under pressure."
+                            tipFr="Arrête le trading dès que votre P&L de session tombe sous 50% de son pic intra-session. Simule une règle de protection du drawdown appliquée par de nombreuses prop firms."
                         />
                         <ToggleRow
                             label={lang === 'fr' ? 'Stopper Escalade de Pertes' : 'Stop After Loss Escalation'}
                             sub={lang === 'fr' ? 'Pause après 3 pertes croissantes' : 'Halt after 3 escalating consecutive losses'}
                             on={config.removeEscalation}
                             onChange={() => patch('removeEscalation', !config.removeEscalation)}
+                            lang={lang}
+                            tipEn="Pauses after 3 consecutive losses where each loss is larger than the last — a classic escalation pattern indicating emotional position sizing. Removes all trades after the trigger point."
+                            tipFr="Pause après 3 pertes consécutives où chaque perte est plus importante que la précédente — un pattern d'escalade classique indiquant un sizing émotionnel. Supprime tous les trades après le point déclencheur."
                         />
                     </div>
                 )}
@@ -333,8 +430,13 @@ export default function SimulatorPage() {
 
                 {config.mode === 'RISK_SIZING' && (
                     <div style={{ padding: '16px' }}>
-                        <div style={{ fontFamily: QF, fontSize: 9, color: '#6b7280', letterSpacing: '0.1em', marginBottom: 10 }}>
-                            {lang === 'fr' ? 'RISQUE CIBLE PAR TRADE (% DU SOLDE INITIAL)' : 'TARGET RISK PER TRADE (% OF STARTING BALANCE)'}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 10 }}>
+                            <span style={{ fontFamily: QF, fontSize: 9, color: '#6b7280', letterSpacing: '0.1em' }}>
+                                {lang === 'fr' ? 'RISQUE CIBLE PAR TRADE (% DU SOLDE INITIAL)' : 'TARGET RISK PER TRADE (% OF STARTING BALANCE)'}
+                            </span>
+                            <GuideTip lang={lang}
+                                en="Every trade is rescaled so its dollar loss (if it was a loser) equals this % of your starting balance. A 1% target on a $100k account = $1,000 max risk per trade. This normalises sizing without changing win/loss outcomes."
+                                fr="Chaque trade est recalibré pour que sa perte en dollars (s'il était perdant) soit égale à ce % de votre solde initial. 1% sur un compte de 100k$ = 1 000$ de risque max par trade. Cela normalise le sizing sans modifier les résultats gain/perte." />
                         </div>
                         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 1, background: BR, marginBottom: 16 }}>
                             {[0.25, 0.5, 1, 1.5, 2].map(pct => (
@@ -365,8 +467,13 @@ export default function SimulatorPage() {
 
                 {config.mode === 'FILTER' && (
                     <div style={{ padding: '16px' }}>
-                        <div style={{ fontFamily: QF, fontSize: 9, color: '#6b7280', letterSpacing: '0.1em', marginBottom: 8 }}>
-                            {lang === 'fr' ? 'R:R MINIMUM À L\'ENTRÉE' : 'MINIMUM R:R AT ENTRY'}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
+                            <span style={{ fontFamily: QF, fontSize: 9, color: '#6b7280', letterSpacing: '0.1em' }}>
+                                {lang === 'fr' ? 'R:R MINIMUM À L\'ENTRÉE' : 'MINIMUM R:R AT ENTRY'}
+                            </span>
+                            <GuideTip lang={lang}
+                                en="Risk:Reward ratio at entry = potential profit ÷ stop loss distance. A 1:1 trade risks $1 to make $1. Filtering to ≥1.5:1 removes all lower-quality setups and shows whether selectivity improves your edge."
+                                fr="Ratio Risque:Rendement à l'entrée = profit potentiel ÷ distance du stop. Un trade 1:1 risque 1$ pour gagner 1$. Filtrer à ≥1,5:1 supprime les setups de moindre qualité et montre si la sélectivité améliore votre edge." />
                         </div>
                         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 1, background: BR, marginBottom: 20 }}>
                             {[0, 0.5, 1, 1.5, 2].map(rr => (
@@ -385,8 +492,13 @@ export default function SimulatorPage() {
                                 </button>
                             ))}
                         </div>
-                        <div style={{ fontFamily: QF, fontSize: 9, color: '#6b7280', letterSpacing: '0.1em', marginBottom: 8 }}>
-                            {lang === 'fr' ? 'FILTRE HORAIRE EST' : 'EST HOUR FILTER'}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
+                            <span style={{ fontFamily: QF, fontSize: 9, color: '#6b7280', letterSpacing: '0.1em' }}>
+                                {lang === 'fr' ? 'FILTRE HORAIRE EST' : 'EST HOUR FILTER'}
+                            </span>
+                            <GuideTip lang={lang}
+                                en="Deselect hours to exclude trades entered in those EST windows. Useful for testing whether you are more profitable during specific sessions (e.g. NY open 9–11h, London 8–10h, or avoiding low-volume afternoon hours)."
+                                fr="Désélectionnez des heures pour exclure les trades entrés dans ces fenêtres EST. Utile pour tester si vous êtes plus rentable pendant des sessions spécifiques (ex: ouverture NY 9–11h, Londres 8–10h, ou éviter les heures creuses de l'après-midi)." />
                         </div>
                         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: 1, background: BR }}>
                             {EST_HOURS.map(h => {
@@ -548,20 +660,38 @@ export default function SimulatorPage() {
                                 border: `1px solid ${result.delta >= 0 ? 'rgba(253,200,0,0.2)' : 'rgba(255,71,87,0.2)'}`,
                                 padding: '8px 14px', display: 'flex', flexDirection: 'column', gap: 2,
                             }}>
-                                <div style={{ fontFamily: QF, fontSize: 9, color: '#6b7280' }}>
+                                <div style={{ fontFamily: QF, fontSize: 9, color: '#6b7280', display: 'flex', alignItems: 'center', gap: 5 }}>
                                     {lang === 'fr' ? 'DELTA P&L' : 'P&L DELTA'}
+                                    <GuideTip lang={lang} above
+                                        en="Simulated P&L minus Actual P&L. Positive = the scenario configuration would have improved your bottom line by this amount. Negative = those rules would have made things worse (rare, but possible with over-filtering)."
+                                        fr="P&L simulé moins P&L réel. Positif = la configuration du scénario aurait amélioré vos résultats de ce montant. Négatif = ces règles auraient empiré les choses (rare, mais possible avec un sur-filtrage)." />
                                 </div>
                                 <div style={{ fontFamily: QF, fontSize: 16, fontWeight: 900, color: result.delta >= 0 ? YEL : RED }}>
                                     {result.delta >= 0 ? '+' : ''}${result.delta.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                                 </div>
                             </div>
                             {[
-                                { label: lang === 'fr' ? 'BLOQUÉS' : 'BLOCKED', value: result.blockedCount, color: RED },
-                                { label: lang === 'fr' ? 'MODIFIÉS' : 'MODIFIED', value: result.modifiedCount, color: '#EAB308' },
-                                { label: lang === 'fr' ? 'CAP PRÉSERVÉ' : 'SAVED CAPITAL', value: `$${result.savedCapital.toFixed(0)}`, color: GRN },
+                                {
+                                    label: lang === 'fr' ? 'BLOQUÉS' : 'BLOCKED', value: result.blockedCount, color: RED,
+                                    tipEn: 'Trades completely excluded by the simulation rules. Their P&L is set to $0. Scroll to the Simulation Log below to see each blocked trade and the reason it was excluded.',
+                                    tipFr: 'Trades entièrement exclus par les règles de simulation. Leur P&L est fixé à 0$. Faites défiler vers le Journal de Simulation ci-dessous pour voir chaque trade bloqué et la raison de son exclusion.',
+                                },
+                                {
+                                    label: lang === 'fr' ? 'MODIFIÉS' : 'MODIFIED', value: result.modifiedCount, color: '#EAB308',
+                                    tipEn: 'Trades that were partially adjusted — closed earlier or position-sized differently. Their P&L is reduced, not zeroed. The → arrow in the Simulation Log shows original vs adjusted P&L.',
+                                    tipFr: 'Trades partiellement ajustés — clôturés plus tôt ou redimensionnés. Leur P&L est réduit, pas annulé. La flèche → dans le Journal de Simulation montre le P&L original vs ajusté.',
+                                },
+                                {
+                                    label: lang === 'fr' ? 'CAP PRÉSERVÉ' : 'SAVED CAPITAL', value: `$${result.savedCapital.toFixed(0)}`, color: GRN,
+                                    tipEn: 'Total dollar loss from blocked trades that you would not have suffered. This is the downside you avoided — not profit gained, but losses prevented. Think of it as your "floor protection" value.',
+                                    tipFr: 'Perte totale en dollars des trades bloqués que vous n\'auriez pas subis. C\'est la baisse évitée — pas un gain réalisé, mais des pertes évitées. Pensez-y comme à la valeur de votre "protection plancher".',
+                                },
                             ].map((k, i) => (
                                 <div key={i} style={{ background: '#0b0e14', border: `1px solid ${BR}`, padding: '8px 14px', display: 'flex', flexDirection: 'column', gap: 2 }}>
-                                    <div style={{ fontFamily: QF, fontSize: 9, color: '#6b7280' }}>{k.label}</div>
+                                    <div style={{ fontFamily: QF, fontSize: 9, color: '#6b7280', display: 'flex', alignItems: 'center', gap: 5 }}>
+                                        {k.label}
+                                        <GuideTip lang={lang} above en={k.tipEn} fr={k.tipFr} />
+                                    </div>
                                     <div style={{ fontFamily: QF, fontSize: 16, fontWeight: 900, color: k.color }}>{k.value}</div>
                                 </div>
                             ))}
@@ -572,8 +702,13 @@ export default function SimulatorPage() {
                     {result.equityCurve.length > 1 && (
                         <div style={{ background: C1, border: `1px solid ${BR}`, padding: '16px 0 8px' }}>
                             <div style={{ padding: '0 18px 12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
-                                <div style={{ fontFamily: QF, fontSize: 9, color: '#6b7280', letterSpacing: '0.1em' }}>
-                                    {lang === 'fr' ? 'COURBE DE CAPITAL — RÉEL vs SIMULÉ' : 'EQUITY CURVE — ACTUAL vs SIMULATED'}
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                                    <span style={{ fontFamily: QF, fontSize: 9, color: '#6b7280', letterSpacing: '0.1em' }}>
+                                        {lang === 'fr' ? 'COURBE DE CAPITAL — RÉEL vs SIMULÉ' : 'EQUITY CURVE — ACTUAL vs SIMULATED'}
+                                    </span>
+                                    <GuideTip lang={lang}
+                                        en="Gold line = simulated equity path with rules applied. Red dashed = your actual path. Where they diverge is where blocked/modified trades had the most impact. A gold line that stays above red means the rules help throughout — not just on individual trades."
+                                        fr="Ligne dorée = chemin de capital simulé avec les règles appliquées. Rouge tiretée = votre chemin réel. Là où elles divergent, les trades bloqués/modifiés ont eu le plus d'impact. Une ligne dorée qui reste au-dessus du rouge signifie que les règles aident tout au long — pas seulement sur des trades individuels." />
                                 </div>
                                 <div style={{ display: 'flex', gap: 14 }}>
                                     {[
@@ -646,6 +781,8 @@ export default function SimulatorPage() {
                                             fmt:    'usd' as const,
                                             aColor: result.actual.pnl >= 0 ? YEL : RED,
                                             sColor: result.simulated.pnl >= 0 ? YEL : RED,
+                                            tipEn: 'Total profit or loss across all closed trades. The simulated value shows what you would have made with the configured rules applied retroactively to your real trade history.',
+                                            tipFr: 'Profit ou perte totale sur tous les trades fermés. La valeur simulée montre ce que vous auriez réalisé avec les règles configurées appliquées rétroactivement à votre historique réel.',
                                         },
                                         {
                                             label:  lang === 'fr' ? 'Taux de réussite' : 'Win Rate',
@@ -654,6 +791,8 @@ export default function SimulatorPage() {
                                             delta:  result.simulated.winRate - result.actual.winRate,
                                             fmt:    'pct' as const,
                                             aColor: '#c9d1d9', sColor: '#c9d1d9',
+                                            tipEn: '% of closed trades that ended in profit. Must be read alongside Profit Factor — a 40% win rate with 3:1 R:R easily outperforms 60% with 1:1 R:R.',
+                                            tipFr: '% des trades fermés qui se sont terminés en profit. À lire avec le Facteur de Profit — un taux de 40% avec un R:R de 3:1 surpasse facilement 60% avec un R:R de 1:1.',
                                         },
                                         {
                                             label:  lang === 'fr' ? 'Facteur de profit' : 'Profit Factor',
@@ -662,6 +801,8 @@ export default function SimulatorPage() {
                                             delta:  result.simulated.profitFactor - result.actual.profitFactor,
                                             fmt:    'ratio' as const,
                                             aColor: '#c9d1d9', sColor: '#c9d1d9',
+                                            tipEn: 'Gross wins ÷ gross losses. >1.0 = profitable, >1.5 = solid, >2.0 = excellent. A higher simulated value means removing those trades improved your overall edge quality.',
+                                            tipFr: 'Gains bruts ÷ pertes brutes. >1,0 = rentable, >1,5 = solide, >2,0 = excellent. Une valeur simulée plus élevée signifie que la suppression de ces trades a amélioré la qualité globale de votre edge.',
                                         },
                                         {
                                             label:  lang === 'fr' ? 'Max Drawdown' : 'Max Drawdown',
@@ -670,6 +811,8 @@ export default function SimulatorPage() {
                                             delta:  result.actual.maxDrawdown - result.simulated.maxDrawdown,  // positive = sim reduced DD
                                             fmt:    'usd' as const,
                                             aColor: RED, sColor: result.simulated.maxDrawdown < result.actual.maxDrawdown ? GRN : RED,
+                                            tipEn: 'Largest peak-to-trough equity decline in the period. Lower is better. A reduced simulated drawdown means the blocked/modified trades were the source of your worst losing sequences.',
+                                            tipFr: 'Plus grande baisse de capital de pic à creux sur la période. Plus bas est mieux. Un drawdown simulé réduit signifie que les trades bloqués/modifiés étaient à l\'origine de vos pires séquences perdantes.',
                                         },
                                         {
                                             label:  lang === 'fr' ? 'Trades pris' : 'Trades Taken',
@@ -678,6 +821,8 @@ export default function SimulatorPage() {
                                             delta:  result.simulated.tradeCount - result.actual.tradeCount,
                                             fmt:    'count' as const,
                                             aColor: '#c9d1d9', sColor: '#c9d1d9',
+                                            tipEn: 'Total closed trades included in the calculation. Blocked trades reduce this count. A lower simulated count with better P&L means quality was beating quantity in your real trading.',
+                                            tipFr: 'Total des trades fermés inclus dans le calcul. Les trades bloqués réduisent ce nombre. Un nombre simulé plus faible avec un meilleur P&L signifie que la qualité l\'emportait sur la quantité dans votre trading réel.',
                                         },
                                         {
                                             label:  lang === 'fr' ? 'Gain moy.' : 'Avg Win',
@@ -686,6 +831,8 @@ export default function SimulatorPage() {
                                             delta:  result.simulated.avgWin - result.actual.avgWin,
                                             fmt:    'usd' as const,
                                             aColor: YEL, sColor: YEL,
+                                            tipEn: 'Average dollar value of winning trades. Compare with Avg Loss to see your real risk-reward in practice. A higher simulated Avg Win means the removed trades were diluting your best setups.',
+                                            tipFr: 'Valeur en dollars moyenne des trades gagnants. Comparez avec la Perte Moy. pour voir votre R:R réel en pratique. Un Gain Moy. simulé plus élevé signifie que les trades supprimés diluaient vos meilleurs setups.',
                                         },
                                         {
                                             label:  lang === 'fr' ? 'Espérance / trade' : 'Expectancy / trade',
@@ -695,6 +842,8 @@ export default function SimulatorPage() {
                                             fmt:    'usd' as const,
                                             aColor: result.actual.expectancy >= 0 ? GRN : RED,
                                             sColor: result.simulated.expectancy >= 0 ? GRN : RED,
+                                            tipEn: '(Win Rate × Avg Win) − (Loss Rate × Avg Loss). The statistical expected value per trade. Positive = edge exists. This is the single most important metric for long-term viability of a trading system.',
+                                            tipFr: '(Taux de réussite × Gain Moy.) − (Taux d\'échec × Perte Moy.). La valeur attendue statistique par trade. Positive = edge présent. C\'est la métrique la plus importante pour la viabilité à long terme d\'un système de trading.',
                                         },
                                         {
                                             label:  lang === 'fr' ? 'Série gagnante max' : 'Max Win Streak',
@@ -703,6 +852,8 @@ export default function SimulatorPage() {
                                             delta:  result.simulated.maxWinStreak - result.actual.maxWinStreak,
                                             fmt:    'count' as const,
                                             aColor: YEL, sColor: YEL,
+                                            tipEn: 'Longest consecutive winning run. A higher simulated streak means the rules help you stay in better-quality runs longer, rather than interrupting them with emotional re-entries or rule breaches.',
+                                            tipFr: 'Plus longue série de victoires consécutives. Une série simulée plus longue signifie que les règles vous aident à rester dans de meilleures séquences, plutôt que de les interrompre avec des ré-entrées émotionnelles.',
                                         },
                                         {
                                             label:  lang === 'fr' ? 'Série perdante max' : 'Max Lose Streak',
@@ -712,10 +863,17 @@ export default function SimulatorPage() {
                                             delta:  result.actual.maxLoseStreak - result.simulated.maxLoseStreak,
                                             fmt:    'count' as const,
                                             aColor: RED, sColor: result.simulated.maxLoseStreak < result.actual.maxLoseStreak ? GRN : RED,
+                                            tipEn: 'Longest consecutive losing run. Lower in simulated results is better — it means the rules are cutting off the worst drawdown sequences before they compound into account-threatening streaks.',
+                                            tipFr: 'Plus longue série de pertes consécutives. Plus bas en simulé est mieux — cela signifie que les règles interrompent les pires séquences de drawdown avant qu\'elles ne deviennent des séries qui menacent le compte.',
                                         },
                                     ].map((row, i) => (
                                         <tr key={i} style={{ borderBottom: `1px solid ${BR}`, background: i % 2 === 0 ? '#0c0e13' : 'transparent' }}>
-                                            <td style={{ padding: '10px 14px', fontSize: 10, color: '#8b949e' }}>{row.label}</td>
+                                            <td style={{ padding: '10px 14px', fontSize: 10, color: '#8b949e' }}>
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                                                    {row.label}
+                                                    <GuideTip lang={lang} en={row.tipEn} fr={row.tipFr} above />
+                                                </div>
+                                            </td>
                                             <td style={{ padding: '10px 14px', fontSize: 11, fontWeight: 700, color: row.aColor, textAlign: 'right' }}>{row.actual}</td>
                                             <td style={{ padding: '10px 14px', fontSize: 11, fontWeight: 900, color: row.sColor, textAlign: 'right' }}>{row.sim}</td>
                                             <td style={{ padding: '10px 14px', textAlign: 'right' }}><DeltaBadge delta={row.delta} format={row.fmt} /></td>
@@ -734,6 +892,9 @@ export default function SimulatorPage() {
                                 <span style={{ fontFamily: QF, fontSize: 9, color: '#6b7280', letterSpacing: '0.1em' }}>
                                     {lang === 'fr' ? 'OPTIMISEUR — QUELLE RÈGLE AIDE LE PLUS ?' : 'AUTO-OPTIMIZE — WHICH SINGLE RULE HELPS MOST?'}
                                 </span>
+                                <GuideTip lang={lang}
+                                    en="Runs each of the 4 behavioral rules in isolation and ranks them by P&L delta. #1 = the single intervention that would have had the highest dollar impact on your results. Use this to decide which habit to address first — highest ROI on your behavioral change."
+                                    fr="Exécute chacune des 4 règles comportementales isolément et les classe par delta P&L. #1 = l'intervention unique qui aurait eu le plus grand impact en dollars sur vos résultats. Utilisez ceci pour décider quelle habitude traiter en premier — ROI le plus élevé sur votre changement comportemental." />
                             </div>
                             <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
                                 {(() => {
@@ -835,8 +996,13 @@ export default function SimulatorPage() {
                     {diffTrades.length > 0 && (
                         <div>
                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-                                <div style={{ fontFamily: QF, fontSize: 9, color: '#6b7280', letterSpacing: '0.1em' }}>
-                                    {lang === 'fr' ? `JOURNAL DES MODIFICATIONS — ${diffTrades.length} TRADES` : `SIMULATION LOG — ${diffTrades.length} TRADES AFFECTED`}
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                                    <span style={{ fontFamily: QF, fontSize: 9, color: '#6b7280', letterSpacing: '0.1em' }}>
+                                        {lang === 'fr' ? `JOURNAL DES MODIFICATIONS — ${diffTrades.length} TRADES` : `SIMULATION LOG — ${diffTrades.length} TRADES AFFECTED`}
+                                    </span>
+                                    <GuideTip lang={lang}
+                                        en="Every trade that was BLOCKED (excluded, P&L = $0) or CAPPED (closed earlier/resized, P&L adjusted). Sorted by absolute original P&L — highest-impact trades first. The → arrow shows original P&L → adjusted P&L for capped trades."
+                                        fr="Chaque trade BLOQUÉ (exclu, P&L = 0$) ou MODIFIÉ (clôturé plus tôt/redimensionné, P&L ajusté). Trié par P&L original absolu — trades à plus fort impact en premier. La flèche → montre P&L original → P&L ajusté pour les trades modifiés." />
                                 </div>
                                 <div style={{ display: 'flex', gap: 8 }}>
                                     <button
