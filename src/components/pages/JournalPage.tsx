@@ -86,6 +86,9 @@ export default function JournalPage() {
         window.addEventListener('resize', check);
         return () => window.removeEventListener('resize', check);
     }, []);
+    const todayStr = new Date().toISOString().slice(0, 10);
+    const [listLogDay, setListLogDay] = useState<string | null>(null);
+    const [formSessionType, setFormSessionType] = useState<'pre' | 'post' | 'weekly'>('post');
 
     // Sync day note input when selected day changes
     useEffect(() => {
@@ -154,7 +157,14 @@ export default function JournalPage() {
         const todayStr = new Date().toISOString().split('T')[0];
         for (let i = 1; i <= daysInMonth; i++) {
             const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(i).padStart(2, '0')}`;
-            const dayTrades = trades.filter(t => getTradingDay(t.closedAt ?? t.createdAt) === dateStr);
+            const dayTrades = trades.filter(t => {
+                const tradingDay = getTradingDay(t.closedAt ?? t.createdAt);
+                if (tradingDay !== dateStr) return false;
+                // If date filter is active, only show within range
+                if (filterFrom && dateStr < filterFrom) return false;
+                if (filterTo && dateStr > filterTo) return false;
+                return true;
+            });
             const pnl = dayTrades.reduce((s, t) => s + (t.pnl ?? 0), 0);
             currentWeek.push({ day: i, isCurrentMonth: true, pnl, tradesCount: dayTrades.length, date: dateStr, isToday: dateStr === todayStr });
             if (currentWeek.length === 7) {
@@ -172,7 +182,7 @@ export default function JournalPage() {
             weeks.push({ days: currentWeek, weekPnl, weekTrades, weekNumber });
         }
         return { year, month, weeks, monthName: calendarDate.toLocaleString('default', { month: 'short' }) };
-    }, [calendarDate, trades]);
+    }, [calendarDate, trades, filterFrom, filterTo]);
 
     const prevMonth = () => {
         setCalendarDir(-1);
@@ -399,6 +409,14 @@ export default function JournalPage() {
         return { pct: total > 0 ? Math.round((withNotes / total) * 100) : 0, count: withNotes, total };
     }, [trades]);
 
+    // ── Journal completion: % trading days with a session log entry ──
+    const journalCompletionScore = useMemo(() => {
+        const tradingDays = new Set(closedTrades.map(t => getTradingDay(t.closedAt ?? t.createdAt)));
+        const logged = Object.keys(dayJournalEntries ?? {}).filter(d => tradingDays.has(d)).length;
+        const total = tradingDays.size;
+        return { pct: total > 0 ? Math.round((logged / total) * 100) : 0, logged, total };
+    }, [closedTrades, dayJournalEntries]);
+
     // ── Session count (unique trading days with closed trades) ─
     const sessionCount = useMemo(() => {
         const days = new Set(closedTrades.map(t => getTradingDay(t.closedAt ?? t.createdAt)));
@@ -537,7 +555,7 @@ export default function JournalPage() {
         filtered.sort((a, b) => new Date(b.closedAt ?? b.createdAt).getTime() - new Date(a.closedAt ?? a.createdAt).getTime());
         const dayMap: Record<string, typeof trades> = {};
         filtered.forEach(t => {
-            const day = t.outcome === 'open' ? t.createdAt.slice(0, 10) : getTradingDay(t.closedAt ?? t.createdAt);
+            const day = getTradingDay(t.closedAt ?? t.createdAt);
             if (!dayMap[day]) dayMap[day] = [];
             dayMap[day].push(t);
         });
@@ -599,7 +617,7 @@ export default function JournalPage() {
                     </button>
                     {trades.length > 0 && (
                         <button onClick={handleExportCSV} style={{ ...mono, display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, fontWeight: 700, padding: '7px 12px', background: 'transparent', color: '#8b949e', border: '1px solid #1a1c24', cursor: 'pointer' }}>
-                            <FileDown size={12} /> {lang === 'fr' ? 'Exporter JSON' : 'Export JSON'}
+                            <FileDown size={12} /> {lang === 'fr' ? 'Exporter CSV' : 'Export CSV'}
                         </button>
                     )}
                     {trades.length > 0 && (
@@ -628,8 +646,8 @@ export default function JournalPage() {
             </AnimatePresence>
 
             {/* ── EDGE FORENSICS DASHBOARD ─────────────────────── */}
-            {/* 3-Card row: Consistency | Discipline | Traceability */}
-            <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'repeat(3, 1fr)', borderBottom: divider }}>
+            {/* 4-Card row: Consistency | Discipline | Traceability | Session Log */}
+            <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'repeat(4, 1fr)', borderBottom: divider }}>
                 {/* Consistency */}
                 <div style={{ padding: isMobile ? '14px' : '18px 20px', borderRight: isMobile ? 'none' : divider, borderBottom: isMobile ? divider : 'none' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
@@ -689,7 +707,7 @@ export default function JournalPage() {
                 </div>
 
                 {/* Traceability */}
-                <div style={{ padding: isMobile ? '14px' : '18px 20px' }}>
+                <div style={{ padding: isMobile ? '14px' : '18px 20px', borderRight: isMobile ? 'none' : divider, borderBottom: isMobile ? divider : 'none' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
                         <BookOpen size={13} color={traceabilityScore.pct >= 60 ? '#FDC800' : traceabilityScore.pct >= 30 ? '#EAB308' : '#4b5563'} />
                         <span style={{ ...mono, fontSize: 9, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase' as const, color: '#4b5563' }}>
@@ -709,6 +727,30 @@ export default function JournalPage() {
                         {lang === 'fr'
                             ? `${traceabilityScore.count}/${traceabilityScore.total} trades annotés`
                             : `${traceabilityScore.count}/${traceabilityScore.total} trades annotated`}
+                    </span>
+                </div>
+
+                {/* Journal Log % */}
+                <div style={{ padding: isMobile ? '14px' : '18px 20px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+                        <BookOpen size={13} color={journalCompletionScore.pct >= 70 ? '#FDC800' : journalCompletionScore.pct >= 40 ? '#EAB308' : '#4b5563'} />
+                        <span style={{ ...mono, fontSize: 9, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase' as const, color: '#4b5563' }}>
+                            {lang === 'fr' ? 'Journal' : 'Session Log'}
+                        </span>
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
+                        <span style={{ ...mono, fontSize: 32, fontWeight: 900, color: journalCompletionScore.pct >= 70 ? '#FDC800' : journalCompletionScore.pct >= 40 ? '#EAB308' : '#4b5563', letterSpacing: '-0.04em', lineHeight: 1 }}>
+                            {journalCompletionScore.pct}
+                        </span>
+                        <span style={{ ...mono, fontSize: 11, color: '#4b5563' }}>%</span>
+                    </div>
+                    <div style={{ marginTop: 10, height: 3, background: '#1a1c24', borderRadius: 2, overflow: 'hidden' }}>
+                        <div style={{ height: '100%', width: `${journalCompletionScore.pct}%`, background: journalCompletionScore.pct >= 70 ? '#FDC800' : journalCompletionScore.pct >= 40 ? '#EAB308' : '#4b5563', transition: 'width 0.4s ease' }} />
+                    </div>
+                    <span style={{ ...mono, fontSize: 9, color: '#4b5563', display: 'block', marginTop: 4 }}>
+                        {lang === 'fr'
+                            ? `${journalCompletionScore.logged}/${journalCompletionScore.total} sessions`
+                            : `${journalCompletionScore.logged}/${journalCompletionScore.total} sessions`}
                     </span>
                 </div>
             </div>
@@ -752,6 +794,10 @@ export default function JournalPage() {
                                     ? 'Rituel pré-session — As-tu révisé ton plan de trading ? Définis ton biais directionnel avant d\'ouvrir le marché.'
                                     : 'Pre-session ritual — Have you reviewed your trading plan? Define your directional bias before opening the market.'}
                             </span>
+                            <button onClick={() => { setRitualDismissed(true); setListLogDay(todayStr); setFormSessionType('pre'); setShowJournalForm(true); }}
+                                style={{ ...mono, fontSize: 10, fontWeight: 700, padding: '4px 12px', background: 'rgba(253,200,0,0.1)', color: '#FDC800', border: '1px solid rgba(253,200,0,0.3)', cursor: 'pointer', flexShrink: 0 }}>
+                                {lang === 'fr' ? 'Planifier →' : 'Plan session →'}
+                            </button>
                             <button onClick={() => setRitualDismissed(true)}
                                 style={{ background: 'none', border: 'none', color: '#4b5563', cursor: 'pointer', fontSize: 16, lineHeight: 1, flexShrink: 0, padding: '2px 6px' }}>×</button>
                         </div>
@@ -763,7 +809,7 @@ export default function JournalPage() {
             <div style={{ borderBottom: divider, display: 'flex', gap: 0, background: '#090909' }}>
                 {([
                     { id: 'trades', label: lang === 'fr' ? 'TRADES' : 'TRADES', icon: <Activity size={11} /> },
-                    { id: 'notes', label: lang === 'fr' ? `NOTES (${trades.filter(t => t.note && t.note.trim().length > 10).length})` : `NOTES (${trades.filter(t => t.note && t.note.trim().length > 10).length})`, icon: <BookOpen size={11} /> },
+                    { id: 'notes', label: lang === 'fr' ? `NOTES (${trades.filter(t => t.note && t.note.trim().length > 10).length + Object.keys(dayJournalEntries ?? {}).length})` : `NOTES (${trades.filter(t => t.note && t.note.trim().length > 10).length + Object.keys(dayJournalEntries ?? {}).length})`, icon: <BookOpen size={11} /> },
                     { id: 'insights', label: lang === 'fr' ? 'APERÇUS' : 'INSIGHTS', icon: <Brain size={11} /> },
                 ] as const).map(tab => (
                     <button key={tab.id} onClick={() => setJournalTab(tab.id)}
@@ -1007,40 +1053,108 @@ export default function JournalPage() {
 
             {/* ── NOTES TAB ───────────────────────────────────── */}
             {journalTab === 'notes' && (
-                <div style={{ padding: isMobile ? '14px' : '20px' }}>
-                    {trades.filter(t => t.note && t.note.trim().length > 0).length === 0 ? (
-                        <div style={{ textAlign: 'center', padding: '40px 20px' }}>
-                            <BookOpen size={32} color="#1a1c24" style={{ margin: '0 auto 12px' }} />
-                            <span style={{ ...mono, fontSize: 12, color: '#4b5563', display: 'block' }}>
-                                {lang === 'fr' ? 'Aucune note. Développez un trade pour annoter.' : 'No notes yet. Expand a trade to annotate it.'}
-                            </span>
-                        </div>
-                    ) : (
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
-                            {trades
-                                .filter(t => t.note && t.note.trim().length > 0)
-                                .sort((a, b) => new Date(b.closedAt ?? b.createdAt).getTime() - new Date(a.closedAt ?? a.createdAt).getTime())
-                                .map((t, i, arr) => (
-                                    <div key={t.id} style={{ borderBottom: i < arr.length - 1 ? divider : 'none', padding: '16px 0' }}>
-                                        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
-                                            <span style={{ ...mono, fontSize: 11, fontWeight: 800, color: t.outcome === 'win' ? '#FDC800' : t.outcome === 'loss' ? '#ff4757' : '#EAB308' }}>
-                                                {t.asset}
-                                            </span>
-                                            <span style={{ ...mono, fontSize: 9, color: '#4b5563' }}>{(t.outcome ?? 'open').toUpperCase()}</span>
-                                            {t.pnl !== undefined && (
-                                                <span style={{ ...mono, fontSize: 11, fontWeight: 700, color: (t.pnl ?? 0) >= 0 ? '#FDC800' : '#ff4757' }}>
-                                                    {(t.pnl ?? 0) >= 0 ? '+' : ''}${Math.abs(t.pnl ?? 0).toFixed(2)}
+                <div style={{ padding: isMobile ? '14px' : '20px', display: 'flex', flexDirection: 'column', gap: 24 }}>
+                    {/* Trade notes section */}
+                    <div>
+                        <span style={{ ...lbl, marginBottom: 12, display: 'block' }}>
+                            {lang === 'fr' ? `NOTES DE TRADE (${trades.filter(t => t.note && t.note.trim().length > 0).length})` : `TRADE NOTES (${trades.filter(t => t.note && t.note.trim().length > 0).length})`}
+                        </span>
+                        {trades.filter(t => t.note && t.note.trim().length > 0).length === 0 ? (
+                            <div style={{ textAlign: 'center', padding: '24px 20px', border: '1px dashed #1a1c24' }}>
+                                <span style={{ ...mono, fontSize: 12, color: '#4b5563', display: 'block' }}>
+                                    {lang === 'fr' ? 'Aucune note. Développez un trade pour annoter.' : 'No notes yet. Expand a trade to annotate it.'}
+                                </span>
+                            </div>
+                        ) : (
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
+                                {trades
+                                    .filter(t => t.note && t.note.trim().length > 0)
+                                    .sort((a, b) => new Date(b.closedAt ?? b.createdAt).getTime() - new Date(a.closedAt ?? a.createdAt).getTime())
+                                    .map((t, i, arr) => (
+                                        <div key={t.id} style={{ borderBottom: i < arr.length - 1 ? divider : 'none', padding: '16px 0' }}>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
+                                                <span style={{ ...mono, fontSize: 11, fontWeight: 800, color: t.outcome === 'win' ? '#FDC800' : t.outcome === 'loss' ? '#ff4757' : '#EAB308' }}>
+                                                    {t.asset}
                                                 </span>
-                                            )}
-                                            <span style={{ ...mono, fontSize: 9, color: '#4b5563', marginLeft: 'auto' }}>
-                                                {new Date(t.closedAt ?? t.createdAt).toLocaleDateString()}
-                                            </span>
+                                                <span style={{ ...mono, fontSize: 9, color: '#4b5563' }}>{(t.outcome ?? 'open').toUpperCase()}</span>
+                                                {t.pnl !== undefined && (
+                                                    <span style={{ ...mono, fontSize: 11, fontWeight: 700, color: (t.pnl ?? 0) >= 0 ? '#FDC800' : '#ff4757' }}>
+                                                        {(t.pnl ?? 0) >= 0 ? '+' : ''}${Math.abs(t.pnl ?? 0).toFixed(2)}
+                                                    </span>
+                                                )}
+                                                <span style={{ ...mono, fontSize: 9, color: '#4b5563', marginLeft: 'auto' }}>
+                                                    {new Date(t.closedAt ?? t.createdAt).toLocaleDateString()}
+                                                </span>
+                                            </div>
+                                            <p style={{ ...mono, fontSize: 12, color: '#8b949e', lineHeight: 1.7, margin: 0, whiteSpace: 'pre-wrap' }}>{t.note}</p>
                                         </div>
-                                        <p style={{ ...mono, fontSize: 12, color: '#8b949e', lineHeight: 1.7, margin: 0, whiteSpace: 'pre-wrap' }}>{t.note}</p>
-                                    </div>
-                                ))}
-                        </div>
-                    )}
+                                    ))}
+                            </div>
+                        )}
+                    </div>
+
+                    {/* Session log section */}
+                    <div>
+                        <span style={{ ...lbl, marginBottom: 12, display: 'block' }}>
+                            {lang === 'fr' ? `JOURNAL DE SESSIONS (${Object.keys(dayJournalEntries ?? {}).length})` : `SESSION LOG (${Object.keys(dayJournalEntries ?? {}).length})`}
+                        </span>
+                        {Object.keys(dayJournalEntries ?? {}).length === 0 ? (
+                            <div style={{ textAlign: 'center', padding: '24px 20px', border: '1px dashed #1a1c24' }}>
+                                <span style={{ ...mono, fontSize: 12, color: '#4b5563', display: 'block' }}>
+                                    {lang === 'fr' ? 'Aucune session journalisée. Cliquez sur "Log Session" depuis la liste ou le calendrier.' : 'No sessions logged yet. Click "Log Session" from the list or calendar view.'}
+                                </span>
+                            </div>
+                        ) : (
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
+                                {Object.entries(dayJournalEntries ?? {})
+                                    .sort(([a], [b]) => b.localeCompare(a))
+                                    .map(([date, entry], i, arr) => (
+                                        <div key={date} style={{ borderBottom: i < arr.length - 1 ? divider : 'none', padding: '16px 0' }}>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8, flexWrap: 'wrap' }}>
+                                                <span style={{ ...mono, fontSize: 11, fontWeight: 800, color: '#e2e8f0' }}>{fmtDayLabel(date)}</span>
+                                                <span style={{
+                                                    ...mono, fontSize: 9, fontWeight: 700, padding: '2px 7px',
+                                                    border: `1px solid ${entry.sessionType === 'pre' ? '#38bdf8' : entry.sessionType === 'weekly' ? '#EAB308' : 'rgba(253,200,0,0.3)'}`,
+                                                    color: entry.sessionType === 'pre' ? '#38bdf8' : entry.sessionType === 'weekly' ? '#EAB308' : '#FDC800',
+                                                    background: 'transparent',
+                                                }}>
+                                                    {entry.sessionType === 'pre' ? (lang === 'fr' ? 'PRÉ' : 'PRE') : entry.sessionType === 'weekly' ? (lang === 'fr' ? 'HEBDO' : 'WEEKLY') : (lang === 'fr' ? 'POST' : 'POST')}
+                                                </span>
+                                                {entry.sessionRating != null && (
+                                                    <span style={{ ...mono, fontSize: 10, color: '#FDC800' }}>
+                                                        {'★'.repeat(entry.sessionRating)}{'☆'.repeat(5 - entry.sessionRating)}
+                                                    </span>
+                                                )}
+                                                {entry.ruleViolations && entry.ruleViolations.length > 0 && (
+                                                    <span style={{ ...mono, fontSize: 9, color: '#ff4757', marginLeft: 4 }}>
+                                                        {entry.ruleViolations.length} {lang === 'fr' ? 'violation(s)' : 'violation(s)'}
+                                                    </span>
+                                                )}
+                                            </div>
+                                            {entry.moods && entry.moods.length > 0 && (
+                                                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginBottom: 8 }}>
+                                                    {entry.moods.map(m => (
+                                                        <span key={m} style={{ ...mono, fontSize: 9, padding: '2px 7px', border: '1px solid #1a1c24', color: '#8b949e' }}>{m}</span>
+                                                    ))}
+                                                </div>
+                                            )}
+                                            {entry.sessionNote && (
+                                                <p style={{ ...mono, fontSize: 12, color: '#8b949e', lineHeight: 1.7, margin: '0 0 8px 0', display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical' as const, overflow: 'hidden' }}>
+                                                    {entry.sessionNote}
+                                                </p>
+                                            )}
+                                            {entry.tags && entry.tags.length > 0 && (
+                                                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+                                                    {entry.tags.map(tag => (
+                                                        <span key={tag} style={{ ...mono, fontSize: 9, padding: '2px 7px', border: '1px solid rgba(253,200,0,0.2)', color: '#FDC800', background: 'rgba(253,200,0,0.05)' }}>{tag}</span>
+                                                    ))}
+                                                </div>
+                                            )}
+                                        </div>
+                                    ))}
+                            </div>
+                        )}
+                    </div>
                 </div>
             )}
 
@@ -1137,6 +1251,88 @@ export default function JournalPage() {
                                 </div>
                             </div>
                             )}
+
+                            {/* Mood × P&L Correlation */}
+                            {Object.keys(dayJournalEntries ?? {}).length >= 3 && (() => {
+                                const ALL_MOODS = ['Optimal', 'Focused', 'Confident', 'Nervous', 'Fearful', 'Tired', 'Distracted', 'Frustrated', 'Angry', 'FOMO', 'Revenge Mode', 'Overconfident'];
+                                const POSITIVE_MOODS = ['Optimal', 'Focused', 'Confident'];
+                                const NEGATIVE_MOODS = ['Frustrated', 'Angry', 'FOMO', 'Revenge Mode', 'Overconfident'];
+                                const getMoodColor = (mood: string) => POSITIVE_MOODS.includes(mood) ? '#FDC800' : NEGATIVE_MOODS.includes(mood) ? '#ff4757' : '#38bdf8';
+                                const moodStats = ALL_MOODS.map(mood => {
+                                    const withMood: number[] = [];
+                                    Object.entries(dayJournalEntries!).forEach(([date, entry]) => {
+                                        const dayTrades = timeFilteredTrades.filter(t => getTradingDay(t.closedAt ?? t.createdAt) === date);
+                                        if (dayTrades.length === 0) return;
+                                        const pnl = dayTrades.reduce((s, t) => s + (t.pnl ?? 0), 0);
+                                        if (entry.moods.includes(mood)) withMood.push(pnl);
+                                    });
+                                    if (withMood.length === 0) return null;
+                                    const avg = withMood.reduce((s, v) => s + v, 0) / withMood.length;
+                                    return { mood, avg, count: withMood.length };
+                                }).filter(Boolean) as { mood: string; avg: number; count: number }[];
+                                if (moodStats.length === 0) return null;
+                                moodStats.sort((a, b) => b.avg - a.avg);
+                                return (
+                                    <div style={{ background: '#0d1117', border: divider, padding: '16px 20px' }}>
+                                        <span style={{ ...lbl, marginBottom: 12, display: 'block' }}>
+                                            {lang === 'fr' ? `Corrélation humeur → P&L — ${Object.keys(dayJournalEntries!).length} sessions analysées` : `Mood → P&L Correlation — ${Object.keys(dayJournalEntries!).length} sessions analysed`}
+                                        </span>
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                                            {moodStats.map(({ mood, avg, count }) => {
+                                                const maxAbs = Math.max(...moodStats.map(m => Math.abs(m.avg)));
+                                                const barPct = maxAbs > 0 ? (Math.abs(avg) / maxAbs) * 100 : 0;
+                                                const color = getMoodColor(mood);
+                                                return (
+                                                    <div key={mood} style={{ display: 'grid', gridTemplateColumns: '120px 1fr 80px 30px', gap: 8, alignItems: 'center' }}>
+                                                        <span style={{ ...mono, fontSize: 10, color: color }}>{mood}</span>
+                                                        <div style={{ height: 6, background: '#1a1c24', borderRadius: 0, overflow: 'hidden' }}>
+                                                            <div style={{ height: '100%', width: `${barPct}%`, background: avg >= 0 ? '#FDC800' : '#ff4757', transition: 'width 0.4s ease' }} />
+                                                        </div>
+                                                        <span style={{ ...mono, fontSize: 11, fontWeight: 700, color: avg >= 0 ? '#FDC800' : '#ff4757', textAlign: 'right' }}>
+                                                            {avg >= 0 ? '+' : ''}${avg.toFixed(0)}
+                                                        </span>
+                                                        <span style={{ ...mono, fontSize: 9, color: '#4b5563' }}>{count}d</span>
+                                                    </div>
+                                                );
+                                            })}
+                                        </div>
+                                        <span style={{ ...mono, fontSize: 9, color: '#4b5563', display: 'block', marginTop: 12 }}>
+                                            {lang === 'fr' ? 'Avg P&L des jours où cet état était actif.' : 'Avg P&L on days where that emotional state was active.'}
+                                        </span>
+                                    </div>
+                                );
+                            })()}
+
+                            {/* Rule Violations Frequency */}
+                            {(() => {
+                                const allViolations: Record<string, number> = {};
+                                Object.values(dayJournalEntries ?? {}).forEach(entry => {
+                                    (entry.ruleViolations ?? []).forEach(v => {
+                                        allViolations[v] = (allViolations[v] ?? 0) + 1;
+                                    });
+                                });
+                                const sorted = Object.entries(allViolations).sort((a, b) => b[1] - a[1]);
+                                if (sorted.length === 0) return null;
+                                const maxCount = sorted[0][1];
+                                return (
+                                    <div style={{ background: '#0d1117', border: divider, padding: '16px 20px' }}>
+                                        <span style={{ ...lbl, marginBottom: 12, display: 'block' }}>
+                                            {lang === 'fr' ? 'Fréquence des violations' : 'Rule Violations — Frequency'}
+                                        </span>
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                                            {sorted.map(([violation, count]) => (
+                                                <div key={violation} style={{ display: 'grid', gridTemplateColumns: '1fr 120px 32px', gap: 8, alignItems: 'center' }}>
+                                                    <span style={{ ...mono, fontSize: 10, color: '#c9d1d9' }}>{violation}</span>
+                                                    <div style={{ height: 6, background: '#1a1c24', borderRadius: 0, overflow: 'hidden' }}>
+                                                        <div style={{ height: '100%', width: `${(count / maxCount) * 100}%`, background: '#ff4757' }} />
+                                                    </div>
+                                                    <span style={{ ...mono, fontSize: 11, fontWeight: 700, color: '#ff4757', textAlign: 'right' }}>{count}×</span>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                );
+                            })()}
                         </>
                     )}
                 </div>
@@ -1272,6 +1468,20 @@ export default function JournalPage() {
                                         {isMobile && dayTrades.length > 10 && (
                                             <span style={{ ...mono, fontSize: 9, color: '#4b5563' }}>+{dayTrades.length - 10}</span>
                                         )}
+                                        <button
+                                            onClick={e => { e.stopPropagation(); setListLogDay(day); setFormSessionType('post'); setShowJournalForm(true); }}
+                                            style={{
+                                                ...mono, fontSize: 9, fontWeight: 700, padding: '3px 10px', marginLeft: 8,
+                                                background: dayJournalEntries?.[day] ? 'rgba(253,200,0,0.08)' : 'transparent',
+                                                color: dayJournalEntries?.[day] ? '#FDC800' : '#4b5563',
+                                                border: `1px solid ${dayJournalEntries?.[day] ? 'rgba(253,200,0,0.3)' : '#1a1c24'}`,
+                                                cursor: 'pointer',
+                                            }}
+                                        >
+                                            {dayJournalEntries?.[day]
+                                                ? (lang === 'fr' ? '✓ Journalisé' : '✓ Logged')
+                                                : (lang === 'fr' ? '+ Journaliser' : '+ Log Session')}
+                                        </button>
                                     </div>
                                 </div>
 
@@ -1619,27 +1829,37 @@ export default function JournalPage() {
                                         {week.days.map((dayData: { day: number; isCurrentMonth: boolean; isToday: boolean; pnl: number; tradesCount: number; date?: string; }, i: number) => (
                                             <div
                                                 key={i}
-                                                className={`${styles.calendarCell} ${!dayData.isCurrentMonth ? styles.calendarCellOut : ''} ${dayData.isToday ? styles.calendarCellToday : ''} ${dayData.pnl > 0 ? styles.pnlPositiveFill : dayData.pnl < 0 ? styles.pnlNegativeFill : ''} ${dayData.isCurrentMonth && dayData.tradesCount > 0 ? styles.calendarCellClickable : ''} ${dayData.date && selectedDay === dayData.date ? styles.calendarCellSelected : ''}`}
+                                                className={`${styles.calendarCell} ${!dayData.isCurrentMonth ? styles.calendarCellOut : ''} ${dayData.isToday ? styles.calendarCellToday : ''} ${dayData.pnl > 0 ? styles.pnlPositiveFill : dayData.pnl < 0 ? styles.pnlNegativeFill : ''} ${dayData.isCurrentMonth ? styles.calendarCellClickable : ''} ${dayData.date && selectedDay === dayData.date ? styles.calendarCellSelected : ''}`}
                                                 onClick={() => {
                                                     if (dayData.isCurrentMonth && dayData.date) {
                                                         setSelectedDay(prev => prev === dayData.date ? null : dayData.date!);
+                                                        if (dayData.tradesCount === 0) {
+                                                            setFormSessionType('pre');
+                                                        } else {
+                                                            setFormSessionType('post');
+                                                        }
                                                     }
                                                 }}
-                                                style={dayData.isCurrentMonth && dayData.tradesCount > 0 ? { cursor: 'pointer' } : undefined}
                                             >
                                                 <span className={styles.calendarCellDate}>{dayData.day}</span>
                                                 <div className={styles.calendarCellContent}>
                                                     {dayData.tradesCount > 0 && (
                                                         <>
                                                             <span className={`${styles.calendarCellPnl} ${dayData.pnl >= 0 ? styles.pnlPositiveText : styles.pnlNegativeText}`}>
-                                                                {dayData.pnl >= 0 ? '+' : '-'}${Math.abs(dayData.pnl).toFixed(2)}
+                                                                {dayData.pnl >= 0 ? '+' : '-'}${Math.abs(dayData.pnl).toFixed(0)}
                                                             </span>
-                                                            <span className={styles.calendarTrades}>{dayData.tradesCount} {dayData.tradesCount === 1 ? 'trade' : 'trades'}</span>
-                                                            {dayNotes?.[dayData.date ?? ''] && (
-                                                                <span style={{ display: 'block', marginTop: 2, width: 5, height: 5, borderRadius: '50%', background: '#FDC800', margin: '2px auto 0' }} />
-                                                            )}
+                                                            <span className={styles.calendarTrades}>{dayData.tradesCount}t</span>
                                                         </>
                                                     )}
+                                                    {/* Journal indicators */}
+                                                    <div style={{ display: 'flex', gap: 3, marginTop: 2, justifyContent: 'center' }}>
+                                                        {dayJournalEntries?.[dayData.date ?? ''] && (
+                                                            <span title="Session logged" style={{ display: 'inline-block', width: 7, height: 7, borderRadius: '50%', background: '#FDC800' }} />
+                                                        )}
+                                                        {dayNotes?.[dayData.date ?? ''] && !dayJournalEntries?.[dayData.date ?? ''] && (
+                                                            <span title="Note" style={{ display: 'inline-block', width: 5, height: 5, borderRadius: '50%', background: '#38bdf8' }} />
+                                                        )}
+                                                    </div>
                                                 </div>
                                             </div>
                                         ))}
@@ -1841,15 +2061,16 @@ export default function JournalPage() {
                         </motion.div>
 
                         {/* Full session journal form modal */}
-                        {showJournalForm && (
+                        {showJournalForm && selectedDay && (
                             <DayJournalForm
                                 date={selectedDay!}
                                 dateLabel={dateLabel}
                                 dayPnl={dayPnl}
                                 existing={existingEntry}
                                 lang={lang}
+                                initialSessionType={formSessionType}
                                 onSave={(entry) => saveDayJournalEntry(selectedDay!, entry)}
-                                onClose={() => setShowJournalForm(false)}
+                                onClose={() => { setShowJournalForm(false); }}
                             />
                         )}
                         </>
@@ -1857,6 +2078,20 @@ export default function JournalPage() {
                 })()}
             </AnimatePresence>
                 </>
+            )}
+
+            {/* List-view session journal form */}
+            {showJournalForm && listLogDay && !selectedDay && (
+                <DayJournalForm
+                    date={listLogDay}
+                    dateLabel={fmtDayLabel(listLogDay)}
+                    dayPnl={groupedByDay.find(g => g.day === listLogDay)?.dayPnl ?? 0}
+                    existing={dayJournalEntries?.[listLogDay]}
+                    lang={lang}
+                    initialSessionType={formSessionType}
+                    onSave={(entry) => { saveDayJournalEntry(listLogDay, entry); }}
+                    onClose={() => { setShowJournalForm(false); setListLogDay(null); }}
+                />
             )}
         </div>
     );

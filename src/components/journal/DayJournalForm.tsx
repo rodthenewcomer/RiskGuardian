@@ -32,6 +32,7 @@ interface Props {
     lang: 'en' | 'fr';
     onSave: (entry: DayJournalEntry) => void;
     onClose: () => void;
+    initialSessionType?: 'pre' | 'post' | 'weekly';
 }
 
 const mono: React.CSSProperties = { fontFamily: 'var(--font-mono)' };
@@ -77,8 +78,9 @@ function ChipToggle({ label, active, onClick }: { label: string; active: boolean
     );
 }
 
-export default function DayJournalForm({ date, dateLabel, dayPnl, existing, lang, onSave, onClose }: Props) {
-    const [sessionType, setSessionType] = useState<'pre' | 'post' | 'weekly'>(existing?.sessionType ?? 'post');
+export default function DayJournalForm({ date, dateLabel, dayPnl, existing, lang, onSave, onClose, initialSessionType }: Props) {
+    const defaultSessionType = existing?.sessionType ?? initialSessionType ?? 'post';
+    const [sessionType, setSessionType] = useState<'pre' | 'post' | 'weekly'>(defaultSessionType);
     const [setupType, setSetupType]     = useState(existing?.setupType ?? '');
     const [marketCond, setMarketCond]   = useState(existing?.marketCondition ?? '');
     const [plannedRR, setPlannedRR]     = useState(existing?.plannedRR ?? '');
@@ -96,10 +98,52 @@ export default function DayJournalForm({ date, dateLabel, dayPnl, existing, lang
     const [hoverRating, setHoverRating] = useState(0);
     const [goalsMet, setGoalsMet]       = useState<boolean | undefined>(existing?.goalsMet);
 
+    // Autosave draft to localStorage
+    useEffect(() => {
+        if (existing) return; // don't overwrite saved entries with draft
+        const draftKey = `draft_journal_${date}`;
+        const saved = localStorage.getItem(draftKey);
+        if (saved) {
+            try {
+                const draft = JSON.parse(saved);
+                if (draft.sessionType) setSessionType(draft.sessionType);
+                if (draft.setupType !== undefined) setSetupType(draft.setupType);
+                if (draft.marketCond !== undefined) setMarketCond(draft.marketCond);
+                if (draft.plannedRR !== undefined) setPlannedRR(draft.plannedRR);
+                if (draft.entryReason !== undefined) setEntryReason(draft.entryReason);
+                if (draft.exitReason !== undefined) setExitReason(draft.exitReason);
+                if (draft.actualRR !== undefined) setActualRR(draft.actualRR);
+                if (draft.linkedIds !== undefined) setLinkedIds(draft.linkedIds);
+                if (draft.tags) setTags(draft.tags);
+                if (draft.wentWell !== undefined) setWentWell(draft.wentWell);
+                if (draft.wouldChange !== undefined) setWouldChange(draft.wouldChange);
+                if (draft.moods) setMoods(draft.moods);
+                if (draft.sessionNote !== undefined) setSessionNote(draft.sessionNote);
+                if (draft.violations) setViolations(draft.violations);
+                if (draft.rating !== undefined) setRating(draft.rating);
+                if (draft.goalsMet !== undefined) setGoalsMet(draft.goalsMet);
+            } catch { /* ignore malformed draft */ }
+        }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
+
+    useEffect(() => {
+        if (existing) return;
+        const draftKey = `draft_journal_${date}`;
+        localStorage.setItem(draftKey, JSON.stringify({
+            sessionType, setupType, marketCond, plannedRR, entryReason, exitReason,
+            actualRR, linkedIds, tags, wentWell, wouldChange, moods, sessionNote,
+            violations, rating, goalsMet,
+        }));
+    }, [sessionType, setupType, marketCond, plannedRR, entryReason, exitReason,
+        actualRR, linkedIds, tags, wentWell, wouldChange, moods, sessionNote,
+        violations, rating, goalsMet, date, existing]);
+
     const toggleArr = (arr: string[], set: (a: string[]) => void, val: string) =>
         set(arr.includes(val) ? arr.filter(x => x !== val) : [...arr, val]);
 
     const handleSave = () => {
+        localStorage.removeItem(`draft_journal_${date}`);
         onSave({
             date, sessionType,
             setupType: setupType || undefined,
@@ -120,6 +164,11 @@ export default function DayJournalForm({ date, dateLabel, dayPnl, existing, lang
         onClose();
     };
 
+    const handleClose = () => {
+        localStorage.removeItem(`draft_journal_${date}`);
+        onClose();
+    };
+
     // Lock body scroll while open
     useEffect(() => {
         document.body.style.overflow = 'hidden';
@@ -137,7 +186,7 @@ export default function DayJournalForm({ date, dateLabel, dayPnl, existing, lang
                     zIndex: 1000, display: 'flex', alignItems: 'flex-end',
                     justifyContent: 'center',
                 }}
-                onClick={onClose}
+                onClick={handleClose}
             >
                 <motion.div
                     initial={{ y: '100%' }}
@@ -164,7 +213,7 @@ export default function DayJournalForm({ date, dateLabel, dayPnl, existing, lang
                                 {dayPnl >= 0 ? '+' : ''}${dayPnl.toFixed(2)}
                             </span>
                         </div>
-                        <button onClick={onClose} style={{ background: 'none', border: 'none', color: '#4b5563', cursor: 'pointer', padding: 4 }}>
+                        <button onClick={handleClose} style={{ background: 'none', border: 'none', color: '#4b5563', cursor: 'pointer', padding: 4 }}>
                             <X size={16} />
                         </button>
                     </div>
@@ -202,224 +251,400 @@ export default function DayJournalForm({ date, dateLabel, dayPnl, existing, lang
                         </div>
                     </div>
 
-                    {/* Session Context */}
-                    <div style={{ padding: '16px 20px', borderBottom: divider }}>
-                        <span style={sectionHead}>{lang === 'fr' ? 'Contexte de session' : 'Session Context'}</span>
-                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 120px', gap: 12, marginBottom: 12 }}>
-                            <div>
-                                <span style={fieldLabel}>{lang === 'fr' ? 'Type de setup' : 'Setup Type'}</span>
-                                <select value={setupType} onChange={e => setSetupType(e.target.value)} style={selectStyle}>
-                                    <option value="">{lang === 'fr' ? 'Sélectionner…' : 'Select…'}</option>
-                                    {SETUP_TYPES.map(s => <option key={s} value={s}>{s}</option>)}
-                                </select>
+                    {/* ── PRE-SESSION fields ── */}
+                    {sessionType === 'pre' && (
+                        <>
+                            {/* Market Condition + Planned R:R */}
+                            <div style={{ padding: '16px 20px', borderBottom: divider }}>
+                                <span style={sectionHead}>{lang === 'fr' ? 'Contexte de marché' : 'Market Context'}</span>
+                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 120px', gap: 12 }}>
+                                    <div>
+                                        <span style={fieldLabel}>{lang === 'fr' ? 'Conditions marché' : 'Market Condition'}</span>
+                                        <select value={marketCond} onChange={e => setMarketCond(e.target.value)} style={selectStyle}>
+                                            <option value="">{lang === 'fr' ? 'Sélectionner…' : 'Select…'}</option>
+                                            {MARKET_CONDITIONS.map(s => <option key={s} value={s}>{s}</option>)}
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <span style={fieldLabel}>{lang === 'fr' ? 'R:R Planifié' : 'Planned R:R'}</span>
+                                        <input type="text" placeholder="e.g. 2.5" value={plannedRR}
+                                            onChange={e => setPlannedRR(e.target.value)} style={inputStyle} />
+                                    </div>
+                                </div>
                             </div>
-                            <div>
-                                <span style={fieldLabel}>{lang === 'fr' ? 'Conditions marché' : 'Market Condition'}</span>
-                                <select value={marketCond} onChange={e => setMarketCond(e.target.value)} style={selectStyle}>
-                                    <option value="">{lang === 'fr' ? 'Sélectionner…' : 'Select…'}</option>
-                                    {MARKET_CONDITIONS.map(s => <option key={s} value={s}>{s}</option>)}
-                                </select>
-                            </div>
-                            <div>
-                                <span style={fieldLabel}>{lang === 'fr' ? 'R:R Planifié' : 'Planned R:R'}</span>
-                                <input type="text" placeholder="e.g. 2.5" value={plannedRR}
-                                    onChange={e => setPlannedRR(e.target.value)} style={inputStyle} />
-                            </div>
-                        </div>
-                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 120px', gap: 12, marginBottom: 12 }}>
-                            <div>
-                                <span style={fieldLabel}>{lang === 'fr' ? 'Raison d\'entrée' : 'Entry Reason'}</span>
-                                <select value={entryReason} onChange={e => setEntryReason(e.target.value)} style={selectStyle}>
-                                    <option value="">{lang === 'fr' ? 'Sélectionner…' : 'Select…'}</option>
-                                    {ENTRY_REASONS.map(s => <option key={s} value={s}>{s}</option>)}
-                                </select>
-                            </div>
-                            <div>
-                                <span style={fieldLabel}>{lang === 'fr' ? 'Raison de sortie' : 'Exit Reason'}</span>
-                                <select value={exitReason} onChange={e => setExitReason(e.target.value)} style={selectStyle}>
-                                    <option value="">{lang === 'fr' ? 'Sélectionner…' : 'Select…'}</option>
-                                    {EXIT_REASONS.map(s => <option key={s} value={s}>{s}</option>)}
-                                </select>
-                            </div>
-                            <div>
-                                <span style={fieldLabel}>{lang === 'fr' ? 'R:R Réel' : 'Actual R:R'}</span>
-                                <input type="text" placeholder="e.g. 1.2" value={actualRR}
-                                    onChange={e => setActualRR(e.target.value)} style={inputStyle} />
-                            </div>
-                        </div>
-                        <div>
-                            <span style={fieldLabel}>{lang === 'fr' ? 'IDs de trades liés / horodatages' : 'Linked Trade IDs / Timestamps'}</span>
-                            <input type="text" value={linkedIds} onChange={e => setLinkedIds(e.target.value)}
-                                placeholder={lang === 'fr' ? 'ex. T-1042, T-1043 ou 10:05am, 10:32am — depuis votre plateforme' : 'e.g. T-1042, T-1043  or  10:05am, 10:32am — from your broker platform'}
-                                style={inputStyle} />
-                            <span style={{ ...mono, fontSize: 9, color: '#4b5563', display: 'block', marginTop: 4 }}>
-                                {lang === 'fr' ? 'Référencez des trades spécifiques pour recouper dans votre blotter.' : 'Reference specific trades from this session so you can cross-check in your broker\'s blotter.'}
-                            </span>
-                        </div>
-                    </div>
 
-                    {/* Session Tags */}
-                    <div style={{ padding: '16px 20px', borderBottom: divider }}>
-                        <span style={sectionHead}>{lang === 'fr' ? 'Étiquettes de session' : 'Session Tags'}</span>
-                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                            {SESSION_TAGS.map(tag => (
-                                <ChipToggle key={tag} label={tag} active={tags.includes(tag)}
-                                    onClick={() => toggleArr(tags, setTags, tag)} />
-                            ))}
-                        </div>
-                        <span style={{ ...mono, fontSize: 9, color: '#4b5563', display: 'block', marginTop: 8 }}>
-                            {lang === 'fr' ? 'Les tags activent l\'analytique par setup et rendent les sessions filtrables.' : 'Tags unlock per-setup analytics and make sessions filterable in the journal.'}
-                        </span>
-                    </div>
-
-                    {/* Session Reflection */}
-                    <div style={{ padding: '16px 20px', borderBottom: divider }}>
-                        <span style={sectionHead}>{lang === 'fr' ? 'Réflexion de session' : 'Session Reflection'}</span>
-                        <div style={{ marginBottom: 12 }}>
-                            <span style={{ ...mono, fontSize: 9, color: '#38bdf8', display: 'block', marginBottom: 6 }}>
-                                → {lang === 'fr' ? 'Qu\'as-tu bien fait cette session ?' : 'What did you do well this session?'}
-                            </span>
-                            <textarea value={wentWell} onChange={e => setWentWell(e.target.value)} rows={3}
-                                placeholder={lang === 'fr' ? 'ex. J\'ai attendu la confirmation avant d\'entrer. J\'ai respecté mon stop sur le 2ème trade.' : 'e.g. Waited for confirmation before entering. Honored my stop on the second trade without hesitation.'}
-                                style={{ ...inputStyle, resize: 'vertical', lineHeight: 1.6 }} />
-                        </div>
-                        <div>
-                            <span style={{ ...mono, fontSize: 9, color: '#F97316', display: 'block', marginBottom: 6 }}>
-                                → {lang === 'fr' ? 'Que ferais-tu différemment ?' : 'What would you do differently?'}
-                            </span>
-                            <textarea value={wouldChange} onChange={e => setWouldChange(e.target.value)} rows={3}
-                                placeholder={lang === 'fr' ? 'ex. Je sortirais le trade gagnant plus tôt — j\'ai tenu trop longtemps et rendu $200.' : 'e.g. I would exit the winning trade earlier — I held too long chasing a larger target and gave back $200.'}
-                                style={{ ...inputStyle, resize: 'vertical', lineHeight: 1.6 }} />
-                        </div>
-                    </div>
-
-                    {/* Emotional State */}
-                    <div style={{ padding: '16px 20px', borderBottom: divider }}>
-                        <span style={sectionHead}>{lang === 'fr' ? 'Comment tu te sentais ?' : 'How are you feeling?'}</span>
-                        <span style={{ ...mono, fontSize: 10, color: '#4b5563', display: 'block', marginBottom: 12 }}>
-                            {lang === 'fr'
-                                ? 'Sélectionne tout ce qui s\'appliquait. Après 3 entrées, l\'IA corrèle ces états à ton P&L.'
-                                : 'Select all that applied during this session. After 3 entries, AI maps these to your P&L to reveal which emotional states precede your biggest losses.'}
-                        </span>
-                        {[
-                            { label: lang === 'fr' ? 'Positif' : 'Positive', moods: MOODS_POSITIVE, color: '#FDC800' },
-                            { label: lang === 'fr' ? 'Neutre' : 'Neutral', moods: MOODS_NEUTRAL, color: '#38bdf8' },
-                            { label: lang === 'fr' ? 'Négatif' : 'Negative', moods: MOODS_NEGATIVE, color: '#ff4757' },
-                        ].map(group => (
-                            <div key={group.label} style={{ marginBottom: 10 }}>
-                                <span style={{ ...mono, fontSize: 9, color: group.color, letterSpacing: '0.1em', display: 'block', marginBottom: 6 }}>
-                                    {group.label}
-                                </span>
+                            {/* Focus Areas (session tags) */}
+                            <div style={{ padding: '16px 20px', borderBottom: divider }}>
+                                <span style={sectionHead}>{lang === 'fr' ? 'Zones de focus pour aujourd\'hui' : 'Focus Areas for Today'}</span>
                                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                                    {group.moods.map(m => (
-                                        <button key={m} type="button" onClick={() => toggleArr(moods, setMoods, m)}
+                                    {SESSION_TAGS.map(tag => (
+                                        <ChipToggle key={tag} label={tag} active={tags.includes(tag)}
+                                            onClick={() => toggleArr(tags, setTags, tag)} />
+                                    ))}
+                                </div>
+                            </div>
+
+                            {/* Directional bias & plan */}
+                            <div style={{ padding: '16px 20px', borderBottom: divider }}>
+                                <span style={sectionHead}>{lang === 'fr' ? 'Biais directionnel & plan de session' : 'Today\'s directional bias & plan'}</span>
+                                <textarea value={sessionNote} onChange={e => setSessionNote(e.target.value)} rows={5}
+                                    maxLength={2000}
+                                    placeholder={lang === 'fr'
+                                        ? 'ex. Biais haussier au-dessus de $X. Niveaux clés : ... Plan : attendre un pullback au support avant d\'entrer long.'
+                                        : 'e.g. Bullish bias above $X. Key levels: ... Plan: wait for pullback to support before entering long.'}
+                                    style={{ ...inputStyle, resize: 'vertical', lineHeight: 1.6 }} />
+                                <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 4 }}>
+                                    <span style={{ ...mono, fontSize: 9, color: '#4b5563' }}>{sessionNote.length}/2000</span>
+                                </div>
+                            </div>
+
+                            {/* Confidence Level (stars) */}
+                            <div style={{ padding: '16px 20px', borderBottom: divider }}>
+                                <span style={sectionHead}>{lang === 'fr' ? 'Niveau de confiance' : 'Confidence Level'}</span>
+                                <div style={{ display: 'flex', gap: 4, marginBottom: 6 }}>
+                                    {[1, 2, 3, 4, 5].map(n => (
+                                        <button key={n} type="button"
+                                            onClick={() => setRating(n)}
+                                            onMouseEnter={() => setHoverRating(n)}
+                                            onMouseLeave={() => setHoverRating(0)}
+                                            style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 2 }}>
+                                            <Star size={22}
+                                                fill={(hoverRating || rating) >= n ? '#FDC800' : 'none'}
+                                                color={(hoverRating || rating) >= n ? '#FDC800' : '#1a1c24'}
+                                            />
+                                        </button>
+                                    ))}
+                                </div>
+                                <span style={{ ...mono, fontSize: 9, color: '#4b5563' }}>
+                                    {lang === 'fr' ? '1 = incertain · 5 = setup haute conviction' : '1 = uncertain · 5 = high conviction setup'}
+                                </span>
+                            </div>
+                        </>
+                    )}
+
+                    {/* ── WEEKLY REVIEW fields ── */}
+                    {sessionType === 'weekly' && (
+                        <>
+                            {/* Week reflection */}
+                            <div style={{ padding: '16px 20px', borderBottom: divider }}>
+                                <span style={sectionHead}>{lang === 'fr' ? 'Réflexion de la semaine' : 'Week Reflection'}</span>
+                                <textarea value={sessionNote} onChange={e => setSessionNote(e.target.value)} rows={6}
+                                    maxLength={2000}
+                                    placeholder={lang === 'fr'
+                                        ? 'Qu\'a défini cette semaine ? Leçons clés, patterns récurrents, ce qu\'il faut améliorer la semaine prochaine.'
+                                        : 'What defined this week? Key lessons, recurring patterns, what to improve next week.'}
+                                    style={{ ...inputStyle, resize: 'vertical', lineHeight: 1.6 }} />
+                                <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 4 }}>
+                                    <span style={{ ...mono, fontSize: 9, color: '#4b5563' }}>{sessionNote.length}/2000</span>
+                                </div>
+                            </div>
+
+                            {/* Violations this week */}
+                            <div style={{ padding: '16px 20px', borderBottom: divider }}>
+                                <span style={sectionHead}>{lang === 'fr' ? 'Violations cette semaine' : 'Violations This Week'}</span>
+                                <span style={{ ...mono, fontSize: 9, color: '#4b5563', display: 'block', marginBottom: 10 }}>
+                                    {lang === 'fr'
+                                        ? 'Identifie les règles enfreintes cette semaine pour détecter les patterns récurrents.'
+                                        : 'Track violations to identify recurring behavioral patterns.'}
+                                </span>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                                    {RULE_VIOLATIONS.map(v => (
+                                        <button key={v} type="button" onClick={() => toggleArr(violations, setViolations, v)}
                                             style={{
-                                                ...mono, fontSize: 11, padding: '5px 12px',
-                                                borderRadius: 999, border: `1px solid ${moods.includes(m) ? group.color : '#1a1c24'}`,
-                                                background: moods.includes(m) ? `${group.color}1a` : 'transparent',
-                                                color: moods.includes(m) ? group.color : '#6b7280',
-                                                cursor: 'pointer', transition: 'all 0.15s',
-                                                display: 'flex', alignItems: 'center', gap: 5,
+                                                textAlign: 'left', ...mono, fontSize: 11, padding: '8px 12px',
+                                                border: `1px solid ${violations.includes(v) ? '#ff4757' : '#1a1c24'}`,
+                                                background: violations.includes(v) ? 'rgba(255,71,87,0.1)' : 'transparent',
+                                                color: violations.includes(v) ? '#ff4757' : '#6b7280',
+                                                cursor: 'pointer', transition: 'all 0.15s', width: '100%',
                                             }}>
-                                            <span style={{ width: 5, height: 5, borderRadius: '50%', background: group.color, display: 'inline-block' }} />
-                                            {m}
+                                            {v}
                                         </button>
                                     ))}
                                 </div>
                             </div>
-                        ))}
-                    </div>
 
-                    {/* Session Note */}
-                    <div style={{ padding: '16px 20px', borderBottom: divider }}>
-                        <textarea value={sessionNote} onChange={e => setSessionNote(e.target.value)} rows={5}
-                            maxLength={2000}
-                            placeholder={lang === 'fr'
-                                ? 'Décris la session. Qu\'est-ce qui a fonctionné ? Avec quoi as-tu lutté ? Quels patterns comportementaux as-tu observé en toi ?'
-                                : 'Describe the session. What worked? What did you struggle with? Any behavioral patterns you noticed in yourself?'}
-                            style={{ ...inputStyle, resize: 'vertical', lineHeight: 1.6 }} />
-                        <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 4 }}>
-                            <span style={{ ...mono, fontSize: 9, color: '#4b5563' }}>{sessionNote.length}/2000</span>
-                        </div>
-                    </div>
+                            {/* Next week focus rule */}
+                            <div style={{ padding: '16px 20px', borderBottom: divider }}>
+                                <span style={fieldLabel}>{lang === 'fr' ? 'Règle de focus semaine prochaine' : 'Next Week\'s Focus Rule'}</span>
+                                <input type="text" value={wentWell} onChange={e => setWentWell(e.target.value)}
+                                    placeholder={lang === 'fr'
+                                        ? 'ex. Pas de trading dans les 15 premières minutes. Pas plus de 3 trades par jour.'
+                                        : 'e.g. No trading in first 15 minutes. No more than 3 trades per day.'}
+                                    style={inputStyle} />
+                            </div>
 
-                    {/* Rule Violations */}
-                    <div style={{ padding: '16px 20px', borderBottom: divider }}>
-                        <span style={sectionHead}>{lang === 'fr' ? 'As-tu enfreint des règles aujourd\'hui ?' : 'Did you break any rules today?'}</span>
-                        <span style={{ ...mono, fontSize: 9, color: '#4b5563', display: 'block', marginBottom: 10 }}>
-                            {lang === 'fr'
-                                ? 'Les règles viennent de ton analyse comportementale. Les tracker ici alimente ton graphique de fréquence des violations.'
-                                : 'Rules are pulled from your behavioral analysis. Tracking them here builds your violation frequency chart and feeds the AI coaching loop.'}
-                        </span>
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                            {RULE_VIOLATIONS.map(v => (
-                                <button key={v} type="button" onClick={() => toggleArr(violations, setViolations, v)}
-                                    style={{
-                                        textAlign: 'left', ...mono, fontSize: 11, padding: '8px 12px',
-                                        border: `1px solid ${violations.includes(v) ? '#ff4757' : '#1a1c24'}`,
-                                        background: violations.includes(v) ? 'rgba(255,71,87,0.1)' : 'transparent',
-                                        color: violations.includes(v) ? '#ff4757' : '#6b7280',
-                                        cursor: 'pointer', transition: 'all 0.15s', width: '100%',
-                                    }}>
-                                    {v}
-                                </button>
-                            ))}
-                        </div>
-                    </div>
+                            {/* Week Rating + Goals Met */}
+                            <div style={{ padding: '16px 20px', borderBottom: divider, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
+                                <div>
+                                    <span style={sectionHead}>{lang === 'fr' ? 'Note de la semaine' : 'Week Rating'}</span>
+                                    <div style={{ display: 'flex', gap: 4, marginBottom: 6 }}>
+                                        {[1, 2, 3, 4, 5].map(n => (
+                                            <button key={n} type="button"
+                                                onClick={() => setRating(n)}
+                                                onMouseEnter={() => setHoverRating(n)}
+                                                onMouseLeave={() => setHoverRating(0)}
+                                                style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 2 }}>
+                                                <Star size={22}
+                                                    fill={(hoverRating || rating) >= n ? '#FDC800' : 'none'}
+                                                    color={(hoverRating || rating) >= n ? '#FDC800' : '#1a1c24'}
+                                                />
+                                            </button>
+                                        ))}
+                                    </div>
+                                    <span style={{ ...mono, fontSize: 9, color: '#4b5563' }}>
+                                        {lang === 'fr' ? '1 = semaine désastreuse · 5 = exécution parfaite' : '1 = disastrous week · 5 = flawless execution'}
+                                    </span>
+                                </div>
+                                <div>
+                                    <span style={sectionHead}>{lang === 'fr' ? 'Semaine profitable / disciplinée ?' : 'Was This a Profitable / Disciplined Week?'}</span>
+                                    <div style={{ display: 'flex', gap: 8 }}>
+                                        <button type="button" onClick={() => setGoalsMet(true)}
+                                            style={{
+                                                ...mono, fontSize: 11, padding: '6px 16px',
+                                                border: `1px solid ${goalsMet === true ? '#FDC800' : '#1a1c24'}`,
+                                                background: goalsMet === true ? 'rgba(253,200,0,0.12)' : 'transparent',
+                                                color: goalsMet === true ? '#FDC800' : '#4b5563', cursor: 'pointer',
+                                            }}>
+                                            ✓ {lang === 'fr' ? 'Oui' : 'Yes'}
+                                        </button>
+                                        <button type="button" onClick={() => setGoalsMet(false)}
+                                            style={{
+                                                ...mono, fontSize: 11, padding: '6px 16px',
+                                                border: `1px solid ${goalsMet === false ? '#ff4757' : '#1a1c24'}`,
+                                                background: goalsMet === false ? 'rgba(255,71,87,0.1)' : 'transparent',
+                                                color: goalsMet === false ? '#ff4757' : '#4b5563', cursor: 'pointer',
+                                            }}>
+                                            ✕ {lang === 'fr' ? 'Non' : 'No'}
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </>
+                    )}
 
-                    {/* Rating + Goals */}
-                    <div style={{ padding: '16px 20px', borderBottom: divider, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
-                        <div>
-                            <span style={sectionHead}>{lang === 'fr' ? 'Note de session' : 'Session Rating'}</span>
-                            <div style={{ display: 'flex', gap: 4, marginBottom: 6 }}>
-                                {[1, 2, 3, 4, 5].map(n => (
-                                    <button key={n} type="button"
-                                        onClick={() => setRating(n)}
-                                        onMouseEnter={() => setHoverRating(n)}
-                                        onMouseLeave={() => setHoverRating(0)}
-                                        style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 2 }}>
-                                        <Star size={22}
-                                            fill={(hoverRating || rating) >= n ? '#FDC800' : 'none'}
-                                            color={(hoverRating || rating) >= n ? '#FDC800' : '#1a1c24'}
-                                        />
-                                    </button>
+                    {/* ── POST-SESSION fields (existing full form) ── */}
+                    {sessionType === 'post' && (
+                        <>
+                            {/* Session Context */}
+                            <div style={{ padding: '16px 20px', borderBottom: divider }}>
+                                <span style={sectionHead}>{lang === 'fr' ? 'Contexte de session' : 'Session Context'}</span>
+                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 120px', gap: 12, marginBottom: 12 }}>
+                                    <div>
+                                        <span style={fieldLabel}>{lang === 'fr' ? 'Type de setup' : 'Setup Type'}</span>
+                                        <select value={setupType} onChange={e => setSetupType(e.target.value)} style={selectStyle}>
+                                            <option value="">{lang === 'fr' ? 'Sélectionner…' : 'Select…'}</option>
+                                            {SETUP_TYPES.map(s => <option key={s} value={s}>{s}</option>)}
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <span style={fieldLabel}>{lang === 'fr' ? 'Conditions marché' : 'Market Condition'}</span>
+                                        <select value={marketCond} onChange={e => setMarketCond(e.target.value)} style={selectStyle}>
+                                            <option value="">{lang === 'fr' ? 'Sélectionner…' : 'Select…'}</option>
+                                            {MARKET_CONDITIONS.map(s => <option key={s} value={s}>{s}</option>)}
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <span style={fieldLabel}>{lang === 'fr' ? 'R:R Planifié' : 'Planned R:R'}</span>
+                                        <input type="text" placeholder="e.g. 2.5" value={plannedRR}
+                                            onChange={e => setPlannedRR(e.target.value)} style={inputStyle} />
+                                    </div>
+                                </div>
+                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 120px', gap: 12, marginBottom: 12 }}>
+                                    <div>
+                                        <span style={fieldLabel}>{lang === 'fr' ? 'Raison d\'entrée' : 'Entry Reason'}</span>
+                                        <select value={entryReason} onChange={e => setEntryReason(e.target.value)} style={selectStyle}>
+                                            <option value="">{lang === 'fr' ? 'Sélectionner…' : 'Select…'}</option>
+                                            {ENTRY_REASONS.map(s => <option key={s} value={s}>{s}</option>)}
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <span style={fieldLabel}>{lang === 'fr' ? 'Raison de sortie' : 'Exit Reason'}</span>
+                                        <select value={exitReason} onChange={e => setExitReason(e.target.value)} style={selectStyle}>
+                                            <option value="">{lang === 'fr' ? 'Sélectionner…' : 'Select…'}</option>
+                                            {EXIT_REASONS.map(s => <option key={s} value={s}>{s}</option>)}
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <span style={fieldLabel}>{lang === 'fr' ? 'R:R Réel' : 'Actual R:R'}</span>
+                                        <input type="text" placeholder="e.g. 1.2" value={actualRR}
+                                            onChange={e => setActualRR(e.target.value)} style={inputStyle} />
+                                    </div>
+                                </div>
+                                <div>
+                                    <span style={fieldLabel}>{lang === 'fr' ? 'IDs de trades liés / horodatages' : 'Linked Trade IDs / Timestamps'}</span>
+                                    <input type="text" value={linkedIds} onChange={e => setLinkedIds(e.target.value)}
+                                        placeholder={lang === 'fr' ? 'ex. T-1042, T-1043 ou 10:05am, 10:32am — depuis votre plateforme' : 'e.g. T-1042, T-1043  or  10:05am, 10:32am — from your broker platform'}
+                                        style={inputStyle} />
+                                    <span style={{ ...mono, fontSize: 9, color: '#4b5563', display: 'block', marginTop: 4 }}>
+                                        {lang === 'fr' ? 'Référencez des trades spécifiques pour recouper dans votre blotter.' : 'Reference specific trades from this session so you can cross-check in your broker\'s blotter.'}
+                                    </span>
+                                </div>
+                            </div>
+
+                            {/* Session Tags */}
+                            <div style={{ padding: '16px 20px', borderBottom: divider }}>
+                                <span style={sectionHead}>{lang === 'fr' ? 'Étiquettes de session' : 'Session Tags'}</span>
+                                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                                    {SESSION_TAGS.map(tag => (
+                                        <ChipToggle key={tag} label={tag} active={tags.includes(tag)}
+                                            onClick={() => toggleArr(tags, setTags, tag)} />
+                                    ))}
+                                </div>
+                                <span style={{ ...mono, fontSize: 9, color: '#4b5563', display: 'block', marginTop: 8 }}>
+                                    {lang === 'fr' ? 'Les tags activent l\'analytique par setup et rendent les sessions filtrables.' : 'Tags unlock per-setup analytics and make sessions filterable in the journal.'}
+                                </span>
+                            </div>
+
+                            {/* Session Reflection */}
+                            <div style={{ padding: '16px 20px', borderBottom: divider }}>
+                                <span style={sectionHead}>{lang === 'fr' ? 'Réflexion de session' : 'Session Reflection'}</span>
+                                <div style={{ marginBottom: 12 }}>
+                                    <span style={{ ...mono, fontSize: 9, color: '#38bdf8', display: 'block', marginBottom: 6 }}>
+                                        → {lang === 'fr' ? 'Qu\'as-tu bien fait cette session ?' : 'What did you do well this session?'}
+                                    </span>
+                                    <textarea value={wentWell} onChange={e => setWentWell(e.target.value)} rows={3}
+                                        placeholder={lang === 'fr' ? 'ex. J\'ai attendu la confirmation avant d\'entrer. J\'ai respecté mon stop sur le 2ème trade.' : 'e.g. Waited for confirmation before entering. Honored my stop on the second trade without hesitation.'}
+                                        style={{ ...inputStyle, resize: 'vertical', lineHeight: 1.6 }} />
+                                </div>
+                                <div>
+                                    <span style={{ ...mono, fontSize: 9, color: '#F97316', display: 'block', marginBottom: 6 }}>
+                                        → {lang === 'fr' ? 'Que ferais-tu différemment ?' : 'What would you do differently?'}
+                                    </span>
+                                    <textarea value={wouldChange} onChange={e => setWouldChange(e.target.value)} rows={3}
+                                        placeholder={lang === 'fr' ? 'ex. Je sortirais le trade gagnant plus tôt — j\'ai tenu trop longtemps et rendu $200.' : 'e.g. I would exit the winning trade earlier — I held too long chasing a larger target and gave back $200.'}
+                                        style={{ ...inputStyle, resize: 'vertical', lineHeight: 1.6 }} />
+                                </div>
+                            </div>
+
+                            {/* Emotional State */}
+                            <div style={{ padding: '16px 20px', borderBottom: divider }}>
+                                <span style={sectionHead}>{lang === 'fr' ? 'Comment tu te sentais ?' : 'How are you feeling?'}</span>
+                                <span style={{ ...mono, fontSize: 10, color: '#4b5563', display: 'block', marginBottom: 12 }}>
+                                    {lang === 'fr'
+                                        ? 'Sélectionne tous les états émotionnels qui s\'appliquaient durant cette session.'
+                                        : 'Select all emotional states that applied during this session.'}
+                                </span>
+                                {[
+                                    { label: lang === 'fr' ? 'Positif' : 'Positive', moods: MOODS_POSITIVE, color: '#FDC800' },
+                                    { label: lang === 'fr' ? 'Neutre' : 'Neutral', moods: MOODS_NEUTRAL, color: '#38bdf8' },
+                                    { label: lang === 'fr' ? 'Négatif' : 'Negative', moods: MOODS_NEGATIVE, color: '#ff4757' },
+                                ].map(group => (
+                                    <div key={group.label} style={{ marginBottom: 10 }}>
+                                        <span style={{ ...mono, fontSize: 9, color: group.color, letterSpacing: '0.1em', display: 'block', marginBottom: 6 }}>
+                                            {group.label}
+                                        </span>
+                                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                                            {group.moods.map(m => (
+                                                <button key={m} type="button" onClick={() => toggleArr(moods, setMoods, m)}
+                                                    style={{
+                                                        ...mono, fontSize: 11, padding: '5px 12px',
+                                                        borderRadius: 999, border: `1px solid ${moods.includes(m) ? group.color : '#1a1c24'}`,
+                                                        background: moods.includes(m) ? `${group.color}1a` : 'transparent',
+                                                        color: moods.includes(m) ? group.color : '#6b7280',
+                                                        cursor: 'pointer', transition: 'all 0.15s',
+                                                        display: 'flex', alignItems: 'center', gap: 5,
+                                                    }}>
+                                                    <span style={{ width: 5, height: 5, borderRadius: '50%', background: group.color, display: 'inline-block' }} />
+                                                    {m}
+                                                </button>
+                                            ))}
+                                        </div>
+                                    </div>
                                 ))}
                             </div>
-                            <span style={{ ...mono, fontSize: 9, color: '#4b5563' }}>
-                                {lang === 'fr' ? '1 = règles brisées · 5 = exécution parfaite' : '1 = broke rules · 5 = flawless execution'}
-                            </span>
-                        </div>
-                        <div>
-                            <span style={sectionHead}>{lang === 'fr' ? 'Objectifs atteints ?' : 'Goals Met?'}</span>
-                            <span style={{ ...mono, fontSize: 10, color: '#4b5563', display: 'block', marginBottom: 8 }}>
-                                {lang === 'fr' ? 'As-tu suivi ton plan de trading pré-session ?' : 'Did you follow your pre-session trading plan?'}
-                            </span>
-                            <div style={{ display: 'flex', gap: 8 }}>
-                                <button type="button" onClick={() => setGoalsMet(true)}
-                                    style={{
-                                        ...mono, fontSize: 11, padding: '6px 16px',
-                                        border: `1px solid ${goalsMet === true ? '#FDC800' : '#1a1c24'}`,
-                                        background: goalsMet === true ? 'rgba(253,200,0,0.12)' : 'transparent',
-                                        color: goalsMet === true ? '#FDC800' : '#4b5563', cursor: 'pointer',
-                                    }}>
-                                    ✓ {lang === 'fr' ? 'Oui' : 'Yes'}
-                                </button>
-                                <button type="button" onClick={() => setGoalsMet(false)}
-                                    style={{
-                                        ...mono, fontSize: 11, padding: '6px 16px',
-                                        border: `1px solid ${goalsMet === false ? '#ff4757' : '#1a1c24'}`,
-                                        background: goalsMet === false ? 'rgba(255,71,87,0.1)' : 'transparent',
-                                        color: goalsMet === false ? '#ff4757' : '#4b5563', cursor: 'pointer',
-                                    }}>
-                                    ✕ {lang === 'fr' ? 'Non' : 'No'}
-                                </button>
+
+                            {/* Session Note */}
+                            <div style={{ padding: '16px 20px', borderBottom: divider }}>
+                                <textarea value={sessionNote} onChange={e => setSessionNote(e.target.value)} rows={5}
+                                    maxLength={2000}
+                                    placeholder={lang === 'fr'
+                                        ? 'Décris la session. Qu\'est-ce qui a fonctionné ? Avec quoi as-tu lutté ? Quels patterns comportementaux as-tu observé en toi ?'
+                                        : 'Describe the session. What worked? What did you struggle with? Any behavioral patterns you noticed in yourself?'}
+                                    style={{ ...inputStyle, resize: 'vertical', lineHeight: 1.6 }} />
+                                <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 4 }}>
+                                    <span style={{ ...mono, fontSize: 9, color: '#4b5563' }}>{sessionNote.length}/2000</span>
+                                </div>
                             </div>
-                        </div>
-                    </div>
+
+                            {/* Rule Violations */}
+                            <div style={{ padding: '16px 20px', borderBottom: divider }}>
+                                <span style={sectionHead}>{lang === 'fr' ? 'As-tu enfreint des règles aujourd\'hui ?' : 'Did you break any rules today?'}</span>
+                                <span style={{ ...mono, fontSize: 9, color: '#4b5563', display: 'block', marginBottom: 10 }}>
+                                    {lang === 'fr'
+                                        ? 'Les tracker ici permet d\'identifier les patterns comportementaux récurrents.'
+                                        : 'Track violations to identify recurring behavioral patterns.'}
+                                </span>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                                    {RULE_VIOLATIONS.map(v => (
+                                        <button key={v} type="button" onClick={() => toggleArr(violations, setViolations, v)}
+                                            style={{
+                                                textAlign: 'left', ...mono, fontSize: 11, padding: '8px 12px',
+                                                border: `1px solid ${violations.includes(v) ? '#ff4757' : '#1a1c24'}`,
+                                                background: violations.includes(v) ? 'rgba(255,71,87,0.1)' : 'transparent',
+                                                color: violations.includes(v) ? '#ff4757' : '#6b7280',
+                                                cursor: 'pointer', transition: 'all 0.15s', width: '100%',
+                                            }}>
+                                            {v}
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+
+                            {/* Rating + Goals */}
+                            <div style={{ padding: '16px 20px', borderBottom: divider, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
+                                <div>
+                                    <span style={sectionHead}>{lang === 'fr' ? 'Note de session' : 'Session Rating'}</span>
+                                    <div style={{ display: 'flex', gap: 4, marginBottom: 6 }}>
+                                        {[1, 2, 3, 4, 5].map(n => (
+                                            <button key={n} type="button"
+                                                onClick={() => setRating(n)}
+                                                onMouseEnter={() => setHoverRating(n)}
+                                                onMouseLeave={() => setHoverRating(0)}
+                                                style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 2 }}>
+                                                <Star size={22}
+                                                    fill={(hoverRating || rating) >= n ? '#FDC800' : 'none'}
+                                                    color={(hoverRating || rating) >= n ? '#FDC800' : '#1a1c24'}
+                                                />
+                                            </button>
+                                        ))}
+                                    </div>
+                                    <span style={{ ...mono, fontSize: 9, color: '#4b5563' }}>
+                                        {lang === 'fr' ? '1 = règles brisées · 5 = exécution parfaite' : '1 = broke rules · 5 = flawless execution'}
+                                    </span>
+                                </div>
+                                <div>
+                                    <span style={sectionHead}>{lang === 'fr' ? 'Objectifs atteints ?' : 'Goals Met?'}</span>
+                                    <span style={{ ...mono, fontSize: 10, color: '#4b5563', display: 'block', marginBottom: 8 }}>
+                                        {lang === 'fr' ? 'As-tu suivi ton plan de trading pré-session ?' : 'Did you follow your pre-session trading plan?'}
+                                    </span>
+                                    <div style={{ display: 'flex', gap: 8 }}>
+                                        <button type="button" onClick={() => setGoalsMet(true)}
+                                            style={{
+                                                ...mono, fontSize: 11, padding: '6px 16px',
+                                                border: `1px solid ${goalsMet === true ? '#FDC800' : '#1a1c24'}`,
+                                                background: goalsMet === true ? 'rgba(253,200,0,0.12)' : 'transparent',
+                                                color: goalsMet === true ? '#FDC800' : '#4b5563', cursor: 'pointer',
+                                            }}>
+                                            ✓ {lang === 'fr' ? 'Oui' : 'Yes'}
+                                        </button>
+                                        <button type="button" onClick={() => setGoalsMet(false)}
+                                            style={{
+                                                ...mono, fontSize: 11, padding: '6px 16px',
+                                                border: `1px solid ${goalsMet === false ? '#ff4757' : '#1a1c24'}`,
+                                                background: goalsMet === false ? 'rgba(255,71,87,0.1)' : 'transparent',
+                                                color: goalsMet === false ? '#ff4757' : '#4b5563', cursor: 'pointer',
+                                            }}>
+                                            ✕ {lang === 'fr' ? 'Non' : 'No'}
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </>
+                    )}
 
                     {/* Footer */}
                     <div style={{ padding: '14px 20px', display: 'flex', gap: 10, justifyContent: 'flex-end', background: '#090909', borderTop: divider }}>
-                        <button type="button" onClick={onClose}
+                        <button type="button" onClick={handleClose}
                             style={{ ...mono, fontSize: 11, fontWeight: 700, padding: '8px 20px', border: '1px solid #1a1c24', background: 'transparent', color: '#4b5563', cursor: 'pointer' }}>
                             {lang === 'fr' ? 'Annuler' : 'Cancel'}
                         </button>
