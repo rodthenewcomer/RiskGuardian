@@ -15,7 +15,8 @@ import {
     RadarChart, Radar, PolarGrid, PolarAngleAxis, Legend,
     ComposedChart, Line,
 } from 'recharts';
-import { Target, AlertTriangle, Download, Link2, Check, TrendingUp, TrendingDown, Activity, Clock, Eye, EyeOff, Share2, X } from 'lucide-react';
+import { Target, AlertTriangle, Download, Link2, Check, TrendingUp, TrendingDown, Activity, Clock, Eye, EyeOff, Share2, X, Bell, BellOff } from 'lucide-react';
+import { usePushNotifications } from '@/hooks/usePushNotifications';
 import MetricTooltip from '@/components/ui/MetricTooltip';
 import { DEMO_TRADES } from '@/data/demoTrades';
 import ComposedDailyChart, { addRollingAvg } from '@/components/charts/ComposedDailyChart';
@@ -35,7 +36,9 @@ export default function AnalyticsPage() {
         analyticsGoals, setAnalyticsGoals,
         demoModeActive, setDemoMode,
         userTier,
+        userId,
     } = useAppStore();
+    const { status: pushStatus, enable: enablePush, disable: disablePush, send: sendPush } = usePushNotifications(userId);
     const trades = demoModeActive ? DEMO_TRADES : rawTrades;
     const isMobile = useIsMobile();
     const { t } = useTranslation();
@@ -159,6 +162,26 @@ export default function AnalyticsPage() {
         setAnalyticsLastVisit(new Date().toISOString());
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
+
+    // P20: Auto-push critical pattern alert once per session when push is enabled
+    useEffect(() => {
+        if (pushStatus !== 'granted') return;
+        const criticals = forensics.patterns.filter((p: any) => p.severity === 'CRITICAL');
+        if (criticals.length === 0) return;
+        const top = [...criticals].sort((a: any, b: any) => Math.abs(b.impact ?? 0) - Math.abs(a.impact ?? 0))[0] as any;
+        const sessionKey = `rg-push-notified-${top.name}-${new Date().toDateString()}`;
+        if (sessionStorage.getItem(sessionKey)) return; // already sent today
+        sessionStorage.setItem(sessionKey, '1');
+        sendPush({
+            title: lang === 'fr' ? `⛔ Pattern critique : ${top.name}` : `⛔ Critical pattern: ${top.name}`,
+            body: lang === 'fr'
+                ? `Coût estimé ${Math.abs(top.impact ?? 0) > 0 ? `$${Math.abs(top.impact).toFixed(0)}` : ''}. Ouvrez RiskGuardian pour voir l'action recommandée.`
+                : `Estimated cost ${Math.abs(top.impact ?? 0) > 0 ? `$${Math.abs(top.impact).toFixed(0)}` : ''}. Open RiskGuardian to see the recommended action.`,
+            url: '/app?tab=analytics',
+            tag: 'rg-critical-pattern',
+        });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [pushStatus, forensics.patterns.length]);
 
     const TABS: Array<{ key: string; label: string; group: 'PERFORMANCE' | 'BEHAVIOR' | 'RISK'; minTrades?: number; proOnly?: boolean }> = [
         { key: 'OVERVIEW',    label: t.analytics.tabs.overview,    group: 'PERFORMANCE' },
@@ -845,6 +868,32 @@ export default function AnalyticsPage() {
                         >
                             {demoModeActive ? (lang === 'fr' ? 'QUITTER DÉMO' : 'EXIT DEMO') : (lang === 'fr' ? 'ESSAYER DÉMO' : 'TRY DEMO')}
                         </button>
+
+                        {/* P20 — Push notifications toggle */}
+                        {pushStatus !== 'unsupported' && (
+                            <button
+                                onClick={() => pushStatus === 'granted' ? disablePush() : enablePush()}
+                                disabled={pushStatus === 'loading' || pushStatus === 'denied'}
+                                title={
+                                    pushStatus === 'granted'  ? (lang === 'fr' ? 'Désactiver les alertes' : 'Disable alerts')
+                                    : pushStatus === 'denied'  ? (lang === 'fr' ? 'Notifications bloquées dans le navigateur' : 'Notifications blocked in browser')
+                                    : pushStatus === 'loading' ? (lang === 'fr' ? 'Activation…' : 'Enabling…')
+                                    : (lang === 'fr' ? 'Activer les alertes push' : 'Enable push alerts')
+                                }
+                                style={{
+                                    display: 'flex', alignItems: 'center', gap: 6,
+                                    fontFamily: 'var(--font-mono)', fontSize: 11, fontWeight: 700, letterSpacing: '0.06em',
+                                    padding: '8px 14px',
+                                    background: pushStatus === 'granted' ? 'rgba(253,200,0,0.1)' : 'transparent',
+                                    border: `1px solid ${pushStatus === 'granted' ? 'rgba(253,200,0,0.4)' : pushStatus === 'denied' ? '#2a2c34' : '#1a1c24'}`,
+                                    color: pushStatus === 'granted' ? '#FDC800' : pushStatus === 'denied' ? '#4b5563' : '#6b7280',
+                                    cursor: pushStatus === 'denied' ? 'not-allowed' : 'pointer',
+                                    opacity: pushStatus === 'loading' ? 0.6 : 1,
+                                }}
+                            >
+                                {pushStatus === 'granted' ? <Bell size={12} /> : <BellOff size={12} />}
+                            </button>
+                        )}
 
                         {/* P15 — Privacy blur toggle */}
                         <button
