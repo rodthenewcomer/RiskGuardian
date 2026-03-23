@@ -10,6 +10,12 @@ export interface FullAccountSync {
     language: 'en' | 'fr';
 }
 
+/** Sync payload for per-day journal notes and session entries */
+export interface DayDataSync {
+    dayNotes: Record<string, string>;
+    dayJournalEntries: Record<string, unknown>;
+}
+
 // ── Type adapters ────────────────────────────────────────────────
 
 function tradeToRow(trade: TradeSession, userId: string) {
@@ -193,6 +199,66 @@ export async function pullFullAccountSettings(userId: string): Promise<FullAccou
         },
         tradingDayRollHour: data.trading_day_roll_hour != null ? Number(data.trading_day_roll_hour) : 17,
         language:           (data.language as 'en' | 'fr') ?? 'en',
+    };
+}
+
+// ── Day notes + journal entries sync ─────────────────────────────
+//
+// Stored in a dedicated `user_day_data` table with schema:
+//   user_id        uuid  PRIMARY KEY REFERENCES auth.users
+//   day_notes      jsonb DEFAULT '{}'
+//   day_journal    jsonb DEFAULT '{}'
+//   updated_at     timestamptz
+//
+// Run this once in the Supabase SQL editor to create the table:
+//
+//   CREATE TABLE IF NOT EXISTS user_day_data (
+//     user_id      uuid PRIMARY KEY REFERENCES auth.users ON DELETE CASCADE,
+//     day_notes    jsonb NOT NULL DEFAULT '{}',
+//     day_journal  jsonb NOT NULL DEFAULT '{}',
+//     updated_at   timestamptz NOT NULL DEFAULT now()
+//   );
+//   ALTER TABLE user_day_data ENABLE ROW LEVEL SECURITY;
+//   CREATE POLICY "owner" ON user_day_data USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);
+
+/**
+ * Push day notes and journal entries to Supabase.
+ * Uses upsert on user_id — safe to call on every change.
+ * Silently succeeds even if the table doesn't exist yet (returns void on error).
+ */
+export async function pushDayData(
+    dayNotes: Record<string, string>,
+    dayJournalEntries: Record<string, unknown>,
+    userId: string,
+): Promise<void> {
+    const { error } = await supabase
+        .from('user_day_data')
+        .upsert({
+            user_id:     userId,
+            day_notes:   dayNotes,
+            day_journal: dayJournalEntries,
+            updated_at:  new Date().toISOString(),
+        }, { onConflict: 'user_id' });
+
+    if (error) throw new Error(`pushDayData: ${error.message}`);
+}
+
+/**
+ * Pull day notes and journal entries from Supabase.
+ * Returns null if no row exists or the table doesn't exist yet.
+ */
+export async function pullDayData(userId: string): Promise<DayDataSync | null> {
+    const { data, error } = await supabase
+        .from('user_day_data')
+        .select('day_notes, day_journal')
+        .eq('user_id', userId)
+        .single();
+
+    if (error || !data) return null;
+
+    return {
+        dayNotes:          (data.day_notes as Record<string, string>) ?? {},
+        dayJournalEntries: (data.day_journal as Record<string, unknown>) ?? {},
     };
 }
 
