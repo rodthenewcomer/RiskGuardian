@@ -117,6 +117,19 @@ export async function deleteTrade(tradeId: string, userId: string): Promise<void
     if (error) throw new Error(`deleteTrade: ${error.message}`);
 }
 
+/**
+ * Delete ALL trades for the current user from Supabase.
+ * Used when the user triggers "Clear All Trades" — must be called explicitly
+ * because the auto-push effect skips pushing empty trade arrays.
+ */
+export async function deleteAllTrades(userId: string): Promise<void> {
+    const { error } = await supabase
+        .from('trades')
+        .delete()
+        .eq('user_id', userId);
+    if (error) throw new Error(`deleteAllTrades: ${error.message}`);
+}
+
 // ── Account settings sync ────────────────────────────────────────
 
 export async function pushAccountSettings(

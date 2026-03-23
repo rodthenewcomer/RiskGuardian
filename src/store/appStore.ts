@@ -503,7 +503,22 @@ export const useAppStore = create<AppState>()(
                         return ta !== tb ? ta - tb : a.id.localeCompare(b.id);
                     });
 
-                if (closed.length === 0) return;
+                if (closed.length === 0) {
+                    // No closed trades — reset derived values back to startingBalance
+                    const needsReset =
+                        Math.abs(s.account.balance - s.account.startingBalance) > 0.01 ||
+                        s.account.highestBalance !== s.account.startingBalance;
+                    if (needsReset) {
+                        set(s2 => ({
+                            account: {
+                                ...s2.account,
+                                balance: s.account.startingBalance,
+                                highestBalance: s.account.startingBalance,
+                            },
+                        }));
+                    }
+                    return;
+                }
 
                 // Running balance and peak balance over trade history
                 let running = s.account.startingBalance;

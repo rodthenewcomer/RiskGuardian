@@ -6,6 +6,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useAppStore, PROP_FIRMS, type PropFirmPreset } from '@/store/appStore';
 import { useTranslation } from '@/i18n/useTranslation';
 import { scanViolations, type TradeViolation } from '@/lib/tradeViolations';
+import { deleteAllTrades } from '@/lib/supabaseSync';
 import {
     Settings2, DollarSign, ShieldAlert, Check, RefreshCw, Building2,
     Bitcoin, LineChart, CandlestickChart, CircleDollarSign,
@@ -158,6 +159,7 @@ export default function SettingsPage() {
         account, updateAccount, resetTodaySession, resetOnboarding,
         setTrades, trades, autoSync,
         language, setLanguage, tradingDayRollHour, setTradingDayRollHour,
+        userId,
     } = useAppStore();
 
     const lang = language ?? 'en';
@@ -1036,7 +1038,13 @@ export default function SettingsPage() {
                                             </button>
                                             <button
                                                 style={{ ...BTN_DANGER, justifyContent: 'center' }}
-                                                onClick={() => { setTrades([]); setClearConfirm(false); }}
+                                                onClick={() => {
+                                                    setTrades([]);
+                                                    setClearConfirm(false);
+                                                    if (userId) {
+                                                        deleteAllTrades(userId).catch(console.error);
+                                                    }
+                                                }}
                                             >
                                                 <Trash2 size={12} /> Confirm
                                             </button>
