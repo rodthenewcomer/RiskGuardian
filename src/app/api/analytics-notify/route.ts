@@ -2,12 +2,14 @@ import { NextRequest, NextResponse } from 'next/server';
 import webpush from 'web-push';
 import { createClient } from '@supabase/supabase-js';
 
-// ── VAPID config ───────────────────────────────────────────────
-webpush.setVapidDetails(
-  process.env.VAPID_EMAIL!,
-  process.env.NEXT_PUBLIC_VAPID_KEY!,
-  process.env.VAPID_PRIVATE_KEY!,
-);
+// ── VAPID config (lazy — env vars not available at build time) ─
+function initVapid() {
+  webpush.setVapidDetails(
+    process.env.VAPID_EMAIL!,
+    process.env.NEXT_PUBLIC_VAPID_KEY!,
+    process.env.VAPID_PRIVATE_KEY!,
+  );
+}
 
 // ── Rate limiter (20 req / 60s per IP) ────────────────────────
 const rateMap = new Map<string, { count: number; reset: number }>();
@@ -44,6 +46,7 @@ function getAdmin() {
  *   { subscription: PushSubscription, payload: { title, body, url, tag } }
  */
 export async function POST(req: NextRequest) {
+  initVapid();
   const ip = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ?? 'unknown';
   if (!checkRate(ip)) {
     return NextResponse.json({ error: 'Rate limit exceeded' }, { status: 429 });
@@ -133,6 +136,7 @@ export async function POST(req: NextRequest) {
  * Body: { endpoint: string }
  */
 export async function DELETE(req: NextRequest) {
+  initVapid();
   const ip = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ?? 'unknown';
   if (!checkRate(ip)) return NextResponse.json({ error: 'Rate limit exceeded' }, { status: 429 });
 
