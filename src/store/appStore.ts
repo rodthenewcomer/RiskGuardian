@@ -197,6 +197,17 @@ interface AppState {
     /** Full session journal entries — keyed by YYYY-MM-DD trading day */
     dayJournalEntries: Record<string, DayJournalEntry>;
 
+    analyticsLastVisit: string | null;
+    privacyBlur: boolean;
+    analyticsGoals: {
+        winRate: number | null;
+        profitFactor: number | null;
+        maxDrawdownPct: number | null;
+        tradesPerWeek: number | null;
+    } | null;
+    demoModeActive: boolean;
+    userTier: 'free' | 'pro';
+
     // Actions
     completeOnboarding: () => void;
     resetOnboarding: () => void;
@@ -212,6 +223,11 @@ interface AppState {
     setUserEmail: (email: string | null) => void;
     setShowAuthModal: (show: boolean) => void;
     setActiveTab: (tab: AppState['activeTab']) => void;
+    setPrivacyBlur: (val: boolean) => void;
+    setAnalyticsGoals: (goals: AppState['analyticsGoals']) => void;
+    setDemoMode: (active: boolean) => void;
+    setAnalyticsLastVisit: (ts: string) => void;
+    setUserTier: (tier: 'free' | 'pro') => void;
     getTodayRiskUsed: () => number;
     getDailyRiskRemaining: () => number;
     addDailyRisk: (amount: number) => void;
@@ -325,6 +341,11 @@ export const useAppStore = create<AppState>()(
             userId: null,
             userEmail: null,
             showAuthModal: false,
+            analyticsLastVisit: null,
+            privacyBlur: false,
+            analyticsGoals: null,
+            demoModeActive: false,
+            userTier: 'free',
 
             completeOnboarding: () => set({ hasOnboarded: true }),
 
@@ -411,6 +432,12 @@ export const useAppStore = create<AppState>()(
                 })),
 
             setActiveTab: (tab) => set({ activeTab: tab }),
+
+            setPrivacyBlur: (val) => set({ privacyBlur: val }),
+            setAnalyticsGoals: (goals) => set({ analyticsGoals: goals }),
+            setDemoMode: (active) => set({ demoModeActive: active }),
+            setAnalyticsLastVisit: (ts) => set({ analyticsLastVisit: ts }),
+            setUserTier: (tier) => set({ userTier: tier }),
 
             setLanguage: (lang) => set({ language: lang }),
 
@@ -529,6 +556,10 @@ export const useAppStore = create<AppState>()(
                 userEmail: s.userEmail,
                 dayNotes: s.dayNotes,
                 dayJournalEntries: s.dayJournalEntries,
+                analyticsLastVisit: s.analyticsLastVisit,
+                privacyBlur: s.privacyBlur,
+                analyticsGoals: s.analyticsGoals,
+                userTier: s.userTier,
             }),
         }
     )

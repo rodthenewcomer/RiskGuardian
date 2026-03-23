@@ -15,7 +15,9 @@ import {
     RadarChart, Radar, PolarGrid, PolarAngleAxis, Legend,
     ComposedChart, Line,
 } from 'recharts';
-import { Target, AlertTriangle, Download, Link2, Check, TrendingUp, TrendingDown, Activity, Clock } from 'lucide-react';
+import { Target, AlertTriangle, Download, Link2, Check, TrendingUp, TrendingDown, Activity, Clock, Eye, EyeOff, Share2, X } from 'lucide-react';
+import MetricTooltip from '@/components/ui/MetricTooltip';
+import { DEMO_TRADES } from '@/data/demoTrades';
 import ComposedDailyChart, { addRollingAvg } from '@/components/charts/ComposedDailyChart';
 import InstrumentRadar, { type InstrumentMetric } from '@/components/charts/InstrumentRadar';
 import PnLHistogram from '@/components/charts/PnLHistogram';
@@ -25,10 +27,23 @@ import TradeScatterChart, { type ScatterPoint } from '@/components/charts/TradeS
 import { ChartCard, SegmentedBar, ThresholdBullet, DivergingBarList } from '@/components/charts/RiskGuardianPrimitives';
 
 export default function AnalyticsPage() {
-    const { trades, account, language, reportSnapshots, saveReportSnapshot, deleteReportSnapshot } = useAppStore();
+    const {
+        trades: rawTrades,
+        account, language, reportSnapshots, saveReportSnapshot, deleteReportSnapshot,
+        analyticsLastVisit, setAnalyticsLastVisit,
+        privacyBlur, setPrivacyBlur,
+        analyticsGoals, setAnalyticsGoals,
+        demoModeActive, setDemoMode,
+        userTier,
+    } = useAppStore();
+    const trades = demoModeActive ? DEMO_TRADES : rawTrades;
     const isMobile = useIsMobile();
     const { t } = useTranslation();
     const lang = language ?? 'en';
+    const THRESHOLDS = { tooFew: 10, adequate: 30, confident: 100 } as const;
+    const TRADE_GATES = { sessions: 10, quant: 30, compare: 60 } as const;
+    const fmtMoney = (n: number, prefix = '$') =>
+        privacyBlur ? '••••' : `${prefix}${Math.abs(n).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
     const touchStartX = useRef(0);
     const [activeTab, setActiveTab] = useState('OVERVIEW');
     const [dateFrom, setDateFrom] = useState('');
@@ -45,6 +60,11 @@ export default function AnalyticsPage() {
     const [customBTo, setCustomBTo] = useState('');
     const [showPickerA, setShowPickerA] = useState(false);
     const [showPickerB, setShowPickerB] = useState(false);
+    const [goalEditing, setGoalEditing] = useState(false);
+    const [goalDraft, setGoalDraft] = useState(analyticsGoals ?? { winRate: null, profitFactor: null, maxDrawdownPct: null, tradesPerWeek: null });
+    const [tabReady, setTabReady] = useState(false);
+    const [showShareModal, setShowShareModal] = useState(false);
+    const tabRefs = useRef<(HTMLButtonElement | null)[]>([]);
 
     // Sort chronological + apply date range filter
     // Date filter uses getTradingDay(closedAt) — trades held overnight are correctly attributed
@@ -82,7 +102,7 @@ export default function AnalyticsPage() {
     }, [tradesWithDuration, dateFrom, dateTo]);
 
     // Process Algorithmic Forensics — respects the active date filter
-    const forensics = useMemo(() => generateForensics(filteredTradesWithDuration, account), [filteredTradesWithDuration, account]);
+    const forensics = useMemo(() => generateForensics(filteredTradesWithDuration, account, lang as 'en' | 'fr'), [filteredTradesWithDuration, account, lang]);
 
     // Trade date set (all trades, unfiltered) — used for dots in the date picker
     const allTradeDates = useMemo(() => {
@@ -99,24 +119,59 @@ export default function AnalyticsPage() {
             .sort()[0];
     }, [trades]);
 
+    // P11 — Daily loss limit violation dates for DAILY tab markers
+    const violationDates = useMemo(() => {
+        const s = new Set<string>();
+        if (!account.dailyLossLimit) return s;
+        const dailyMap: Record<string, number> = {};
+        closed.forEach(tr => {
+            const d = getTradingDay(tr.closedAt ?? tr.createdAt);
+            dailyMap[d] = (dailyMap[d] ?? 0) + (tr.pnl ?? 0);
+        });
+        Object.entries(dailyMap).forEach(([d, pnl]) => {
+            if (pnl < -account.dailyLossLimit) s.add(d);
+        });
+        return s;
+    }, [closed, account.dailyLossLimit]);
+
     // Apply-filter callback for the date picker
     const handlePickerApply = useCallback((from: string, to: string) => {
         setDateFrom(from);
         setDateTo(to);
     }, []);
 
-    const TABS: Array<{ key: string; label: string }> = [
-        { key: 'OVERVIEW',    label: t.analytics.tabs.overview },
-        { key: 'DAILY',       label: t.analytics.tabs.daily },
-        { key: 'INSTRUMENTS', label: t.analytics.tabs.instruments },
-        { key: 'SESSIONS',    label: t.analytics.tabs.sessions },
-        { key: 'TIME',        label: t.analytics.tabs.time },
-        { key: 'STREAKS',     label: t.analytics.tabs.streaks },
-        { key: 'PATTERNS',    label: `${t.analytics.tabs.patterns} (${forensics.patterns.length})` },
-        { key: 'SCORECARD',   label: t.analytics.tabs.scorecard },
-        { key: 'QUANT',       label: t.analytics.tabs.quant },
-        { key: 'REPORT',      label: t.analytics.tabs.report },
-        { key: 'COMPARE',     label: t.analytics.tabs.compare },
+    // P1: Smart routing — fires once on mount, routes to most relevant tab
+    useEffect(() => {
+        if (forensics.patterns.filter((p: any) => p.severity === 'CRITICAL').length >= 2) {
+            setActiveTab('PATTERNS');
+        }
+    }, []); // intentional empty deps — route once on mount
+
+    // P8: Tab ready state — reset skeleton on tab change
+    useEffect(() => {
+        setTabReady(false);
+        const timer = setTimeout(() => setTabReady(true), 120);
+        return () => clearTimeout(timer);
+    }, [activeTab]);
+
+    // P4: Record last visit timestamp on mount
+    useEffect(() => {
+        setAnalyticsLastVisit(new Date().toISOString());
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
+
+    const TABS: Array<{ key: string; label: string; group: 'PERFORMANCE' | 'BEHAVIOR' | 'RISK'; minTrades?: number; proOnly?: boolean }> = [
+        { key: 'OVERVIEW',    label: t.analytics.tabs.overview,    group: 'PERFORMANCE' },
+        { key: 'DAILY',       label: t.analytics.tabs.daily,        group: 'PERFORMANCE' },
+        { key: 'INSTRUMENTS', label: t.analytics.tabs.instruments,  group: 'PERFORMANCE' },
+        { key: 'SESSIONS',    label: t.analytics.tabs.sessions,     group: 'PERFORMANCE', minTrades: TRADE_GATES.sessions },
+        { key: 'TIME',        label: t.analytics.tabs.time,         group: 'PERFORMANCE' },
+        { key: 'STREAKS',     label: t.analytics.tabs.streaks,      group: 'BEHAVIOR' },
+        { key: 'PATTERNS',    label: `${t.analytics.tabs.patterns} (${forensics.patterns.length})`, group: 'BEHAVIOR' },
+        { key: 'SCORECARD',   label: t.analytics.tabs.scorecard,    group: 'BEHAVIOR' },
+        { key: 'QUANT',       label: t.analytics.tabs.quant,        group: 'RISK', minTrades: TRADE_GATES.quant, proOnly: true },
+        { key: 'REPORT',      label: t.analytics.tabs.report,       group: 'RISK', proOnly: true },
+        { key: 'COMPARE',     label: t.analytics.tabs.compare,      group: 'RISK', minTrades: TRADE_GATES.compare, proOnly: true },
     ];
 
     // Core Metrics
@@ -771,6 +826,57 @@ export default function AnalyticsPage() {
 
                     {/* Action buttons */}
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+                        {/* P3 — Demo mode toggle */}
+                        {demoModeActive && (
+                            <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, fontWeight: 800, letterSpacing: '0.1em', color: '#090909', background: '#EAB308', padding: '4px 8px' }}>
+                                DEMO
+                            </span>
+                        )}
+                        <button
+                            onClick={() => setDemoMode(!demoModeActive)}
+                            style={{
+                                display: closed.length === 0 || demoModeActive ? 'flex' : 'none',
+                                alignItems: 'center', gap: 6,
+                                fontFamily: 'var(--font-mono)', fontSize: 11, fontWeight: 700, letterSpacing: '0.06em',
+                                padding: '8px 14px', background: demoModeActive ? 'rgba(234,179,8,0.1)' : 'transparent',
+                                border: `1px solid ${demoModeActive ? '#EAB308' : '#1a1c24'}`,
+                                color: demoModeActive ? '#EAB308' : '#6b7280', cursor: 'pointer',
+                            }}
+                        >
+                            {demoModeActive ? (lang === 'fr' ? 'QUITTER DÉMO' : 'EXIT DEMO') : (lang === 'fr' ? 'ESSAYER DÉMO' : 'TRY DEMO')}
+                        </button>
+
+                        {/* P15 — Privacy blur toggle */}
+                        <button
+                            onClick={() => setPrivacyBlur(!privacyBlur)}
+                            title={privacyBlur ? (lang === 'fr' ? 'Afficher les valeurs' : 'Show values') : (lang === 'fr' ? 'Masquer les valeurs' : 'Hide values')}
+                            style={{
+                                display: 'flex', alignItems: 'center', gap: 6,
+                                fontFamily: 'var(--font-mono)', fontSize: 11, fontWeight: 700, letterSpacing: '0.06em',
+                                padding: '8px 14px', background: privacyBlur ? 'rgba(107,114,128,0.15)' : 'transparent',
+                                border: `1px solid ${privacyBlur ? '#6b7280' : '#1a1c24'}`,
+                                color: privacyBlur ? '#c9d1d9' : '#6b7280', cursor: 'pointer',
+                            }}
+                        >
+                            {privacyBlur ? <Eye size={12} /> : <EyeOff size={12} />}
+                        </button>
+
+                        {/* P21 — Share button */}
+                        <button
+                            onClick={() => setShowShareModal(true)}
+                            style={{
+                                display: 'flex', alignItems: 'center', gap: 6,
+                                fontFamily: 'var(--font-mono)', fontSize: 11, fontWeight: 700, letterSpacing: '0.06em',
+                                padding: '8px 14px', background: 'transparent',
+                                border: '1px solid #1a1c24', color: '#6b7280', cursor: 'pointer',
+                                transition: 'all 0.15s',
+                            }}
+                            onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.borderColor = '#FDC800'; (e.currentTarget as HTMLButtonElement).style.color = '#FDC800'; }}
+                            onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.borderColor = '#1a1c24'; (e.currentTarget as HTMLButtonElement).style.color = '#6b7280'; }}
+                        >
+                            <Share2 size={12} /> {lang === 'fr' ? 'PARTAGER' : 'SHARE'}
+                        </button>
+
                         <button
                             onClick={handleExportPDF}
                             style={{
@@ -934,13 +1040,84 @@ export default function AnalyticsPage() {
             )}
 
             <div className={styles.topTabsWrapper}>
-                <div className={styles.topTabs}>
-                    {TABS.map(({ key, label }) => (
-                        <button key={key} className={`${styles.tab} ${activeTab === key ? styles.tabActive : ''}`} onClick={(e) => {
-                            setActiveTab(key);
-                            e.currentTarget.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
-                        }}>
-                            {label}
+                <div
+                    className={styles.topTabs}
+                    role="tablist"
+                    aria-label={lang === 'fr' ? 'Onglets analytiques' : 'Analytics tabs'}
+                    onKeyDown={(e) => {
+                        const keys = TABS.map(tab => tab.key);
+                        const curIdx = keys.indexOf(activeTab);
+                        if (e.key === 'ArrowRight') {
+                            const next = Math.min(curIdx + 1, keys.length - 1);
+                            setActiveTab(keys[next]);
+                            tabRefs.current[next]?.focus();
+                            e.preventDefault();
+                        } else if (e.key === 'ArrowLeft') {
+                            const prev = Math.max(curIdx - 1, 0);
+                            setActiveTab(keys[prev]);
+                            tabRefs.current[prev]?.focus();
+                            e.preventDefault();
+                        } else if (e.key === 'Home') {
+                            setActiveTab(keys[0]);
+                            tabRefs.current[0]?.focus();
+                            e.preventDefault();
+                        } else if (e.key === 'End') {
+                            setActiveTab(keys[keys.length - 1]);
+                            tabRefs.current[keys.length - 1]?.focus();
+                            e.preventDefault();
+                        }
+                    }}
+                >
+                    {!isMobile && (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 0 }}>
+                            {(['PERFORMANCE', 'BEHAVIOR', 'RISK'] as const).map((group, gi) => (
+                                <div key={group} style={{ display: 'flex', alignItems: 'center' }}>
+                                    {gi > 0 && <div style={{ width: 1, height: 28, background: '#1a1c24', margin: '0 4px' }} />}
+                                    <span className={styles.tabGroupLabel}>
+                                        {group === 'PERFORMANCE'
+                                            ? (lang === 'fr' ? 'PERFORMANCE' : 'PERFORMANCE')
+                                            : group === 'BEHAVIOR'
+                                            ? (lang === 'fr' ? 'COMPORTEMENT' : 'BEHAVIOR')
+                                            : (lang === 'fr' ? 'RISQUE & QUANT' : 'RISK & QUANT')}
+                                    </span>
+                                    {TABS.filter(tab => tab.group === group).map((tab) => (
+                                        <button
+                                            key={tab.key}
+                                            ref={el => { tabRefs.current[TABS.findIndex(t => t.key === tab.key)] = el; }}
+                                            role="tab"
+                                            aria-selected={activeTab === tab.key}
+                                            className={`${styles.tab} ${activeTab === tab.key ? styles.tabActive : ''}`}
+                                            onClick={(e) => {
+                                                setActiveTab(tab.key);
+                                                e.currentTarget.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+                                            }}
+                                        >
+                                            {tab.label}
+                                            {tab.proOnly && userTier !== 'pro' && (
+                                                <span style={{ marginLeft: 4, fontSize: 8, color: '#FDC800', fontWeight: 800, verticalAlign: 'super' }}>PRO</span>
+                                            )}
+                                        </button>
+                                    ))}
+                                </div>
+                            ))}
+                        </div>
+                    )}
+                    {isMobile && TABS.map((tab, idx) => (
+                        <button
+                            key={tab.key}
+                            ref={el => { tabRefs.current[idx] = el; }}
+                            role="tab"
+                            aria-selected={activeTab === tab.key}
+                            className={`${styles.tab} ${activeTab === tab.key ? styles.tabActive : ''}`}
+                            onClick={(e) => {
+                                setActiveTab(tab.key);
+                                e.currentTarget.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+                            }}
+                        >
+                            {tab.label}
+                            {tab.proOnly && userTier !== 'pro' && (
+                                <span style={{ marginLeft: 4, fontSize: 8, color: '#FDC800', fontWeight: 800, verticalAlign: 'super' }}>PRO</span>
+                            )}
                         </button>
                     ))}
                 </div>
@@ -964,6 +1141,32 @@ export default function AnalyticsPage() {
                     {activeTab === 'OVERVIEW' && (
                         <motion.div key="overview" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} style={{ display: 'flex', flexDirection: 'column', gap: 20, marginBottom: 48 }}>
 
+                            {/* P27 — Zero trade empty state */}
+                            {closed.length === 0 && !demoModeActive && (
+                                <div style={{ textAlign: 'center', padding: '60px 24px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16 }}>
+                                    <div style={{ fontFamily: 'var(--font-mono)', fontSize: 14, fontWeight: 700, color: '#6b7280' }}>
+                                        {lang === 'fr' ? 'Aucun trade clôturé sur cette période' : 'No closed trades in this period'}
+                                    </div>
+                                    <div style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: '#4b5563' }}>
+                                        {lang === 'fr' ? 'Clôturez des trades ou élargissez la plage de dates.' : 'Close some trades or expand your date range.'}
+                                    </div>
+                                    <div style={{ display: 'flex', gap: 8 }}>
+                                        <button
+                                            onClick={() => { setDateFrom(''); setDateTo(''); }}
+                                            style={{ fontFamily: 'var(--font-mono)', fontSize: 11, fontWeight: 700, padding: '9px 18px', background: '#FDC800', border: 'none', color: '#090909', cursor: 'pointer' }}
+                                        >
+                                            {lang === 'fr' ? 'TOUT AFFICHER' : 'SHOW ALL'}
+                                        </button>
+                                        <button
+                                            onClick={() => setDemoMode(true)}
+                                            style={{ fontFamily: 'var(--font-mono)', fontSize: 11, fontWeight: 700, padding: '9px 18px', background: 'transparent', border: '1px solid #1a1c24', color: '#6b7280', cursor: 'pointer' }}
+                                        >
+                                            {lang === 'fr' ? 'ESSAYER LA DÉMO' : 'TRY DEMO'}
+                                        </button>
+                                    </div>
+                                </div>
+                            )}
+
                             {/* ── RISK ALERT BAR ── */}
                             {forensics.patterns.length > 0 && (
                                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 16px', background: 'rgba(230,0,35,0.06)', border: '1px solid rgba(230,0,35,0.25)', borderLeft: '3px solid #e60023' }}>
@@ -979,28 +1182,92 @@ export default function AnalyticsPage() {
                                 </div>
                             )}
 
-                            {/* ── CRITICAL PATTERN CALLOUT (top pattern) ── */}
-                            {forensics.patterns.length > 0 && (() => {
-                                const p = [...forensics.patterns].sort((a: any, b: any) => Math.abs(b.impact ?? 0) - Math.abs(a.impact ?? 0))[0];
+                            {/* P4 — Since last visit delta */}
+                            {analyticsLastVisit && (() => {
+                                const lastMs = new Date(analyticsLastVisit).getTime();
+                                const hoursSince = (Date.now() - lastMs) / 3600000;
+                                if (hoursSince < 1) return null;
+                                const newTrades = trades.filter(tr => new Date(tr.createdAt).getTime() > lastMs).length;
+                                const newPnl = trades
+                                    .filter(tr => new Date(tr.createdAt).getTime() > lastMs && typeof tr.pnl === 'number')
+                                    .reduce((s, tr) => s + (tr.pnl ?? 0), 0);
+                                const daysLabel = hoursSince < 24
+                                    ? (lang === 'fr' ? `${Math.floor(hoursSince)}h` : `${Math.floor(hoursSince)}h`)
+                                    : (lang === 'fr' ? `${Math.floor(hoursSince/24)}j` : `${Math.floor(hoursSince/24)}d`);
                                 return (
-                                    <div style={{ background: '#0d1117', border: '1px solid #1a1c24', borderLeft: '3px solid #e60023', padding: '20px 24px', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 24, flexWrap: 'wrap' }}>
-                                        <div style={{ flex: 1, minWidth: 240 }}>
-                                            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
-                                                <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, fontWeight: 700, color: '#e60023', letterSpacing: '0.12em', textTransform: 'uppercase', background: 'rgba(230,0,35,0.12)', border: '1px solid rgba(230,0,35,0.3)', padding: '2px 8px' }}>CRITICAL PATTERN</span>
-                                                <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#6b7280', letterSpacing: '0.08em' }}>{p.freq} {lang === 'fr' ? 'DÉTECTÉ(S)' : 'DETECTED'} · {forensics.patterns.length} {lang === 'fr' ? 'AU TOTAL' : 'TOTAL'}</span>
-                                            </div>
-                                            <div style={{ fontFamily: 'var(--font-mono)', fontSize: 18, fontWeight: 700, color: '#fff', marginBottom: 12 }}>{p.name}</div>
-                                            <div style={{ fontFamily: 'var(--font-mono)', fontSize: 12, color: '#8b949e', lineHeight: 1.7, maxWidth: 520 }}>
-                                                {p.desc}{p.evidence?.[0] ? ` ${p.evidence[0]}.` : ''}
-                                            </div>
+                                    <div style={{
+                                        display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap',
+                                        padding: '8px 12px', background: '#0b0e14', border: '1px solid #1a1c24',
+                                        fontFamily: 'var(--font-mono)', fontSize: 11,
+                                    }}>
+                                        <span style={{ color: '#4b5563' }}>{lang === 'fr' ? 'Depuis votre dernière visite' : 'Since last visit'} ({daysLabel})</span>
+                                        <span style={{ color: '#FDC800', fontWeight: 700 }}>
+                                            {newTrades > 0
+                                                ? `+${newTrades} ${lang === 'fr' ? 'nouveaux trades' : 'new trades'}`
+                                                : (lang === 'fr' ? 'Aucun nouveau trade' : 'No new trades')}
+                                        </span>
+                                        {newTrades > 0 && newPnl !== 0 && (
+                                            <span style={{ color: newPnl >= 0 ? '#FDC800' : '#ff4757', fontWeight: 700 }}>
+                                                {newPnl >= 0 ? '+' : ''}{fmtMoney(newPnl)}
+                                            </span>
+                                        )}
+                                    </div>
+                                );
+                            })()}
+
+                            {/* P9 — Top-3 coaching queue (ranked by impact) */}
+                            {forensics.patterns.length > 0 && (() => {
+                                const ranked = [...forensics.patterns].sort((a: any, b: any) => Math.abs(b.impact ?? 0) - Math.abs(a.impact ?? 0)).slice(0, 3);
+                                return (
+                                    <div style={{ border: '1px solid rgba(230,0,35,0.2)', background: 'rgba(230,0,35,0.03)' }}>
+                                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 16px', borderBottom: '1px solid rgba(230,0,35,0.15)' }}>
+                                            <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#ff4757' }}>
+                                                {lang === 'fr' ? 'ACTIONS PRIORITAIRES CETTE SEMAINE' : 'TOP ACTIONS THIS WEEK'}
+                                            </span>
+                                            <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#6b7280' }}>
+                                                {lang === 'fr' ? 'Classées par impact P&L — corrigez ces points en premier' : 'Ranked by P&L impact — fix these first'}
+                                            </span>
                                         </div>
-                                        <div style={{ textAlign: 'right', flexShrink: 0 }}>
-                                            <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#6b7280', letterSpacing: '0.1em', marginBottom: 4, textTransform: 'uppercase' }}>{lang === 'fr' ? 'COÛT ESTIMÉ' : 'ESTIMATED COST'}</div>
-                                            <div style={{ fontFamily: 'var(--font-mono)', fontSize: 28, fontWeight: 700, color: '#ff4757' }}>
-                                                -${Math.abs(p.impact ?? 0).toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+                                        {ranked.map((p: any, i: number) => (
+                                            <div key={p.name} style={{
+                                                display: 'flex', alignItems: 'flex-start', gap: 12,
+                                                padding: '12px 16px',
+                                                borderBottom: i < ranked.length - 1 ? '1px solid rgba(230,0,35,0.1)' : 'none',
+                                            }}>
+                                                <div style={{
+                                                    width: 20, height: 20, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                                    background: i === 0 ? '#ff4757' : i === 1 ? 'rgba(255,71,87,0.5)' : 'rgba(255,71,87,0.25)',
+                                                    fontFamily: 'var(--font-mono)', fontSize: 10, fontWeight: 900, color: '#fff',
+                                                }}>
+                                                    {i + 1}
+                                                </div>
+                                                <div style={{ flex: 1, minWidth: 0 }}>
+                                                    <div style={{ fontFamily: 'var(--font-mono)', fontSize: 11, fontWeight: 700, color: '#c9d1d9', marginBottom: 2 }}>
+                                                        {p.name}
+                                                        {(p.impact ?? 0) < 0 && (
+                                                            <span style={{ marginLeft: 8, color: '#ff4757', fontWeight: 700 }}>
+                                                                {fmtMoney(Math.abs(p.impact ?? 0))} {lang === 'fr' ? 'coût estimé' : 'estimated cost'}
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                    <div style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: '#6b7280', lineHeight: 1.4 }}>
+                                                        {p.action ?? p.desc}
+                                                    </div>
+                                                </div>
+                                                <button
+                                                    onClick={() => setActiveTab('PATTERNS')}
+                                                    style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#ff4757', background: 'none', border: '1px solid rgba(230,0,35,0.3)', cursor: 'pointer', padding: '4px 8px', whiteSpace: 'nowrap', flexShrink: 0 }}
+                                                >
+                                                    {lang === 'fr' ? 'VOIR →' : 'VIEW →'}
+                                                </button>
                                             </div>
-                                            <button onClick={() => setActiveTab('PATTERNS')} style={{ marginTop: 10, fontFamily: 'var(--font-mono)', fontSize: 9, color: '#6b7280', background: 'none', border: 'none', cursor: 'pointer', letterSpacing: '0.08em', textDecoration: 'underline' }}>
-                                                {lang === 'fr' ? 'VOIR TOUS LES MOTIFS →' : 'SEE ALL PATTERNS →'}
+                                        ))}
+                                        <div style={{ padding: '8px 16px', borderTop: '1px solid rgba(230,0,35,0.1)' }}>
+                                            <button
+                                                onClick={() => setActiveTab('PATTERNS')}
+                                                style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: '#ff4757', background: 'none', border: 'none', cursor: 'pointer', letterSpacing: '0.06em', textDecoration: 'underline' }}
+                                            >
+                                                {lang === 'fr' ? `VOIR TOUS LES ${forensics.patterns.length} MOTIFS →` : `SEE ALL ${forensics.patterns.length} PATTERNS →`}
                                             </button>
                                         </div>
                                     </div>
@@ -1009,12 +1276,12 @@ export default function AnalyticsPage() {
 
                             {/* ── 8 KPI BOXES ── */}
                             {(() => {
-                                const kpiBoxes = [
+                                const kpiBoxes: Array<{ label: string; value: string; color: string; sub: string; tip?: string; healthyRange?: string }> = [
                                     { label: lang === 'fr' ? 'NET P&L' : 'NET P&L',            value: `${netPnl >= 0 ? '+' : '-'}$${Math.abs(netPnl).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, color: netPnl >= 0 ? '#FDC800' : '#ff4757', sub: `Gross $${grossProfit.toFixed(0)} · Loss $${grossLoss.toFixed(0)}` },
-                                    { label: lang === 'fr' ? 'TAUX RÉUSSITE' : 'WIN RATE',       value: `${winRate.toFixed(1)}%`, color: winRate >= 50 ? '#FDC800' : '#EAB308', sub: `${wins.length}W / ${losses.length}L of ${closed.length}` },
-                                    { label: lang === 'fr' ? 'FACT. PROFIT' : 'PROFIT FACTOR',   value: profitFactor === 99 ? '∞' : profitFactor.toFixed(2), color: profitFactor >= 2 ? '#FDC800' : profitFactor >= 1.2 ? '#EAB308' : '#ff4757', sub: `Won $${grossProfit.toFixed(0)} / Lost $${grossLoss.toFixed(0)}` },
-                                    { label: lang === 'fr' ? 'ESPÉRANCE' : 'EXPECTANCY',          value: `${expectancy >= 0 ? '+' : ''}$${expectancy.toFixed(2)}`, color: expectancy >= 0 ? '#FDC800' : '#ff4757', sub: `Avg W $${avgWin.toFixed(0)} · Avg L $${avgLoss.toFixed(0)}` },
-                                    { label: lang === 'fr' ? 'DRAWDOWN MAX' : 'MAX DRAWDOWN',    value: maxDd > 0 ? `-$${maxDd.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '—', color: '#ff4757', sub: lang === 'fr' ? 'Sommet au creux' : 'Peak to trough' },
+                                    { label: lang === 'fr' ? 'TAUX RÉUSSITE' : 'WIN RATE',       value: `${winRate.toFixed(1)}%`, color: winRate >= 50 ? '#FDC800' : '#EAB308', sub: `${wins.length}W / ${losses.length}L of ${closed.length}`, tip: lang === 'fr' ? 'Trades gagnants ÷ total clôturés. Prop traders élite : 55–65 %.' : 'Winning trades ÷ total closed. Elite prop traders: 55–65%.', healthyRange: lang === 'fr' ? '≥55% pour une espérance positive' : '≥55% for positive expectancy' },
+                                    { label: lang === 'fr' ? 'FACT. PROFIT' : 'PROFIT FACTOR',   value: profitFactor === 99 ? '∞' : profitFactor.toFixed(2), color: profitFactor >= 2 ? '#FDC800' : profitFactor >= 1.2 ? '#EAB308' : '#ff4757', sub: `Won $${grossProfit.toFixed(0)} / Lost $${grossLoss.toFixed(0)}`, tip: lang === 'fr' ? 'Gains bruts ÷ pertes brutes. >1 = edge positif, >1.5 = robuste.' : 'Gross wins ÷ gross losses. >1 = positive edge, >1.5 = robust.', healthyRange: lang === 'fr' ? '≥1.5 pour un edge robuste' : '≥1.5 for a robust edge' },
+                                    { label: lang === 'fr' ? 'ESPÉRANCE' : 'EXPECTANCY',          value: `${expectancy >= 0 ? '+' : ''}$${expectancy.toFixed(2)}`, color: expectancy >= 0 ? '#FDC800' : '#ff4757', sub: `Avg W $${avgWin.toFixed(0)} · Avg L $${avgLoss.toFixed(0)}`, tip: lang === 'fr' ? 'P&L moyen par trade. Positif = edge viable à long terme.' : 'Average P&L per trade. Positive = viable edge over time.', healthyRange: lang === 'fr' ? '>$0 requis, >$50 idéal' : '>$0 required, >$50 ideal' },
+                                    { label: lang === 'fr' ? 'DRAWDOWN MAX' : 'MAX DRAWDOWN',    value: maxDd > 0 ? `-$${maxDd.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '—', color: '#ff4757', sub: lang === 'fr' ? 'Sommet au creux' : 'Peak to trough', tip: lang === 'fr' ? 'Perte maximale du pic au creux. Doit rester sous la limite prop firm.' : 'Maximum loss from peak to trough. Must stay under prop firm limit.', healthyRange: lang === 'fr' ? '<50% de la limite prop firm' : '<50% of prop firm limit' },
                                     { label: lang === 'fr' ? 'HAUSSE MAX' : 'MAX RUN-UP',        value: maxRunup > 0 ? `+$${maxRunup.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '—', color: '#FDC800', sub: lang === 'fr' ? 'Creux au sommet' : 'Trough to peak' },
                                     { label: lang === 'fr' ? 'DURÉE MOY.' : 'AVG DURATION',      value: fmtDuration((avgWinDuration * wins.length + avgLossDuration * losses.length) / Math.max(1, closed.length)), color: '#c9d1d9', sub: `${wins.length + losses.length} closed trades` },
                                     { label: lang === 'fr' ? 'RATIO G/P $' : 'W/L RATIO $',     value: wlRatio > 0 ? `${wlRatio.toFixed(2)}:1` : '—', color: wlRatio >= 1.5 ? '#FDC800' : wlRatio >= 1 ? '#EAB308' : '#ff4757', sub: `$${avgWin.toFixed(0)} avg win · $${avgLoss.toFixed(0)} loss` },
@@ -1039,7 +1306,10 @@ export default function AnalyticsPage() {
                                             <div style={{ display: 'flex', overflowX: 'auto', scrollSnapType: 'x mandatory', WebkitOverflowScrolling: 'touch', scrollbarWidth: 'none', msOverflowStyle: 'none' } as React.CSSProperties}>
                                                 {kpiBoxes.map((k, i) => (
                                                     <div key={i} style={{ flexShrink: 0, minWidth: 140, padding: '16px 14px', borderRight: '1px solid #1a1c24', borderBottom: '1px solid #1a1c24', scrollSnapAlign: 'start', background: '#0d1117', display: 'flex', flexDirection: 'column', gap: 6 }}>
-                                                        <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#6b7280', letterSpacing: '0.1em', textTransform: 'uppercase' }}>{k.label}</span>
+                                                        <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#6b7280', letterSpacing: '0.1em', textTransform: 'uppercase', display: 'inline-flex', alignItems: 'center', gap: 3 }}>
+                                                            {k.label}
+                                                            {k.tip && <MetricTooltip definition={k.tip} healthyRange={k.healthyRange} />}
+                                                        </span>
                                                         <span style={{ fontFamily: 'var(--font-mono)', fontSize: 20, fontWeight: 700, color: k.color, lineHeight: 1, textShadow: `0 0 12px ${k.color}22` }}>{k.value}</span>
                                                         <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: '#6b7280' }}>{k.sub}</span>
                                                     </div>
@@ -1063,7 +1333,10 @@ export default function AnalyticsPage() {
                                         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', borderTop: '1px solid #1a1c24', borderLeft: '1px solid #1a1c24' }}>
                                             {kpiBoxes.map((k, i) => (
                                                 <div key={i} style={{ padding: '20px 24px', borderBottom: '1px solid #1a1c24', borderRight: '1px solid #1a1c24', background: '#0d1117', display: 'flex', flexDirection: 'column', gap: 6 }}>
-                                                    <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#6b7280', letterSpacing: '0.1em', textTransform: 'uppercase' }}>{k.label}</span>
+                                                    <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#6b7280', letterSpacing: '0.1em', textTransform: 'uppercase', display: 'inline-flex', alignItems: 'center', gap: 3 }}>
+                                                        {k.label}
+                                                        {k.tip && <MetricTooltip definition={k.tip} healthyRange={k.healthyRange} />}
+                                                    </span>
                                                     <span style={{ fontFamily: 'var(--font-mono)', fontSize: 22, fontWeight: 700, color: k.color, lineHeight: 1, textShadow: `0 0 12px ${k.color}22` }}>{k.value}</span>
                                                     <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: '#6b7280' }}>{k.sub}</span>
                                                 </div>
@@ -1081,6 +1354,121 @@ export default function AnalyticsPage() {
                                     </>
                                 );
                             })()}
+
+                            {/* P10 — Sample size warning */}
+                            {closed.length > 0 && closed.length < THRESHOLDS.confident && (
+                                <div style={{
+                                    fontFamily: 'var(--font-mono)', fontSize: 10, color: '#EAB308',
+                                    background: 'rgba(234,179,8,0.06)', border: '1px solid rgba(234,179,8,0.2)',
+                                    padding: '6px 12px', display: 'flex', alignItems: 'center', gap: 6,
+                                }}>
+                                    <span>⚠</span>
+                                    {closed.length < THRESHOLDS.tooFew
+                                        ? (lang === 'fr' ? `${closed.length} trades — échantillon trop petit pour des statistiques fiables` : `${closed.length} trades — sample too small for reliable statistics`)
+                                        : (lang === 'fr' ? `${closed.length} trades — résultats acceptables` : `${closed.length} trades — adequate sample`)}
+                                </div>
+                            )}
+
+                            {/* P5 — Goal-setting panel */}
+                            <div style={{ border: '1px solid #1a1c24', background: '#0b0e14' }}>
+                                <div style={{
+                                    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                                    padding: '10px 16px', borderBottom: goalEditing || analyticsGoals ? '1px solid #1a1c24' : 'none',
+                                    cursor: 'pointer',
+                                }} onClick={() => !analyticsGoals && setGoalEditing(true)}>
+                                    <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: '#6b7280' }}>
+                                        {lang === 'fr' ? 'VOS OBJECTIFS' : 'YOUR TARGETS'}
+                                    </span>
+                                    <button
+                                        onClick={(e) => { e.stopPropagation(); setGoalEditing(!goalEditing); setGoalDraft(analyticsGoals ?? { winRate: null, profitFactor: null, maxDrawdownPct: null, tradesPerWeek: null }); }}
+                                        style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: '#FDC800', background: 'none', border: '1px solid rgba(253,200,0,0.3)', cursor: 'pointer', padding: '4px 10px' }}
+                                    >
+                                        {analyticsGoals ? (lang === 'fr' ? 'MODIFIER' : 'EDIT') : (lang === 'fr' ? 'DÉFINIR' : 'SET')}
+                                    </button>
+                                </div>
+
+                                {goalEditing && (
+                                    <div style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: 12 }}>
+                                        {([
+                                            { key: 'winRate' as const, label: lang === 'fr' ? 'Taux réussite (%)' : 'Win Rate (%)', placeholder: '55' },
+                                            { key: 'profitFactor' as const, label: lang === 'fr' ? 'Facteur de profit' : 'Profit Factor', placeholder: '1.5' },
+                                            { key: 'maxDrawdownPct' as const, label: lang === 'fr' ? 'Drawdown max (%)' : 'Max Drawdown (%)', placeholder: '3' },
+                                            { key: 'tradesPerWeek' as const, label: lang === 'fr' ? 'Trades / semaine' : 'Trades / Week', placeholder: '20' },
+                                        ]).map(({ key, label, placeholder }) => (
+                                            <div key={key} style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                                                <label style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: '#8b949e', minWidth: 160, flexShrink: 0 }}>{label}</label>
+                                                <input
+                                                    type="number"
+                                                    inputMode="numeric"
+                                                    pattern="[0-9]*"
+                                                    placeholder={placeholder}
+                                                    value={goalDraft[key] ?? ''}
+                                                    onChange={e => setGoalDraft(prev => ({ ...prev, [key]: e.target.value ? Number(e.target.value) : null }))}
+                                                    style={{
+                                                        fontFamily: 'var(--font-mono)', fontSize: 13, fontWeight: 700,
+                                                        background: '#090909', border: '1px solid #1a1c24',
+                                                        color: '#FDC800', padding: '7px 10px', width: 100, outline: 'none',
+                                                        borderRadius: 0,
+                                                    }}
+                                                />
+                                            </div>
+                                        ))}
+                                        <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
+                                            <button
+                                                onClick={() => { setAnalyticsGoals(goalDraft); setGoalEditing(false); }}
+                                                style={{ fontFamily: 'var(--font-mono)', fontSize: 11, fontWeight: 800, letterSpacing: '0.06em', padding: '9px 20px', background: '#FDC800', border: 'none', color: '#090909', cursor: 'pointer' }}
+                                            >
+                                                {lang === 'fr' ? 'ENREGISTRER' : 'SAVE'}
+                                            </button>
+                                            <button
+                                                onClick={() => { setAnalyticsGoals(null); setGoalEditing(false); }}
+                                                style={{ fontFamily: 'var(--font-mono)', fontSize: 11, padding: '9px 16px', background: 'transparent', border: '1px solid #1a1c24', color: '#6b7280', cursor: 'pointer' }}
+                                            >
+                                                {lang === 'fr' ? 'EFFACER' : 'CLEAR'}
+                                            </button>
+                                        </div>
+                                    </div>
+                                )}
+
+                                {!goalEditing && analyticsGoals && (() => {
+                                    const items = [
+                                        { label: lang === 'fr' ? 'Taux réussite' : 'Win Rate', target: analyticsGoals.winRate, current: winRate, suffix: '%', higherBetter: true },
+                                        { label: lang === 'fr' ? 'Facteur profit' : 'Profit Factor', target: analyticsGoals.profitFactor, current: profitFactor >= 99 ? 99 : profitFactor, suffix: '', higherBetter: true },
+                                        { label: lang === 'fr' ? 'Drawdown max' : 'Max Drawdown', target: analyticsGoals.maxDrawdownPct, current: Math.abs(maxDd) / (account.startingBalance || 1) * 100, suffix: '%', higherBetter: false },
+                                        { label: lang === 'fr' ? 'Trades / sem.' : 'Trades / Week', target: analyticsGoals.tradesPerWeek, current: closed.length / Math.max(1, Math.ceil(closed.length / 5)), suffix: '', higherBetter: true },
+                                    ].filter(i => i.target != null);
+                                    if (items.length === 0) return null;
+                                    return (
+                                        <div style={{ padding: '12px 16px', display: 'flex', flexDirection: 'column', gap: 10 }}>
+                                            {items.map(({ label, target, current, suffix, higherBetter }) => {
+                                                const tgt = target!;
+                                                const pct = Math.min(100, (current / tgt) * 100);
+                                                const onTrack = higherBetter ? current >= tgt * 0.95 : current <= tgt * 1.05;
+                                                const exceeded = higherBetter ? current >= tgt : current <= tgt;
+                                                return (
+                                                    <div key={label}>
+                                                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+                                                            <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: '#8b949e' }}>{label}</span>
+                                                            <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: exceeded ? '#FDC800' : onTrack ? '#EAB308' : '#ff4757', fontWeight: 700 }}>
+                                                                {current.toFixed(1)}{suffix} / {tgt}{suffix} — {exceeded ? (lang === 'fr' ? '✓ Atteint' : '✓ On track') : onTrack ? (lang === 'fr' ? 'Proche' : 'Close') : (lang === 'fr' ? '⚠ En retard' : '⚠ Behind')}
+                                                            </span>
+                                                        </div>
+                                                        <div style={{ height: 4, background: '#1a1c24', width: '100%' }}>
+                                                            <div style={{ height: '100%', width: `${Math.min(100, pct)}%`, background: exceeded ? '#FDC800' : onTrack ? '#EAB308' : '#ff4757', transition: 'width 0.5s ease' }} />
+                                                        </div>
+                                                    </div>
+                                                );
+                                            })}
+                                        </div>
+                                    );
+                                })()}
+
+                                {!goalEditing && !analyticsGoals && (
+                                    <div style={{ padding: '16px', fontFamily: 'var(--font-mono)', fontSize: 11, color: '#4b5563', textAlign: 'center' }}>
+                                        {lang === 'fr' ? "Définissez vos objectifs de trading pour suivre vos progrès." : "Set your trading targets to track your progress against goals."}
+                                    </div>
+                                )}
+                            </div>
 
                             {/* ── WIN/LOSS SPLIT + THRESHOLD BULLETS ── */}
                             {closed.length > 0 && (
@@ -1718,6 +2106,12 @@ export default function AnalyticsPage() {
                                     </div>
                                 </div>
                                 <ComposedDailyChart data={dailyEnriched.slice(-60)} height={280} rollingWindow={5} />
+                                {/* P11 — Violation markers */}
+                                {violationDates.size > 0 && (
+                                    <div style={{ marginTop: 8, padding: '8px 12px', background: 'rgba(255,71,87,0.05)', border: '1px solid rgba(255,71,87,0.2)', fontFamily: 'var(--font-mono)', fontSize: 10, color: '#ff4757' }}>
+                                        ⛔ {lang === 'fr' ? `Limite journalière dépassée ${violationDates.size} fois` : `Daily loss limit breached ${violationDates.size} time${violationDates.size > 1 ? 's' : ''}`}: {Array.from(violationDates).slice(0, 5).join(', ')}
+                                    </div>
+                                )}
                                 {/* Interpretation */}
                                 {dailyData.length >= 3 && (
                                     <div style={{ marginTop: 16, display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 12 }}>
@@ -2137,6 +2531,20 @@ export default function AnalyticsPage() {
                     {activeTab === 'SESSIONS' && (
                         <motion.div key="sessions" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} style={{ display: 'flex', flexDirection: 'column', gap: 20, marginBottom: 48 }}>
 
+                            {closed.length < TRADE_GATES.sessions ? (
+                                <div className={styles.tradeGate}>
+                                    <div style={{ fontFamily: 'var(--font-mono)', fontSize: 12, fontWeight: 700, color: '#6b7280' }}>
+                                        {lang === 'fr' ? `SESSIONS se débloque à ${TRADE_GATES.sessions} trades` : `SESSIONS unlocks at ${TRADE_GATES.sessions} trades`}
+                                    </div>
+                                    <div style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: '#4b5563' }}>
+                                        {lang === 'fr' ? `Vous en avez ${closed.length}. Enregistrez ${TRADE_GATES.sessions - closed.length} de plus.` : `You have ${closed.length}. Log ${TRADE_GATES.sessions - closed.length} more.`}
+                                    </div>
+                                    <button onClick={() => setDemoMode(true)} style={{ fontFamily: 'var(--font-mono)', fontSize: 11, fontWeight: 700, padding: '9px 18px', background: 'transparent', border: '1px solid #1a1c24', color: '#6b7280', cursor: 'pointer' }}>
+                                        {lang === 'fr' ? 'ESSAYER LA DÉMO →' : 'TRY DEMO →'}
+                                    </button>
+                                </div>
+                            ) : (<>
+
                             {/* ── HEADER ── */}
                             <div>
                                 <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#6b7280', letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 4 }}>SESSION FORENSICS</div>
@@ -2179,7 +2587,7 @@ export default function AnalyticsPage() {
                                                 <YAxis tick={{ fontSize: 9, fill: '#8b949e', fontFamily: 'var(--font-mono)' }} axisLine={false} tickLine={false} tickFormatter={(v: number) => `$${Math.abs(v) >= 1000 ? `${(v/1000).toFixed(1)}k` : v.toFixed(0)}`} width={48} />
                                                 <ReferenceLine y={0} stroke="rgba(255,255,255,0.2)" />
                                                 <Tooltip
-                                                    contentStyle={{ backgroundColor: '#13151a', border: '1px solid #2d3748', fontFamily: 'var(--font-mono)', fontSize: 11, borderRadius: 0, color: '#c9d1d9' }}
+                                                    contentStyle={{ backgroundColor: '#0d1117', border: '1px solid #1a1c24', fontFamily: 'var(--font-mono)', fontSize: 11, borderRadius: 0, color: '#c9d1d9' }}
                                                     cursor={{ fill: 'rgba(255,255,255,0.04)' }}
                                                     formatter={(v: number | undefined, _n: unknown, props: { payload?: { tag: string; trades: number } }) => v !== undefined ? [`${v >= 0 ? '+' : ''}$${Math.abs(v).toFixed(2)} · ${props.payload?.trades ?? 0} trades · ${props.payload?.tag ?? ''}`, 'Session P&L'] : ['—', 'Session P&L']}
                                                     labelFormatter={(l: unknown) => `Session ${l}`}
@@ -2318,7 +2726,7 @@ export default function AnalyticsPage() {
                                                                             <ReferenceLine y={0} stroke="rgba(255,255,255,0.08)" />
                                                                             <Area type="monotone" dataKey="pnl" stroke={s.pnl >= 0 ? '#FDC800' : '#ff4757'} strokeWidth={1.5} fill={`url(#sg${idx})`} dot={false} />
                                                                             <Tooltip
-                                                                                contentStyle={{ backgroundColor: '#13151a', border: '1px solid #2d3748', fontFamily: 'var(--font-mono)', fontSize: 10, borderRadius: 0, color: '#c9d1d9' }}
+                                                                                contentStyle={{ backgroundColor: '#0d1117', border: '1px solid #1a1c24', fontFamily: 'var(--font-mono)', fontSize: 10, borderRadius: 0, color: '#c9d1d9' }}
                                                                                 formatter={(v: number | undefined) => v !== undefined ? [`${v >= 0 ? '+' : ''}$${Math.abs(v).toFixed(2)}`, 'Running P&L'] : ['—', 'Running P&L']}
                                                                                 labelFormatter={(l: unknown) => `Trade ${Number(l) + 1}`}
                                                                             />
@@ -2541,6 +2949,7 @@ export default function AnalyticsPage() {
                                 </div>
                             </div>
 
+                            </>)}
                         </motion.div>
                     )}
 
@@ -2645,8 +3054,10 @@ export default function AnalyticsPage() {
                                                     <XAxis dataKey="hour" tick={{ fontSize: 9, fill: '#8b949e', fontFamily: 'var(--font-mono)' }} axisLine={false} tickLine={false} interval={1} />
                                                     <YAxis tick={{ fontSize: 9, fill: '#8b949e', fontFamily: 'var(--font-mono)' }} axisLine={false} tickLine={false} tickFormatter={(v: number) => `$${Math.abs(v) >= 1000 ? `${(v/1000).toFixed(1)}k` : v.toFixed(0)}`} width={48} />
                                                     <ReferenceLine y={0} stroke="rgba(255,255,255,0.2)" strokeWidth={1} />
+                                                    <ReferenceLine x={9.5} stroke="#FDC800" strokeDasharray="3 3" strokeOpacity={0.3} label={{ value: 'NYSE', fontSize: 8, fill: '#FDC800', opacity: 0.6 }} />
+                                                    <ReferenceLine x={16} stroke="#EAB308" strokeDasharray="3 3" strokeOpacity={0.3} label={{ value: 'CLOSE', fontSize: 8, fill: '#EAB308', opacity: 0.6 }} />
                                                     <Tooltip
-                                                        contentStyle={{ backgroundColor: '#13151a', border: '1px solid #2d3748', fontFamily: 'var(--font-mono)', fontSize: 11, borderRadius: 0, color: '#c9d1d9' }}
+                                                        contentStyle={{ backgroundColor: '#0d1117', border: '1px solid #1a1c24', fontFamily: 'var(--font-mono)', fontSize: 11, borderRadius: 0, color: '#c9d1d9' }}
                                                         cursor={{ fill: 'rgba(255,255,255,0.04)' }}
                                                         formatter={(v: number | undefined, _name: unknown, props: { payload?: { trades: number; wr: number } }) => {
                                                             if (v === undefined) return ['—', 'P&L'];
@@ -2665,6 +3076,22 @@ export default function AnalyticsPage() {
                                                     </Bar>
                                                 </BarChart>
                                             </ResponsiveContainer>
+                                        </div>
+                                        {/* P16 — Session window legend */}
+                                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, padding: '8px 0' }}>
+                                            {[
+                                                { label: lang === 'fr' ? 'GLOBEX' : 'GLOBEX', hours: '00–06', color: '#38bdf8' },
+                                                { label: lang === 'fr' ? 'PRÉ-MKT' : 'PRE-MKT', hours: '06–09:30', color: '#F97316' },
+                                                { label: lang === 'fr' ? 'OUVERTURE NYSE' : 'NYSE OPEN', hours: '09:30–11', color: '#FDC800' },
+                                                { label: lang === 'fr' ? 'MILIEU DE JOURNÉE' : 'MIDDAY', hours: '11:30–13:30', color: '#EAB308' },
+                                                { label: lang === 'fr' ? 'APRÈS-MIDI NY' : 'NY AFTERNOON', hours: '14–16', color: '#FDC800' },
+                                                { label: lang === 'fr' ? 'APRÈS CLÔTURE' : 'AFTER HOURS', hours: '16–20', color: '#a78bfa' },
+                                            ].map(sess => (
+                                                <div key={sess.label} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                                                    <div style={{ width: 8, height: 8, background: sess.color, opacity: 0.7 }} />
+                                                    <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#6b7280' }}>{sess.label} {sess.hours}</span>
+                                                </div>
+                                            ))}
                                         </div>
                                         {/* Interpretation */}
                                         {activeH.length > 0 && (
@@ -2725,7 +3152,7 @@ export default function AnalyticsPage() {
                                                     <ReferenceLine y={50} stroke="rgba(255,255,255,0.15)" strokeDasharray="4 4" label={{ value: '50%', fill: '#8b949e', fontSize: 8, fontFamily: 'var(--font-mono)' }} />
                                                     <ReferenceLine y={40} stroke="rgba(255,71,87,0.3)" strokeDasharray="4 2" label={{ value: '40% TRAP', fill: '#ff4757', fontSize: 8, fontFamily: 'var(--font-mono)', fontWeight: 700 }} />
                                                     <Tooltip
-                                                        contentStyle={{ backgroundColor: '#13151a', border: '1px solid #2d3748', fontFamily: 'var(--font-mono)', fontSize: 11, borderRadius: 0, color: '#c9d1d9' }}
+                                                        contentStyle={{ backgroundColor: '#0d1117', border: '1px solid #1a1c24', fontFamily: 'var(--font-mono)', fontSize: 11, borderRadius: 0, color: '#c9d1d9' }}
                                                         cursor={{ fill: 'rgba(255,255,255,0.04)' }}
                                                         formatter={(v: number | undefined, _n: unknown, props: { payload?: { trades: number; pnl: number } }) => {
                                                             if (v === undefined) return ['—', 'Win Rate'];
@@ -3173,7 +3600,7 @@ export default function AnalyticsPage() {
                                                     <XAxis dataKey="len" tick={{ fontSize: 10, fill: '#8b949e', fontFamily: 'var(--font-mono)' }} axisLine={false} tickLine={false} label={{ value: 'Streak Length', position: 'insideBottom', offset: -4, fill: '#6b7280', fontSize: 9, fontFamily: 'var(--font-mono)' }} />
                                                     <YAxis tick={{ fontSize: 9, fill: '#8b949e', fontFamily: 'var(--font-mono)' }} axisLine={false} tickLine={false} width={28} />
                                                     <Tooltip
-                                                        contentStyle={{ backgroundColor: '#13151a', border: '1px solid #2d3748', fontFamily: 'var(--font-mono)', fontSize: 11, borderRadius: 0, color: '#c9d1d9' }}
+                                                        contentStyle={{ backgroundColor: '#0d1117', border: '1px solid #1a1c24', fontFamily: 'var(--font-mono)', fontSize: 11, borderRadius: 0, color: '#c9d1d9' }}
                                                         formatter={(v: number | undefined, name: string | undefined) => v !== undefined ? [`${v} streak${v !== 1 ? 's' : ''}`, name === 'wins' ? 'Win Streaks' : 'Loss Streaks'] : ['—', name ?? '']}
                                                         labelFormatter={(l: unknown) => `Length ${l}`}
                                                     />
@@ -3206,7 +3633,7 @@ export default function AnalyticsPage() {
                                                     <YAxis type="category" dataKey="name" tick={false} axisLine={false} tickLine={false} width={4} />
                                                     <ReferenceLine x={0} stroke="rgba(255,255,255,0.2)" />
                                                     <Tooltip
-                                                        contentStyle={{ backgroundColor: '#13151a', border: '1px solid #2d3748', fontFamily: 'var(--font-mono)', fontSize: 11, borderRadius: 0, color: '#c9d1d9' }}
+                                                        contentStyle={{ backgroundColor: '#0d1117', border: '1px solid #1a1c24', fontFamily: 'var(--font-mono)', fontSize: 11, borderRadius: 0, color: '#c9d1d9' }}
                                                         formatter={(v: number | undefined, _n: unknown, props: { payload?: { type: string; length: number } }) => {
                                                             if (v === undefined) return ['—', ''];
                                                             const r = props.payload;
@@ -3365,7 +3792,7 @@ export default function AnalyticsPage() {
                                                     <XAxis type="number" tick={{ fontSize: 9, fill: '#8b949e', fontFamily: 'var(--font-mono)' }} axisLine={false} tickLine={false} tickFormatter={(v: number) => `$${v >= 1000 ? `${(v/1000).toFixed(1)}k` : v.toFixed(0)}`} />
                                                     <YAxis type="category" dataKey="name" tick={{ fontSize: 10, fill: '#c9d1d9', fontFamily: 'var(--font-mono)', fontWeight: 600 }} axisLine={false} tickLine={false} width={140} />
                                                     <Tooltip
-                                                        contentStyle={{ backgroundColor: '#13151a', border: '1px solid #2d3748', fontFamily: 'var(--font-mono)', fontSize: 11, borderRadius: 0, color: '#c9d1d9' }}
+                                                        contentStyle={{ backgroundColor: '#0d1117', border: '1px solid #1a1c24', fontFamily: 'var(--font-mono)', fontSize: 11, borderRadius: 0, color: '#c9d1d9' }}
                                                         formatter={(v: number | undefined, _n: unknown, props: { payload?: { freq: number; severity: string } }) => {
                                                             if (v === undefined) return ['—', ''];
                                                             return [`-$${v.toFixed(0)} · ${props.payload?.freq ?? 0} instances · ${props.payload?.severity ?? ''}`, 'Behavioral Cost'];
@@ -4053,6 +4480,35 @@ export default function AnalyticsPage() {
                         const fmtQ = (v: number) => `${v >= 0 ? '+' : ''}$${Math.abs(v) >= 1000 ? `${(v / 1000).toFixed(1)}k` : Math.abs(v).toFixed(0)}`;
                         const rc = (v: number, good: number, ok: number) => v >= good ? '#FDC800' : v >= ok ? '#EAB308' : '#ff4757';
 
+                        if (userTier !== 'pro') return (
+                            <motion.div key="quant-gate" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }}>
+                                <div className={styles.proGate}>
+                                    <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, fontWeight: 800, letterSpacing: '0.1em', color: '#090909', background: '#FDC800', padding: '3px 8px' }}>PRO</span>
+                                    <div style={{ fontFamily: 'var(--font-mono)', fontSize: 13, fontWeight: 700, color: '#c9d1d9' }}>
+                                        {lang === 'fr' ? 'Analyse QUANT avancée' : 'Advanced QUANT Analysis'}
+                                    </div>
+                                    <div style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: '#6b7280', maxWidth: 320 }}>
+                                        {lang === 'fr' ? "Monte Carlo, Sharpe, Sortino, Calmar — réservés aux abonnés Pro." : "Monte Carlo, Sharpe, Sortino, Calmar — Pro subscribers only."}
+                                    </div>
+                                    <button style={{ fontFamily: 'var(--font-mono)', fontSize: 11, fontWeight: 800, letterSpacing: '0.06em', padding: '10px 24px', background: '#FDC800', border: 'none', color: '#090909', cursor: 'pointer' }}>
+                                        {lang === 'fr' ? 'PASSER À PRO' : 'UPGRADE TO PRO'}
+                                    </button>
+                                </div>
+                            </motion.div>
+                        );
+                        if (closed.length < TRADE_GATES.quant) return (
+                            <motion.div key="quant-tradegate" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }}>
+                                <div className={styles.tradeGate}>
+                                    <div style={{ fontFamily: 'var(--font-mono)', fontSize: 12, fontWeight: 700, color: '#6b7280' }}>
+                                        {lang === 'fr' ? `QUANT se débloque à ${TRADE_GATES.quant} trades` : `QUANT unlocks at ${TRADE_GATES.quant} trades`}
+                                    </div>
+                                    <div style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: '#4b5563' }}>
+                                        {lang === 'fr' ? `${TRADE_GATES.quant - closed.length} trades restants.` : `${TRADE_GATES.quant - closed.length} more trades needed.`}
+                                    </div>
+                                </div>
+                            </motion.div>
+                        );
+
                         return (
                             <motion.div key="quant" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} style={{ display: 'flex', flexDirection: 'column', gap: 24, marginBottom: 48 }}>
 
@@ -4262,7 +4718,7 @@ export default function AnalyticsPage() {
                                         <BarChart data={histBuckets} margin={{ top: 4, right: 0, bottom: 4, left: 0 }} barCategoryGap={1}>
                                             <XAxis dataKey="label" tick={{ fontSize: 8, fill: '#4b5563', fontFamily: QF }} axisLine={false} tickLine={false} interval={Math.floor(histBuckets.length / 5)} />
                                             <YAxis hide />
-                                            <Tooltip contentStyle={{ backgroundColor: '#13151a', border: '1px solid #2d3748', fontFamily: QF, fontSize: 11, borderRadius: 0, color: '#c9d1d9' }} formatter={(v: any) => [v, 'Trades']} />
+                                            <Tooltip contentStyle={{ backgroundColor: '#0d1117', border: '1px solid #1a1c24', fontFamily: QF, fontSize: 11, borderRadius: 0, color: '#c9d1d9' }} formatter={(v: any) => [v, 'Trades']} />
                                             <ReferenceLine x={`${meanT >= 0 ? '+' : ''}${meanT.toFixed(0)}`} stroke="#EAB308" strokeDasharray="3 3" strokeWidth={1} />
                                             <Bar dataKey="count" radius={[2, 2, 0, 0]}>
                                                 {histBuckets.map((b, idx) => {
@@ -4524,7 +4980,7 @@ export default function AnalyticsPage() {
                                                 <XAxis dataKey="i" tick={{ fontSize: 8, fill: '#4b5563', fontFamily: QF }} axisLine={false} tickLine={false} label={{ value: 'Trade #', position: 'insideBottom', offset: -4, fill: '#4b5563', fontSize: 8, fontFamily: QF }} />
                                                 <YAxis tick={{ fontSize: 8, fill: '#4b5563', fontFamily: QF }} axisLine={false} tickLine={false} tickFormatter={(v: number) => `${v.toFixed(1)}%`} width={40} />
                                                 <ReferenceLine y={0} stroke="rgba(255,255,255,0.12)" strokeWidth={1} />
-                                                <Tooltip contentStyle={{ backgroundColor: '#13151a', border: '1px solid #2d3748', fontFamily: QF, fontSize: 11, borderRadius: 0, color: '#c9d1d9' }} formatter={(v: any) => [`${Number(v).toFixed(2)}%`, 'Drawdown']} labelFormatter={(v: any) => `Trade #${v}`} />
+                                                <Tooltip contentStyle={{ backgroundColor: '#0d1117', border: '1px solid #1a1c24', fontFamily: QF, fontSize: 11, borderRadius: 0, color: '#c9d1d9' }} formatter={(v: any) => [`${Number(v).toFixed(2)}%`, 'Drawdown']} labelFormatter={(v: any) => `Trade #${v}`} />
                                                 <Area type="monotone" dataKey="ddPct" stroke="#ff4757" strokeWidth={1.5} fill="url(#ddGrad)" />
                                             </AreaChart>
                                         </ResponsiveContainer>
@@ -4701,7 +5157,7 @@ export default function AnalyticsPage() {
                                             <BarChart data={mcResults.buckets} margin={{ top: 4, right: 0, bottom: 4, left: 0 }} barCategoryGap={2}>
                                                 <XAxis dataKey="label" tick={{ fontSize: 8, fill: '#4b5563', fontFamily: QF }} axisLine={false} tickLine={false} interval={2} />
                                                 <YAxis hide />
-                                                <Tooltip contentStyle={{ backgroundColor: '#13151a', border: '1px solid #2d3748', fontFamily: QF, fontSize: 11, borderRadius: 0, color: '#c9d1d9' }} formatter={(v: any) => [v, 'Simulations']} labelFormatter={(v: any) => `Outcome: ${v}`} />
+                                                <Tooltip contentStyle={{ backgroundColor: '#0d1117', border: '1px solid #1a1c24', fontFamily: QF, fontSize: 11, borderRadius: 0, color: '#c9d1d9' }} formatter={(v: any) => [v, 'Simulations']} labelFormatter={(v: any) => `Outcome: ${v}`} />
                                                 <ReferenceLine x="$0" stroke="rgba(255,255,255,0.2)" strokeWidth={1} />
                                                 <Bar dataKey="count" radius={[2, 2, 0, 0]}>
                                                     {mcResults.buckets.map((b, i) => (
@@ -4770,6 +5226,42 @@ export default function AnalyticsPage() {
                                         </div>
                                     </div>
                                 )}
+
+                                {/* P25 — Quant glossary */}
+                                <div style={{ border: '1px solid #1a1c24', padding: '20px 24px' }}>
+                                    <div style={{ fontFamily: QF, fontSize: 10, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#6b7280', marginBottom: 16 }}>
+                                        {lang === 'fr' ? 'GLOSSAIRE QUANTITATIF' : 'QUANT GLOSSARY'}
+                                    </div>
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                                        {[
+                                            {
+                                                term: 'Sharpe Ratio',
+                                                def: lang === 'fr' ? 'Rendement excédentaire / volatilité totale. >1 = bon, >2 = excellent pour le trading actif.' : 'Excess return / total volatility. >1 = good, >2 = excellent for active trading.',
+                                            },
+                                            {
+                                                term: 'Sortino Ratio',
+                                                def: lang === 'fr' ? 'Comme le Sharpe mais ne pénalise que la volatilité négative. Meilleure mesure pour les stratégies asymétriques.' : 'Like Sharpe but only penalizes downside volatility. Better metric for asymmetric return strategies.',
+                                            },
+                                            {
+                                                term: 'Calmar Ratio',
+                                                def: lang === 'fr' ? "Rendement annualisé ÷ drawdown maximum. Plus c'est élevé, meilleur est le rendement ajusté au risque." : 'Annualized return ÷ max drawdown. Higher = better risk-adjusted performance over time.',
+                                            },
+                                            {
+                                                term: 'Monte Carlo',
+                                                def: lang === 'fr' ? 'Simulation de milliers de séquences de trades pour estimer la distribution des résultats futurs. Fiable à partir de 30 trades.' : 'Simulates thousands of trade sequences to estimate the distribution of future outcomes. Reliable at 30+ trades.',
+                                            },
+                                            {
+                                                term: lang === 'fr' ? 'Risque de ruine' : 'Risk of Ruin',
+                                                def: lang === 'fr' ? "Probabilité que votre solde descende en dessous d'un seuil critique avant de récupérer. <5 % = acceptable." : 'Probability your account drops below a critical threshold before recovering. <5% = acceptable.',
+                                            },
+                                        ].map(({ term, def }) => (
+                                            <div key={term} style={{ display: 'flex', gap: 16 }}>
+                                                <div style={{ fontFamily: QF, fontSize: 11, fontWeight: 700, color: '#FDC800', minWidth: 130, flexShrink: 0 }}>{term}</div>
+                                                <div style={{ fontFamily: QF, fontSize: 10, color: '#8b949e', lineHeight: 1.5 }}>{def}</div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
 
                                 </>)}
                             </motion.div>
@@ -6509,6 +7001,76 @@ export default function AnalyticsPage() {
 
                 </AnimatePresence>
             </div>
+
+            {/* P21 — Share card modal */}
+            {showShareModal && (
+                <div style={{
+                    position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.8)',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    zIndex: 100, /* share modal overlay */ padding: 24,
+                }}>
+                    <div style={{ background: '#0d1117', border: '1px solid #1a1c24', maxWidth: 520, width: '100%', position: 'relative' }}>
+                        <button
+                            onClick={() => setShowShareModal(false)}
+                            style={{ position: 'absolute', top: 12, right: 12, background: 'none', border: 'none', cursor: 'pointer', color: '#6b7280' }}
+                        >
+                            <X size={16} />
+                        </button>
+                        <div style={{ padding: 32, background: '#090909', margin: 16, border: '1px solid #1a1c24' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 20 }}>
+                                <div style={{ width: 28, height: 28, background: '#FDC800', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                    <span style={{ fontFamily: 'var(--font-mono)', fontSize: 12, fontWeight: 900, color: '#000' }}>RG</span>
+                                </div>
+                                <span style={{ fontFamily: 'var(--font-mono)', fontSize: 13, fontWeight: 800, color: '#fff' }}>
+                                    Risk<span style={{ color: '#FDC800' }}>Guardian</span>
+                                </span>
+                            </div>
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 20 }}>
+                                {[
+                                    { label: 'NET P&L', value: privacyBlur ? '••••' : `${netPnl >= 0 ? '+' : ''}$${Math.abs(netPnl).toFixed(0)}`, color: netPnl >= 0 ? '#FDC800' : '#ff4757' },
+                                    { label: 'WIN RATE', value: privacyBlur ? '••' : `${winRate.toFixed(1)}%`, color: winRate >= 55 ? '#FDC800' : winRate >= 45 ? '#EAB308' : '#ff4757' },
+                                    { label: 'PROFIT FACTOR', value: privacyBlur ? '•••' : (profitFactor >= 99 ? '∞' : profitFactor.toFixed(2)), color: profitFactor >= 1.5 ? '#FDC800' : profitFactor >= 1 ? '#EAB308' : '#ff4757' },
+                                    { label: 'TRADES', value: `${closed.length}`, color: '#c9d1d9' },
+                                ].map(({ label, value, color }) => (
+                                    <div key={label} style={{ background: '#0d1117', padding: '12px 14px', border: '1px solid #1a1c24' }}>
+                                        <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#6b7280', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 4 }}>{label}</div>
+                                        <div style={{ fontFamily: 'var(--font-mono)', fontSize: 22, fontWeight: 900, color }}>{value}</div>
+                                    </div>
+                                ))}
+                            </div>
+                            <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#4b5563', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+                                RiskGuardian · AI Risk OS for Prop Traders
+                            </div>
+                        </div>
+                        <div style={{ padding: '12px 16px', display: 'flex', gap: 8, borderTop: '1px solid #1a1c24' }}>
+                            <button
+                                onClick={() => {
+                                    const text = `My RiskGuardian stats: ${winRate.toFixed(1)}% WR · ${profitFactor >= 99 ? '∞' : profitFactor.toFixed(2)} PF · ${netPnl >= 0 ? '+' : ''}$${Math.abs(netPnl).toFixed(0)} P&L over ${closed.length} trades — riskguardian.app`;
+                                    navigator.clipboard.writeText(text).then(() => { setCopied(true); setTimeout(() => setCopied(false), 2000); });
+                                }}
+                                style={{
+                                    flex: 1, fontFamily: 'var(--font-mono)', fontSize: 12, fontWeight: 700, letterSpacing: '0.06em',
+                                    padding: '11px', background: copied ? 'rgba(253,200,0,0.1)' : '#FDC800',
+                                    border: `1px solid ${copied ? 'rgba(253,200,0,0.4)' : 'transparent'}`,
+                                    color: copied ? '#FDC800' : '#090909', cursor: 'pointer',
+                                }}
+                            >
+                                {copied ? (lang === 'fr' ? '✓ COPIÉ' : '✓ COPIED') : (lang === 'fr' ? 'COPIER LE TEXTE' : 'COPY TEXT')}
+                            </button>
+                            <button
+                                onClick={() => window.print()}
+                                style={{
+                                    fontFamily: 'var(--font-mono)', fontSize: 12, fontWeight: 700, letterSpacing: '0.06em',
+                                    padding: '11px 20px', background: 'transparent',
+                                    border: '1px solid #1a1c24', color: '#8b949e', cursor: 'pointer',
+                                }}
+                            >
+                                {lang === 'fr' ? 'IMPRIMER' : 'PRINT'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }

@@ -198,8 +198,30 @@ export default function DashboardPage() {
     }, [mounted, closedTrades, streakCount, streakType, lang]);
 
     // ── Session intelligence (forensics) ──────────────────────
-    const forensics = useMemo(() => generateForensics(trades, account), [trades, account]);
+    const forensics = useMemo(() => generateForensics(trades, account, lang as 'en' | 'fr'), [trades, account, lang]);
     const bestHour  = forensics.timeStats.bestHour;
+
+    // ── Pre-session behavioral alert (P23) ────────────────────
+    const preSessionAlert = useMemo(() => {
+        if (trades.length < 5) return null;
+        const closed = trades
+            .filter(t => (t.outcome === 'win' || t.outcome === 'loss') && typeof t.pnl === 'number')
+            .map(t => ({
+                ...t,
+                durationSeconds: t.durationSeconds ?? (t.closedAt
+                    ? Math.floor((new Date(t.closedAt).getTime() - new Date(t.createdAt).getTime()) / 1000)
+                    : undefined),
+            }));
+        if (closed.length < 5) return null;
+        try {
+            const f = generateForensics(closed, account, lang as 'en' | 'fr');
+            const top = f.patterns.sort((a, b) => Math.abs(b.impact) - Math.abs(a.impact))[0];
+            if (!top || top.severity === 'INFO') return null;
+            return top;
+        } catch {
+            return null;
+        }
+    }, [trades, account, lang]);
 
     // ── Revenge sizing alert ───────────────────────────────────
     const revengeAlert = mounted && trades.length >= 2 &&
@@ -374,6 +396,27 @@ export default function DashboardPage() {
         <motion.div variants={stagger} initial="hidden" animate="show"
             style={{ display: 'flex', flexDirection: 'column', background: '#090909', minHeight: '100vh' }}
         >
+            {preSessionAlert && (
+                <div style={{
+                    background: 'rgba(255,71,87,0.06)',
+                    border: '1px solid rgba(255,71,87,0.2)',
+                    padding: '12px 16px',
+                    marginBottom: 16,
+                    fontFamily: 'var(--font-mono)',
+                }}>
+                    <div style={{ fontSize: 10, color: '#ff4757', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 4 }}>
+                        {lang === 'fr' ? 'ALERTE PRÉ-SESSION' : 'PRE-SESSION ALERT'}
+                    </div>
+                    <div style={{ fontSize: 12, color: '#c9d1d9' }}>
+                        {preSessionAlert.name}: {preSessionAlert.desc}
+                    </div>
+                    {preSessionAlert.action && (
+                        <div style={{ fontSize: 11, color: '#FDC800', marginTop: 6 }}>
+                            {lang === 'fr' ? 'Action' : 'Action'}: {preSessionAlert.action}
+                        </div>
+                    )}
+                </div>
+            )}
 
             {/* ── SECTION 1 — STATUS STRIP ─────────────────────── */}
             <motion.div variants={fadeUp} style={{

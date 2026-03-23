@@ -43,6 +43,7 @@ export interface PatternResult {
     desc: string;
     evidence: string[];
     evidenceTrades: EvidenceTrade[];
+    action?: string;
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -71,7 +72,7 @@ const estDay = (iso: string): number =>
 
 // ── Main engine ───────────────────────────────────────────────────────────────
 
-export function generateForensics(trades: Trade[], accountData: any) {
+export function generateForensics(trades: Trade[], accountData: any, lang: 'en' | 'fr' = 'en') {
     const closed = trades
         .filter(t => t.outcome === 'win' || t.outcome === 'loss')
         .sort((a, b) => new Date(a.closedAt ?? a.createdAt).getTime() - new Date(b.closedAt ?? b.createdAt).getTime());
@@ -874,6 +875,144 @@ export function generateForensics(trades: Trade[], accountData: any) {
                 desc: '3+ consecutive red sessions, each worse than the previous — the highest-probability pattern preceding account blow. Immediate rule review required.',
                 evidence: precursorSessions.slice(0, 3).map((s, k) => `Session #${k + 1}: $${s.pnl.toFixed(0)} (${s.trades.length} trades)`),
                 evidenceTrades: evidenceTrades.slice(0, 5),
+            });
+        }
+    }
+
+    // ── PATTERN 20: FOMO Entry ────────────────────────────────────────────────
+    {
+        const fomoTrades = closed.filter(t => (t as any).biasTag === 'FOMO');
+        const fomoByChasing = closed.filter((t, i) => {
+            if (i === 0) return false;
+            const prev = closed[i - 1];
+            if (prev.outcome !== 'win') return false;
+            const gap = new Date(t.createdAt).getTime() - new Date(prev.closedAt ?? prev.createdAt).getTime();
+            return gap > 0 && gap < 2 * 60 * 1000;
+        });
+        const allFomoIds = [...new Set([...fomoTrades.map(t => t.id), ...fomoByChasing.map(t => t.id)])];
+        const allFomo = allFomoIds.map(id => closed.find(t => t.id === id)!).filter(Boolean);
+        if (allFomo.length >= 2) {
+            const cost = allFomo.filter(t => t.outcome === 'loss').reduce((sum, t) => sum + Math.abs(t.pnl ?? 0), 0);
+            patterns.push({
+                name: lang === 'fr' ? 'Entrée FOMO' : 'FOMO Entry',
+                freq: allFomo.length,
+                severity: allFomo.length >= 4 ? 'CRITICAL' : 'HIGH',
+                impact: -cost,
+                desc: lang === 'fr'
+                    ? `${allFomo.length} entrées FOMO détectées — trades pris par peur de rater un mouvement, sans confirmation de setup.`
+                    : `${allFomo.length} FOMO entries detected — trades taken from fear of missing a move, without setup confirmation.`,
+                evidence: allFomo.slice(0, 3).map(t => `${t.asset} ${t.createdAt.slice(0, 10)} — ${t.outcome}`),
+                evidenceTrades: allFomo.slice(0, 3).map(t => ({
+                    timestamp: fmtTs(t.closedAt ?? t.createdAt),
+                    asset: t.asset,
+                    pnl: t.pnl ?? 0,
+                    context: lang === 'fr' ? 'Entrée FOMO sans confirmation de setup' : 'FOMO entry without setup confirmation',
+                })),
+            });
+        }
+    }
+
+    // ── PATTERN 21: Profit Locking Anxiety ───────────────────────────────────
+    {
+        const winsAll = closed.filter(t => t.outcome === 'win' && typeof t.pnl === 'number');
+        const avgWinAmtPL = winsAll.length > 0 ? winsAll.reduce((s, t) => s + (t.pnl ?? 0), 0) / winsAll.length : 0;
+        const avgWinDurPL = winsAll.length > 0 ? winsAll.reduce((s, t) => s + (t.durationSeconds ?? 0), 0) / winsAll.length : 0;
+        const profitLocked = winsAll.filter(t =>
+            (t.pnl ?? 0) < avgWinAmtPL * 0.4 &&
+            (t.durationSeconds ?? 0) < avgWinDurPL * 0.3 &&
+            avgWinAmtPL > 0 && avgWinDurPL > 0
+        );
+        if (profitLocked.length >= 3) {
+            const lostUpside = profitLocked.reduce((s, t) => s + (avgWinAmtPL - (t.pnl ?? 0)), 0);
+            const avgCapturePct = profitLocked.length > 0
+                ? (((profitLocked.reduce((s, t) => s + (t.pnl ?? 0), 0) / profitLocked.length) / avgWinAmtPL) * 100).toFixed(0)
+                : '0';
+            patterns.push({
+                name: lang === 'fr' ? 'Anxiété de gains' : 'Profit Locking Anxiety',
+                freq: profitLocked.length,
+                severity: 'HIGH',
+                impact: -lostUpside,
+                desc: lang === 'fr'
+                    ? `${profitLocked.length} trades fermés prématurément — gain moyen ${avgCapturePct}% de votre gain habituel. Aversion à la perte cognitive.`
+                    : `${profitLocked.length} trades exited early — capturing only ${avgCapturePct}% of your average win. Classic loss aversion bias.`,
+                evidence: profitLocked.slice(0, 3).map(t => `${t.asset} +$${(t.pnl ?? 0).toFixed(0)} (avg win: $${avgWinAmtPL.toFixed(0)})`),
+                evidenceTrades: profitLocked.slice(0, 3).map(t => ({
+                    timestamp: fmtTs(t.closedAt ?? t.createdAt),
+                    asset: t.asset,
+                    pnl: t.pnl ?? 0,
+                    context: lang === 'fr'
+                        ? `Clôturé à ${((t.pnl ?? 0) / avgWinAmtPL * 100).toFixed(0)}% du gain moyen — sortie prématurée`
+                        : `Closed at ${((t.pnl ?? 0) / avgWinAmtPL * 100).toFixed(0)}% of avg win — premature exit`,
+                })),
+            });
+        }
+    }
+
+    // ── PATTERN 22: Overconfidence ────────────────────────────────────────────
+    {
+        const overconfidenceInstances: typeof closed = [];
+        for (let i = 3; i < closed.length; i++) {
+            const recentWins = closed.slice(Math.max(0, i - 3), i).every(t => t.outcome === 'win');
+            if (!recentWins) continue;
+            const trailing10 = closed.slice(Math.max(0, i - 10), i);
+            const avgLot = trailing10.reduce((s, t) => s + ((t as any).lotSize ?? 1), 0) / trailing10.length;
+            if (avgLot > 0 && ((closed[i] as any).lotSize ?? 1) > avgLot * 1.5) {
+                overconfidenceInstances.push(closed[i]);
+            }
+        }
+        if (overconfidenceInstances.length >= 2) {
+            const cost = overconfidenceInstances.filter(t => t.outcome === 'loss').reduce((s, t) => s + Math.abs(t.pnl ?? 0), 0);
+            patterns.push({
+                name: lang === 'fr' ? 'Surconfiance' : 'Overconfidence',
+                freq: overconfidenceInstances.length,
+                severity: cost > 300 ? 'CRITICAL' : 'HIGH',
+                impact: -cost,
+                desc: lang === 'fr'
+                    ? `${overconfidenceInstances.length} augmentations de taille après des séries gagnantes — biais de surconfiance classique.`
+                    : `${overconfidenceInstances.length} position size spikes after winning streaks — classic overconfidence bias.`,
+                evidence: overconfidenceInstances.slice(0, 3).map(t => `${t.asset} ${(t as any).lotSize ?? '?'} lots — ${t.outcome}`),
+                evidenceTrades: overconfidenceInstances.slice(0, 3).map(t => ({
+                    timestamp: fmtTs(t.closedAt ?? t.createdAt),
+                    asset: t.asset,
+                    pnl: t.pnl ?? 0,
+                    context: lang === 'fr' ? 'Taille de position augmentée après série gagnante' : 'Position size spiked after winning streak',
+                })),
+            });
+        }
+    }
+
+    // ── PATTERN 23: Session State Collapse ───────────────────────────────────
+    {
+        const stateCollapses: string[] = [];
+        const daySessionMap: Record<string, { hasWin: boolean; hasCritical: boolean }> = {};
+        sessions.forEach(s => {
+            const day = s.trades[0]?.createdAt?.slice(0, 10) ?? '';
+            if (!day) return;
+            if (!daySessionMap[day]) daySessionMap[day] = { hasWin: false, hasCritical: false };
+            if (s.pnl > 0) daySessionMap[day].hasWin = true;
+            if (s.tag === 'CRITICAL') daySessionMap[day].hasCritical = true;
+        });
+        Object.entries(daySessionMap).forEach(([day, { hasWin, hasCritical }]) => {
+            if (hasWin && hasCritical) stateCollapses.push(day);
+        });
+        if (stateCollapses.length >= 2) {
+            patterns.push({
+                name: lang === 'fr' ? 'Effondrement de session' : 'Session State Collapse',
+                freq: stateCollapses.length,
+                severity: 'HIGH',
+                impact: 0,
+                desc: lang === 'fr'
+                    ? `${stateCollapses.length} jours où une session gagnante a été suivie d'une session critique. Signal de sur-trading après une victoire.`
+                    : `${stateCollapses.length} days where a winning session was followed by a critical loss session. Over-trading after success pattern.`,
+                evidence: stateCollapses.slice(0, 3),
+                evidenceTrades: stateCollapses.slice(0, 3).map(day => ({
+                    timestamp: day,
+                    asset: '—',
+                    pnl: 0,
+                    context: lang === 'fr'
+                        ? 'Session gagnante suivie d\'une session critique le même jour'
+                        : 'Winning session followed by critical loss session same day',
+                })),
             });
         }
     }
