@@ -75,10 +75,10 @@ export default function Header({ onShowAuth }: HeaderProps) {
                         <button
                             className={`${styles.authBtn} ${styles.authBtnActive}`}
                             onClick={handleSignOut}
-                            title={lang === 'fr' ? 'Se déconnecter' : 'Sign out'}
+                            title={userEmail ?? (lang === 'fr' ? 'Se déconnecter' : 'Sign out')}
                         >
                             <User size={11} />
-                            {displayEmail}
+                            <span className={styles.authEmail}>{displayEmail}</span>
                             <LogOut size={11} />
                         </button>
                     ) : (
