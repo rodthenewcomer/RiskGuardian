@@ -192,9 +192,9 @@ export default function AnalyticsPage() {
         { key: 'STREAKS',     label: t.analytics.tabs.streaks,      group: 'BEHAVIOR' },
         { key: 'PATTERNS',    label: `${t.analytics.tabs.patterns} (${forensics.patterns.length})`, group: 'BEHAVIOR' },
         { key: 'SCORECARD',   label: t.analytics.tabs.scorecard,    group: 'BEHAVIOR' },
-        { key: 'QUANT',       label: t.analytics.tabs.quant,        group: 'RISK', minTrades: TRADE_GATES.quant, proOnly: true },
-        { key: 'REPORT',      label: t.analytics.tabs.report,       group: 'RISK', proOnly: true },
-        { key: 'COMPARE',     label: t.analytics.tabs.compare,      group: 'RISK', minTrades: TRADE_GATES.compare, proOnly: true },
+        { key: 'QUANT',       label: t.analytics.tabs.quant,        group: 'RISK', minTrades: TRADE_GATES.quant },
+        { key: 'REPORT',      label: t.analytics.tabs.report,       group: 'RISK' },
+        { key: 'COMPARE',     label: t.analytics.tabs.compare,      group: 'RISK', minTrades: TRADE_GATES.compare },
     ];
 
     // Core Metrics
@@ -1142,9 +1142,6 @@ export default function AnalyticsPage() {
                                             }}
                                         >
                                             {tab.label}
-                                            {tab.proOnly && userTier !== 'pro' && (
-                                                <span style={{ marginLeft: 4, fontSize: 8, color: '#FDC800', fontWeight: 800, verticalAlign: 'super' }}>PRO</span>
-                                            )}
                                         </button>
                                     ))}
                                 </div>
@@ -1164,9 +1161,6 @@ export default function AnalyticsPage() {
                             }}
                         >
                             {tab.label}
-                            {tab.proOnly && userTier !== 'pro' && (
-                                <span style={{ marginLeft: 4, fontSize: 8, color: '#FDC800', fontWeight: 800, verticalAlign: 'super' }}>PRO</span>
-                            )}
                         </button>
                     ))}
                 </div>
@@ -4529,22 +4523,6 @@ export default function AnalyticsPage() {
                         const fmtQ = (v: number) => `${v >= 0 ? '+' : ''}$${Math.abs(v) >= 1000 ? `${(v / 1000).toFixed(1)}k` : Math.abs(v).toFixed(0)}`;
                         const rc = (v: number, good: number, ok: number) => v >= good ? '#FDC800' : v >= ok ? '#EAB308' : '#ff4757';
 
-                        if (userTier !== 'pro') return (
-                            <motion.div key="quant-gate" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }}>
-                                <div className={styles.proGate}>
-                                    <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, fontWeight: 800, letterSpacing: '0.1em', color: '#090909', background: '#FDC800', padding: '3px 8px' }}>PRO</span>
-                                    <div style={{ fontFamily: 'var(--font-mono)', fontSize: 13, fontWeight: 700, color: '#c9d1d9' }}>
-                                        {lang === 'fr' ? 'Analyse QUANT avancée' : 'Advanced QUANT Analysis'}
-                                    </div>
-                                    <div style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: '#6b7280', maxWidth: 320 }}>
-                                        {lang === 'fr' ? "Monte Carlo, Sharpe, Sortino, Calmar — réservés aux abonnés Pro." : "Monte Carlo, Sharpe, Sortino, Calmar — Pro subscribers only."}
-                                    </div>
-                                    <button style={{ fontFamily: 'var(--font-mono)', fontSize: 11, fontWeight: 800, letterSpacing: '0.06em', padding: '10px 24px', background: '#FDC800', border: 'none', color: '#090909', cursor: 'pointer' }}>
-                                        {lang === 'fr' ? 'PASSER À PRO' : 'UPGRADE TO PRO'}
-                                    </button>
-                                </div>
-                            </motion.div>
-                        );
                         if (closed.length < TRADE_GATES.quant) return (
                             <motion.div key="quant-tradegate" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }}>
                                 <div className={styles.tradeGate}>

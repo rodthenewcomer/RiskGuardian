@@ -83,7 +83,7 @@
 }
 
 .tab {
-    padding: 20px 0;
+    padding: 20px 10px;
     font-size: 11px;
     letter-spacing: 0.1em;
     color: #6b7280;
@@ -97,6 +97,7 @@
     border-left: none;
     border-right: none;
     scroll-snap-align: start;
+    white-space: nowrap;
 }
 
 .tab:hover {
@@ -495,7 +496,7 @@
   letter-spacing: 0.14em;
   text-transform: uppercase;
   color: #4b5563;
-  padding: 0 8px;
+  padding: 0 6px 0 2px;
   margin-top: 4px;
   white-space: nowrap;
   pointer-events: none;
