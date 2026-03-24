@@ -19,7 +19,7 @@ import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { AnimatePresence, motion } from 'framer-motion';
 import { ToastContainer } from '@/components/ui/Toast';
 import { supabase } from '@/lib/supabase';
-import { fullSync, pushAccountSettings, pushDailySessions, pullFullAccountSettings, pushTrades, pullDayData, pushDayData, deleteAllTrades } from '@/lib/supabaseSync';
+import { fullSync, pushAccountSettings, pushDailySessions, pullFullAccountSettings, pushTrades, pullTrades, pullDayData, pushDayData, deleteAllTrades } from '@/lib/supabaseSync';
 
 // Force dynamic rendering — prevents prerender failures when Supabase env vars absent on deploy
 export const dynamic = 'force-dynamic';
@@ -58,6 +58,7 @@ export default function Home() {
     setUserEmail,
     showAuthModal,
     setShowAuthModal,
+    resetOnboarding,
   } = useAppStore();
 
   // ── Pull all cloud data into the store after login / session restore ──
@@ -72,7 +73,14 @@ export default function Home() {
       if (remote.tradingDayRollHour !== tradingDayRollHour) setTradingDayRollHour(remote.tradingDayRollHour);
       if (remote.language !== language) setLanguage(remote.language);
     } else if (isFirstLogin) {
-      await pushAccountSettings(account, uid, tradingDayRollHour, language).catch(console.error);
+      // Fresh Supabase account (deleted + re-created, or first-time user).
+      // Check if there are any remote trades — if none, this is truly a fresh account
+      // and we must reset onboarding so the user goes through setup again
+      // (localStorage may still have stale hasOnboarded=true from old account).
+      const remoteTrades = await pullTrades(uid).catch(() => []);
+      if (remoteTrades.length === 0) {
+        resetOnboarding();
+      }
     }
 
     // Bidirectional trade sync
