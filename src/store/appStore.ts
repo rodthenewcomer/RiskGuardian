@@ -282,7 +282,7 @@ export const getESTFull = () => {
  *   Mar  6 09:00 AM EST  →  trading day = Mar 6
  *   Mar  6 05:00 PM EST  →  trading day = Mar 7
  */
-export function getTradingDay(isoDatetime: string, rollHour = 17): string {
+export function getTradingDay(isoDatetime: string): string {
     const d = new Date(isoDatetime);
     const parts = new Intl.DateTimeFormat('en-US', {
         timeZone: 'America/New_York',
@@ -295,6 +295,18 @@ export function getTradingDay(isoDatetime: string, rollHour = 17): string {
 
     const get = (type: string) => parts.find(p => p.type === type)?.value ?? '0';
     const hour = parseInt(get('hour'), 10);
+
+    let rollHour = 24; // Default: rollover at midnight EST (never rolls early)
+    try {
+        const state = useAppStore.getState();
+        const acc = state.account;
+        const isTradeifyInstant = acc.propFirm?.includes('Tradeify') && acc.propFirmType === 'Instant Funding';
+        const isCrypto = acc.assetType === 'crypto';
+        
+        if (isTradeifyInstant && isCrypto) {
+            rollHour = 17; // 5 PM EST 
+        }
+    } catch { /* store not initialized yet */ }
 
     if (hour >= rollHour) {
         // Roll forward one calendar day (use noon UTC on that date to avoid DST edge cases)

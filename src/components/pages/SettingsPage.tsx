@@ -849,27 +849,29 @@ export default function SettingsPage() {
                     </motion.section>
 
                     {/* ── 5. Trading Day ───────────────────────────────────── */}
-                    <motion.section variants={sectionVariant} style={{ ...CARD, padding: 20, marginTop: 0, borderTop: 'none' }}>
-                        <SectionHeader icon={<Clock size={14} />} label={t.settings.tradingDay} />
+                    {(account.assetType === 'crypto' && (account.propFirm === 'Tradeify Instant Funding' || (account.propFirmType === 'Instant Funding' && account.propFirm?.includes('Tradeify')))) && (
+                        <motion.section variants={sectionVariant} style={{ ...CARD, padding: 20, marginTop: 0, borderTop: 'none' }}>
+                            <SectionHeader icon={<Clock size={14} />} label={t.settings.tradingDay} />
 
-                        <Field
-                            label={t.settings.tradingDayRoll}
-                            hint={`Tradeify default: 17 (5:00 PM EST). Currently: ${rollHour}:00 EST`}
-                        >
-                            <input
-                                type="number"
-                                inputMode="numeric"
-                                pattern="[0-9]*"
-                                min="0"
-                                max="23"
-                                value={rollHour}
-                                onChange={e => setRollHour(e.target.value)}
-                                style={{ ...focused('roll'), maxWidth: 100 }}
-                                onFocus={() => setFocusedInput('roll')}
-                                onBlur={() => setFocusedInput(null)}
-                            />
-                        </Field>
-                    </motion.section>
+                            <Field
+                                label={t.settings.tradingDayRoll}
+                                hint={`Tradeify Crypto default: 17 (5:00 PM EST). Currently: ${rollHour}:00 EST`}
+                            >
+                                <input
+                                    type="number"
+                                    inputMode="numeric"
+                                    pattern="[0-9]*"
+                                    min="0"
+                                    max="23"
+                                    value={rollHour}
+                                    onChange={e => setRollHour(e.target.value)}
+                                    style={{ ...focused('roll'), maxWidth: 100 }}
+                                    onFocus={() => setFocusedInput('roll')}
+                                    onBlur={() => setFocusedInput(null)}
+                                />
+                            </Field>
+                        </motion.section>
+                    )}
 
                     {/* ── 6. Language ──────────────────────────────────────── */}
                     <motion.section variants={sectionVariant} style={{ ...CARD, padding: 20, marginTop: 0, borderTop: 'none' }}>
