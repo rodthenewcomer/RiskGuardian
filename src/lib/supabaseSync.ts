@@ -77,8 +77,11 @@ function rowToTrade(row: Record<string, unknown>): TradeSession {
  * Returns the count of rows upserted.
  */
 export async function pushTrades(trades: TradeSession[], userId: string): Promise<number> {
-    if (trades.length === 0) return 0;
-    const rows = trades.map(t => tradeToRow(t, userId));
+    // PDF-imported trades live in localStorage only — never push to Supabase.
+    // This prevents old corrupt rows from being resurrected on reload.
+    const syncable = trades.filter(t => !t.id.startsWith('tradeify-'));
+    if (syncable.length === 0) return 0;
+    const rows = syncable.map(t => tradeToRow(t, userId));
 
     // Upsert in batches of 100 to stay within Supabase limits
     let total = 0;
@@ -106,7 +109,19 @@ export async function pullTrades(userId: string): Promise<TradeSession[]> {
         .limit(500);
 
     if (error) throw new Error(`pullTrades: ${error.message}`);
-    return (data ?? []).map(row => rowToTrade(row as Record<string, unknown>));
+    const all = (data ?? []).map(row => rowToTrade(row as Record<string, unknown>));
+
+    // Self-healing: purge any old PDF rows that were previously pushed to Supabase.
+    // PDF trades now live in localStorage only — they must never exist in Supabase.
+    const staleIds = all.filter(t => t.id.startsWith('tradeify-')).map(t => t.id);
+    if (staleIds.length > 0) {
+        // Fire-and-forget — don't block the pull on cleanup
+        supabase.from('trades').delete().eq('user_id', userId).in('id', staleIds)
+            .then(({ error: e }) => { if (e) console.warn('purge PDF rows:', e.message); });
+    }
+
+    // Return only non-PDF rows (caller handles PDF trades from localStorage)
+    return all.filter(t => !t.id.startsWith('tradeify-'));
 }
 
 /**
@@ -337,7 +352,10 @@ export async function pushDailySessions(sessions: DailySession[], userId: string
 
 /**
  * Full sync: pull remote + merge with local, then push local-only back up.
- * Returns the merged trade list.
+ *
+ * Architecture: PDF trades (tradeify-*) live in localStorage ONLY and are
+ * never pushed to/pulled from Supabase. This prevents old corrupted rows
+ * from being resurrected on reload. Manual/DXTrade trades sync normally.
  */
 export async function fullSync(
     localTrades: TradeSession[],
@@ -345,22 +363,31 @@ export async function fullSync(
 ): Promise<TradeSession[]> {
     const remote = await pullTrades(userId);
 
-    // Merge: remote wins on conflicts (cloud is source of truth for existing trades)
-    const remoteIds = new Set(remote.map(t => t.id));
-    const localOnly = localTrades.filter(t => !remoteIds.has(t.id));
+    // PDF trades: always use local version (authoritative, from PDF import)
+    const localPdf    = localTrades.filter(t => t.id.startsWith('tradeify-'));
+    // Non-PDF trades: Supabase wins on conflicts
+    const localManual = localTrades.filter(t => !t.id.startsWith('tradeify-'));
 
-    // Push local-only trades up (non-fatal — don't block merge if push fails)
+    const remoteIds  = new Set(remote.map(t => t.id));
+    const localOnly  = localManual.filter(t => !remoteIds.has(t.id));
+
+    // Push local-only non-PDF trades up (non-fatal)
     if (localOnly.length > 0) {
         await pushTrades(localOnly, userId).catch(console.error);
     }
 
-    // Merge: remote + local-only (avoid duplicates)
-    const merged = [...remote];
-    localOnly.forEach(t => {
-        if (!remoteIds.has(t.id)) merged.push(t);
+    // Merged result: remote non-PDF + local-only non-PDF + ALL local PDF trades
+    const merged = [...remote, ...localOnly, ...localPdf];
+
+    // Deduplicate by id (just in case)
+    const seen = new Set<string>();
+    const deduped = merged.filter(t => {
+        if (seen.has(t.id)) return false;
+        seen.add(t.id);
+        return true;
     });
 
-    return merged.sort(
+    return deduped.sort(
         (a, b) => new Date(b.closedAt ?? b.createdAt).getTime() - new Date(a.closedAt ?? a.createdAt).getTime()
     );
 }
