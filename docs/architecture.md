@@ -100,23 +100,23 @@ Single store, persisted to `localStorage` under key `riskguardia-v2`.
 ```typescript
 interface AppState {
   // Account
-  account: AccountSettings
-  trades: TradeSession[]
-  dailySessions: DailySession[]
-  savedScenarios: SavedScenario[]  // max 3 (FIFO)
+  account: AccountSettings;
+  trades: TradeSession[];
+  dailySessions: DailySession[];
+  savedScenarios: SavedScenario[]; // max 3 (FIFO)
 
   // UI
-  activePage: string
-  lang: 'en' | 'fr'
-  mounted: boolean
+  activePage: string;
+  lang: "en" | "fr";
+  mounted: boolean;
 
   // Actions
-  addTrade(trade): void
-  updateTrade(id, patch): void
-  deleteTrade(id): void
-  autoSync(): void              // sorts by closedAt ?? createdAt
-  computeDrawdownFloor(): number
-  getTradingDay(date?): string  // rolls at 5PM EST
+  addTrade(trade): void;
+  updateTrade(id, patch): void;
+  deleteTrade(id): void;
+  autoSync(): void; // sorts by closedAt ?? createdAt
+  computeDrawdownFloor(): number;
+  getTradingDay(date?): string; // rolls at 5PM EST
 }
 ```
 
@@ -124,24 +124,24 @@ interface AppState {
 
 ```typescript
 interface AccountSettings {
-  balance: number
-  startingBalance: number       // leverage cap uses this, not balance
-  highestBalance: number
-  dailyLossLimit: number
-  maxRiskPercent: number
-  assetType: string
-  currency: string
-  propFirm: string
-  propFirmType: '2-Step Evaluation' | '1-Step Evaluation' | 'Instant Funding'
-  maxDrawdownLimit: number
-  drawdownType: 'EOD' | 'Trailing' | 'Static'
-  leverage: number
-  isConsistencyActive: boolean
-  minHoldTimeSec: number
-  maxTradesPerDay: number
-  maxConsecutiveLosses: number
-  coolDownMinutes: number
-  payoutLockActive: boolean
+  balance: number;
+  startingBalance: number; // leverage cap uses this, not balance
+  highestBalance: number;
+  dailyLossLimit: number;
+  maxRiskPercent: number;
+  assetType: string;
+  currency: string;
+  propFirm: string;
+  propFirmType: "2-Step Evaluation" | "1-Step Evaluation" | "Instant Funding";
+  maxDrawdownLimit: number;
+  drawdownType: "EOD" | "Trailing" | "Static";
+  leverage: number;
+  isConsistencyActive: boolean;
+  minHoldTimeSec: number;
+  maxTradesPerDay: number;
+  maxConsecutiveLosses: number;
+  coolDownMinutes: number;
+  payoutLockActive: boolean;
 }
 ```
 
@@ -149,25 +149,25 @@ interface AccountSettings {
 
 ```typescript
 interface TradeSession {
-  id: string
-  asset: string
-  assetType: string
-  entry: number
-  stopLoss: number
-  takeProfit: number
-  lotSize: number
-  riskUSD: number
-  rewardUSD: number
-  rr: number
-  outcome: 'win' | 'loss' | 'open'
-  pnl: number
-  isShort: boolean
-  createdAt: number             // Unix timestamp ms
-  closedAt: number | null
-  durationSeconds: number       // Math.floor((closedAt - createdAt) / 1000)
-  tags: string[]
-  note: string
-  source: 'manual' | 'pdf' | 'csv' | 'dxtrade'
+  id: string;
+  asset: string;
+  assetType: string;
+  entry: number;
+  stopLoss: number;
+  takeProfit: number;
+  lotSize: number;
+  riskUSD: number;
+  rewardUSD: number;
+  rr: number;
+  outcome: "win" | "loss" | "open";
+  pnl: number;
+  isShort: boolean;
+  createdAt: number; // Unix timestamp ms
+  closedAt: number | null;
+  durationSeconds: number; // Math.floor((closedAt - createdAt) / 1000)
+  tags: string[];
+  note: string;
+  source: "manual" | "pdf" | "csv" | "dxtrade";
 }
 ```
 
@@ -175,11 +175,11 @@ interface TradeSession {
 
 ## Routing
 
-| Route | Component | Auth |
-|---|---|---|
-| `/` | `LandingPage` | Public |
-| `/app` | Main app shell | Optional (Supabase) |
-| `/app` + `activePage` state | All page components | — |
+| Route                       | Component           | Auth                |
+| --------------------------- | ------------------- | ------------------- |
+| `/`                         | `LandingPage`       | Public              |
+| `/app`                      | Main app shell      | Optional (Supabase) |
+| `/app` + `activePage` state | All page components | —                   |
 
 Navigation is **state-based** — the app is a single `/app` route. Page switching changes `activePage` in Zustand, not the URL. This is intentional for PWA and offline-first behavior.
 
@@ -202,11 +202,17 @@ User inputs trade → CalculatorPage / CommandPage
 ```
 User uploads Tradeify PDF
   → parseTradeifyPDF.ts (pdfjs-dist, client-side)
-  → text extraction + regex parsing
+  → text extraction + EST timezone scaling to true UTC
+  → deterministic trade ID generated via cyrb53 hash
   → normalized TradeSession[]
-  → autoSync() (sort by closedAt ?? createdAt)
-  → addTrade() for each trade
+  → POST /api/trades/import (server-side Edge Forensics pattern)
+  → server safely upserts with ignoreDuplicates: true (preserves notes)
+  → client calls fullSync() to pull pristine cloud state
 ```
+
+### Trading Day Architecture
+
+The `getTradingDay(isoDatetime)` function dynamically assigns trades to a given day based on the active account settings. For `Tradeify Instant Funding` (Crypto), the trading day rolls over at `5:00 PM EST` (17:00). For all other accounts, it rolls at `Midnight EST` (24:00). This dynamically governs Dashboard, Calendar, and Analytics visualizations.
 
 ### DXTrade Sync Flow
 
@@ -239,6 +245,7 @@ trades (Zustand) → date filter (DateRangePicker)
 Supabase email registration proxy.
 
 **Security:**
+
 - Rate limited: 20 requests / 60 seconds per IP
 - CORS headers applied
 - Request body size limit: 50 KB

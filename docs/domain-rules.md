@@ -4,15 +4,20 @@
 
 ## Trading Day Definition
 
-RiskGuardian follows the **Tradeify trading day**, which rolls at **5:00 PM EST** (not midnight).
+RiskGuardian dynamically calculates the "trading day" based on the user's active firm:
+
+1. **Tradeify Crypto Instant Funding:** The trading day rolls at **5:00 PM EST** (17:00).
+   _Example: A crypto trade placed at 4:59 PM EST on Feb 28 belongs to Feb 28. A trade placed at 5:00 PM EST belongs to March 1._
+2. **All Other Accounts (Futures, Forex, non-Instant):** The trading day behaves normally, rolling at **Midnight EST** (24:00).
 
 ```typescript
-// appStore.ts — getTradingDay()
-// A trade at 4:59 PM EST belongs to the current day.
-// A trade at 5:00 PM EST belongs to the next trading day.
+// appStore.ts — getTradingDay(isoDatetime)
+// Automatically evaluates store context. Overrides to 17:00 ONLY if
+// propFirm === Tradeify Instant Funding AND assetType === crypto.
 ```
 
-This affects:
+This dynamically affects:
+
 - Daily P&L calculations
 - Daily loss limit enforcement
 - Daily Guard trigger
@@ -36,8 +41,9 @@ Trade E at 14:30   ├── Session 2
 ```
 
 Session duration:
+
 ```typescript
-TradeSession.durationSeconds = Math.floor((closedAt - createdAt) / 1000)
+TradeSession.durationSeconds = Math.floor((closedAt - createdAt) / 1000);
 ```
 
 This field **must be pre-computed** before passing trades to `EdgeForensics.generateForensics()`.
@@ -118,7 +124,7 @@ Leverage limit is calculated using **`startingBalance`**, not the current `accou
 **Why:** After a drawdown, current balance is lower than starting balance. Using current balance would allow the trader to take proportionally larger notional positions as their account shrinks, increasing risk. `startingBalance` is fixed at the beginning of the evaluation period.
 
 ```typescript
-const maxNotional = account.startingBalance * account.leverage
+const maxNotional = account.startingBalance * account.leverage;
 // NOT: account.balance * account.leverage
 ```
 
@@ -126,13 +132,14 @@ const maxNotional = account.startingBalance * account.leverage
 
 ### Drawdown Types
 
-| Type | Behavior |
-|---|---|
-| **EOD (End-of-Day)** | Drawdown floor is recalculated from the account balance snapshot at 5 PM EST each day |
-| **Trailing (End-of-Trade)** | Drawdown floor moves upward after every profitable trade closes. Never moves down. |
-| **Static** | Floor is fixed: `startingBalance − maxDrawdownPct%`. Does not change during the evaluation. |
+| Type                        | Behavior                                                                                    |
+| --------------------------- | ------------------------------------------------------------------------------------------- |
+| **EOD (End-of-Day)**        | Drawdown floor is recalculated from the account balance snapshot at 5 PM EST each day       |
+| **Trailing (End-of-Trade)** | Drawdown floor moves upward after every profitable trade closes. Never moves down.          |
+| **Static**                  | Floor is fixed: `startingBalance − maxDrawdownPct%`. Does not change during the evaluation. |
 
 **Tradeify defaults:**
+
 - 1-Step / Instant Funding → `Trailing`
 - 2-Step Evaluation → `Static`
 
@@ -150,15 +157,15 @@ When `account.payoutLockActive === true` (Instant Funding accounts requesting pa
 
 ## Prop Firm Presets
 
-| Firm | Daily Limit | Max Drawdown | Drawdown Type |
-|---|---|---|---|
-| Tradeify 1-Step | 3% | 6% | Trailing |
-| Tradeify 2-Step | 3% | 6% | Static |
-| Tradeify Instant Funding | 3% | 6% | EOD |
-| Funding Pips | 5% | 10% | Static |
-| FTMO | 5% | 10% | Static |
-| The 5%ers | 4% | 8% | Trailing |
-| Custom | configurable | configurable | configurable |
+| Firm                     | Daily Limit  | Max Drawdown | Drawdown Type |
+| ------------------------ | ------------ | ------------ | ------------- |
+| Tradeify 1-Step          | 3%           | 6%           | Trailing      |
+| Tradeify 2-Step          | 3%           | 6%           | Static        |
+| Tradeify Instant Funding | 3%           | 6%           | EOD           |
+| Funding Pips             | 5%           | 10%          | Static        |
+| FTMO                     | 5%           | 10%          | Static        |
+| The 5%ers                | 4%           | 8%           | Trailing      |
+| Custom                   | configurable | configurable | configurable  |
 
 ---
 
@@ -180,7 +187,7 @@ These are enforced in `tradeViolations.ts` and surfaced as warnings in Calculato
 `autoSync()` in appStore sorts trades by:
 
 ```typescript
-(a, b) => (a.closedAt ?? a.createdAt) - (b.closedAt ?? b.createdAt)
+(a, b) => (a.closedAt ?? a.createdAt) - (b.closedAt ?? b.createdAt);
 ```
 
 **Important:** Sort key is `closedAt ?? createdAt` — NOT `createdAt` alone.
@@ -192,13 +199,13 @@ An open trade (no `closedAt`) is sorted by its creation time.
 
 Assets fall into these types (used in risk calculations):
 
-| Asset Type | Pip/Tick Value Calc | Examples |
-|---|---|---|
-| Forex | Pip-based | EURUSD, GBPJPY |
-| Index | Point-based | NQ, ES, YM, DAX |
-| Crypto | Direct price | BTCUSDT, ETHUSDT |
-| Commodity | Tick-based | GC (Gold), CL (Oil) |
-| Custom | Manual input | — |
+| Asset Type | Pip/Tick Value Calc | Examples            |
+| ---------- | ------------------- | ------------------- |
+| Forex      | Pip-based           | EURUSD, GBPJPY      |
+| Index      | Point-based         | NQ, ES, YM, DAX     |
+| Crypto     | Direct price        | BTCUSDT, ETHUSDT    |
+| Commodity  | Tick-based          | GC (Gold), CL (Oil) |
+| Custom     | Manual input        | —                   |
 
 The asset list for Tradeify accounts is in `src/data/tradeifyAssets.ts`.
 
@@ -216,12 +223,14 @@ Displayed as: Warning banner on Dashboard (can be dismissed).
 
 ## PDF Import Rules (Tradeify)
 
-The `parseTradeifyPDF.ts` parser is calibrated for Tradeify's PDF export format:
+The `parseTradeifyPDF.ts` parser is perfectly calibrated for Tradeify's PDF export format, utilizing the Edge Forensics server-side persistence architecture:
 
-1. Extract raw text via pdfjs-dist (client-side, no server upload)
-2. Parse trade rows via regex (asset, direction, entry, SL, TP, lots, P&L)
-3. Map to `TradeSession[]` with `source: 'pdf'`
-4. `autoSync()` is called after import to re-sort the trade list
+1. Extract raw text via `pdfjs-dist` (client-side) maintaining rigorous horizontal anchor points.
+2. Translate extracted dates out of the local computer's timezone context securely into absolute UTC using real-time DST adjustments.
+3. Calculate a mathematically deterministic hash ID (`cyrb53`) using `symbol|createdAt|LotSize|PnL`.
+4. POST the payload explicitly to `/api/trades/import`.
+5. The API performs a safe `.upsert()` with `ignoreDuplicates: true`, permanently ignoring conflicts so that user-defined `notes` and `tags` applied to past PDFs are fully preserved.
+6. The client runs `fullSync()` mapping the pristine authoritative database state downwards into the local Zustand UI.
 
 ---
 
@@ -229,13 +238,13 @@ The `parseTradeifyPDF.ts` parser is calibrated for Tradeify's PDF export format:
 
 Violations are computed at trade entry time and surfaced as non-blocking warnings:
 
-| Rule | Violation |
-|---|---|
-| Trade during cooldown period | `COOLDOWN_ACTIVE` |
-| Daily trade count exceeded | `MAX_TRADES_EXCEEDED` |
-| Trade below minimum hold time | `MIN_HOLD_TIME` |
-| Entry after consecutive loss limit | `CONSECUTIVE_LOSSES` |
-| Risk% above account max | `RISK_EXCEEDED` |
-| Daily loss limit reached | `DAILY_LIMIT` |
+| Rule                               | Violation             |
+| ---------------------------------- | --------------------- |
+| Trade during cooldown period       | `COOLDOWN_ACTIVE`     |
+| Daily trade count exceeded         | `MAX_TRADES_EXCEEDED` |
+| Trade below minimum hold time      | `MIN_HOLD_TIME`       |
+| Entry after consecutive loss limit | `CONSECUTIVE_LOSSES`  |
+| Risk% above account max            | `RISK_EXCEEDED`       |
+| Daily loss limit reached           | `DAILY_LIMIT`         |
 
 All violations are **warnings** (non-blocking) unless `guardTriggered === true` (daily limit hit → locked).
