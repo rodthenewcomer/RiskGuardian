@@ -528,7 +528,9 @@ export const useAppStore = create<AppState>()(
                     if (running > highest) highest = running;
                 }
                 const newBalance = Math.round(running * 100) / 100;
-                const newHighest = Math.round(Math.max(highest, s.account.highestBalance ?? 0) * 100) / 100;
+                // Compute purely from trade history — do NOT carry forward the old
+                // persisted highestBalance, otherwise re-imports can never correct it.
+                const newHighest = Math.round(highest * 100) / 100;
 
                 // Auto-scale daily loss limit with the current balance if prop firm is set
                 const firm = PROP_FIRMS.find(f => f.name === s.account.propFirm && f.dailyPct > 0);

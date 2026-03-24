@@ -293,7 +293,7 @@ export default function SettingsPage() {
             drawdownType: drawdownType as 'EOD' | 'Trailing' | 'Static',
             leverage,
             startingBalance: startBal,
-            highestBalance: Math.max(startBal, bal, account.highestBalance || 0),
+            highestBalance: Math.max(startBal, bal),
             isConsistencyActive: propFirmType === 'Instant Funding' || propFirm?.includes('Instant'),
             minHoldTimeSec: propFirm?.includes('Tradeify') ? 20 : 0,
             maxTradesPerDay: maxTradesPerDay ? parseInt(maxTradesPerDay) : undefined,

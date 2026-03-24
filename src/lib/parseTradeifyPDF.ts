@@ -119,9 +119,9 @@ function extractTransactions(tableText: string): RawTx[] {
                 restForCommission = afterOrder.replace(/^(?:—|-)\s*/, '');
             } else {
                 // Settled PnL: optional '+'/'-', optional whitespace, then the number.
-                // Handles "-140.58", "- 140.58", and "+140.58" (pdfjs splits sign from digits).
-                const pnlM = afterOrder.match(/^([+-]?)\s*([\d,]+\.[\d]{1,2})/);
-                if (pnlM) {
+                // Handles "-140.58", "- 140.58", "+140.58", "200" (integer PnL — no decimal).
+                const pnlM = afterOrder.match(/^([+-]?)\s*([\d,]+\.?\d*)/);
+                if (pnlM && pnlM[2]) {
                     settledPnl = parseFloat((pnlM[1] + pnlM[2]).replace(/,/g, ''));
                     restForCommission = afterOrder.slice(pnlM[0].length).trimStart();
                 } else {
@@ -266,8 +266,8 @@ export async function parseTradeifyPDF(
         const txIdx = fullText.search(/\bTransactions\b/i);
         const txText = txIdx >= 0 ? fullText.slice(txIdx) : fullText;
 
-        // Trim at footer markers
-        const footerIdx = txText.search(/\bTotals\b|\bFinancing\b/i);
+        // Trim at footer markers (NOT "Financing" — that's a column header in every row)
+        const footerIdx = txText.search(/\bTotals\b|\bSummary\b|\bPage\s+\d|\bGenerated\b/i);
         const tableText = footerIdx > 0 ? txText.slice(0, footerIdx) : txText;
 
         // ── Parse and build trades ───────────────────────────
