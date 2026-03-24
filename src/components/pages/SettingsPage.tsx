@@ -219,23 +219,36 @@ export default function SettingsPage() {
             const result = await parseTradeifyPDF(file);
             if (result.error) { setPdfMsg(`Error: ${result.error}`); return; }
 
-            const nonPdf = trades.filter(t => !t.id.startsWith('tradeify-'));
-            const oldPdf = trades.filter(t => t.id.startsWith('tradeify-'));
-            const newIds = new Set(result.trades.map(t => t.id));
+            // Edge-Forensics-style atomicity: let the cloud be the source of truth
             const cvStart = result.coverageStart || '9999-99-99';
             const cvEnd   = result.coverageEnd || '0000-00-00';
-            const oldKept = oldPdf.filter(t => {
-                if (newIds.has(t.id)) return false;
-                const d = t.createdAt.slice(0, 10);
-                if (d >= cvStart && d <= cvEnd) return false;
-                return true;
-            });
-            const droppedIds = oldPdf.filter(t => !oldKept.includes(t)).map(t => t.id);
-            if (droppedIds.length > 0 && userId) {
-                deleteTrades(droppedIds, userId).catch(console.error);
+            const newTrades = result.trades.map((t: any) => ({ ...t, note: '' }));
+
+            let mergedTrades = [...trades];
+            if (userId) {
+                setPdfMsg('Syncing statement to cloud…');
+                const { importPdfTrades, fullSync } = await import('@/lib/supabaseSync');
+                
+                // 1. Atomically delete overlapping trades in cloud and insert new trades
+                await importPdfTrades(newTrades, cvStart, cvEnd, userId);
+                
+                // 2. Fetch the pristine state from the cloud and merge local-only
+                mergedTrades = await fullSync(trades, userId);
+            } else {
+                // Offline mode fallback
+                const nonPdf = trades.filter(t => !t.id.startsWith('tradeify-'));
+                const oldPdf = trades.filter(t => t.id.startsWith('tradeify-'));
+                const newIds = new Set(result.trades.map((t: any) => t.id));
+                const oldKept = oldPdf.filter(t => {
+                    if (newIds.has(t.id)) return false;
+                    const d = t.createdAt.slice(0, 10);
+                    if (d >= cvStart && d <= cvEnd) return false;
+                    return true;
+                });
+                mergedTrades = [...newTrades, ...oldKept, ...nonPdf];
             }
-            const newTrades = result.trades.map(t => ({ ...t, note: '' }));
-            setTrades([...newTrades, ...oldKept, ...nonPdf]);
+
+            setTrades(mergedTrades);
 
             if (result.closingBalance) {
                 updateAccount({ balance: result.closingBalance });
@@ -245,19 +258,16 @@ export default function SettingsPage() {
                 if (computed > 0) setBalance(String(computed));
             }
 
-            const allTrades = [...newTrades, ...oldKept, ...nonPdf];
-            const found = scanViolations(allTrades, account);
+            const found = scanViolations(mergedTrades, account);
             setViolations(found);
 
-            const added = newTrades.length;
-            const kept = oldKept.length;
             const coverage = result.coverageStart && result.coverageEnd
                 ? ` · ${result.coverageStart} -> ${result.coverageEnd}`
                 : '';
             const finalBal = useAppStore.getState().account.balance;
             const balMsg = finalBal > 0 ? ` · Balance $${finalBal.toLocaleString()}` : '';
             const warnMsg = found.length > 0 ? ` · ${found.filter(v => v.severity === 'breach').length} violations found` : ' · No violations';
-            setPdfMsg(`${added} imported, ${kept} kept${coverage}${balMsg}${warnMsg}`);
+            setPdfMsg(`${newTrades.length} imported${userId ? ' and synced' : ''}${coverage}${balMsg}${warnMsg}`);
         } catch (err) {
             setPdfMsg(`Failed: ${err instanceof Error ? err.message : 'Unknown error'}`);
         } finally { setPdfBusy(false); }

@@ -216,30 +216,39 @@ export default function JournalPage() {
             clearTimeout(timeout);
             if (result.error) { setPdfStatus({ loading: false, msg: result.error }); return; }
             if (result.count === 0) { setPdfStatus({ loading: false, msg: 'No closed trades found in this statement.' }); return; }
-            // Correct incremental merge: keep all existing non-PDF trades + old PDF trades
-            // not present in the new upload. Same logic as Settings page.
-            const nonPdf  = trades.filter(t => !t.id.startsWith('tradeify-'));
-            const oldPdf  = trades.filter(t => t.id.startsWith('tradeify-'));
-            const newIds  = new Set(result.trades.map(t => t.id));
+            // Edge-Forensics-style atomicity: let the cloud be the source of truth
             const cvStart = result.coverageStart || '9999-99-99';
             const cvEnd   = result.coverageEnd || '0000-00-00';
-            const oldKept = oldPdf.filter(t => {
-                if (newIds.has(t.id)) return false;
-                const d = t.createdAt.slice(0, 10);
-                // Drop old buggy trades that overlap with this newly imported PDF's date range
-                if (d >= cvStart && d <= cvEnd) return false;
-                return true;
-            });
-            const droppedIds = oldPdf.filter(t => !oldKept.includes(t)).map(t => t.id);
-            if (droppedIds.length > 0 && userId) {
-                // Ensure dropped trades are physically deleted from Supabase so fullSync doesn't resurrect them
-                deleteTrades(droppedIds, userId).catch(console.error);
-            }
             const newTrades = result.trades.map(t => ({ ...t, note: '', source: 'pdf' as const }));
-            setTrades([...newTrades, ...oldKept, ...nonPdf]); // autoSync fires inside setTrades
+
+            let mergedTrades = [...trades];
+            if (userId) {
+                setPdfStatus({ loading: true, msg: 'Syncing statement to cloud…' });
+                const { importPdfTrades, fullSync } = await import('@/lib/supabaseSync');
+                
+                // 1. Atomically delete overlapping trades in cloud and insert new trades
+                await importPdfTrades(newTrades, cvStart, cvEnd, userId);
+                
+                // 2. Fetch the pristine state from the cloud and merge local-only
+                mergedTrades = await fullSync(trades, userId);
+            } else {
+                // Offline mode fallback
+                const nonPdf  = trades.filter(t => !t.id.startsWith('tradeify-'));
+                const oldPdf  = trades.filter(t => t.id.startsWith('tradeify-'));
+                const newIds  = new Set(result.trades.map(t => t.id));
+                const oldKept = oldPdf.filter(t => {
+                    if (newIds.has(t.id)) return false;
+                    const d = t.createdAt.slice(0, 10);
+                    if (d >= cvStart && d <= cvEnd) return false;
+                    return true;
+                });
+                mergedTrades = [...newTrades, ...oldKept, ...nonPdf];
+            }
+
+            setTrades(mergedTrades);
             const coverage = result.coverageStart && result.coverageEnd
                 ? ` · ${result.coverageStart} → ${result.coverageEnd}` : '';
-            setPdfStatus({ loading: false, msg: `${newTrades.length} imported, ${oldKept.length} kept${coverage}` });
+            setPdfStatus({ loading: false, msg: `${newTrades.length} imported${userId ? ' and synced' : ''}${coverage}` });
         } catch (err) {
             clearTimeout(timeout);
             setPdfStatus({ loading: false, msg: `Import failed: ${err instanceof Error ? err.message : String(err)}` });
