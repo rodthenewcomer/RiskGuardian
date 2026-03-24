@@ -44,11 +44,28 @@ const KNOWN_SYMBOLS = [
 ];
 const SYMBOL_RE = new RegExp(`\\b(${KNOWN_SYMBOLS.join('|')})\\b`, 'i');
 
-// ── Date helper (DD/MM/YYYY) ───────────────────────────────────
+// ── Date helper (DD/MM/YYYY + EST timezone correction) ───────
 
 function toISO(dateStr: string, timeStr: string): string {
     const [d, m, y] = dateStr.split('/');
-    return `${y}-${m.padStart(2, '0')}-${d.padStart(2, '0')}T${timeStr}:00`;
+    const [hh, mm, ss] = timeStr.split(':');
+    
+    const year = parseInt(y, 10);
+    const month = parseInt(m, 10);
+    const day = parseInt(d, 10);
+    const hour = parseInt(hh, 10);
+    const minute = parseInt(mm, 10);
+    const second = ss ? parseInt(ss, 10) : 0;
+
+    // Evaluate if America/New_York was EDT or EST on this exact date
+    const probe = new Date(Date.UTC(year, month - 1, day, 12, 0, 0));
+    const tzFmt = new Intl.DateTimeFormat('en-US', { timeZone: 'America/New_York', timeZoneName: 'shortOffset' });
+    const tzPart = tzFmt.formatToParts(probe).find(p => p.type === 'timeZoneName')?.value || 'GMT-5';
+    const match = tzPart.match(/([+-]\d+)/);
+    const offsetHours = match ? -parseInt(match[1], 10) : 5; // Usually 4 for EDT, 5 for EST
+
+    const finalUtc = new Date(Date.UTC(year, month - 1, day, hour + offsetHours, minute, second));
+    return finalUtc.toISOString();
 }
 
 // ── Transaction extractor ──────────────────────────────────────
@@ -67,7 +84,7 @@ function extractTransactions(tableText: string): RawTx[] {
         // Context: 10 chars before (to catch time on same row) + 250 after
         const ctx = tableText.slice(Math.max(0, dm.index - 10), dm.index + 250);
 
-        const timeM = ctx.match(/\b(\d{2}:\d{2})\b/);
+        const timeM = ctx.match(/\b(\d{1,2}:\d{2}(?::\d{2})?)\b/);
         const dirM  = ctx.match(/\b(Buy|Sell)\b/);
         const symM  = ctx.match(SYMBOL_RE);
         if (!timeM || !dirM || !symM) continue;
