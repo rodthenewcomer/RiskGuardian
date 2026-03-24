@@ -387,7 +387,13 @@ export async function fullSync(
 
     // Merge: remote wins on conflicts (cloud is source of truth for existing trades)
     const remoteIds = new Set(remote.map(t => t.id));
-    const localOnly = localTrades.filter(t => !remoteIds.has(t.id));
+    
+    // We find trades that exist in localStorage but NOT in Supabase.
+    // CRITICAL FIX: We must completely exclude "tradeify-" PDF trades from this list!
+    // Why? Because if a PDF trade is in local but missing from remote, it was INTENTIONALLY
+    // wiped by `importPdfTrades`. If we push it back, we resurrect ghost trades!
+    // Manual trades (and possibly DXTrade offline syncs) DO get pushed.
+    const localOnly = localTrades.filter(t => !remoteIds.has(t.id) && !t.id.startsWith('tradeify-'));
 
     // Push local-only trades up (non-fatal — don't block merge if push fails)
     if (localOnly.length > 0) {
@@ -395,10 +401,7 @@ export async function fullSync(
     }
 
     // Merge: remote + local-only (avoid duplicates)
-    const merged = [...remote];
-    localOnly.forEach(t => {
-        if (!remoteIds.has(t.id)) merged.push(t);
-    });
+    const merged = [...remote, ...localOnly];
 
     return merged.sort(
         (a, b) => new Date(b.closedAt ?? b.createdAt).getTime() - new Date(a.closedAt ?? a.createdAt).getTime()

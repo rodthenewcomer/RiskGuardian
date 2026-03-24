@@ -59,31 +59,31 @@ export async function POST(req: Request) {
             return NextResponse.json({ error: 'Invalid payload: trades array required' }, { status: 400 });
         }
 
-        // 1. Wipe overlapping rows in cloud for this user
-        if (coverageStart && coverageEnd && coverageStart !== '9999-99-99' && coverageEnd !== '0000-00-00') {
-            const { error: delError } = await supabase
-                .from('trades')
-                .delete()
-                .eq('user_id', user.id)
-                .like('id', 'tradeify-%')
-                .gte('created_at', `${coverageStart}T00:00:00.000Z`)
-                .lte('created_at', `${coverageEnd}T23:59:59.999Z`);
+        // 1. Wipe ANY old buggy corrupted PDF trades from the deprecated parser algorithm
+        // Legacy IDs had the format "tradeify-YYYYMMDD-HHMM-Direction-Symbol-Index"
+        // This regex equivalent using ILIKE deletes ONLY the old broken formats.
+        const { error: delError } = await supabase
+            .from('trades')
+            .delete()
+            .eq('user_id', user.id)
+            .like('id', 'tradeify-%-%-%-%-%');
 
-            if (delError) {
-                console.error('importPdfTrades wipe error:', delError);
-                return NextResponse.json({ error: 'Failed to wipe overlapping cloud trades' }, { status: 500 });
-            }
+        if (delError) {
+            console.error('Failed to wipe legacy format trades:', delError);
+            return NextResponse.json({ error: 'Failed to wipe legacy cloud trades' }, { status: 500 });
         }
 
-        // 2. Insert new PDF trades
+        // 2. Insert new PDF trades via mathematically perfectly deduplicated deterministic IDs
         if (trades.length > 0) {
             const rows = trades.map((t: any) => tradeToRow(t, user.id));
             let total = 0;
             for (let i = 0; i < rows.length; i += 100) {
                 const batch = rows.slice(i, i + 100);
+                // By using ignoreDuplicates, we never overwrite existing trades,
+                // thereby flawlessly preserving the user's manual notes/tags attached to previously imported PDF trades!
                 const { error, count } = await supabase
                     .from('trades')
-                    .upsert(batch, { onConflict: 'id', count: 'exact' });
+                    .upsert(batch, { onConflict: 'id', count: 'exact', ignoreDuplicates: true });
                 if (error) {
                     console.error('importPdfTrades upsert error:', error);
                     return NextResponse.json({ error: 'Failed to push new trades to cloud' }, { status: 500 });
