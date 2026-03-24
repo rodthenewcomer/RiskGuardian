@@ -80,6 +80,7 @@ export default function Home() {
       const remoteTrades = await pullTrades(uid).catch(() => []);
       if (remoteTrades.length === 0) {
         resetOnboarding();
+        return; // Stop here — don't run fullSync on a freshly reset state
       }
     }
 

@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAppStore, PROP_FIRMS, type PropFirmPreset } from '@/store/appStore';
+import { pushAccountSettings } from '@/lib/supabaseSync';
 import { DollarSign, TrendingUp, ChevronRight, ChevronLeft, Check, Building2, AlertTriangle, Bitcoin, LineChart, CandlestickChart, CircleDollarSign, Settings2, Shield } from 'lucide-react';
 import styles from './Onboarding.module.css';
 import { useTranslation } from '@/i18n/useTranslation';
@@ -33,7 +34,7 @@ const getFirmLogo = (name: string) => {
 };
 
 export default function Onboarding() {
-    const { updateAccount, completeOnboarding } = useAppStore();
+    const { updateAccount, completeOnboarding, userId, language: storeLang, tradingDayRollHour } = useAppStore();
     const { t } = useTranslation();
     const { language } = useAppStore();
     const lang = language ?? 'en';
@@ -115,6 +116,12 @@ export default function Onboarding() {
             minHoldTimeSec: selectedFirm?.name?.includes('Tradeify') ? 20 : 0,
             leverage: selectedFirm?.name?.includes('Tradeify Crypto') && selectedFirm?.propFirmType?.includes('Evaluation') ? 5 : 2,
         });
+        // Immediately push to Supabase so data survives a quick refresh
+        // (don't rely on the 3s debounced auto-push effect)
+        if (userId) {
+            const acc = useAppStore.getState().account;
+            pushAccountSettings(acc, userId, tradingDayRollHour, storeLang).catch(console.error);
+        }
         setTimeout(() => completeOnboarding(), 1200);
     }
 
