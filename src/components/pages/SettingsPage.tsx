@@ -6,13 +6,13 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useAppStore, PROP_FIRMS, type PropFirmPreset } from '@/store/appStore';
 import { useTranslation } from '@/i18n/useTranslation';
 import { scanViolations, type TradeViolation } from '@/lib/tradeViolations';
-import { deleteAllTrades } from '@/lib/supabaseSync';
+import { deleteAllTrades, deleteTrades } from '@/lib/supabaseSync';
 import {
     Settings2, DollarSign, ShieldAlert, Check, RefreshCw, Building2,
     Bitcoin, LineChart, CandlestickChart, CircleDollarSign,
     Upload, FileText, RotateCcw,
     Brain, Download, Trash2, AlertTriangle, Zap, Clock,
-    Globe, Loader2,
+    Globe, Loader2, Eye, EyeOff, Save, Cpu, Lock, MonitorPlay, X
 } from 'lucide-react';
 
 const getFirmLogo = (name: string) => {
@@ -230,6 +230,10 @@ export default function SettingsPage() {
                 if (d >= cvStart && d <= cvEnd) return false;
                 return true;
             });
+            const droppedIds = oldPdf.filter(t => !oldKept.includes(t)).map(t => t.id);
+            if (droppedIds.length > 0 && userId) {
+                deleteTrades(droppedIds, userId).catch(console.error);
+            }
             const newTrades = result.trades.map(t => ({ ...t, note: '' }));
             setTrades([...newTrades, ...oldKept, ...nonPdf]);
 

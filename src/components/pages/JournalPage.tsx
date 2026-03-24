@@ -16,7 +16,7 @@ import {
     Tooltip as RechartTooltip, ResponsiveContainer, Cell,
 } from 'recharts';
 import { TRADEIFY_CRYPTO_LIST, FUTURES_SPECS, getTradingDay } from '@/store/appStore';
-import { deleteAllTrades } from '@/lib/supabaseSync';
+import { deleteTrades, deleteAllTrades } from '@/lib/supabaseSync';
 import { ChartCard } from '@/components/charts/RiskGuardianPrimitives';
 import StreakBeads from '@/components/charts/StreakBeads';
 import MonthlyCalendarHeatmap from '@/components/charts/MonthlyCalendarHeatmap';
@@ -230,6 +230,11 @@ export default function JournalPage() {
                 if (d >= cvStart && d <= cvEnd) return false;
                 return true;
             });
+            const droppedIds = oldPdf.filter(t => !oldKept.includes(t)).map(t => t.id);
+            if (droppedIds.length > 0 && userId) {
+                // Ensure dropped trades are physically deleted from Supabase so fullSync doesn't resurrect them
+                deleteTrades(droppedIds, userId).catch(console.error);
+            }
             const newTrades = result.trades.map(t => ({ ...t, note: '', source: 'pdf' as const }));
             setTrades([...newTrades, ...oldKept, ...nonPdf]); // autoSync fires inside setTrades
             const coverage = result.coverageStart && result.coverageEnd

@@ -118,6 +118,23 @@ export async function deleteTrade(tradeId: string, userId: string): Promise<void
 }
 
 /**
+ * Delete multiple trades from Supabase by their IDs.
+ */
+export async function deleteTrades(tradeIds: string[], userId: string): Promise<void> {
+    if (tradeIds.length === 0) return;
+    // Delete in batches of 100
+    for (let i = 0; i < tradeIds.length; i += 100) {
+        const batch = tradeIds.slice(i, i + 100);
+        const { error } = await supabase
+            .from('trades')
+            .delete()
+            .eq('user_id', userId)
+            .in('id', batch);
+        if (error) throw new Error(`deleteTrades: ${error.message}`);
+    }
+}
+
+/**
  * Delete ALL trades for the current user from Supabase.
  * Used when the user triggers "Clear All Trades" — must be called explicitly
  * because the auto-push effect skips pushing empty trade arrays.
