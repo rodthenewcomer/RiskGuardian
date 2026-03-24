@@ -37,6 +37,7 @@ function tradeToRow(trade: TradeSession, userId: string) {
         note:             trade.note ?? '',
         tags:             trade.tags ?? [],
         duration_seconds: trade.durationSeconds ?? null,
+        source:           trade.source ?? null,
         created_at:       trade.createdAt,
         closed_at:        trade.closedAt ?? null,
         synced_at:        new Date().toISOString(),
@@ -61,6 +62,7 @@ function rowToTrade(row: Record<string, unknown>): TradeSession {
         note:            (row.note as string) ?? '',
         tags:            (row.tags as string[]) ?? [],
         durationSeconds: row.duration_seconds != null ? Number(row.duration_seconds) : undefined,
+        source:          (row.source as TradeSession['source']) ?? undefined,
         createdAt:       row.created_at as string,
         closedAt:        row.closed_at as string | undefined,
     };

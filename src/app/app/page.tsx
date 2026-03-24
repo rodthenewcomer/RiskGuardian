@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { useAppStore } from '@/store/appStore';
 import Header from '@/components/layout/Header';
 import Sidebar from '@/components/layout/Sidebar';
@@ -19,7 +19,7 @@ import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { AnimatePresence, motion } from 'framer-motion';
 import { ToastContainer } from '@/components/ui/Toast';
 import { supabase } from '@/lib/supabase';
-import { fullSync, pushAccountSettings, pushDailySessions, pullFullAccountSettings, pushTrades, pullDayData, pushDayData } from '@/lib/supabaseSync';
+import { fullSync, pushAccountSettings, pushDailySessions, pullFullAccountSettings, pushTrades, pullDayData, pushDayData, deleteAllTrades } from '@/lib/supabaseSync';
 
 // Force dynamic rendering — prevents prerender failures when Supabase env vars absent on deploy
 export const dynamic = 'force-dynamic';
@@ -132,8 +132,20 @@ export default function Home() {
   }, []);
 
   // ── Auto-sync trades to Supabase on mutations (debounced 2s) ──
+  const prevTradeCountRef = useRef(trades.length);
   useEffect(() => {
-    if (!userId || trades.length === 0) return;
+    if (!userId) return;
+    const prevCount = prevTradeCountRef.current;
+    prevTradeCountRef.current = trades.length;
+
+    // If trades went from non-empty to empty, the user cleared all trades
+    // — we must explicitly delete from Supabase (pushTrades won't fire for length 0)
+    if (trades.length === 0 && prevCount > 0) {
+      deleteAllTrades(userId).catch(console.error);
+      return;
+    }
+    if (trades.length === 0) return;
+
     const timer = setTimeout(() => {
       pushTrades(trades, userId).catch(console.error);
     }, 2000);
