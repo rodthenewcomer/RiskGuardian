@@ -16,6 +16,7 @@ import {
     Tooltip as RechartTooltip, ResponsiveContainer, Cell,
 } from 'recharts';
 import { TRADEIFY_CRYPTO_LIST, FUTURES_SPECS, getTradingDay } from '@/store/appStore';
+import { deleteAllTrades } from '@/lib/supabaseSync';
 import { ChartCard } from '@/components/charts/RiskGuardianPrimitives';
 import StreakBeads from '@/components/charts/StreakBeads';
 import MonthlyCalendarHeatmap from '@/components/charts/MonthlyCalendarHeatmap';
@@ -59,7 +60,7 @@ function fmtDayLabel(dateStr: string): string {
 }
 
 export default function JournalPage() {
-    const { trades, setTrades, deleteTrade, updateTradeNote, updateTradeFields, setActiveTab, account, dayNotes, updateDayNote, dayJournalEntries, saveDayJournalEntry } = useAppStore();
+    const { trades, setTrades, deleteTrade, updateTradeNote, updateTradeFields, setActiveTab, account, dayNotes, updateDayNote, dayJournalEntries, saveDayJournalEntry, userId } = useAppStore();
     const { t } = useTranslation();
     const { language } = useAppStore();
     const lang = language ?? 'en';
@@ -220,7 +221,15 @@ export default function JournalPage() {
             const nonPdf  = trades.filter(t => !t.id.startsWith('tradeify-'));
             const oldPdf  = trades.filter(t => t.id.startsWith('tradeify-'));
             const newIds  = new Set(result.trades.map(t => t.id));
-            const oldKept = oldPdf.filter(t => !newIds.has(t.id));
+            const cvStart = result.coverageStart || '9999-99-99';
+            const cvEnd   = result.coverageEnd || '0000-00-00';
+            const oldKept = oldPdf.filter(t => {
+                if (newIds.has(t.id)) return false;
+                const d = t.createdAt.slice(0, 10);
+                // Drop old buggy trades that overlap with this newly imported PDF's date range
+                if (d >= cvStart && d <= cvEnd) return false;
+                return true;
+            });
             const newTrades = result.trades.map(t => ({ ...t, note: '', source: 'pdf' as const }));
             setTrades([...newTrades, ...oldKept, ...nonPdf]); // autoSync fires inside setTrades
             const coverage = result.coverageStart && result.coverageEnd
@@ -621,7 +630,14 @@ export default function JournalPage() {
                         </button>
                     )}
                     {trades.length > 0 && (
-                        <button onClick={() => { if (window.confirm(`Delete all ${trades.length} trades? This cannot be undone.`)) setTrades([]); }}
+                        <button onClick={async () => {
+                            if (window.confirm(`Delete all ${trades.length} trades? This cannot be undone.`)) {
+                                setTrades([]);
+                                if (userId) {
+                                    await deleteAllTrades(userId).catch(console.error);
+                                }
+                            }
+                        }}
                             style={{ ...mono, display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, fontWeight: 700, padding: '7px 12px', background: 'transparent', color: '#ff4757', border: '1px solid rgba(255,71,87,0.25)', cursor: 'pointer' }}>
                             <Trash2 size={12} /> {lang === 'fr' ? 'Tout effacer' : 'Clear all'}
                         </button>

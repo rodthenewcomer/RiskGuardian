@@ -65,10 +65,6 @@ export default function Home() {
   // Uses Promise.allSettled so a partial failure (e.g. day_data table missing) never
   // blocks the rest of the sync.
   async function syncFromCloud(uid: string, isFirstLogin = false) {
-    // Bidirectional trade sync
-    const tradeResult = await fullSync(trades, uid).catch(() => null);
-    if (tradeResult) setTrades(tradeResult);
-
     // Account settings — remote wins on login; push local if no remote row yet
     const remote = await pullFullAccountSettings(uid).catch(() => null);
     if (remote) {
@@ -78,6 +74,10 @@ export default function Home() {
     } else if (isFirstLogin) {
       await pushAccountSettings(account, uid, tradingDayRollHour, language).catch(console.error);
     }
+
+    // Bidirectional trade sync
+    const tradeResult = await fullSync(trades, uid).catch(() => null);
+    if (tradeResult) setTrades(tradeResult);
 
     // Day notes + journal entries (best-effort — table may not exist yet)
     const dayData = await pullDayData(uid).catch(() => null);

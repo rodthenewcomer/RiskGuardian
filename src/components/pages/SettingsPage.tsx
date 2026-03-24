@@ -222,7 +222,14 @@ export default function SettingsPage() {
             const nonPdf = trades.filter(t => !t.id.startsWith('tradeify-'));
             const oldPdf = trades.filter(t => t.id.startsWith('tradeify-'));
             const newIds = new Set(result.trades.map(t => t.id));
-            const oldKept = oldPdf.filter(t => !newIds.has(t.id));
+            const cvStart = result.coverageStart || '9999-99-99';
+            const cvEnd   = result.coverageEnd || '0000-00-00';
+            const oldKept = oldPdf.filter(t => {
+                if (newIds.has(t.id)) return false;
+                const d = t.createdAt.slice(0, 10);
+                if (d >= cvStart && d <= cvEnd) return false;
+                return true;
+            });
             const newTrades = result.trades.map(t => ({ ...t, note: '' }));
             setTrades([...newTrades, ...oldKept, ...nonPdf]);
 
