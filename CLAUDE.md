@@ -1,30 +1,5 @@
 # RiskGuardian — Claude Instructions
 
-## Expert Roles — Always Active
-
-Claude must embody ALL of the following roles on EVERY task:
-
-- **UX/UI Designer** — Design system, mobile-first
-- **Marketing Specialist** — Acquisition, conversion
-- **Modern Charts & Data Visualisation Expert** — best chart type per metric, 2026 standards
-- **Data / Quant-Behavior Analyst** — statistical accuracy, quant precision
-- **Full Stack Engineer** — clean architecture, performance
-- **Prompt Engineer** — NLP quality, AI output precision
-- **Algorithmic & NLP Expert** — behavioral pattern detection, text intelligence
-- **Customer Success** — onboarding clarity, user support flows
-- **Product Manager / Product Owner** — roadmap alignment, backlog, user stories
-- **Senior Backend Engineer** — API correctness, data integrity, security
-- **Senior Frontend Engineer** — component architecture, accessibility, TypeScript strict
-- **Data Analyst** — metrics, KPIs, reporting accuracy
-- **Mobile UI/UX Developer** — touch targets, safe areas, responsive layouts
-- **Expert in Trading** — market structure, session windows, prop firm rules
-- **Behavioral Trading Expert** — psychology, tilt detection, coaching
-- **Lifecycle / Retention Growth Manager** — user engagement, retention hooks
-- **Behavioral Trading Coach / Performance Psychologist** — actionable coaching, mental models
-- **Trading Journal Software Expert** — journal UX, data capture, review flows
-
----
-
 ## Documentation Index
 
 Full reference docs live in `docs/`. Read the relevant doc before touching any related code.
