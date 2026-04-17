@@ -198,6 +198,8 @@ export default function SettingsPage() {
     const [consecLossEnabled, setConsecLossEnabled] = useState(!!(account.maxConsecutiveLosses));
     const [maxConsecLosses, setMaxConsecLosses] = useState(String(account.maxConsecutiveLosses ?? '3'));
     const [coolDownEnabled, setCoolDownEnabled] = useState(!!(account.coolDownMinutes));
+    const [consistencyEnabled, setConsistencyEnabled] = useState(account.isConsistencyActive ?? false);
+    const [consistencyThreshold, setConsistencyThreshold] = useState(account.consistencyThresholdPct ?? 20);
     const [coolDownMins, setCoolDownMins] = useState(String(account.coolDownMinutes ?? '15'));
 
     // Trading day roll
@@ -296,7 +298,8 @@ export default function SettingsPage() {
         const startBal = Math.max(1, parseFloat(startingBalance) || bal);
         const maxDrawUSD = (startBal * Math.min(100, Math.max(0, parseFloat(maxDrawdownPct) || 0))) / 100;
         const rawDailyLimit = parseFloat(dailyLimit);
-        const validDailyLimit = rawDailyLimit > 0 ? rawDailyLimit : account.dailyLossLimit;
+        const isApexFirm = propFirm?.includes('APE-X');
+        const validDailyLimit = isApexFirm ? 0 : (rawDailyLimit > 0 ? rawDailyLimit : account.dailyLossLimit);
         const rawMaxRisk = parseFloat(maxRisk);
         const validMaxRisk = rawMaxRisk > 0 && rawMaxRisk <= 100 ? rawMaxRisk : account.maxRiskPercent;
         let leverage = account.leverage || 2;
@@ -306,8 +309,7 @@ export default function SettingsPage() {
             if (propFirmType.includes('Evaluation')) leverage = 5;
             else if (propFirmType === 'Instant Funding') leverage = 2;
         }
-        const apexFirmPreset = PROP_FIRMS.find(f => f.name === propFirm);
-        const consistencyThresholdPct = apexFirmPreset?.consistencyPct ?? undefined;
+
         updateAccount({
             balance: bal,
             dailyLossLimit: validDailyLimit,
@@ -320,8 +322,8 @@ export default function SettingsPage() {
             leverage,
             startingBalance: startBal,
             highestBalance: Math.max(startBal, bal),
-            isConsistencyActive: propFirmType === 'Instant Funding' || propFirm?.includes('Instant') || propFirm?.includes('APE-X'),
-            consistencyThresholdPct,
+            isConsistencyActive: consistencyEnabled,
+            consistencyThresholdPct: consistencyEnabled ? consistencyThreshold : undefined,
             minHoldTimeSec: propFirm?.includes('Tradeify') ? 20 : 0,
             maxTradesPerDay: maxTradesPerDay ? parseInt(maxTradesPerDay) : undefined,
             maxConsecutiveLosses: consecLossEnabled ? parseInt(maxConsecLosses) || 3 : undefined,
@@ -348,6 +350,8 @@ export default function SettingsPage() {
         if (firm.propFirmType) setPropFirmType(firm.propFirmType);
         if (firm.drawdownType) setDrawdownType(firm.drawdownType);
         setMaxDrawdownPct(String(firm.maxDrawPct));
+        if (firm.consistencyPct) { setConsistencyEnabled(true); setConsistencyThreshold(firm.consistencyPct); }
+        else if (firm.propFirmType === 'Instant Funding') { setConsistencyEnabled(true); setConsistencyThreshold(20); }
     };
 
     const balNum = parseFloat(balance) || 0;
@@ -468,19 +472,25 @@ export default function SettingsPage() {
                         <div className={styles.inputGrid} style={{ marginTop: 12 }}>
                             <Field
                                 label={t.settings.dailyLossLimit}
-                                hint={balNum > 0 && dailyLimit ? `${((parseFloat(dailyLimit) / balNum) * 100).toFixed(2)}% ${t.settings.ofBalance}` : undefined}
+                                hint={propFirm?.includes('APE-X') ? 'APE-X has no daily drawdown rule' : (balNum > 0 && dailyLimit ? `${((parseFloat(dailyLimit) / balNum) * 100).toFixed(2)}% ${t.settings.ofBalance}` : undefined)}
                             >
-                                <input
-                                    type="number"
-                                    inputMode="decimal"
-                                    pattern="[0-9]*"
-                                    value={dailyLimit}
-                                    onChange={e => setDailyLimit(e.target.value)}
-                                    placeholder="300"
-                                    style={focused('dl')}
-                                    onFocus={() => setFocusedInput('dl')}
-                                    onBlur={() => setFocusedInput(null)}
-                                />
+                                {propFirm?.includes('APE-X') ? (
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 12px', background: 'rgba(56,189,248,0.06)', border: '2px solid rgba(56,189,248,0.2)', fontFamily: 'var(--font-mono)', fontSize: 11, fontWeight: 700, color: '#38bdf8', letterSpacing: '0.06em' }}>
+                                        NO DAILY DD
+                                    </div>
+                                ) : (
+                                    <input
+                                        type="number"
+                                        inputMode="decimal"
+                                        pattern="[0-9]*"
+                                        value={dailyLimit}
+                                        onChange={e => setDailyLimit(e.target.value)}
+                                        placeholder="300"
+                                        style={focused('dl')}
+                                        onFocus={() => setFocusedInput('dl')}
+                                        onBlur={() => setFocusedInput(null)}
+                                    />
+                                )}
                             </Field>
                             <Field
                                 label={t.settings.maxDrawdown}
@@ -574,21 +584,48 @@ export default function SettingsPage() {
                         </p>
 
                         {/* Consistency mode */}
-                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginBottom: 16 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginBottom: consistencyEnabled ? 10 : 16 }}>
                             <div>
                                 <div style={{ fontFamily: 'var(--font-mono)', fontSize: 12, color: '#c9d1d9', fontWeight: 700 }}>
                                     Consistency Mode
                                 </div>
                                 <div style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: '#6b7280', marginTop: 3 }}>
-                                    No single day &gt;20% of total profit (Instant Funding rule)
+                                    {consistencyEnabled
+                                        ? `No single day >${consistencyThreshold}% of total profit`
+                                        : 'Track best-day share of total profit'}
                                 </div>
                             </div>
                             <Toggle
-                                on={propFirmType === 'Instant Funding'}
-                                onToggle={() => setPropFirmType(v => v === 'Instant Funding' ? '1-Step Evaluation' : 'Instant Funding')}
+                                on={consistencyEnabled}
+                                onToggle={() => setConsistencyEnabled(v => !v)}
                                 label="Toggle consistency mode"
                             />
                         </div>
+                        {consistencyEnabled && (
+                            <div style={{ display: 'flex', gap: 0, marginBottom: 16, border: '2px solid #1a1c24' }}>
+                                {([20, 40] as const).map((pct, i) => (
+                                    <button
+                                        key={pct}
+                                        onClick={() => setConsistencyThreshold(pct)}
+                                        style={{
+                                            flex: 1,
+                                            padding: '8px 0',
+                                            background: consistencyThreshold === pct ? 'rgba(253,200,0,0.12)' : '#0b0e14',
+                                            border: 'none',
+                                            borderLeft: i > 0 ? '2px solid #1a1c24' : 'none',
+                                            cursor: 'pointer',
+                                            fontFamily: 'var(--font-mono)',
+                                            fontSize: 11,
+                                            fontWeight: 700,
+                                            color: consistencyThreshold === pct ? '#FDC800' : '#4b5563',
+                                            letterSpacing: '0.04em',
+                                        }}
+                                    >
+                                        {pct}%
+                                    </button>
+                                ))}
+                            </div>
+                        )}
 
                         <div style={{ height: 1, background: '#1a1c24', marginBottom: 16 }} />
 
