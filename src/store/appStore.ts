@@ -11,6 +11,10 @@ export interface PropFirmPreset {
     color: string;
     propFirmType?: '2-Step Evaluation' | '1-Step Evaluation' | 'Instant Funding';
     drawdownType?: 'EOD' | 'Trailing' | 'Static';
+    noDailyDrawdown?: boolean;
+    profitTargetPct?: number;
+    consistencyPct?: number;
+    profitSplitPct?: number;
 }
 
 export const PROP_FIRMS: PropFirmPreset[] = [
@@ -22,6 +26,9 @@ export const PROP_FIRMS: PropFirmPreset[] = [
     // Instant Funding: EOD (End-of-Day) trailing drawdown — snapshots at 17:00 EST
     // No profit target, no min days. Consistency ≤ 20% required to request payout.
     { name: 'Tradeify Instant Funding', short: 'TrdfyIF', dailyPct: 3, maxDrawPct: 6, color: '#FDC800', propFirmType: 'Instant Funding', drawdownType: 'EOD' },
+    // ── APE-X ──────────────────────────────────────────────────────
+    // No daily drawdown. Max loss 4% EOD Balance. Eval target 6%. Funded: 80% split, 40% consistency.
+    { name: 'APE-X', short: 'APEX', dailyPct: 0, maxDrawPct: 4, color: '#ff6b35', propFirmType: '1-Step Evaluation', drawdownType: 'EOD', noDailyDrawdown: true, profitTargetPct: 6, consistencyPct: 40, profitSplitPct: 80 },
     // ── Other firms ────────────────────────────────────────────────
     { name: 'Funding Pips', short: 'FPips', dailyPct: 5, maxDrawPct: 10, color: '#FDC800', propFirmType: '2-Step Evaluation', drawdownType: 'Static' },
     { name: 'FTMO', short: 'FTMO', dailyPct: 5, maxDrawPct: 10, color: '#FDC800', propFirmType: '2-Step Evaluation', drawdownType: 'Static' },
@@ -82,6 +89,8 @@ export interface AccountSettings {
     maxConsecutiveLosses?: number;
     /** Behavioral guard: mandatory cool-down (minutes) before next entry after a loss */
     coolDownMinutes?: number;
+    /** Prop firm consistency threshold — max % one day can represent of total profit (APE-X=40, Tradeify=20) */
+    consistencyThresholdPct?: number;
 }
 
 export interface DailySession {
@@ -545,7 +554,7 @@ export const useAppStore = create<AppState>()(
                 const newHighest = Math.round(highest * 100) / 100;
 
                 // Auto-scale daily loss limit with the current balance if prop firm is set
-                const firm = PROP_FIRMS.find(f => f.name === s.account.propFirm && f.dailyPct > 0);
+                const firm = PROP_FIRMS.find(f => f.name === s.account.propFirm && f.dailyPct > 0 && !f.noDailyDrawdown);
                 const newDailyLimit = firm
                     ? Math.round((newBalance * firm.dailyPct) / 100)
                     : s.account.dailyLossLimit;

@@ -256,7 +256,8 @@ export default function DashboardPage() {
     const isAt70Pct = mounted && usedPct >= 70 && usedPct < 90;
 
     // ── Zero daily-limit guard: warn when no protection is configured ─
-    const hasNoProtection = mounted && account.dailyLossLimit === 0 && account.startingBalance > 0;
+    const isApex = account.propFirm?.includes('APE-X') ?? false;
+    const hasNoProtection = mounted && account.dailyLossLimit === 0 && account.startingBalance > 0 && !isApex;
 
     // ── Payout milestone tracking ─────────────────────────────────────
     // Prop-firm profit targets (industry standard)
@@ -264,8 +265,9 @@ export default function DashboardPage() {
         if (!account.startingBalance || account.startingBalance === 0) return null;
         const isInstant = account.propFirmType === 'Instant Funding';
         if (isInstant) return null; // no profit target for instant funding
-        // Target: 10% for 1-Step/FTMO/FundingPips, 8% for 2-Step Phase 1
-        const targetPct = account.propFirmType === '2-Step Evaluation' ? 8 : 10;
+        const isApexAccount = account.propFirm?.includes('APE-X') ?? false;
+        // APE-X: 6% eval target. 1-Step/FTMO/FundingPips: 10%. 2-Step Phase 1: 8%.
+        const targetPct = isApexAccount ? 6 : account.propFirmType === '2-Step Evaluation' ? 8 : 10;
         const targetAmt = account.startingBalance * (targetPct / 100);
         const gained = Math.max(0, account.balance - account.startingBalance);
         const pct = Math.min(100, (gained / targetAmt) * 100);
@@ -601,7 +603,7 @@ export default function DashboardPage() {
                 </motion.div>
             )}
 
-            {totalPnl > 0 && consistencyScore > 20 && (
+            {totalPnl > 0 && consistencyScore > (account.consistencyThresholdPct ?? 20) && (
                 <motion.div variants={fadeUp}
                     style={{ display: 'flex', alignItems: 'flex-start', gap: 10, padding: '10px 16px', background: 'rgba(234,179,8,0.06)', borderLeft: '3px solid #EAB308', borderBottom: divider }}
                 >
@@ -610,8 +612,8 @@ export default function DashboardPage() {
                     </motion.div>
                     <span style={{ ...mono, fontSize: 11, color: '#EAB308', fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase' }}>
                         {lang === 'fr'
-                            ? `ALERTE COHÉRENCE — Meilleur jour (${bestTradingDay}) représente ${consistencyScore.toFixed(1)}% du profit total (Max 20%).`
-                            : `CONSISTENCY WARNING — Best day (${bestTradingDay}) is ${consistencyScore.toFixed(1)}% of total profit (Max 20%).`}
+                            ? `ALERTE COHÉRENCE — Meilleur jour (${bestTradingDay}) représente ${consistencyScore.toFixed(1)}% du profit total (Max ${account.consistencyThresholdPct ?? 20}%).`
+                            : `CONSISTENCY WARNING — Best day (${bestTradingDay}) is ${consistencyScore.toFixed(1)}% of total profit (Max ${account.consistencyThresholdPct ?? 20}%).`}
                     </span>
                 </motion.div>
             )}

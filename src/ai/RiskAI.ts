@@ -2040,17 +2040,21 @@ export function processNaturalLanguage(
 
     if (isPayout) {
         const c = analyzeConsistency(trades);
+        const isApexAccount = account.propFirm?.includes('APE-X') ?? false;
+        const firmName = isApexAccount ? 'APE-X' : 'Tradeify';
+        const cap = account.consistencyThresholdPct ?? 20;
+        const eligible = c.bestDayPct > 0 && c.bestDayPct <= cap;
         return {
             content: lang === 'fr'
-                ? `Vérification de cohérence Tradeify — le meilleur jour doit être ≤ 20% du profit total :`
-                : `Tradeify payout consistency check — best single day must be ≤ 20% of total profit:`,
+                ? `Vérification de cohérence ${firmName} — le meilleur jour doit être ≤ ${cap}% du profit total :`
+                : `${firmName} payout consistency check — best single day must be ≤ ${cap}% of total profit:`,
             cards: [
-                { label: lang === 'fr' ? 'Éligible au paiement' : 'Payout Eligible',    value: c.payoutEligible ? (lang === 'fr' ? 'OUI — ÉLIGIBLE' : 'YES — ELIGIBLE') : (lang === 'fr' ? 'PAS ENCORE' : 'NOT YET'),  highlight: c.payoutEligible, danger: !c.payoutEligible },
-                { label: lang === 'fr' ? 'Part du meilleur jour': 'Best Day Share',     value: `${c.bestDayPct.toFixed(1)}% of total profit`,                                                                            danger: c.bestDayPct > 20 },
+                { label: lang === 'fr' ? 'Éligible au paiement' : 'Payout Eligible',    value: eligible ? (lang === 'fr' ? 'OUI — ÉLIGIBLE' : 'YES — ELIGIBLE') : (lang === 'fr' ? 'PAS ENCORE' : 'NOT YET'),  highlight: eligible, danger: !eligible },
+                { label: lang === 'fr' ? 'Part du meilleur jour': 'Best Day Share',     value: `${c.bestDayPct.toFixed(1)}% of total profit`,                                                                     danger: c.bestDayPct > cap },
                 { label: lang === 'fr' ? 'P&L meilleur jour'    : 'Best Day P&L',       value: `$${c.bestDay.toFixed(0)}` },
-                { label: lang === 'fr' ? 'Score de cohérence'   : 'Consistency Score',  value: `${c.score}/100`,                                                                                                         highlight: c.score >= 70 },
+                { label: lang === 'fr' ? 'Score de cohérence'   : 'Consistency Score',  value: `${c.score}/100`,                                                                                                  highlight: c.score >= 70 },
                 { label: lang === 'fr' ? 'Jours profitables'    : 'Profit Days',        value: `${c.profitDays}G / ${c.lossDays}R` },
-                { label: lang === 'fr' ? 'Action'               : 'Action',             value: c.payoutEligible ? (lang === 'fr' ? 'Vous pouvez soumettre une demande de paiement' : 'You can submit a payout request') : (lang === 'fr' ? `Meilleur jour doit être ≤ 20% du total. Actuellement ${c.bestDayPct.toFixed(1)}%` : `Need best day ≤ 20% of total. Currently ${c.bestDayPct.toFixed(1)}%`), danger: !c.payoutEligible },
+                { label: lang === 'fr' ? 'Action'               : 'Action',             value: eligible ? (lang === 'fr' ? 'Vous pouvez soumettre une demande de paiement' : 'You can submit a payout request') : (lang === 'fr' ? `Meilleur jour doit être ≤ ${cap}% du total. Actuellement ${c.bestDayPct.toFixed(1)}%` : `Need best day ≤ ${cap}% of total. Currently ${c.bestDayPct.toFixed(1)}%`), danger: !eligible },
             ],
         };
     }

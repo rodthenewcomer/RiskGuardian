@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 
 const getFirmLogo = (name: string) => {
+    if (name.includes('APE-X')) return 'https://www.google.com/s2/favicons?domain=apextraderfunding.com&sz=128';
     if (name.includes('Tradeify')) return 'https://www.google.com/s2/favicons?domain=tradeify.co&sz=128';
     if (name.includes('Funding Pips')) return 'https://www.google.com/s2/favicons?domain=fundingpips.com&sz=128';
     if (name.includes('FTMO')) return 'https://www.google.com/s2/favicons?domain=ftmo.com&sz=128';
@@ -299,10 +300,14 @@ export default function SettingsPage() {
         const rawMaxRisk = parseFloat(maxRisk);
         const validMaxRisk = rawMaxRisk > 0 && rawMaxRisk <= 100 ? rawMaxRisk : account.maxRiskPercent;
         let leverage = account.leverage || 2;
-        if (propFirm?.includes('Tradeify')) {
+        if (propFirm?.includes('APE-X')) {
+            leverage = 5;
+        } else if (propFirm?.includes('Tradeify')) {
             if (propFirmType.includes('Evaluation')) leverage = 5;
             else if (propFirmType === 'Instant Funding') leverage = 2;
         }
+        const apexFirmPreset = PROP_FIRMS.find(f => f.name === propFirm);
+        const consistencyThresholdPct = apexFirmPreset?.consistencyPct ?? undefined;
         updateAccount({
             balance: bal,
             dailyLossLimit: validDailyLimit,
@@ -315,7 +320,8 @@ export default function SettingsPage() {
             leverage,
             startingBalance: startBal,
             highestBalance: Math.max(startBal, bal),
-            isConsistencyActive: propFirmType === 'Instant Funding' || propFirm?.includes('Instant'),
+            isConsistencyActive: propFirmType === 'Instant Funding' || propFirm?.includes('Instant') || propFirm?.includes('APE-X'),
+            consistencyThresholdPct,
             minHoldTimeSec: propFirm?.includes('Tradeify') ? 20 : 0,
             maxTradesPerDay: maxTradesPerDay ? parseInt(maxTradesPerDay) : undefined,
             maxConsecutiveLosses: consecLossEnabled ? parseInt(maxConsecLosses) || 3 : undefined,
@@ -327,11 +333,16 @@ export default function SettingsPage() {
     };
 
     const applyFirm = (firm: PropFirmPreset) => {
-        if (firm.dailyPct === 0) return;
+        if (firm.dailyPct === 0 && !firm.noDailyDrawdown) return;
         const bal = parseFloat(balance) || account.balance;
-        const dl = Math.round((bal * firm.dailyPct) / 100);
-        setDailyLimit(String(dl));
-        setMaxRisk(String((firm.dailyPct / 5).toFixed(1)));
+        if (firm.noDailyDrawdown) {
+            setDailyLimit('0');
+            setMaxRisk('1');
+        } else {
+            const dl = Math.round((bal * firm.dailyPct) / 100);
+            setDailyLimit(String(dl));
+            setMaxRisk(String((firm.dailyPct / 5).toFixed(1)));
+        }
         setSelectedFirm(firm.name);
         setPropFirm(firm.name);
         if (firm.propFirmType) setPropFirmType(firm.propFirmType);
@@ -703,7 +714,7 @@ export default function SettingsPage() {
                         <SectionHeader icon={<Building2 size={14} />} label={t.settings.propFirmPresets} />
 
                         <div className={styles.firmRail}>
-                            {PROP_FIRMS.filter(f => f.dailyPct > 0).map(firm => (
+                            {PROP_FIRMS.filter(f => f.dailyPct > 0 || f.noDailyDrawdown).map(firm => (
                                 <motion.button
                                     key={firm.name}
                                     onClick={() => applyFirm(firm)}
@@ -741,9 +752,10 @@ export default function SettingsPage() {
                                         padding: '1px 5px',
                                         border: '1px solid #1a1c24',
                                     }}>
-                                        {firm.propFirmType === '1-Step Evaluation' ? '1S'
-                                            : firm.propFirmType === '2-Step Evaluation' ? '2S'
-                                                : 'IF'}
+                                        {firm.name.includes('APE-X') ? 'EVAL'
+                                            : firm.propFirmType === '1-Step Evaluation' ? '1S'
+                                                : firm.propFirmType === '2-Step Evaluation' ? '2S'
+                                                    : 'IF'}
                                     </span>
                                 </motion.button>
                             ))}
@@ -790,7 +802,7 @@ export default function SettingsPage() {
                                         </div>
                                         <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap' as const }}>
                                             <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: '#8b949e' }}>
-                                                Daily <strong style={{ color: '#fff' }}>${dailyLimit}</strong>
+                                                Daily <strong style={{ color: activeFirm.noDailyDrawdown ? '#38bdf8' : '#fff' }}>{activeFirm.noDailyDrawdown ? 'None' : `$${dailyLimit}`}</strong>
                                             </span>
                                             <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: '#8b949e' }}>
                                                 Drawdown <strong style={{ color: '#fff' }}>{drawdownType} {activeFirm.maxDrawPct}%</strong>
@@ -803,6 +815,26 @@ export default function SettingsPage() {
                                             {propFirmType === 'Instant Funding' && (
                                                 <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: '#8b949e' }}>
                                                     Consistency <strong style={{ color: '#FDC800' }}>&lt;=20%</strong>
+                                                </span>
+                                            )}
+                                            {activeFirm.noDailyDrawdown && (
+                                                <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: '#8b949e' }}>
+                                                    Daily DD <strong style={{ color: '#38bdf8' }}>None</strong>
+                                                </span>
+                                            )}
+                                            {activeFirm.profitTargetPct && (
+                                                <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: '#8b949e' }}>
+                                                    Target <strong style={{ color: '#FDC800' }}>{activeFirm.profitTargetPct}%</strong>
+                                                </span>
+                                            )}
+                                            {activeFirm.consistencyPct && (
+                                                <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: '#8b949e' }}>
+                                                    Consistency <strong style={{ color: '#ff6b35' }}>&lt;={activeFirm.consistencyPct}%</strong>
+                                                </span>
+                                            )}
+                                            {activeFirm.profitSplitPct && (
+                                                <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: '#8b949e' }}>
+                                                    Split <strong style={{ color: '#FDC800' }}>{activeFirm.profitSplitPct}%</strong>
                                                 </span>
                                             )}
                                         </div>
