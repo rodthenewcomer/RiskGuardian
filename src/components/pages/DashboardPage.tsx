@@ -833,11 +833,15 @@ export default function DashboardPage() {
                     <div style={{ padding: '14px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: divider }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                             <Shield size={12} color="#4b5563" />
-                            <span style={lbl}>{lang === 'fr' ? 'Garde perte journalière' : 'Daily Loss Guard'}</span>
-                            <span style={{ ...mono, fontSize: 10, color: '#4b5563' }}>/ ${account.dailyLossLimit.toLocaleString()}</span>
+                            <span style={lbl}>{isApex ? (lang === 'fr' ? 'Garde perte max' : 'Max Loss Guard') : (lang === 'fr' ? 'Garde perte journalière' : 'Daily Loss Guard')}</span>
+                            <span style={{ ...mono, fontSize: 10, color: '#4b5563' }}>
+                                {isApex ? `/ EOD ${account.maxDrawdownLimit ? `$${account.maxDrawdownLimit.toLocaleString()}` : '4%'}` : `/ $${account.dailyLossLimit.toLocaleString()}`}
+                            </span>
                         </div>
                         <StatusBadge
-                            danger={isDanger} warning={isWarning} pulse
+                            danger={isApex ? floorDanger : isDanger}
+                            warning={isApex ? floorWarning : isWarning}
+                            pulse
                             dangerLabel={lang === 'fr' ? 'DANGER' : 'DANGER'}
                             warningLabel={lang === 'fr' ? 'ALERTE' : 'WARNING'}
                             safeLabel={lang === 'fr' ? 'SÉCURISÉ' : 'SAFE'}
@@ -846,17 +850,21 @@ export default function DashboardPage() {
                     {/* Progress bar */}
                     <div style={{ height: 4, background: '#0b0e14', position: 'relative' }}>
                         <motion.div
-                            animate={{ width: `${Math.min(100, usedPct)}%` }}
+                            animate={{ width: `${Math.min(100, isApex ? drawdownInfo.usedPct : usedPct)}%` }}
                             transition={{ duration: 0.8, ease: [0.16, 1, 0.3, 1] as const }}
-                            style={{ height: '100%', background: isDanger ? '#ff4757' : isWarning ? '#EAB308' : '#FDC800', position: 'absolute', left: 0, top: 0 }}
+                            style={{ height: '100%', background: (isApex ? floorDanger : isDanger) ? '#ff4757' : (isApex ? floorWarning : isWarning) ? '#EAB308' : '#FDC800', position: 'absolute', left: 0, top: 0 }}
                         />
                     </div>
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', padding: '14px 16px' }}>
-                        {[
-                            { lbl: lang === 'fr' ? 'UTILISÉ' : 'USED',                   val: `$${animUsed.toFixed(0)}`,      clr: used > 0 ? '#ff4757' : '#4b5563' },
-                            { lbl: lang === 'fr' ? 'RESTANT' : 'REMAINING',              val: `$${animRemaining.toFixed(0)}`, clr: remaining === 0 ? '#ff4757' : '#FDC800' },
-                            { lbl: lang === 'fr' ? 'RISQUE MAX' : 'SAFE NEXT',           val: `$${animSafeNext.toFixed(0)}`,  clr: '#FDC800' },
-                        ].map((s, i) => (
+                        {(isApex ? [
+                            { lbl: lang === 'fr' ? 'PLANCHER' : 'FLOOR',     val: `$${animFloor.toFixed(0)}`,                       clr: floorDanger ? '#ff4757' : '#FDC800' },
+                            { lbl: lang === 'fr' ? 'TAMPON' : 'BUFFER',      val: `$${animBuffer.toFixed(0)}`,                      clr: floorDanger ? '#ff4757' : floorWarning ? '#EAB308' : '#FDC800' },
+                            { lbl: lang === 'fr' ? 'UTILISÉ' : 'DD USED',    val: `${drawdownInfo.usedPct.toFixed(1)}%`,            clr: floorDanger ? '#ff4757' : '#8b949e' },
+                        ] : [
+                            { lbl: lang === 'fr' ? 'UTILISÉ' : 'USED',       val: `$${animUsed.toFixed(0)}`,                        clr: used > 0 ? '#ff4757' : '#4b5563' },
+                            { lbl: lang === 'fr' ? 'RESTANT' : 'REMAINING',  val: `$${animRemaining.toFixed(0)}`,                   clr: remaining === 0 ? '#ff4757' : '#FDC800' },
+                            { lbl: lang === 'fr' ? 'RISQUE MAX' : 'SAFE NEXT', val: `$${animSafeNext.toFixed(0)}`,                  clr: '#FDC800' },
+                        ]).map((s, i) => (
                             <motion.div key={i}
                                 initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }}
                                 transition={{ ease: [0.16, 1, 0.3, 1], duration: 0.4, delay: 0.12 + i * 0.07 }}
@@ -1107,8 +1115,10 @@ export default function DashboardPage() {
                     </div>
                     <div style={{ padding: '12px 16px', display: 'flex', flexDirection: 'column', gap: 8 }}>
                         {([
-                            { dot: isDanger ? 'red' : isWarning ? 'yellow' : 'green',
-                              text: lang === 'fr' ? `Limite journalière : $${account.dailyLossLimit.toLocaleString()} (3% du compte) — ${usedPct.toFixed(1)}% utilisé aujourd'hui` : `Daily loss limit: $${account.dailyLossLimit.toLocaleString()} (3% of account) — ${usedPct.toFixed(1)}% used today` },
+                            isApex
+                              ? { dot: 'green', text: lang === 'fr' ? 'Pas de limite journalière — règle APE-X (EOD Balance uniquement)' : 'No daily drawdown — APE-X rule (EOD Balance only)' }
+                              : { dot: isDanger ? 'red' : isWarning ? 'yellow' : 'green',
+                                  text: lang === 'fr' ? `Limite journalière : $${account.dailyLossLimit.toLocaleString()} (3% du compte) — ${usedPct.toFixed(1)}% utilisé aujourd'hui` : `Daily loss limit: $${account.dailyLossLimit.toLocaleString()} (3% of account) — ${usedPct.toFixed(1)}% used today` },
                             account.startingBalance > 0 ? {
                               dot: floorDanger ? 'red' : floorWarning ? 'yellow' : 'green',
                               text: isTradeify
@@ -1119,26 +1129,33 @@ export default function DashboardPage() {
                                         : (lang === 'fr' ? `Drawdown max : 6% EOT trailing — suit chaque trade fermé · plancher $${drawdownInfo.floor.toLocaleString()}` : `Max drawdown: 6% EOT trailing — trails after each closed trade · floor $${drawdownInfo.floor.toLocaleString()}`)
                                 : `Max drawdown: $${(account.maxDrawdownLimit ?? 0).toLocaleString()}`,
                             } : null,
-                            isTradeify ? {
+                            isApex ? { dot: 'green', text: lang === 'fr' ? 'Levier : 5:1 sur tous les actifs' : 'Leverage: 5:1 on all assets' }
+                              : isTradeify ? {
                               dot: 'green',
                               text: isInstantFunded
                                 ? (lang === 'fr' ? 'Levier : 2:1 sur toutes les paires (BTC & ETH inclus)' : 'Leverage: 2:1 on all pairs (including BTC & ETH)')
                                 : (lang === 'fr' ? 'Levier : 5:1 BTC/ETH · 2:1 toutes autres paires crypto' : 'Leverage: 5:1 BTC/ETH · 2:1 all other crypto pairs'),
                             } : { dot: 'green', text: lang === 'fr' ? `Levier : ${account.leverage || 2}:1` : `Leverage: ${account.leverage || 2}:1` },
-                            isTradeify ? { icon: 'clock', text: lang === 'fr' ? 'Durée min : 20 secondes par trade (règle anti-microscalping)' : 'Min hold time: 20 seconds per trade (microscalping rule)' } : null,
-                            isInstantFunded ? {
+                            isApex ? { dot: floorDanger ? 'red' : floorWarning ? 'yellow' : 'green', text: lang === 'fr' ? `Objectif eval : 6% — progression $${Math.max(0, account.balance - account.startingBalance).toFixed(0)} / $${((account.startingBalance || 0) * 0.06).toFixed(0)}` : `Eval target: 6% — progress $${Math.max(0, account.balance - account.startingBalance).toFixed(0)} / $${((account.startingBalance || 0) * 0.06).toFixed(0)}` } : null,
+                            isApex ? { dot: 'green', text: lang === 'fr' ? 'Partage des gains : 80% trader · 20% APE-X (sur demande)' : 'Profit split: 80% trader · 20% APE-X (on demand payout)' } : null,
+                            isApex && account.isConsistencyActive ? {
+                              dot: consistencyScore <= (account.consistencyThresholdPct ?? 40) ? 'green' : 'yellow',
+                              text: lang === 'fr' ? `Cohérence (funded) : ${consistencyScore.toFixed(1)}% — doit être ≤ ${account.consistencyThresholdPct ?? 40}% pour paiement` : `Consistency (funded): ${consistencyScore.toFixed(1)}% — must be ≤ ${account.consistencyThresholdPct ?? 40}% to request payout`,
+                            } : null,
+                            !isApex && isTradeify ? { icon: 'clock', text: lang === 'fr' ? 'Durée min : 20 secondes par trade (règle anti-microscalping)' : 'Min hold time: 20 seconds per trade (microscalping rule)' } : null,
+                            !isApex && isInstantFunded ? {
                               dot: consistencyPassing ? 'green' : 'yellow',
                               text: lang === 'fr' ? `Score cohérence : ${consistencyScore.toFixed(1)}% — doit être ≤ 20% pour demander un paiement` : `Consistency score: ${consistencyScore.toFixed(1)}% — must be ≤ 20% to request payout`,
                             } : null,
-                            isInstantFunded ? {
+                            !isApex && isInstantFunded ? {
                               dot: account.payoutLockActive ? 'yellow' : 'green',
                               text: account.payoutLockActive
                                 ? (lang === 'fr' ? 'Verrou paiement : ACTIF — plancher définitivement verrouillé au solde initial' : 'Payout lock: ACTIVE — floor permanently locked at starting balance')
                                 : (lang === 'fr' ? "Verrou paiement : non déclenché — s'active à la première demande" : 'Payout lock: not triggered — activate on first payout request'),
                             } : null,
-                            isTradeify ? { icon: 'ban', text: lang === 'fr' ? 'Pas de hedging — positions compensatoires interdites (détection auto)' : 'No hedging — offsetting positions not allowed (auto-detected)' } : null,
-                            isTradeify ? { icon: 'cal', text: lang === 'fr' ? 'Inactivité : trader au moins une fois tous les 30 jours' : 'Inactivity: must trade at least once every 30 days' } : null,
-                            !isTradeify ? { dot: 'green', text: `Max trade risk: $${maxPerTrade.toFixed(0)} (${account.maxRiskPercent}%)` } : null,
+                            !isApex && isTradeify ? { icon: 'ban', text: lang === 'fr' ? 'Pas de hedging — positions compensatoires interdites (détection auto)' : 'No hedging — offsetting positions not allowed (auto-detected)' } : null,
+                            !isApex && isTradeify ? { icon: 'cal', text: lang === 'fr' ? 'Inactivité : trader au moins une fois tous les 30 jours' : 'Inactivity: must trade at least once every 30 days' } : null,
+                            !isApex && !isTradeify ? { dot: 'green', text: `Max trade risk: $${maxPerTrade.toFixed(0)} (${account.maxRiskPercent}%)` } : null,
                         ] as any[]).filter(Boolean).map((rule: any, i: number) => (
                             <motion.div key={i}
                                 initial={{ opacity: 0, x: -6 }} animate={{ opacity: 1, x: 0 }}

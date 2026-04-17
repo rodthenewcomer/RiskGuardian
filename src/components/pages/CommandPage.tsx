@@ -5,7 +5,7 @@ import { useIsMobile } from '@/hooks/useIsMobile';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
     useAppStore, getFuturesSpec, calcPositionSize, getESTFull,
-    TRADEIFY_CRYPTO_LIST,
+    TRADEIFY_CRYPTO_LIST, computeDrawdownFloor,
 } from '@/store/appStore';
 import { useTranslation } from '@/i18n/useTranslation';
 import {
@@ -222,9 +222,12 @@ export default function CommandPage() {
     }, [entryN, stopN, tpN, riskN, sizeStr, inputMode, asset, isShort, aType, spec, account, remaining]);
 
     // ── Guard ribbon state ──────────────────────────────────────────
-    const dailyUsedPct = account.dailyLossLimit > 0
+    const isApexCmd = account.propFirm?.includes('APE-X') ?? false;
+    const closedForCmd = trades.filter(t => t.outcome === 'win' || t.outcome === 'loss');
+    const ddInfoCmd = computeDrawdownFloor(account, closedForCmd);
+    const dailyUsedPct = !isApexCmd && account.dailyLossLimit > 0
         ? Math.min(100, ((account.dailyLossLimit - remaining) / account.dailyLossLimit) * 100)
-        : 0;
+        : isApexCmd ? ddInfoCmd.usedPct : 0;
     const guardDanger  = dailyUsedPct >= 90;
     const guardWarn    = dailyUsedPct >= 60;
     const guardColor   = guardDanger ? '#ff4757' : guardWarn ? '#EAB308' : '#FDC800';
@@ -437,7 +440,7 @@ export default function CommandPage() {
                             background: `${guardColor}0a`,
                         }}
                     >
-                        GUARD ${remaining.toFixed(0)}
+                        {isApexCmd ? `DD $${ddInfoCmd.buffer.toFixed(0)}` : `GUARD $${remaining.toFixed(0)}`}
                     </motion.span>
                 </div>
             </div>
