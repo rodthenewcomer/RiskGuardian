@@ -93,6 +93,24 @@ export interface AccountSettings {
     consistencyThresholdPct?: number;
 }
 
+export const LEVERAGE_PRESETS = [5, 10, 20, 50] as const;
+export const DEFAULT_ACCOUNT_LEVERAGE: number = LEVERAGE_PRESETS[0];
+export const MIN_ACCOUNT_LEVERAGE = 1;
+export const MAX_ACCOUNT_LEVERAGE = 500;
+
+export function normalizeAccountLeverage(value: number | string | null | undefined, fallback: number = DEFAULT_ACCOUNT_LEVERAGE): number {
+    const raw = typeof value === 'string' ? value.trim().replace(',', '.') : value;
+    const ratio = typeof raw === 'string' ? raw.match(/^1\s*[:/]\s*(\d+(?:\.\d+)?)$/) : null;
+    const parsed = ratio ? Number(ratio[1]) : Number(raw);
+    if (!Number.isFinite(parsed) || parsed < MIN_ACCOUNT_LEVERAGE) return fallback;
+    return Math.min(MAX_ACCOUNT_LEVERAGE, parsed);
+}
+
+export function getMaxAccountNotional(account: Pick<AccountSettings, 'startingBalance' | 'leverage'>): number {
+    const leverage = normalizeAccountLeverage(account.leverage);
+    return account.startingBalance > 0 ? account.startingBalance * leverage : 0;
+}
+
 export interface DailySession {
     date: string;
     riskUsed: number;
@@ -347,7 +365,7 @@ export const useAppStore = create<AppState>()(
                 currency: 'USD',
                 propFirmType: 'Instant Funding',
                 drawdownType: 'EOD',
-                leverage: 2,
+                leverage: DEFAULT_ACCOUNT_LEVERAGE,
                 startingBalance: 0,
                 highestBalance: 0,
                 isConsistencyActive: false,
@@ -372,7 +390,7 @@ export const useAppStore = create<AppState>()(
 
             resetOnboarding: () => set({
                 hasOnboarded: false,
-                account: { balance: 0, dailyLossLimit: 0, maxRiskPercent: 1, assetType: 'crypto', currency: 'USD', propFirmType: 'Instant Funding', drawdownType: 'EOD', leverage: 2, startingBalance: 0, highestBalance: 0, isConsistencyActive: false },
+                account: { balance: 0, dailyLossLimit: 0, maxRiskPercent: 1, assetType: 'crypto', currency: 'USD', propFirmType: 'Instant Funding', drawdownType: 'EOD', leverage: DEFAULT_ACCOUNT_LEVERAGE, startingBalance: 0, highestBalance: 0, isConsistencyActive: false },
                 trades: [],
                 dailySessions: [],
                 reportSnapshots: [],
@@ -719,7 +737,7 @@ export const TRADEIFY_CRYPTO_LIST = [
 ];
 
 export function calcPositionSize(params: {
-    balance: number;
+    startingBalance: number;
     entry: number;
     stopLoss: number;
     riskAmt: number;
@@ -728,10 +746,10 @@ export function calcPositionSize(params: {
     isShort?: boolean;
     includeFees?: boolean;
     leverage?: number;
-}): { size: number; unit: string; pointValue: number; comm: number; notional: number } {
+}): { size: number; unit: string; pointValue: number; comm: number; notional: number; cappedByLeverage: boolean; maxNotional: number } {
     const { entry, stopLoss, riskAmt, assetType, symbol, includeFees = true } = params;
     const priceDiff = Math.abs(entry - stopLoss);
-    if (priceDiff === 0) return { size: 0, unit: 'units', pointValue: 1, comm: 0, notional: 0 };
+    if (priceDiff === 0) return { size: 0, unit: 'units', pointValue: 1, comm: 0, notional: 0, cappedByLeverage: false, maxNotional: 0 };
 
     let rawSize = 0;
     let unit = 'units';
@@ -761,14 +779,16 @@ export function calcPositionSize(params: {
 
     const notional = finalSize * entry * (assetType === 'futures' ? pointVal : 1);
 
-    // Apply leverage cap: notional must not exceed balance × leverage
-    if (params.leverage && params.leverage > 0 && params.balance > 0) {
-        const maxNotional = params.balance * params.leverage;
+    // Apply leverage cap: notional must not exceed startingBalance × leverage
+    const maxNotional = params.leverage && params.leverage > 0 && params.startingBalance > 0
+        ? params.startingBalance * params.leverage
+        : 0;
+    if (params.leverage && params.leverage > 0 && params.startingBalance > 0) {
         if (notional > maxNotional) {
             const capFactor = maxNotional / notional;
             const cappedSize = assetType === 'futures'
-                ? Math.max(1, Math.round(finalSize * capFactor * 10) / 10)
-                : Math.round(finalSize * capFactor * 100) / 100;
+                ? Math.floor(finalSize * capFactor * 10) / 10
+                : Math.floor(finalSize * capFactor * 100) / 100;
             const cappedNotional = cappedSize * entry * (assetType === 'futures' ? pointVal : 1);
             const comm = includeFees ? cappedNotional * TRADEIFY_COMMISSION_RATE * 2 : 0;
             return {
@@ -777,6 +797,8 @@ export function calcPositionSize(params: {
                 pointValue: pointVal,
                 comm,
                 notional: cappedNotional,
+                cappedByLeverage: true,
+                maxNotional,
             };
         }
     }
@@ -788,5 +810,5 @@ export function calcPositionSize(params: {
         comm = notional * TRADEIFY_COMMISSION_RATE * 2;
     }
 
-    return { size: finalSize, unit, pointValue: pointVal, comm, notional };
+    return { size: finalSize, unit, pointValue: pointVal, comm, notional, cappedByLeverage: false, maxNotional };
 }

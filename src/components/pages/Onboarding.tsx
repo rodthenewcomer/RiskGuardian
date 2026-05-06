@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { useAppStore, PROP_FIRMS, type PropFirmPreset } from '@/store/appStore';
+import { useAppStore, PROP_FIRMS, DEFAULT_ACCOUNT_LEVERAGE, type PropFirmPreset } from '@/store/appStore';
 import { pushAccountSettings } from '@/lib/supabaseSync';
 import { DollarSign, TrendingUp, ChevronRight, ChevronLeft, Check, Building2, AlertTriangle, Bitcoin, LineChart, CandlestickChart, CircleDollarSign, Settings2, Shield } from 'lucide-react';
 import styles from './Onboarding.module.css';
@@ -114,7 +114,7 @@ export default function Onboarding() {
             drawdownType: selectedFirm?.drawdownType || 'EOD',
             isConsistencyActive: selectedFirm?.propFirmType === 'Instant Funding' || selectedFirm?.name.includes('Instant'),
             minHoldTimeSec: selectedFirm?.name?.includes('Tradeify') ? 20 : 0,
-            leverage: selectedFirm?.name?.includes('Tradeify Crypto') && selectedFirm?.propFirmType?.includes('Evaluation') ? 5 : 2,
+            leverage: DEFAULT_ACCOUNT_LEVERAGE,
         });
         // Immediately push to Supabase so data survives a quick refresh
         // (don't rely on the 3s debounced auto-push effect)

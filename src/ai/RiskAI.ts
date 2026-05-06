@@ -15,7 +15,7 @@
  */
 
 import type { TradeSession, AccountSettings } from '@/store/appStore';
-import { getFuturesSpec } from '@/store/appStore';
+import { getFuturesSpec, getMaxAccountNotional } from '@/store/appStore';
 
 // ─────────────────────────────────────────────────────────────────
 // Types
@@ -121,6 +121,8 @@ export interface PositionSizeResult {
     comm: number;
     stopDistance: number;
     stopPct: number;
+    leverageCapped?: boolean;
+    maxNotionalUSD?: number;
 }
 
 export interface ProfitTargetResult {
@@ -290,6 +292,8 @@ export function calcSmartPositionSize(params: {
     let size = 0;
     let unit = 'units';
     let pointValue = 1;
+    let riskPerSize = 0;
+    let leverageCapped = false;
 
     if (params.assetType === 'forex') {
         // Pip value calculation accounts for quote currency:
@@ -313,6 +317,7 @@ export function calcSmartPositionSize(params: {
             : 10;
         // stopDistance is in price units → convert to pips
         const stopPips = stopDistance / pipSize;
+        riskPerSize = stopPips * pipValuePerLot;
         size = pipValuePerLot > 0 ? riskUSD / (stopPips * pipValuePerLot) : 0;
         unit = 'lots';
         pointValue = pipValuePerLot;
@@ -320,18 +325,22 @@ export function calcSmartPositionSize(params: {
         const spec = getFuturesSpec(params.symbol);
         if (spec && stopDistance > 0) {
             // contracts = risk / (stop_in_points × dollar_per_point)
+            riskPerSize = stopDistance * spec.pointValue;
             size = riskUSD / (stopDistance * spec.pointValue);
             unit = 'contracts';
             pointValue = spec.pointValue;
         } else {
+            riskPerSize = stopDistance;
             size = stopDistance > 0 ? riskUSD / stopDistance : 0;
             unit = 'contracts';
         }
     } else if (params.assetType === 'stocks') {
+        riskPerSize = stopDistance;
         size = stopDistance > 0 ? riskUSD / stopDistance : 0;
         unit = 'shares';
     } else {
         // crypto (spot)
+        riskPerSize = stopDistance;
         size = stopDistance > 0 ? riskUSD / stopDistance : 0;
         unit = 'units';
     }
@@ -349,7 +358,8 @@ export function calcSmartPositionSize(params: {
             currentNotional = size * entry;
         }
         if (currentNotional > params.maxNotionalUSD && currentNotional > 0) {
-            size = Math.round((size * (params.maxNotionalUSD / currentNotional)) * 100) / 100;
+            size = Math.floor((size * (params.maxNotionalUSD / currentNotional)) * 100) / 100;
+            leverageCapped = true;
         }
     }
 
@@ -375,7 +385,14 @@ export function calcSmartPositionSize(params: {
         : params.assetType === 'futures'  ? size * 3.5 * 2
         : 0;
 
-    return { size, unit, riskUSD, tp2R, tp3R, tpCustomR, notional, comm, stopDistance, stopPct };
+    const actualRiskUSD = riskPerSize > 0 ? Math.round(size * riskPerSize * 100) / 100 : riskUSD;
+
+    return {
+        size, unit, riskUSD: actualRiskUSD, tp2R, tp3R, tpCustomR,
+        notional, comm, stopDistance, stopPct,
+        leverageCapped,
+        maxNotionalUSD: params.maxNotionalUSD,
+    };
 }
 
 // ─────────────────────────────────────────────────────────────────
@@ -1855,6 +1872,7 @@ export function processNaturalLanguage(
     const asset     = resolveAsset(assetRaw);
     const assetType = detectAssetType(asset);
     const fSpec     = assetType === 'futures' ? getFuturesSpec(asset) : null;
+    const maxNotionalUSD = getMaxAccountNotional(account) || undefined;
 
     const hasEntry    = /entry|enter|entered|@|at\s+\d|from\s+\d|bought at|sold at|filled/i.test(lower);
     const hasStop     = /\bstop\b|sl\b|stoploss|stop\.loss|stop price/i.test(lower);
@@ -1938,7 +1956,12 @@ export function processNaturalLanguage(
     if (hasStopDist && entry > 0) {
         if (assetType === 'futures' && fSpec) {
             const rawContracts = riskAmt / (stopDistNum * fSpec.pointValue);
-            const contracts    = Math.max(1, Math.round(rawContracts));
+            const desiredContracts = Math.max(1, Math.round(rawContracts));
+            const maxContractsByLeverage = maxNotionalUSD
+                ? Math.floor(maxNotionalUSD / (entry * fSpec.pointValue))
+                : desiredContracts;
+            const contracts    = Math.max(0, Math.min(desiredContracts, maxContractsByLeverage));
+            const leverageCapped = contracts < desiredContracts;
             const actualRisk   = contracts * stopDistNum * fSpec.pointValue;
             const slPrice      = isShort ? entry + stopDistNum : entry - stopDistNum;
             const tp2R         = isShort ? entry - stopDistNum * 2 : entry + stopDistNum * 2;
@@ -1956,6 +1979,7 @@ export function processNaturalLanguage(
                     { label: 'TP 2R',                                                       value: tp2R.toFixed(2),                                                                              highlight: true },
                     { label: 'TP 3R',                                                       value: tp3R.toFixed(2) },
                     { label: lang === 'fr' ? 'Ticks jusqu\'au stop' : 'Ticks to Stop',     value: `${ticks.toFixed(0)} ticks @ $${(fSpec.pointValue * fSpec.tickSize).toFixed(2)}/tick` },
+                    ...(leverageCapped && maxNotionalUSD ? [{ label: lang === 'fr' ? 'Plafond levier' : 'Leverage Cap', value: `$${maxNotionalUSD.toLocaleString(undefined, { maximumFractionDigits: 0 })}`, danger: true }] : []),
                     { label: lang === 'fr' ? 'Gardien'              : 'Guardian',          value: actualRisk > maxRisk ? (lang === 'fr' ? 'Limite dépassée ! Réduire à 1 contrat' : 'Over limit! Reduce to 1 contract') : (lang === 'fr' ? 'Dans les paramètres de risque' : 'Within risk parameters'), danger: actualRisk > maxRisk },
                 ],
             };
@@ -1963,7 +1987,10 @@ export function processNaturalLanguage(
 
         if (assetType === 'forex') {
             const pipValue = 10;
-            const lots     = Math.round((riskAmt / (stopDistNum * pipValue)) * 100) / 100;
+            const rawLots  = riskAmt / (stopDistNum * pipValue);
+            const lotsCap  = maxNotionalUSD ? maxNotionalUSD / 100000 : rawLots;
+            const lots     = Math.floor(Math.min(rawLots, lotsCap) * 100) / 100;
+            const leverageCapped = lots < rawLots - 0.01;
             return {
                 content: lang === 'fr'
                     ? `Position forex ${asset} — Entrée: ${entry}, Stop: ${stopDistNum} pips, Risque: $${riskAmt}:`
@@ -1974,11 +2001,15 @@ export function processNaturalLanguage(
                     { label: lang === 'fr' ? 'Valeur du pip'      : 'Pip Value',       value: `$${(lots * pipValue).toFixed(2)} per pip` },
                     { label: lang === 'fr' ? 'Risque réel'        : 'Actual Risk',     value: `$${(lots * stopDistNum * pipValue).toFixed(0)}` },
                     { label: 'TP 2R',                                                   value: `${(stopDistNum * 2).toFixed(1)} pips from entry`,  highlight: true },
+                    ...(leverageCapped && maxNotionalUSD ? [{ label: lang === 'fr' ? 'Plafond levier' : 'Leverage Cap', value: `$${maxNotionalUSD.toLocaleString(undefined, { maximumFractionDigits: 0 })}`, danger: true }] : []),
                 ],
             };
         }
 
-        const size = stopDistNum > 0 ? Math.round((riskAmt / stopDistNum) * 100) / 100 : 0;
+        const rawSize = stopDistNum > 0 ? riskAmt / stopDistNum : 0;
+        const sizeCap = maxNotionalUSD ? maxNotionalUSD / entry : rawSize;
+        const size = Math.floor(Math.min(rawSize, sizeCap) * 100) / 100;
+        const leverageCapped = size < rawSize - 0.01;
         const tp2R = isShort ? entry - stopDistNum * 2 : entry + stopDistNum * 2;
         return {
             content: lang === 'fr'
@@ -1987,9 +2018,10 @@ export function processNaturalLanguage(
             cards: [
                 { label: lang === 'fr' ? 'Taille de position' : 'Position Size', value: `${size} units`,                    highlight: true },
                 { label: lang === 'fr' ? 'Distance du stop'   : 'Stop Distance', value: `$${stopDistNum}` },
-                { label: lang === 'fr' ? 'Risque'             : 'Risk',          value: `$${riskAmt}` },
+                { label: lang === 'fr' ? 'Risque'             : 'Risk',          value: `$${(size * stopDistNum).toFixed(0)}` },
                 { label: 'TP 2R',                                                 value: tp2R.toFixed(4),                    highlight: true },
                 { label: 'TP 3R',                                                 value: (isShort ? entry - stopDistNum * 3 : entry + stopDistNum * 3).toFixed(4) },
+                ...(leverageCapped && maxNotionalUSD ? [{ label: lang === 'fr' ? 'Plafond levier' : 'Leverage Cap', value: `$${maxNotionalUSD.toLocaleString(undefined, { maximumFractionDigits: 0 })}`, danger: true }] : []),
             ],
         };
     }
@@ -2002,6 +2034,8 @@ export function processNaturalLanguage(
             const riskPerContract = stopPts * fSpec.pointValue;
             const ticks           = stopPts / fSpec.tickSize;
             const tickVal         = fSpec.pointValue * fSpec.tickSize;
+            const notional        = knownSizeNum * entry * fSpec.pointValue;
+            const overLeverage    = !!maxNotionalUSD && notional > maxNotionalUSD;
             return {
                 content: `Dollar risk for ${knownSizeNum} ${asset} contract${knownSizeNum > 1 ? 's' : ''}, ${stopPts}-point stop:`,
                 cards: [
@@ -2010,6 +2044,7 @@ export function processNaturalLanguage(
                     { label: 'Stop in Ticks',      value: `${ticks.toFixed(0)} ticks` },
                     { label: 'Tick Value',         value: `$${tickVal.toFixed(2)} / tick / contract` },
                     { label: 'Point Value',        value: `$${fSpec.pointValue} / point / contract` },
+                    ...(overLeverage && maxNotionalUSD ? [{ label: lang === 'fr' ? 'Plafond levier' : 'Leverage Cap', value: `$${maxNotionalUSD.toLocaleString(undefined, { maximumFractionDigits: 0 })}`, danger: true }] : []),
                     { label: 'vs Your Max Risk',   value: totalRisk > maxRisk ? `$${(totalRisk - maxRisk).toFixed(0)} OVER your limit` : `$${(maxRisk - totalRisk).toFixed(0)} under your limit`, danger: totalRisk > maxRisk },
                 ],
             };
@@ -2018,22 +2053,28 @@ export function processNaturalLanguage(
         if (assetType === 'forex') {
             const pipValue  = 10;
             const totalRisk = knownSizeNum * stopPts * pipValue;
+            const notional = knownSizeNum * 100000;
+            const overLeverage = !!maxNotionalUSD && notional > maxNotionalUSD;
             return {
                 content: `Dollar risk: ${knownSizeNum} lots ${asset}, ${stopPts} pip stop:`,
                 cards: [
                     { label: 'Total Risk',   value: `$${totalRisk.toFixed(0)}`, highlight: totalRisk <= maxRisk, danger: totalRisk > maxRisk },
                     { label: 'Pip Value',    value: `$${(knownSizeNum * pipValue).toFixed(2)} per pip` },
                     { label: 'Stop Pips',   value: `${stopPts}` },
+                    ...(overLeverage && maxNotionalUSD ? [{ label: lang === 'fr' ? 'Plafond levier' : 'Leverage Cap', value: `$${maxNotionalUSD.toLocaleString(undefined, { maximumFractionDigits: 0 })}`, danger: true }] : []),
                 ],
             };
         }
 
         const totalRisk = knownSizeNum * stopPts;
+        const notional = knownSizeNum * entry;
+        const overLeverage = !!maxNotionalUSD && notional > maxNotionalUSD;
         return {
             content: `Dollar risk for ${knownSizeNum} units ${asset}, $${stopPts} stop distance:`,
             cards: [
                 { label: 'Total Risk', value: `$${totalRisk.toFixed(0)}`, highlight: totalRisk <= maxRisk, danger: totalRisk > maxRisk },
                 { label: 'Per Unit',   value: `$${stopPts} risk per unit` },
+                ...(overLeverage && maxNotionalUSD ? [{ label: lang === 'fr' ? 'Plafond levier' : 'Leverage Cap', value: `$${maxNotionalUSD.toLocaleString(undefined, { maximumFractionDigits: 0 })}`, danger: true }] : []),
             ],
         };
     }
@@ -2183,6 +2224,7 @@ export function processNaturalLanguage(
             entry, stopLoss, riskUSD: riskAmt,
             assetType, symbol: asset,
             includeTradeifyFee: assetType === 'crypto',
+            maxNotionalUSD,
         });
         const guardian = analyzeRiskGuardian(account, todayUsed, riskAmt);
         const tp2R     = isShort
@@ -2204,6 +2246,13 @@ export function processNaturalLanguage(
         }
         if (assetType === 'crypto') {
             cards.push({ label: 'Commission (0.4% × 2)', value: `$${result.comm.toFixed(2)}` });
+        }
+        if (result.leverageCapped && result.maxNotionalUSD) {
+            cards.push({
+                label: lang === 'fr' ? 'Plafond levier' : 'Leverage Cap',
+                value: `$${result.maxNotionalUSD.toLocaleString(undefined, { maximumFractionDigits: 0 })}`,
+                danger: true,
+            });
         }
         cards.push({ label: 'Guardian',      value: guardian.tradeWarning || 'Clear to trade', danger: !!guardian.tradeWarning });
         return { content: `Position sizing for ${isShort ? 'SHORT' : 'LONG'} ${asset} — Entry: ${entry}, SL: ${stopLoss}, Risk: $${riskAmt}:`, cards };
@@ -2267,7 +2316,7 @@ export function processNaturalLanguage(
         }
         const stopPct = 0.01;
         const sl      = entry * (1 - stopPct);
-        const result  = calcSmartPositionSize({ entry, stopLoss: sl, riskUSD: riskAmt, assetType, symbol: asset });
+        const result  = calcSmartPositionSize({ entry, stopLoss: sl, riskUSD: riskAmt, assetType, symbol: asset, maxNotionalUSD });
         return {
             content: `Estimated position for ${asset} @ ${entry} with $${riskAmt} risk (1% stop assumed):`,
             cards: [

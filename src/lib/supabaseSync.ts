@@ -1,7 +1,7 @@
 'use client';
 
 import { supabase } from './supabase';
-import type { TradeSession, AccountSettings, DailySession } from '@/store/appStore';
+import { DEFAULT_ACCOUNT_LEVERAGE, type TradeSession, type AccountSettings, type DailySession } from '@/store/appStore';
 
 /** Full account sync payload — includes store-level fields beyond AccountSettings */
 export interface FullAccountSync {
@@ -170,7 +170,7 @@ export async function pushAccountSettings(
         prop_firm_type:         account.propFirmType ?? null,
         max_drawdown_limit:     account.maxDrawdownLimit ?? null,
         drawdown_type:          account.drawdownType ?? 'EOD',
-        leverage:               account.leverage ?? 2,
+        leverage:               account.leverage ?? DEFAULT_ACCOUNT_LEVERAGE,
         starting_balance:       account.startingBalance,
         highest_balance:        account.highestBalance,
         is_consistency_active:  account.isConsistencyActive ?? false,
@@ -221,7 +221,7 @@ export async function pullFullAccountSettings(userId: string): Promise<FullAccou
             propFirmType:          data.prop_firm_type as AccountSettings['propFirmType'] ?? undefined,
             maxDrawdownLimit:      data.max_drawdown_limit != null ? Number(data.max_drawdown_limit) : undefined,
             drawdownType:          data.drawdown_type as AccountSettings['drawdownType'] ?? 'EOD',
-            leverage:              data.leverage != null ? Number(data.leverage) : 2,
+            leverage:              data.leverage != null ? Number(data.leverage) : DEFAULT_ACCOUNT_LEVERAGE,
             startingBalance:       Number(data.starting_balance),
             highestBalance:        Number(data.highest_balance),
             isConsistencyActive:   Boolean(data.is_consistency_active),

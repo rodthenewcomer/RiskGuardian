@@ -6,6 +6,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
     useAppStore, getFuturesSpec, calcPositionSize, getESTFull,
     TRADEIFY_CRYPTO_LIST, computeDrawdownFloor,
+    DEFAULT_ACCOUNT_LEVERAGE, normalizeAccountLeverage,
 } from '@/store/appStore';
 import { useTranslation } from '@/i18n/useTranslation';
 import {
@@ -167,8 +168,9 @@ export default function CommandPage() {
             }
         }
 
+        const levMax = normalizeAccountLeverage(account.leverage, DEFAULT_ACCOUNT_LEVERAGE);
         const res = calcPositionSize({
-            balance: account.balance,
+            startingBalance: account.startingBalance,
             entry: entryN,
             stopLoss: stopN,
             riskAmt: effectiveRisk,
@@ -176,42 +178,43 @@ export default function CommandPage() {
             symbol: asset.toUpperCase(),
             isShort,
             includeFees: true,
+            leverage: levMax,
         });
         if (res.size === 0) return null;
+        const actualRisk = aType === 'futures'
+            ? res.size * stopDist * res.pointValue
+            : aType === 'forex'
+                ? res.size * 100000 * stopDist
+                : res.size * stopDist;
 
         // TP: provided or auto 2R
         const autoTp  = isShort ? entryN - stopDist * 2 : entryN + stopDist * 2;
         const finalTp = tpN > 0 ? tpN : autoTp;
         const tpDist  = Math.abs(finalTp - entryN);
         const rr      = stopDist > 0 ? tpDist / stopDist : 2;
-        const reward  = effectiveRisk * rr; // Explicitly map reward!
+        const reward  = actualRisk * rr; // Explicitly map reward!
 
-        // Tradeify leverage rules
-        const isBtcEth  = ['BTC', 'ETH', 'PAXG'].includes(asset.toUpperCase());
-        const isInstant = account.propFirmType === 'Instant Funding';
         const isTrdfy   = account.propFirm?.toLowerCase().includes('tradeify') ?? false;
-        const levMax    = isTrdfy
-            ? (isInstant ? 2 : isBtcEth ? 5 : 2)
-            : (account.leverage ?? 100);
         const levUsed   = account.startingBalance > 0 ? res.notional / account.startingBalance : 0;
 
         const overLev   = levUsed > levMax + 0.01;
-        const overDaily = effectiveRisk   > remaining + 0.01;
+        const overDaily = actualRisk   > remaining + 0.01;
         const lowRR     = rr < 1.5 && tpN === 0; // only warn on auto TP
 
         // Tradeify microscalping reminder
         const isMicro = isTrdfy && aType === 'crypto';
 
         const warnings: string[] = [
-            overLev   ? `Leverage ${levUsed.toFixed(1)}x  >  ${levMax}x max allowed` : '',
-            overDaily ? `Risk $${effectiveRisk.toFixed(0)}  >  daily remaining $${remaining.toFixed(0)}` : '',
+            res.cappedByLeverage ? `Leverage cap applied — max notional $${res.maxNotional.toFixed(0)}` : '',
+            overLev   ? `Leverage ${levUsed.toFixed(1)}x  >  1:${levMax} max allowed` : '',
+            overDaily ? `Risk $${actualRisk.toFixed(0)}  >  daily remaining $${remaining.toFixed(0)}` : '',
             lowRR     ? `Low R:R ${rr.toFixed(2)} — minimum 1.5R recommended` : '',
         ].filter(Boolean);
 
         return {
             size: res.size, unit: res.unit,
             notional: res.notional,
-            riskAmt: effectiveRisk, reward,
+            riskAmt: actualRisk, reward,
             rr, comm: res.comm,
             tp: finalTp, tpAuto: tpN === 0,
             stopPct, levUsed, levMax,
@@ -350,8 +353,9 @@ export default function CommandPage() {
 
         if (pe && ps && !pz) {
             const r = calcPositionSize({
-                balance: account.balance, entry: pe, stopLoss: ps,
+                startingBalance: account.startingBalance, entry: pe, stopLoss: ps,
                 riskAmt: pr, assetType: at, symbol: pa, isShort: pShort, includeFees: true,
+                leverage: normalizeAccountLeverage(account.leverage, DEFAULT_ACCOUNT_LEVERAGE),
             });
             sz = r.size;
             const dist = Math.abs(pe - ps);
@@ -678,7 +682,7 @@ export default function CommandPage() {
                             {/* Leverage + stop % row */}
                             <div style={{ padding: '7px 14px', borderTop: D, display: 'flex', justifyContent: 'space-between' }}>
                                 <span style={{ ...mono, fontSize: 10, color: result.overLev ? '#ff4757' : '#4b5563' }}>
-                                    Leverage {result.levUsed.toFixed(2)}x / {result.levMax}x
+                                    Leverage {result.levUsed.toFixed(2)}x / 1:{result.levMax}
                                 </span>
                                 <span style={{ ...mono, fontSize: 10, color: '#4b5563' }}>
                                     SL {result.stopPct.toFixed(2)}% from entry

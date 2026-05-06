@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState, useMemo, useRef } from 'react';
-import { useAppStore, getTradingDay, computeDrawdownFloor } from '@/store/appStore';
+import { useAppStore, getTradingDay, computeDrawdownFloor, DEFAULT_ACCOUNT_LEVERAGE, normalizeAccountLeverage } from '@/store/appStore';
 import { generateForensics } from '@/ai/EdgeForensics';
 import { motion } from 'framer-motion';
 import { useIsMobile } from '@/hooks/useIsMobile';
@@ -55,6 +55,7 @@ export default function DashboardPage() {
     useEffect(() => { setMounted(true); }, []);
 
     const { account, trades, getTodayRiskUsed, setActiveTab } = useAppStore();
+    const accountLeverage = normalizeAccountLeverage(account.leverage, DEFAULT_ACCOUNT_LEVERAGE);
 
     // ── Today's trading day string (EST) ───────────────────────
     const todayStr = new Date().toLocaleDateString('en-CA', { timeZone: 'America/New_York' });
@@ -1129,13 +1130,7 @@ export default function DashboardPage() {
                                         : (lang === 'fr' ? `Drawdown max : 6% EOT trailing — suit chaque trade fermé · plancher $${drawdownInfo.floor.toLocaleString()}` : `Max drawdown: 6% EOT trailing — trails after each closed trade · floor $${drawdownInfo.floor.toLocaleString()}`)
                                 : `Max drawdown: $${(account.maxDrawdownLimit ?? 0).toLocaleString()}`,
                             } : null,
-                            isApex ? { dot: 'green', text: lang === 'fr' ? 'Levier : 5:1 sur tous les actifs' : 'Leverage: 5:1 on all assets' }
-                              : isTradeify ? {
-                              dot: 'green',
-                              text: isInstantFunded
-                                ? (lang === 'fr' ? 'Levier : 2:1 sur toutes les paires (BTC & ETH inclus)' : 'Leverage: 2:1 on all pairs (including BTC & ETH)')
-                                : (lang === 'fr' ? 'Levier : 5:1 BTC/ETH · 2:1 toutes autres paires crypto' : 'Leverage: 5:1 BTC/ETH · 2:1 all other crypto pairs'),
-                            } : { dot: 'green', text: lang === 'fr' ? `Levier : ${account.leverage || 2}:1` : `Leverage: ${account.leverage || 2}:1` },
+                            { dot: 'green', text: lang === 'fr' ? `Levier configuré : 1:${accountLeverage} sur ce compte` : `Configured leverage: 1:${accountLeverage} on this account` },
                             isApex ? { dot: floorDanger ? 'red' : floorWarning ? 'yellow' : 'green', text: lang === 'fr' ? `Objectif eval : 6% — progression $${Math.max(0, account.balance - account.startingBalance).toFixed(0)} / $${((account.startingBalance || 0) * 0.06).toFixed(0)}` : `Eval target: 6% — progress $${Math.max(0, account.balance - account.startingBalance).toFixed(0)} / $${((account.startingBalance || 0) * 0.06).toFixed(0)}` } : null,
                             isApex ? { dot: 'green', text: lang === 'fr' ? 'Partage des gains : 80% trader · 20% APE-X (sur demande)' : 'Profit split: 80% trader · 20% APE-X (on demand payout)' } : null,
                             isApex && account.isConsistencyActive ? {

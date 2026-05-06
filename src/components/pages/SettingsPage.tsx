@@ -3,7 +3,11 @@
 import styles from './SettingsPage.module.css';
 import { useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { useAppStore, PROP_FIRMS, type PropFirmPreset } from '@/store/appStore';
+import {
+    useAppStore, PROP_FIRMS, LEVERAGE_PRESETS,
+    DEFAULT_ACCOUNT_LEVERAGE, MIN_ACCOUNT_LEVERAGE, MAX_ACCOUNT_LEVERAGE,
+    normalizeAccountLeverage, type PropFirmPreset,
+} from '@/store/appStore';
 import { useTranslation } from '@/i18n/useTranslation';
 import { scanViolations, type TradeViolation } from '@/lib/tradeViolations';
 import { deleteAllTrades, deleteTrades } from '@/lib/supabaseSync';
@@ -193,6 +197,7 @@ export default function SettingsPage() {
     const [drawdownType, setDrawdownType] = useState(account.drawdownType || 'EOD');
     const [maxDrawdownPct, setMaxDrawdownPct] = useState(String(initialDrawPct.toFixed(1)));
     const [maxTradesPerDay, setMaxTradesPerDay] = useState(String(account.maxTradesPerDay ?? ''));
+    const [leverage, setLeverage] = useState(String(account.leverage ?? DEFAULT_ACCOUNT_LEVERAGE));
 
     // Behavioral guards
     const [consecLossEnabled, setConsecLossEnabled] = useState(!!(account.maxConsecutiveLosses));
@@ -302,13 +307,7 @@ export default function SettingsPage() {
         const validDailyLimit = isApexFirm ? 0 : (rawDailyLimit > 0 ? rawDailyLimit : account.dailyLossLimit);
         const rawMaxRisk = parseFloat(maxRisk);
         const validMaxRisk = rawMaxRisk > 0 && rawMaxRisk <= 100 ? rawMaxRisk : account.maxRiskPercent;
-        let leverage = account.leverage || 2;
-        if (propFirm?.includes('APE-X')) {
-            leverage = 5;
-        } else if (propFirm?.includes('Tradeify')) {
-            if (propFirmType.includes('Evaluation')) leverage = 5;
-            else if (propFirmType === 'Instant Funding') leverage = 2;
-        }
+        const validLeverage = normalizeAccountLeverage(leverage, account.leverage ?? DEFAULT_ACCOUNT_LEVERAGE);
 
         updateAccount({
             balance: bal,
@@ -319,7 +318,7 @@ export default function SettingsPage() {
             propFirm: propFirm === 'Custom (Build your own)' ? '' : propFirm,
             propFirmType: propFirmType as '1-Step Evaluation' | '2-Step Evaluation' | 'Instant Funding',
             drawdownType: drawdownType as 'EOD' | 'Trailing' | 'Static',
-            leverage,
+            leverage: validLeverage,
             startingBalance: startBal,
             highestBalance: Math.max(startBal, bal),
             isConsistencyActive: consistencyEnabled,
@@ -329,6 +328,7 @@ export default function SettingsPage() {
             maxConsecutiveLosses: consecLossEnabled ? parseInt(maxConsecLosses) || 3 : undefined,
             coolDownMinutes: coolDownEnabled ? parseInt(coolDownMins) || 15 : undefined,
         });
+        setLeverage(String(validLeverage));
         setTradingDayRollHour(parseInt(rollHour) || 17);
         setSaved(true);
         setTimeout(() => setSaved(false), 2500);
@@ -355,6 +355,9 @@ export default function SettingsPage() {
     };
 
     const balNum = parseFloat(balance) || 0;
+    const startBalNum = parseFloat(startingBalance) || 0;
+    const leverageNum = normalizeAccountLeverage(leverage, account.leverage ?? DEFAULT_ACCOUNT_LEVERAGE);
+    const leverageCap = startBalNum > 0 ? startBalNum * leverageNum : 0;
     const activeFirm = PROP_FIRMS.find(f => f.name === selectedFirm);
 
     // ── Toggle component ─────────────────────────────────────────────────────
@@ -544,6 +547,63 @@ export default function SettingsPage() {
                                     onFocus={() => setFocusedInput('mtd')}
                                     onBlur={() => setFocusedInput(null)}
                                 />
+                            </Field>
+                        </div>
+
+                        <div style={{ marginTop: 12 }}>
+                            <Field
+                                label={t.settings.leverage}
+                                hint={leverageCap > 0
+                                    ? `${t.settings.leverageCapHint} · ${t.settings.leverageCap}: $${leverageCap.toLocaleString(undefined, { maximumFractionDigits: 0 })}`
+                                    : t.settings.leverageCapHint}
+                            >
+                                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 0, border: '2px solid #1a1c24' }}>
+                                    {LEVERAGE_PRESETS.map((preset, i) => (
+                                        <button
+                                            key={preset}
+                                            type="button"
+                                            onClick={() => setLeverage(String(preset))}
+                                            style={{
+                                                padding: '9px 4px',
+                                                border: 'none',
+                                                borderLeft: i > 0 ? '2px solid #1a1c24' : 'none',
+                                                cursor: 'pointer',
+                                                background: leverageNum === preset ? '#FDC800' : '#0b0e14',
+                                                color: leverageNum === preset ? '#000' : '#6b7280',
+                                                fontFamily: 'var(--font-mono)',
+                                                fontSize: 11,
+                                                fontWeight: 800,
+                                                letterSpacing: '0.04em',
+                                            }}
+                                        >
+                                            1:{preset}
+                                        </button>
+                                    ))}
+                                </div>
+                                <div style={{
+                                    display: 'grid',
+                                    gridTemplateColumns: '44px 1fr',
+                                    alignItems: 'center',
+                                    marginTop: 8,
+                                    border: `2px solid ${focusedInput === 'lev' ? '#FDC800' : '#1a1c24'}`,
+                                    background: '#0b0e14',
+                                }}>
+                                    <span style={{ ...HINT, marginTop: 0, padding: '0 12px', color: '#8b949e', fontWeight: 800 }}>1:</span>
+                                    <input
+                                        type="number"
+                                        inputMode="decimal"
+                                        pattern="[0-9]*"
+                                        min={MIN_ACCOUNT_LEVERAGE}
+                                        max={MAX_ACCOUNT_LEVERAGE}
+                                        value={leverage}
+                                        aria-label={t.settings.customLeverage}
+                                        onChange={e => setLeverage(e.target.value)}
+                                        placeholder="20"
+                                        style={{ ...INPUT, border: 'none', background: 'transparent', paddingLeft: 0 }}
+                                        onFocus={() => setFocusedInput('lev')}
+                                        onBlur={() => setFocusedInput(null)}
+                                    />
+                                </div>
                             </Field>
                         </div>
 
