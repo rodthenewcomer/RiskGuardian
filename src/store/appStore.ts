@@ -2,6 +2,15 @@
 
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
+import {
+    TRADEIFY_ASSETS,
+    TRADEIFY_CRYPTO_FEE_RATE,
+    TRADEIFY_CRYPTO_ROUND_TRIP_FEE_RATE,
+    TRADEIFY_CRYPTO_SYMBOLS,
+    TRADEIFY_POSITION_LIMIT_NOTE,
+    getTradeifyAsset,
+    getTradeifySymbolLeverage,
+} from '@/data/tradeifyAssets';
 
 export interface PropFirmPreset {
     name: string;
@@ -729,12 +738,16 @@ export function getFuturesSpec(symbol: string): FuturesSpec | null {
 
 // ─── Lot size / contracts calculation ─────────────────────────
 // ─── Market & Fee Constants ───────────────────────────
-export const TRADEIFY_COMMISSION_RATE = 0.004; // 0.4% per leg (entry + exit = 0.8% round-trip)
-export const TRADEIFY_CRYPTO_LIST = [
-    'BTC', 'ETH', 'SOL', 'PEPE', 'WIF', 'BONK', 'PNUT', 'DOGE', 'SUI', 'AVAX',
-    'APT', 'LINK', 'UNI', 'ADA', 'XRP', 'DOT', 'NEAR', 'FET', 'LTC', 'BCH',
-    'RENDER', 'TAO', 'TIA', 'SEI', 'INJ', 'JUP', 'PYTH', 'OP', 'ARB', 'STRK'
-];
+export {
+    TRADEIFY_ASSETS,
+    TRADEIFY_CRYPTO_FEE_RATE,
+    TRADEIFY_CRYPTO_ROUND_TRIP_FEE_RATE,
+    TRADEIFY_POSITION_LIMIT_NOTE,
+    getTradeifyAsset,
+    getTradeifySymbolLeverage,
+};
+export const TRADEIFY_COMMISSION_RATE = TRADEIFY_CRYPTO_FEE_RATE;
+export const TRADEIFY_CRYPTO_LIST = TRADEIFY_CRYPTO_SYMBOLS;
 
 export function calcPositionSize(params: {
     startingBalance: number;
@@ -790,7 +803,7 @@ export function calcPositionSize(params: {
                 ? Math.floor(finalSize * capFactor * 10) / 10
                 : Math.floor(finalSize * capFactor * 100) / 100;
             const cappedNotional = cappedSize * entry * (assetType === 'futures' ? pointVal : 1);
-            const comm = includeFees ? cappedNotional * TRADEIFY_COMMISSION_RATE * 2 : 0;
+            const comm = includeFees && assetType === 'crypto' ? cappedNotional * TRADEIFY_CRYPTO_ROUND_TRIP_FEE_RATE : 0;
             return {
                 size: cappedSize,
                 unit,
@@ -805,9 +818,9 @@ export function calcPositionSize(params: {
 
     let comm = 0;
 
-    // Tradeify 0.4% per leg × 2 (entry + exit = 0.8% round-trip)
-    if (includeFees) {
-        comm = notional * TRADEIFY_COMMISSION_RATE * 2;
+    // Tradeify Crypto fee is 0.04% per trade; display round-trip entry + exit.
+    if (includeFees && assetType === 'crypto') {
+        comm = notional * TRADEIFY_CRYPTO_ROUND_TRIP_FEE_RATE;
     }
 
     return { size: finalSize, unit, pointValue: pointVal, comm, notional, cappedByLeverage: false, maxNotional };

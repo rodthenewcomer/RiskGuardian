@@ -128,6 +128,16 @@ const maxNotional = account.startingBalance * account.leverage;
 // NOT: account.balance * account.leverage
 ```
 
+### Tradeify Crypto Pairs, Leverage & Fees
+
+The canonical Tradeify Crypto asset list lives in `src/data/tradeifyAssets.ts`.
+
+- BTC/USD, ETH/USD, and PAXG/USD are major pairs with native 5:1 leverage.
+- Altcoins use native 2:1 leverage.
+- Instant Funding accounts use native 2:1 leverage on all pairs, including BTC, ETH, and PAXG.
+- Cryptocurrency trading fee is 0.04% per trade on notional value. Risk Engine displays estimated round-trip fees as entry + exit.
+- Position limits are symbol-specific and must be read from DXTrade.
+
 ---
 
 ### Drawdown Types

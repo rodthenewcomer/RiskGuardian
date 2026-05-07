@@ -15,7 +15,13 @@
  */
 
 import type { TradeSession, AccountSettings } from '@/store/appStore';
-import { getFuturesSpec, getMaxAccountNotional } from '@/store/appStore';
+import {
+    getFuturesSpec,
+    getMaxAccountNotional,
+    TRADEIFY_CRYPTO_FEE_RATE,
+    TRADEIFY_CRYPTO_ROUND_TRIP_FEE_RATE,
+    TRADEIFY_CRYPTO_LIST,
+} from '@/store/appStore';
 
 // ─────────────────────────────────────────────────────────────────
 // Types
@@ -378,10 +384,10 @@ export function calcSmartPositionSize(params: {
     }
 
     // Tradeify fees:
-    //  Crypto:  0.4% per leg × 2 (0.8% round-trip on notional)
+    //  Crypto: 0.04% per trade × 2 (entry + exit round-trip on notional)
     //  Futures: ~$3.50/contract/side × 2 = $7.00 round-trip per contract
     const comm = !includeTradeifyFee ? 0
-        : params.assetType === 'crypto'   ? notional * 0.004 * 2
+        : params.assetType === 'crypto'   ? notional * TRADEIFY_CRYPTO_ROUND_TRIP_FEE_RATE
         : params.assetType === 'futures'  ? size * 3.5 * 2
         : 0;
 
@@ -1736,11 +1742,7 @@ export const VERBAL_ASSET_MAP: Record<string, string> = {
     RUSSELL: 'RTY', RUT: 'RTY',
 };
 
-export const CRYPTO_SYMBOLS = new Set([
-    'BTC', 'ETH', 'SOL', 'PEPE', 'WIF', 'BONK', 'PNUT', 'DOGE', 'SUI', 'AVAX',
-    'APT', 'LINK', 'UNI', 'ADA', 'XRP', 'DOT', 'NEAR', 'FET', 'LTC', 'BCH',
-    'RENDER', 'TAO', 'TIA', 'SEI', 'INJ', 'JUP', 'PYTH', 'OP', 'ARB', 'STRK',
-]);
+export const CRYPTO_SYMBOLS = new Set(TRADEIFY_CRYPTO_LIST);
 export const FOREX_PREFIXES = ['EUR', 'GBP', 'JPY', 'CHF', 'CAD', 'AUD', 'NZD', 'USD'];
 
 export function resolveAsset(raw: string): string {
@@ -1866,9 +1868,18 @@ export function processNaturalLanguage(
     const hasKnownSize = knownSizeNum > 0;
     const customSize = 0;
 
-    const assetRaw = (
-        input.match(/\b(BTC|ETH|SOL|XRP|PEPE|DOGE|AVAX|LINK|ADA|SUI|APT|INJ|TAO|OP|ARB|STRK|NQ|MNQ|ES|MES|YM|MYM|RTY|M2K|GC|MGC|CL|QM|SI|ZB|GOLD|OIL|SILVER|NASDAQ|SP500|DOW|RUSSELL|WTI|EURUSD|GBPUSD|USDJPY|AUDUSD|EURUSD|EUR|GBP)\b/i)?.[0]?.toUpperCase()
-    ) || 'ASSET';
+    const assetRaw = (input.toUpperCase().match(/[A-Z0-9]+(?:\/[A-Z0-9]+)?/g) || [])
+        .map(token => resolveAsset(token))
+        .find(token => {
+            const compact = token.replace(/[^A-Z0-9]/g, '');
+            return Boolean(
+                FUTURES_SPECS[compact] ||
+                TRADEIFY_CRYPTO_LIST.includes(token) ||
+                TRADEIFY_CRYPTO_LIST.includes(compact) ||
+                TRADEIFY_CRYPTO_LIST.includes(compact.replace(/USD$/, '')) ||
+                (compact.length === 6 && FOREX_PREFIXES.some(p => compact.startsWith(p) || compact.endsWith(p)))
+            );
+        }) || 'ASSET';
     const asset     = resolveAsset(assetRaw);
     const assetType = detectAssetType(asset);
     const fSpec     = assetType === 'futures' ? getFuturesSpec(asset) : null;
@@ -2119,7 +2130,7 @@ export function processNaturalLanguage(
     }
 
     if (isBreakEven && entry > 0) {
-        const commRate = assetType === 'crypto' ? 0.004 : 0; // 0.4% per leg
+        const commRate = assetType === 'crypto' ? TRADEIFY_CRYPTO_FEE_RATE : 0;
         const commPerUnit = entry * commRate;
         const be = isShort ? entry - commPerUnit * 2 : entry + commPerUnit * 2;
         return {
@@ -2245,7 +2256,7 @@ export function processNaturalLanguage(
             cards.push({ label: 'Notional',    value: `$${result.notional.toLocaleString(undefined, { maximumFractionDigits: 0 })}` });
         }
         if (assetType === 'crypto') {
-            cards.push({ label: 'Commission (0.4% × 2)', value: `$${result.comm.toFixed(2)}` });
+            cards.push({ label: 'Fees (0.04% × 2)', value: `$${result.comm.toFixed(2)}` });
         }
         if (result.leverageCapped && result.maxNotionalUSD) {
             cards.push({

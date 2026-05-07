@@ -101,6 +101,9 @@ export default function Onboarding() {
 
     function finish(overrideBalance?: number) {
         setDone(true);
+        const defaultLeverage = selectedFirm?.name?.includes('Tradeify') && selectedFirm?.propFirmType === 'Instant Funding'
+            ? 2
+            : DEFAULT_ACCOUNT_LEVERAGE;
         updateAccount({
             balance: overrideBalance ?? balNum,
             startingBalance: overrideBalance ?? balNum,
@@ -114,7 +117,7 @@ export default function Onboarding() {
             drawdownType: selectedFirm?.drawdownType || 'EOD',
             isConsistencyActive: selectedFirm?.propFirmType === 'Instant Funding' || selectedFirm?.name.includes('Instant'),
             minHoldTimeSec: selectedFirm?.name?.includes('Tradeify') ? 20 : 0,
-            leverage: DEFAULT_ACCOUNT_LEVERAGE,
+            leverage: defaultLeverage,
         });
         // Immediately push to Supabase so data survives a quick refresh
         // (don't rely on the 3s debounced auto-push effect)

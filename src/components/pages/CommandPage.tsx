@@ -7,6 +7,7 @@ import {
     useAppStore, getFuturesSpec, calcPositionSize, getESTFull,
     TRADEIFY_CRYPTO_LIST, computeDrawdownFloor,
     DEFAULT_ACCOUNT_LEVERAGE, normalizeAccountLeverage,
+    TRADEIFY_CRYPTO_ROUND_TRIP_FEE_RATE,
 } from '@/store/appStore';
 import { useTranslation } from '@/i18n/useTranslation';
 import {
@@ -23,8 +24,8 @@ function detectType(sym: string): 'crypto' | 'futures' | 'forex' | 'stocks' {
     if (!sym) return 'crypto';
     const s = sym.trim().toUpperCase().replace(/[^A-Z0-9/]/g, '');
     if (getFuturesSpec(s)) return 'futures';
-    if (s.includes('/')) return 'forex';
     if (TRADEIFY_CRYPTO_LIST.includes(s)) return 'crypto';
+    if (s.includes('/')) return 'forex';
     return 'crypto';
 }
 
@@ -47,6 +48,7 @@ const CHIPS = [
     // Crypto majors
     { sym: 'BTC',     cat: 'crypto'  },
     { sym: 'ETH',     cat: 'crypto'  },
+    { sym: 'PAXG',    cat: 'crypto'  },
     { sym: 'SOL',     cat: 'crypto'  },
     { sym: 'XRP',     cat: 'crypto'  },
     { sym: 'DOGE',    cat: 'crypto'  },
@@ -370,7 +372,7 @@ export default function CommandPage() {
         const dist  = ps ? Math.abs(pe - ps) : 0;
         const rrOut = dist > 0 && tpPrice ? Math.abs(tpPrice - pe) / dist : 2;
         const notional = sz * pe * (sp?.pointValue ?? 1);
-        const comm     = notional * 0.004 * 2; // 0.4% per leg × 2 round-trip
+        const comm     = at === 'crypto' ? notional * TRADEIFY_CRYPTO_ROUND_TRIP_FEE_RATE : 0;
 
         // Fill form
         setAsset(pa); setIsShort(pShort);

@@ -4,9 +4,15 @@ export interface TradeifyAsset {
     leverage: number;
 }
 
+export const TRADEIFY_CRYPTO_FEE_RATE = 0.0004; // 0.04% per trade
+export const TRADEIFY_CRYPTO_ROUND_TRIP_FEE_RATE = TRADEIFY_CRYPTO_FEE_RATE * 2;
+export const TRADEIFY_POSITION_LIMIT_NOTE = 'Position limits vary by symbol and are shown directly on DXTrade.';
+export const TRADEIFY_MAJOR_CRYPTO_SYMBOLS = ['BTC/USD', 'ETH/USD', 'PAXG/USD'] as const;
+
 export const TRADEIFY_ASSETS: TradeifyAsset[] = [
     { symbol: 'BTC/USD', name: 'Bitcoin', leverage: 5 },
     { symbol: 'ETH/USD', name: 'Ethereum', leverage: 5 },
+    { symbol: 'PAXG/USD', name: 'PAX Gold', leverage: 5 },
     { symbol: '1INCH/USD', name: '1inch', leverage: 2 },
     { symbol: 'AAVE/USD', name: 'Aave', leverage: 2 },
     { symbol: 'ADA/USD', name: 'Cardano', leverage: 2 },
@@ -115,3 +121,26 @@ export const TRADEIFY_ASSETS: TradeifyAsset[] = [
     { symbol: 'YFI/USD', name: 'yearn.finance', leverage: 2 },
     { symbol: 'ZEC/USD', name: 'Zcash', leverage: 2 },
 ];
+
+function symbolVariants(symbol: string): string[] {
+    const upper = symbol.toUpperCase();
+    const compact = upper.replace(/[^A-Z0-9]/g, '');
+    const base = compact.replace(/USD$/, '');
+    return [upper, compact, base];
+}
+
+export const TRADEIFY_CRYPTO_SYMBOLS = Array.from(new Set(TRADEIFY_ASSETS.flatMap(asset => symbolVariants(asset.symbol))));
+export const TRADEIFY_CRYPTO_SYMBOL_SET = new Set(TRADEIFY_CRYPTO_SYMBOLS);
+
+export function getTradeifyAsset(symbol: string): TradeifyAsset | undefined {
+    const lookup = symbol.toUpperCase().replace(/[^A-Z0-9]/g, '');
+    return TRADEIFY_ASSETS.find(asset => {
+        const compact = asset.symbol.toUpperCase().replace(/[^A-Z0-9]/g, '');
+        return compact === lookup || compact.replace(/USD$/, '') === lookup;
+    });
+}
+
+export function getTradeifySymbolLeverage(symbol: string, propFirmType?: string): number {
+    if (propFirmType === 'Instant Funding') return 2;
+    return getTradeifyAsset(symbol)?.leverage ?? 2;
+}

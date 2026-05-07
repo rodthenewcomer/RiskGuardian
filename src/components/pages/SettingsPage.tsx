@@ -6,7 +6,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
     useAppStore, PROP_FIRMS, LEVERAGE_PRESETS,
     DEFAULT_ACCOUNT_LEVERAGE, MIN_ACCOUNT_LEVERAGE, MAX_ACCOUNT_LEVERAGE,
-    normalizeAccountLeverage, type PropFirmPreset,
+    normalizeAccountLeverage, TRADEIFY_CRYPTO_FEE_RATE, type PropFirmPreset,
 } from '@/store/appStore';
 import { useTranslation } from '@/i18n/useTranslation';
 import { scanViolations, type TradeViolation } from '@/lib/tradeViolations';
@@ -350,6 +350,8 @@ export default function SettingsPage() {
         if (firm.propFirmType) setPropFirmType(firm.propFirmType);
         if (firm.drawdownType) setDrawdownType(firm.drawdownType);
         setMaxDrawdownPct(String(firm.maxDrawPct));
+        if (firm.name.includes('Tradeify') && firm.propFirmType === 'Instant Funding') setLeverage('2');
+        else if (firm.name.includes('Tradeify') || firm.name.includes('APE-X')) setLeverage(String(DEFAULT_ACCOUNT_LEVERAGE));
         if (firm.consistencyPct) { setConsistencyEnabled(true); setConsistencyThreshold(firm.consistencyPct); }
         else if (firm.propFirmType === 'Instant Funding') { setConsistencyEnabled(true); setConsistencyThreshold(20); }
     };
@@ -907,6 +909,23 @@ export default function SettingsPage() {
                                             {activeFirm.name.includes('Tradeify') && (
                                                 <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: '#8b949e' }}>
                                                     Hold <strong style={{ color: '#FDC800' }}>20s min</strong>
+                                                </span>
+                                            )}
+                                            {activeFirm.name.includes('Tradeify') && (
+                                                <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: '#8b949e' }}>
+                                                    {t.settings.nativeLeverage} <strong style={{ color: '#FDC800' }}>
+                                                        {propFirmType === 'Instant Funding' ? t.settings.tradeifyInstantLeverage : t.settings.tradeifyEvalLeverage}
+                                                    </strong>
+                                                </span>
+                                            )}
+                                            {activeFirm.name.includes('Tradeify') && (
+                                                <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: '#8b949e' }}>
+                                                    {t.settings.tradingFee} <strong style={{ color: '#fff' }}>{(TRADEIFY_CRYPTO_FEE_RATE * 100).toFixed(2)}%</strong>
+                                                </span>
+                                            )}
+                                            {activeFirm.name.includes('Tradeify') && (
+                                                <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: '#8b949e' }}>
+                                                    {t.settings.positionLimits} <strong style={{ color: '#38bdf8' }}>DXTrade</strong>
                                                 </span>
                                             )}
                                             {propFirmType === 'Instant Funding' && (
