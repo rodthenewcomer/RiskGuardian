@@ -559,7 +559,7 @@ export default function SettingsPage() {
                                     ? `${t.settings.leverageCapHint} · ${t.settings.leverageCap}: $${leverageCap.toLocaleString(undefined, { maximumFractionDigits: 0 })}`
                                     : t.settings.leverageCapHint}
                             >
-                                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 0, border: '2px solid #1a1c24' }}>
+                                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 0, border: '2px solid #1a1c24' }}>
                                     {LEVERAGE_PRESETS.map((preset, i) => (
                                         <button
                                             key={preset}

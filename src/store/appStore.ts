@@ -102,8 +102,8 @@ export interface AccountSettings {
     consistencyThresholdPct?: number;
 }
 
-export const LEVERAGE_PRESETS = [5, 10, 20, 50] as const;
-export const DEFAULT_ACCOUNT_LEVERAGE: number = LEVERAGE_PRESETS[0];
+export const LEVERAGE_PRESETS = [2, 4, 5, 10, 20, 50] as const;
+export const DEFAULT_ACCOUNT_LEVERAGE = 5;
 export const MIN_ACCOUNT_LEVERAGE = 1;
 export const MAX_ACCOUNT_LEVERAGE = 500;
 
