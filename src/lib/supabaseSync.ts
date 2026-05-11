@@ -18,6 +18,31 @@ export interface DayDataSync {
 
 // ── Type adapters ────────────────────────────────────────────────
 
+const JOURNAL_META_PREFIXES = ['rg:bias=', 'rg:setup=', 'rg:exit='] as const;
+
+function encodeJournalMetaTags(trade: TradeSession): string[] {
+    const visibleTags = (trade.tags ?? []).filter(tag => !JOURNAL_META_PREFIXES.some(prefix => tag.startsWith(prefix)));
+    const metaTags = [
+        trade.biasTag ? `rg:bias=${encodeURIComponent(trade.biasTag)}` : null,
+        trade.setupType ? `rg:setup=${encodeURIComponent(trade.setupType)}` : null,
+        trade.exitReason ? `rg:exit=${encodeURIComponent(trade.exitReason)}` : null,
+    ].filter((tag): tag is string => Boolean(tag));
+    return [...visibleTags, ...metaTags];
+}
+
+function decodeJournalMetaTags(tags: string[]) {
+    const read = (prefix: typeof JOURNAL_META_PREFIXES[number]) => {
+        const raw = tags.find(tag => tag.startsWith(prefix))?.slice(prefix.length);
+        return raw ? decodeURIComponent(raw) : undefined;
+    };
+    return {
+        visibleTags: tags.filter(tag => !JOURNAL_META_PREFIXES.some(prefix => tag.startsWith(prefix))),
+        biasTag: read('rg:bias=') as TradeSession['biasTag'] | undefined,
+        setupType: read('rg:setup=') as TradeSession['setupType'] | undefined,
+        exitReason: read('rg:exit=') as TradeSession['exitReason'] | undefined,
+    };
+}
+
 function tradeToRow(trade: TradeSession, userId: string) {
     return {
         id:               trade.id,
@@ -35,7 +60,7 @@ function tradeToRow(trade: TradeSession, userId: string) {
         pnl:              trade.pnl ?? null,
         is_short:         trade.isShort ?? false,
         note:             trade.note ?? '',
-        tags:             trade.tags ?? [],
+        tags:             encodeJournalMetaTags(trade),
         duration_seconds: trade.durationSeconds ?? null,
         created_at:       trade.createdAt,
         closed_at:        trade.closedAt ?? null,
@@ -44,6 +69,7 @@ function tradeToRow(trade: TradeSession, userId: string) {
 }
 
 function rowToTrade(row: Record<string, unknown>): TradeSession {
+    const journalMeta = decodeJournalMetaTags((row.tags as string[]) ?? []);
     return {
         id:              row.id as string,
         asset:           row.asset as string,
@@ -59,7 +85,10 @@ function rowToTrade(row: Record<string, unknown>): TradeSession {
         pnl:             row.pnl != null ? Number(row.pnl) : undefined,
         isShort:         Boolean(row.is_short),
         note:            (row.note as string) ?? '',
-        tags:            (row.tags as string[]) ?? [],
+        tags:            journalMeta.visibleTags,
+        biasTag:         journalMeta.biasTag,
+        setupType:       journalMeta.setupType,
+        exitReason:      journalMeta.exitReason,
         durationSeconds: row.duration_seconds != null ? Number(row.duration_seconds) : undefined,
         // Infer source from trade ID prefix (column may not exist in Supabase)
         source:          (row.id as string)?.startsWith('tradeify-') ? 'pdf' as const

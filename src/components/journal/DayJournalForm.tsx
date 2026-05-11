@@ -3,26 +3,35 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Star } from 'lucide-react';
-import { DayJournalEntry } from '@/store/appStore';
+import type { DayJournalEntry } from '@/store/appStore';
+import { translations } from '@/i18n/translations';
 
 const SESSION_TAGS = [
-    'A-Setup', 'B-Setup', 'C-Setup', 'FOMO Entry', 'Revenge', 'Off-Plan',
-    'News Play', 'Scalp', 'Swing', 'Clean Execution', 'Over-Sized', 'Early Exit', 'Review Required',
+    'A-Setup', 'B-Setup', 'C-Setup', 'Clean Execution', 'Off-Plan', 'FOMO Entry',
+    'Revenge', 'Over-Sized', 'Moved Stop', 'Early Exit', 'Late Exit', 'Held Winner',
+    'Held Loser', 'Chased Breakout', 'News Risk', 'Review Required',
 ];
 
-const MOODS_POSITIVE = ['Optimal', 'Focused', 'Confident'];
-const MOODS_NEUTRAL  = ['Nervous', 'Fearful', 'Tired', 'Distracted'];
-const MOODS_NEGATIVE = ['Frustrated', 'Angry', 'FOMO', 'Revenge Mode', 'Overconfident'];
+const PRE_SESSION_FOCUS = [
+    'A-Setups Only', 'Wait for Confirmation', 'No Chase Entries', 'Respect Stop',
+    'Use Planned Size', 'Max Trades Rule', 'Avoid News Spike', 'Stop After Rule Break',
+];
+
+const MOODS_POSITIVE = ['Calm', 'Focused', 'Patient', 'Confident', 'Disciplined'];
+const MOODS_NEUTRAL  = ['Nervous', 'Tired', 'Distracted', 'Bored', 'Rushed'];
+const MOODS_NEGATIVE = ['Fearful', 'Frustrated', 'Angry', 'FOMO', 'Revenge Mode', 'Overconfident'];
 
 const RULE_VIOLATIONS = [
-    'Open Window Risk', 'Daily Stop Breach', 'Revenge Trading', 'Held Losers',
-    'Contract Escalation', 'Spike Vulnerability', 'Early Exit / Cutting Winners Short',
+    'No Plan', 'Open Window Risk', 'Daily Stop Breach', 'Revenge Trading',
+    'Overtrading', 'Over-Sized Position', 'Moved Stop', 'Held Loser',
+    'Contract Escalation', 'Spike Vulnerability', 'Traded News Spike',
+    'Early Exit / Cutting Winners Short',
 ];
 
-const SETUP_TYPES = ['Breakout', 'Pullback', 'Reversal', 'Range', 'Momentum', 'News', 'Scalp', 'Swing'];
+const SETUP_TYPES = ['Breakout', 'Pullback', 'Reversal', 'Range', 'Momentum', 'Liquidity Sweep', 'Trend Continuation', 'News', 'Scalp', 'Swing'];
 const MARKET_CONDITIONS = ['Trending Up', 'Trending Down', 'Range Bound', 'High Volatility', 'Low Volatility', 'News Driven'];
-const ENTRY_REASONS = ['Structure Break', 'Confluence Zone', 'Momentum Signal', 'Reversal Pattern', 'News Catalyst', 'Planned Setup'];
-const EXIT_REASONS = ['Take Profit Hit', 'Stop Loss Hit', 'Manual Exit', 'Trailing Stop', 'Time Exit', 'Reversal Signal'];
+const ENTRY_REASONS = ['Planned Setup', 'Structure Break', 'Confluence Zone', 'Momentum Signal', 'Pullback Confirmation', 'Liquidity Sweep', 'Reversal Pattern', 'News Catalyst'];
+const EXIT_REASONS = ['Take Profit Hit', 'Stop Loss Hit', 'Manual Exit', 'Trailing Stop', 'Break Even', 'Partial Exit', 'Time Exit', 'Reversal Signal'];
 
 interface Props {
     date: string;
@@ -79,6 +88,8 @@ function ChipToggle({ label, active, onClick }: { label: string; active: boolean
 }
 
 export default function DayJournalForm({ date, dateLabel, dayPnl, existing, lang, onSave, onClose, initialSessionType }: Props) {
+    const copy = translations[lang].journal.sessionForm;
+    const optionLabel = (value: string) => (copy.optionLabels as Record<string, string>)[value] ?? value;
     const defaultSessionType = existing?.sessionType ?? initialSessionType ?? 'post';
     const [sessionType, setSessionType] = useState<'pre' | 'post' | 'weekly'>(defaultSessionType);
     const [setupType, setSetupType]     = useState(existing?.setupType ?? '');
@@ -219,7 +230,7 @@ export default function DayJournalForm({ date, dateLabel, dayPnl, existing, lang
                     </div>
 
                     {/* Date + Session Type */}
-                    <div style={{ padding: '16px 20px', borderBottom: divider, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+                    <div style={{ padding: '16px 20px', borderBottom: divider, display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 16 }}>
                         <div>
                             <span style={fieldLabel}>{lang === 'fr' ? 'Date' : 'Date'}</span>
                             <div style={{ ...inputStyle, color: '#8b949e', pointerEvents: 'none' }}>{date}</div>
@@ -237,18 +248,35 @@ export default function DayJournalForm({ date, dateLabel, dayPnl, existing, lang
                                             cursor: 'pointer', transition: 'all 0.15s',
                                             textTransform: 'uppercase',
                                         }}>
-                                        {t === 'pre' ? (lang === 'fr' ? 'Pré' : 'Pre') : t === 'post' ? (lang === 'fr' ? 'Post' : 'Post') : (lang === 'fr' ? 'Hebdo' : 'Weekly')}
+                                        {t === 'pre' ? copy.planFirst : t === 'post' ? copy.reviewAfter : copy.weeklyReset}
                                     </button>
                                 ))}
                             </div>
                             <span style={{ ...mono, fontSize: 9, color: '#4b5563', display: 'block', marginTop: 4 }}>
                                 {sessionType === 'pre'
-                                    ? (lang === 'fr' ? 'Plan ton biais avant d\'ouvrir le marché.' : 'Plan your bias before opening the market.')
+                                    ? copy.preHint
                                     : sessionType === 'post'
-                                    ? (lang === 'fr' ? 'Consigne le déroulé, les violations, les émotions.' : 'Log how the session went — mindset, violations, what you felt during trades.')
-                                    : (lang === 'fr' ? 'Revue hebdomadaire de performance.' : 'Weekly performance review.')}
+                                    ? copy.postHint
+                                    : copy.weeklyHint}
                             </span>
                         </div>
+                    </div>
+
+                    <div style={{ padding: '12px 20px', borderBottom: divider, display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 8, background: '#090909' }}>
+                        {[
+                            { title: copy.modePre, body: copy.preHint, active: sessionType === 'pre', color: '#38bdf8' },
+                            { title: copy.modePost, body: copy.postHint, active: sessionType === 'post', color: '#FDC800' },
+                            { title: copy.modeWeekly, body: copy.weeklyHint, active: sessionType === 'weekly', color: '#EAB308' },
+                        ].map(item => (
+                            <div key={item.title} style={{
+                                border: `1px solid ${item.active ? item.color : '#1a1c24'}`,
+                                background: item.active ? `${item.color}12` : 'transparent',
+                                padding: '10px 12px',
+                            }}>
+                                <span style={{ ...mono, fontSize: 9, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: item.active ? item.color : '#6b7280', display: 'block', marginBottom: 5 }}>{item.title}</span>
+                                <span style={{ ...mono, fontSize: 10, lineHeight: 1.5, color: '#8b949e' }}>{item.body}</span>
+                            </div>
+                        ))}
                     </div>
 
                     {/* ── PRE-SESSION fields ── */}
@@ -262,11 +290,11 @@ export default function DayJournalForm({ date, dateLabel, dayPnl, existing, lang
                                         <span style={fieldLabel}>{lang === 'fr' ? 'Conditions marché' : 'Market Condition'}</span>
                                         <select value={marketCond} onChange={e => setMarketCond(e.target.value)} style={selectStyle}>
                                             <option value="">{lang === 'fr' ? 'Sélectionner…' : 'Select…'}</option>
-                                            {MARKET_CONDITIONS.map(s => <option key={s} value={s}>{s}</option>)}
+                                            {MARKET_CONDITIONS.map(s => <option key={s} value={s}>{optionLabel(s)}</option>)}
                                         </select>
                                     </div>
                                     <div>
-                                        <span style={fieldLabel}>{lang === 'fr' ? 'R:R Planifié' : 'Planned R:R'}</span>
+                                        <span style={fieldLabel}>{copy.plannedRR}</span>
                                         <input type="text" placeholder="e.g. 2.5" value={plannedRR}
                                             onChange={e => setPlannedRR(e.target.value)} style={inputStyle} />
                                     </div>
@@ -275,10 +303,13 @@ export default function DayJournalForm({ date, dateLabel, dayPnl, existing, lang
 
                             {/* Focus Areas (session tags) */}
                             <div style={{ padding: '16px 20px', borderBottom: divider }}>
-                                <span style={sectionHead}>{lang === 'fr' ? 'Zones de focus pour aujourd\'hui' : 'Focus Areas for Today'}</span>
+                                <span style={sectionHead}>{copy.focusAreas}</span>
+                                <span style={{ ...mono, fontSize: 9, color: '#4b5563', display: 'block', marginBottom: 10 }}>
+                                    {copy.focusHint}
+                                </span>
                                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                                    {SESSION_TAGS.map(tag => (
-                                        <ChipToggle key={tag} label={tag} active={tags.includes(tag)}
+                                    {PRE_SESSION_FOCUS.map(tag => (
+                                        <ChipToggle key={tag} label={optionLabel(tag)} active={tags.includes(tag)}
                                             onClick={() => toggleArr(tags, setTags, tag)} />
                                     ))}
                                 </div>
@@ -286,7 +317,7 @@ export default function DayJournalForm({ date, dateLabel, dayPnl, existing, lang
 
                             {/* Directional bias & plan */}
                             <div style={{ padding: '16px 20px', borderBottom: divider }}>
-                                <span style={sectionHead}>{lang === 'fr' ? 'Biais directionnel & plan de session' : 'Today\'s directional bias & plan'}</span>
+                                <span style={sectionHead}>{copy.directionalPlan}</span>
                                 <textarea value={sessionNote} onChange={e => setSessionNote(e.target.value)} rows={5}
                                     maxLength={2000}
                                     placeholder={lang === 'fr'
@@ -357,7 +388,7 @@ export default function DayJournalForm({ date, dateLabel, dayPnl, existing, lang
                                                 color: violations.includes(v) ? '#ff4757' : '#6b7280',
                                                 cursor: 'pointer', transition: 'all 0.15s', width: '100%',
                                             }}>
-                                            {v}
+                                            {optionLabel(v)}
                                         </button>
                                     ))}
                                 </div>
@@ -428,40 +459,43 @@ export default function DayJournalForm({ date, dateLabel, dayPnl, existing, lang
                             {/* Session Context */}
                             <div style={{ padding: '16px 20px', borderBottom: divider }}>
                                 <span style={sectionHead}>{lang === 'fr' ? 'Contexte de session' : 'Session Context'}</span>
-                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 120px', gap: 12, marginBottom: 12 }}>
+                                <span style={{ ...mono, fontSize: 9, color: '#4b5563', display: 'block', marginBottom: 12 }}>
+                                    {copy.sessionContextHint}
+                                </span>
+                                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 12, marginBottom: 12 }}>
                                     <div>
                                         <span style={fieldLabel}>{lang === 'fr' ? 'Type de setup' : 'Setup Type'}</span>
                                         <select value={setupType} onChange={e => setSetupType(e.target.value)} style={selectStyle}>
                                             <option value="">{lang === 'fr' ? 'Sélectionner…' : 'Select…'}</option>
-                                            {SETUP_TYPES.map(s => <option key={s} value={s}>{s}</option>)}
+                                            {SETUP_TYPES.map(s => <option key={s} value={s}>{optionLabel(s)}</option>)}
                                         </select>
                                     </div>
                                     <div>
                                         <span style={fieldLabel}>{lang === 'fr' ? 'Conditions marché' : 'Market Condition'}</span>
                                         <select value={marketCond} onChange={e => setMarketCond(e.target.value)} style={selectStyle}>
                                             <option value="">{lang === 'fr' ? 'Sélectionner…' : 'Select…'}</option>
-                                            {MARKET_CONDITIONS.map(s => <option key={s} value={s}>{s}</option>)}
+                                            {MARKET_CONDITIONS.map(s => <option key={s} value={s}>{optionLabel(s)}</option>)}
                                         </select>
                                     </div>
                                     <div>
-                                        <span style={fieldLabel}>{lang === 'fr' ? 'R:R Planifié' : 'Planned R:R'}</span>
+                                        <span style={fieldLabel}>{copy.plannedRR}</span>
                                         <input type="text" placeholder="e.g. 2.5" value={plannedRR}
                                             onChange={e => setPlannedRR(e.target.value)} style={inputStyle} />
                                     </div>
                                 </div>
-                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 120px', gap: 12, marginBottom: 12 }}>
+                                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 12, marginBottom: 12 }}>
                                     <div>
                                         <span style={fieldLabel}>{lang === 'fr' ? 'Raison d\'entrée' : 'Entry Reason'}</span>
                                         <select value={entryReason} onChange={e => setEntryReason(e.target.value)} style={selectStyle}>
                                             <option value="">{lang === 'fr' ? 'Sélectionner…' : 'Select…'}</option>
-                                            {ENTRY_REASONS.map(s => <option key={s} value={s}>{s}</option>)}
+                                            {ENTRY_REASONS.map(s => <option key={s} value={s}>{optionLabel(s)}</option>)}
                                         </select>
                                     </div>
                                     <div>
                                         <span style={fieldLabel}>{lang === 'fr' ? 'Raison de sortie' : 'Exit Reason'}</span>
                                         <select value={exitReason} onChange={e => setExitReason(e.target.value)} style={selectStyle}>
                                             <option value="">{lang === 'fr' ? 'Sélectionner…' : 'Select…'}</option>
-                                            {EXIT_REASONS.map(s => <option key={s} value={s}>{s}</option>)}
+                                            {EXIT_REASONS.map(s => <option key={s} value={s}>{optionLabel(s)}</option>)}
                                         </select>
                                     </div>
                                     <div>
@@ -471,12 +505,12 @@ export default function DayJournalForm({ date, dateLabel, dayPnl, existing, lang
                                     </div>
                                 </div>
                                 <div>
-                                    <span style={fieldLabel}>{lang === 'fr' ? 'IDs de trades liés / horodatages' : 'Linked Trade IDs / Timestamps'}</span>
+                                    <span style={fieldLabel}>{copy.tradeRefs}</span>
                                     <input type="text" value={linkedIds} onChange={e => setLinkedIds(e.target.value)}
                                         placeholder={lang === 'fr' ? 'ex. T-1042, T-1043 ou 10:05am, 10:32am — depuis votre plateforme' : 'e.g. T-1042, T-1043  or  10:05am, 10:32am — from your broker platform'}
                                         style={inputStyle} />
                                     <span style={{ ...mono, fontSize: 9, color: '#4b5563', display: 'block', marginTop: 4 }}>
-                                        {lang === 'fr' ? 'Référencez des trades spécifiques pour recouper dans votre blotter.' : 'Reference specific trades from this session so you can cross-check in your broker\'s blotter.'}
+                                        {copy.tradeRefsHint}
                                     </span>
                                 </div>
                             </div>
@@ -486,7 +520,7 @@ export default function DayJournalForm({ date, dateLabel, dayPnl, existing, lang
                                 <span style={sectionHead}>{lang === 'fr' ? 'Étiquettes de session' : 'Session Tags'}</span>
                                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
                                     {SESSION_TAGS.map(tag => (
-                                        <ChipToggle key={tag} label={tag} active={tags.includes(tag)}
+                                        <ChipToggle key={tag} label={optionLabel(tag)} active={tags.includes(tag)}
                                             onClick={() => toggleArr(tags, setTags, tag)} />
                                     ))}
                                 </div>
@@ -518,7 +552,7 @@ export default function DayJournalForm({ date, dateLabel, dayPnl, existing, lang
 
                             {/* Emotional State */}
                             <div style={{ padding: '16px 20px', borderBottom: divider }}>
-                                <span style={sectionHead}>{lang === 'fr' ? 'Comment tu te sentais ?' : 'How are you feeling?'}</span>
+                                <span style={sectionHead}>{copy.moodQuestion}</span>
                                 <span style={{ ...mono, fontSize: 10, color: '#4b5563', display: 'block', marginBottom: 12 }}>
                                     {lang === 'fr'
                                         ? 'Sélectionne tous les états émotionnels qui s\'appliquaient durant cette session.'
@@ -545,7 +579,7 @@ export default function DayJournalForm({ date, dateLabel, dayPnl, existing, lang
                                                         display: 'flex', alignItems: 'center', gap: 5,
                                                     }}>
                                                     <span style={{ width: 5, height: 5, borderRadius: '50%', background: group.color, display: 'inline-block' }} />
-                                                    {m}
+                                                    {optionLabel(m)}
                                                 </button>
                                             ))}
                                         </div>
@@ -555,6 +589,7 @@ export default function DayJournalForm({ date, dateLabel, dayPnl, existing, lang
 
                             {/* Session Note */}
                             <div style={{ padding: '16px 20px', borderBottom: divider }}>
+                                <span style={sectionHead}>{copy.sessionNote}</span>
                                 <textarea value={sessionNote} onChange={e => setSessionNote(e.target.value)} rows={5}
                                     maxLength={2000}
                                     placeholder={lang === 'fr'
@@ -568,11 +603,9 @@ export default function DayJournalForm({ date, dateLabel, dayPnl, existing, lang
 
                             {/* Rule Violations */}
                             <div style={{ padding: '16px 20px', borderBottom: divider }}>
-                                <span style={sectionHead}>{lang === 'fr' ? 'As-tu enfreint des règles aujourd\'hui ?' : 'Did you break any rules today?'}</span>
+                                <span style={sectionHead}>{copy.violationsQuestion}</span>
                                 <span style={{ ...mono, fontSize: 9, color: '#4b5563', display: 'block', marginBottom: 10 }}>
-                                    {lang === 'fr'
-                                        ? 'Les tracker ici permet d\'identifier les patterns comportementaux récurrents.'
-                                        : 'Track violations to identify recurring behavioral patterns.'}
+                                    {copy.violationsHint}
                                 </span>
                                 <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                                     {RULE_VIOLATIONS.map(v => (
@@ -584,7 +617,7 @@ export default function DayJournalForm({ date, dateLabel, dayPnl, existing, lang
                                                 color: violations.includes(v) ? '#ff4757' : '#6b7280',
                                                 cursor: 'pointer', transition: 'all 0.15s', width: '100%',
                                             }}>
-                                            {v}
+                                            {optionLabel(v)}
                                         </button>
                                     ))}
                                 </div>
@@ -615,7 +648,7 @@ export default function DayJournalForm({ date, dateLabel, dayPnl, existing, lang
                                 <div>
                                     <span style={sectionHead}>{lang === 'fr' ? 'Objectifs atteints ?' : 'Goals Met?'}</span>
                                     <span style={{ ...mono, fontSize: 10, color: '#4b5563', display: 'block', marginBottom: 8 }}>
-                                        {lang === 'fr' ? 'As-tu suivi ton plan de trading pré-session ?' : 'Did you follow your pre-session trading plan?'}
+                                        {copy.goalsQuestion}
                                     </span>
                                     <div style={{ display: 'flex', gap: 8 }}>
                                         <button type="button" onClick={() => setGoalsMet(true)}

@@ -3,7 +3,7 @@
 import styles from './JournalPage.module.css';
 import DateRangePicker from '@/components/ui/DateRangePicker';
 import { useState, useMemo, useRef, useEffect } from 'react';
-import { useAppStore } from '@/store/appStore';
+import { useAppStore, type TradeSession } from '@/store/appStore';
 import { useTranslation } from '@/i18n/useTranslation';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -59,6 +59,76 @@ function fmtDayLabel(dateStr: string): string {
     return d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' });
 }
 
+type TradeEditDraft = {
+    asset: string;
+    entry: string;
+    stopLoss: string;
+    takeProfit: string;
+    lotSize: string;
+    pnl: string;
+    outcome: 'win' | 'loss' | 'open';
+    isShort: boolean;
+    createdAt: string;
+    closedAt: string;
+};
+
+const TRADE_BIAS_OPTIONS = ['Planned', 'None', 'FOMO', 'Revenge', 'Overconfidence', 'Loss Aversion', 'Confirmation Bias', 'Recency Bias', 'Anchoring', 'Fear', 'Greed', 'Hope'] as const;
+const TRADE_SETUP_OPTIONS = ['A+', 'A', 'B', 'C', 'Impulse', 'Chase', 'News', 'Scalp'] as const;
+const TRADE_EXIT_OPTIONS = ['TP', 'SL', 'Manual', 'Trailing Stop', 'Break Even', 'Partial', 'Time', 'Margin'] as const;
+
+function formatNumberInput(value: number | undefined): string {
+    return Number.isFinite(value) && value !== undefined ? String(value) : '';
+}
+
+function toLocalDateTimeInput(iso?: string): string {
+    if (!iso) return '';
+    const d = new Date(iso);
+    if (Number.isNaN(d.getTime())) return '';
+    const pad = (n: number) => String(n).padStart(2, '0');
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+function fromLocalDateTimeInput(value: string): string | undefined {
+    if (!value) return undefined;
+    const d = new Date(value);
+    return Number.isNaN(d.getTime()) ? undefined : d.toISOString();
+}
+
+function tradeToDraft(trade: TradeSession): TradeEditDraft {
+    return {
+        asset: trade.asset,
+        entry: formatNumberInput(trade.entry),
+        stopLoss: formatNumberInput(trade.stopLoss),
+        takeProfit: formatNumberInput(trade.takeProfit),
+        lotSize: formatNumberInput(trade.lotSize),
+        pnl: trade.pnl !== undefined ? String(Math.abs(trade.pnl)) : '',
+        outcome: trade.outcome ?? 'open',
+        isShort: Boolean(trade.isShort),
+        createdAt: toLocalDateTimeInput(trade.createdAt),
+        closedAt: toLocalDateTimeInput(trade.closedAt),
+    };
+}
+
+function parsePositiveNumber(value: string): number | null {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+}
+
+function getPointValueForTrade(trade: TradeSession): number {
+    if (trade.assetType !== 'futures') return 1;
+    const key = trade.asset.toUpperCase().replace(/[^A-Z0-9]/g, '');
+    return FUTURES_SPECS[key]?.pointValue ?? 1;
+}
+
+function labelTradeOption(value: string, labels: Record<string, string>): string {
+    return labels[value] ?? value;
+}
+
+function formatSignedDollars(value: number, decimals = 0): string {
+    const sign = value >= 0 ? '+' : '-';
+    return `${sign}$${Math.abs(value).toFixed(decimals)}`;
+}
+
 export default function JournalPage() {
     const { trades, setTrades, deleteTrade, updateTradeNote, updateTradeFields, setActiveTab, account, dayNotes, updateDayNote, dayJournalEntries, saveDayJournalEntry, userId } = useAppStore();
     const { t } = useTranslation();
@@ -80,6 +150,9 @@ export default function JournalPage() {
     const [inlineWinInput, setInlineWinInput] = useState<Record<string, string>>({});
     const [inlineLossInput, setInlineLossInput] = useState<Record<string, string>>({});
     const [inlineOutcomeId, setInlineOutcomeId] = useState<string | null>(null);
+    const [tradeEditDrafts, setTradeEditDrafts] = useState<Record<string, TradeEditDraft>>({});
+    const [tradeEditErrors, setTradeEditErrors] = useState<Record<string, string>>({});
+    const [tradeEditSaved, setTradeEditSaved] = useState<Record<string, boolean>>({});
     const [isMobile, setIsMobile] = useState(false);
     useEffect(() => {
         const check = () => setIsMobile(window.innerWidth < 768);
@@ -90,6 +163,33 @@ export default function JournalPage() {
     const todayStr = new Date().toISOString().slice(0, 10);
     const [listLogDay, setListLogDay] = useState<string | null>(null);
     const [formSessionType, setFormSessionType] = useState<'pre' | 'post' | 'weekly'>('post');
+    const tradeEditorCopy = t.journal.tradeEditor;
+    const tradeOptionLabels: Record<string, string> = {
+        Planned: tradeEditorCopy.planned,
+        None: tradeEditorCopy.none,
+        FOMO: tradeEditorCopy.fomo,
+        Revenge: tradeEditorCopy.revenge,
+        Overconfidence: tradeEditorCopy.overconfidence,
+        'Loss Aversion': tradeEditorCopy.lossAversion,
+        'Confirmation Bias': tradeEditorCopy.confirmationBias,
+        'Recency Bias': tradeEditorCopy.recencyBias,
+        Anchoring: tradeEditorCopy.anchoring,
+        Fear: tradeEditorCopy.fear,
+        Greed: tradeEditorCopy.greed,
+        Hope: tradeEditorCopy.hope,
+        Impulse: tradeEditorCopy.impulse,
+        Chase: tradeEditorCopy.chase,
+        News: tradeEditorCopy.news,
+        Scalp: tradeEditorCopy.scalp,
+        Manual: tradeEditorCopy.manual,
+        TP: 'TP',
+        SL: 'SL',
+        'Trailing Stop': tradeEditorCopy.trailingStop,
+        'Break Even': tradeEditorCopy.breakEven,
+        Partial: tradeEditorCopy.partial,
+        Time: tradeEditorCopy.time,
+        Margin: tradeEditorCopy.margin,
+    };
 
     // Sync day note input when selected day changes
     useEffect(() => {
@@ -588,7 +688,7 @@ export default function JournalPage() {
             const dayLosses = dayTrades.filter(t => t.outcome === 'loss').length;
             return { day, trades: dayTrades, dayPnl, dayWins, dayLosses };
         });
-    }, [trades, filter, assetFilter]);
+    }, [trades, filter, assetFilter, filterFrom, filterTo]);
 
     const totalShown = groupedByDay.reduce((s, g) => s + g.trades.length, 0);
     const pnlColor = totalPnl >= 0 ? '#FDC800' : '#ff4757';
@@ -614,6 +714,94 @@ export default function JournalPage() {
                 pnl: t.pnl ?? 0,
             })),
     [trades]);
+
+    const getTradeDraft = (trade: TradeSession): TradeEditDraft => tradeEditDrafts[trade.id] ?? tradeToDraft(trade);
+
+    const patchTradeDraft = (trade: TradeSession, patch: Partial<TradeEditDraft>) => {
+        const current = getTradeDraft(trade);
+        setTradeEditDrafts(prev => ({ ...prev, [trade.id]: { ...current, ...patch } }));
+        setTradeEditErrors(prev => {
+            if (!prev[trade.id]) return prev;
+            const next = { ...prev };
+            delete next[trade.id];
+            return next;
+        });
+        setTradeEditSaved(prev => {
+            if (!prev[trade.id]) return prev;
+            const next = { ...prev };
+            delete next[trade.id];
+            return next;
+        });
+    };
+
+    const saveManualTradeExecution = (trade: TradeSession) => {
+        const draft = getTradeDraft(trade);
+        const entry = parsePositiveNumber(draft.entry);
+        const stopLoss = parsePositiveNumber(draft.stopLoss);
+        const takeProfit = parsePositiveNumber(draft.takeProfit);
+        const lotSize = parsePositiveNumber(draft.lotSize);
+        if (entry == null || stopLoss == null || takeProfit == null || lotSize == null) {
+            setTradeEditErrors(prev => ({ ...prev, [trade.id]: tradeEditorCopy.invalidNumber }));
+            return;
+        }
+
+        const createdAt = fromLocalDateTimeInput(draft.createdAt);
+        const closedAt = fromLocalDateTimeInput(draft.closedAt);
+        if (!createdAt || (draft.outcome !== 'open' && !closedAt)) {
+            setTradeEditErrors(prev => ({ ...prev, [trade.id]: tradeEditorCopy.invalidTime }));
+            return;
+        }
+        if (closedAt && new Date(closedAt).getTime() <= new Date(createdAt).getTime()) {
+            setTradeEditErrors(prev => ({ ...prev, [trade.id]: tradeEditorCopy.invalidTime }));
+            return;
+        }
+
+        const pointValue = getPointValueForTrade({ ...trade, asset: draft.asset, assetType: guessAssetType(draft.asset) });
+        const riskUSD = Math.round(Math.abs(entry - stopLoss) * lotSize * pointValue * 100) / 100;
+        const rewardUSD = Math.round(Math.abs(takeProfit - entry) * lotSize * pointValue * 100) / 100;
+        const rr = riskUSD > 0 ? Math.round((rewardUSD / riskUSD) * 100) / 100 : 0;
+        const pnlAbs = draft.pnl.trim() === ''
+            ? (trade.pnl !== undefined ? Math.abs(trade.pnl) : 0)
+            : Number(draft.pnl);
+        if (draft.outcome !== 'open' && (!Number.isFinite(pnlAbs) || pnlAbs < 0)) {
+            setTradeEditErrors(prev => ({ ...prev, [trade.id]: tradeEditorCopy.invalidNumber }));
+            return;
+        }
+
+        const durationSeconds = closedAt
+            ? Math.floor((new Date(closedAt).getTime() - new Date(createdAt).getTime()) / 1000)
+            : undefined;
+        const pnl = draft.outcome === 'open'
+            ? undefined
+            : draft.outcome === 'win'
+            ? Math.abs(pnlAbs)
+            : -Math.abs(pnlAbs);
+
+        setTrades(trades.map(t => t.id === trade.id ? {
+            ...t,
+            asset: draft.asset.trim().toUpperCase() || t.asset,
+            assetType: guessAssetType(draft.asset),
+            entry,
+            stopLoss,
+            takeProfit,
+            lotSize,
+            riskUSD,
+            rewardUSD,
+            rr,
+            outcome: draft.outcome,
+            pnl,
+            isShort: draft.isShort,
+            createdAt,
+            closedAt: draft.outcome === 'open' ? undefined : closedAt,
+            durationSeconds: draft.outcome === 'open' ? undefined : durationSeconds,
+        } : t));
+        setTradeEditDrafts(prev => {
+            const next = { ...prev };
+            delete next[trade.id];
+            return next;
+        });
+        setTradeEditSaved(prev => ({ ...prev, [trade.id]: true }));
+    };
 
     return (
         <div style={{ display: 'flex', flexDirection: 'column', background: '#090909', minHeight: '100vh' }}>
@@ -927,8 +1115,8 @@ export default function JournalPage() {
                             { k: lang === 'fr' ? 'Moy. perte' : 'Avg Loss',              v: tfLosses.length > 0 ? `-$${tfAvgLoss.toFixed(0)}` : '—', c: '#ff4757', sub: `${tfLosses.length} ${lang === 'fr' ? 'perdants' : 'losers'}` },
                             { k: lang === 'fr' ? 'Durée moy. gain' : 'Avg Win Hold',    v: fmtSecs(tfAvgWinDur), c: '#FDC800', sub: lang === 'fr' ? 'temps moyen gagnant' : 'avg winner hold time' },
                             { k: lang === 'fr' ? 'Durée moy. perte' : 'Avg Loss Hold',  v: fmtSecs(tfAvgLossDur), c: '#ff4757', sub: lang === 'fr' ? 'temps moyen perdant' : 'avg loser hold time' },
-                            { k: lang === 'fr' ? 'Meilleur trade' : 'Best Trade',        v: tfBestTrade ? `+$${(tfBestTrade.pnl ?? 0).toFixed(0)}` : '—', c: '#FDC800', sub: tfBestTrade ? tfBestTrade.asset : '—' },
-                            { k: lang === 'fr' ? 'Pire trade' : 'Worst Trade',           v: tfWorstTrade ? `-$${Math.abs(tfWorstTrade.pnl ?? 0).toFixed(0)}` : '—', c: '#ff4757', sub: tfWorstTrade ? tfWorstTrade.asset : '—' },
+                            { k: lang === 'fr' ? 'Meilleur trade' : 'Best Trade',        v: tfBestTrade ? formatSignedDollars(tfBestTrade.pnl ?? 0) : '—', c: (tfBestTrade?.pnl ?? 0) >= 0 ? '#FDC800' : '#ff4757', sub: tfBestTrade ? tfBestTrade.asset : '—' },
+                            { k: lang === 'fr' ? 'Pire trade' : 'Worst Trade',           v: tfWorstTrade ? formatSignedDollars(tfWorstTrade.pnl ?? 0) : '—', c: (tfWorstTrade?.pnl ?? 0) >= 0 ? '#FDC800' : '#ff4757', sub: tfWorstTrade ? tfWorstTrade.asset : '—' },
                             { k: lang === 'fr' ? 'Meilleure journée' : 'Best Day',       v: tfBestDay > 0 ? `+$${tfBestDay.toFixed(0)}` : '—', c: '#FDC800', sub: lang === 'fr' ? 'P&L journée max' : 'top day P&L' },
                             { k: lang === 'fr' ? 'Pire journée' : 'Worst Day',           v: tfWorstDay < 0 ? `-$${Math.abs(tfWorstDay).toFixed(0)}` : '—', c: '#ff4757', sub: lang === 'fr' ? 'P&L journée min' : 'worst day P&L' },
                             { k: lang === 'fr' ? 'Ratio G/P' : 'W/L Ratio',             v: tfWlRatio > 0 ? `${tfWlRatio.toFixed(2)}:1` : '—', c: tfWlRatio >= 1.5 ? '#FDC800' : tfWlRatio >= 1 ? '#EAB308' : '#ff4757', sub: `$${tfAvgWin.toFixed(0)} / $${tfAvgLoss.toFixed(0)}` },
@@ -1523,6 +1711,8 @@ export default function JournalPage() {
                                     const pnlVal = trade.pnl ?? 0;
                                     const holdStr = calcHoldTime(trade.createdAt, trade.closedAt);
                                     const isExpanded = expandedId === trade.id;
+                                    const isManualTrade = !trade.source || trade.source === 'manual';
+                                    const draft = getTradeDraft(trade);
 
                                     return (
                                         <motion.div
@@ -1705,6 +1895,128 @@ export default function JournalPage() {
                                                                 );
                                                             })}
                                                         </div>
+
+                                                        {/* Manual execution editor */}
+                                                        <div style={{ padding: isMobile ? '12px' : '14px 16px', borderBottom: divider, background: '#090909' }}>
+                                                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap', marginBottom: 10 }}>
+                                                                <div>
+                                                                    <span style={{ ...lbl, marginBottom: 3 }}>{tradeEditorCopy.executionEditor}</span>
+                                                                    <span style={{ ...mono, fontSize: 10, color: isManualTrade ? '#8b949e' : '#6b7280' }}>
+                                                                        {isManualTrade ? tradeEditorCopy.manualTradeHint : tradeEditorCopy.importedTradeLocked}
+                                                                    </span>
+                                                                </div>
+                                                                {tradeEditSaved[trade.id] && (
+                                                                    <span style={{ ...mono, fontSize: 10, fontWeight: 700, color: '#FDC800' }}>{tradeEditorCopy.saved}</span>
+                                                                )}
+                                                            </div>
+                                                            {isManualTrade && (
+                                                                <>
+                                                                    <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr 1fr', gap: 10, marginBottom: 10 }}>
+                                                                        <label>
+                                                                            <span style={lbl}>{t.journal.asset}</span>
+                                                                            <input
+                                                                                type="text"
+                                                                                value={draft.asset}
+                                                                                onChange={e => patchTradeDraft(trade, { asset: e.target.value })}
+                                                                                style={{ ...mono, width: '100%', boxSizing: 'border-box', background: '#0d1117', border: '1px solid #1a1c24', color: '#e2e8f0', padding: '8px 9px', fontSize: 12, outline: 'none', textTransform: 'uppercase' }}
+                                                                            />
+                                                                        </label>
+                                                                        <label>
+                                                                            <span style={lbl}>{tradeEditorCopy.status}</span>
+                                                                            <select
+                                                                                value={draft.outcome}
+                                                                                onChange={e => patchTradeDraft(trade, { outcome: e.target.value as TradeEditDraft['outcome'] })}
+                                                                                style={{ ...mono, width: '100%', boxSizing: 'border-box', background: '#0d1117', border: '1px solid #1a1c24', color: '#e2e8f0', padding: '8px 9px', fontSize: 12, outline: 'none' }}
+                                                                            >
+                                                                                <option value="open">{lang === 'fr' ? 'Ouvert' : 'Open'}</option>
+                                                                                <option value="win">{lang === 'fr' ? 'Gain' : 'Win'}</option>
+                                                                                <option value="loss">{lang === 'fr' ? 'Perte' : 'Loss'}</option>
+                                                                            </select>
+                                                                        </label>
+                                                                        <div>
+                                                                            <span style={lbl}>{tradeEditorCopy.direction}</span>
+                                                                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 0, border: '1px solid #1a1c24' }}>
+                                                                                {[
+                                                                                    { short: false, label: tradeEditorCopy.long },
+                                                                                    { short: true, label: tradeEditorCopy.short },
+                                                                                ].map(opt => (
+                                                                                    <button
+                                                                                        key={opt.label}
+                                                                                        type="button"
+                                                                                        onClick={() => patchTradeDraft(trade, { isShort: opt.short })}
+                                                                                        style={{
+                                                                                            ...mono, fontSize: 11, fontWeight: 800, padding: '8px 6px',
+                                                                                            background: draft.isShort === opt.short ? (opt.short ? 'rgba(255,71,87,0.14)' : 'rgba(253,200,0,0.12)') : 'transparent',
+                                                                                            color: draft.isShort === opt.short ? (opt.short ? '#ff4757' : '#FDC800') : '#6b7280',
+                                                                                            border: 'none',
+                                                                                            borderLeft: opt.short ? '1px solid #1a1c24' : 'none',
+                                                                                            cursor: 'pointer',
+                                                                                            textTransform: 'uppercase',
+                                                                                        }}
+                                                                                    >
+                                                                                        {opt.label}
+                                                                                    </button>
+                                                                                ))}
+                                                                            </div>
+                                                                        </div>
+                                                                    </div>
+                                                                    <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 10, marginBottom: 10 }}>
+                                                                        <label>
+                                                                            <span style={lbl}>{tradeEditorCopy.entryTime}</span>
+                                                                            <input
+                                                                                type="datetime-local"
+                                                                                value={draft.createdAt}
+                                                                                onChange={e => patchTradeDraft(trade, { createdAt: e.target.value })}
+                                                                                style={{ ...mono, width: '100%', boxSizing: 'border-box', background: '#0d1117', border: '1px solid #1a1c24', color: '#e2e8f0', padding: '8px 9px', fontSize: 12, outline: 'none' }}
+                                                                            />
+                                                                        </label>
+                                                                        <label>
+                                                                            <span style={lbl}>{tradeEditorCopy.exitTime}</span>
+                                                                            <input
+                                                                                type="datetime-local"
+                                                                                value={draft.closedAt}
+                                                                                onChange={e => patchTradeDraft(trade, { closedAt: e.target.value })}
+                                                                                style={{ ...mono, width: '100%', boxSizing: 'border-box', background: '#0d1117', border: '1px solid #1a1c24', color: '#e2e8f0', padding: '8px 9px', fontSize: 12, outline: 'none' }}
+                                                                            />
+                                                                            <span style={{ ...mono, fontSize: 9, color: '#4b5563', display: 'block', marginTop: 4 }}>{tradeEditorCopy.exitTimeHint}</span>
+                                                                        </label>
+                                                                    </div>
+                                                                    <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr 1fr' : 'repeat(5, 1fr)', gap: 10, marginBottom: 10 }}>
+                                                                        {([
+                                                                            ['entry', lang === 'fr' ? 'Entrée' : 'Entry'],
+                                                                            ['stopLoss', 'Stop Loss'],
+                                                                            ['takeProfit', 'Take Profit'],
+                                                                            ['lotSize', lang === 'fr' ? 'Taille' : 'Size'],
+                                                                            ['pnl', tradeEditorCopy.realizedPnl],
+                                                                        ] as const).map(([key, label]) => (
+                                                                            <label key={key}>
+                                                                                <span style={lbl}>{label}</span>
+                                                                                <input
+                                                                                    type="number"
+                                                                                    step="0.00001"
+                                                                                    value={draft[key]}
+                                                                                    placeholder={key === 'pnl' ? tradeEditorCopy.noPnl : undefined}
+                                                                                    onChange={e => patchTradeDraft(trade, { [key]: e.target.value })}
+                                                                                    style={{ ...mono, width: '100%', boxSizing: 'border-box', background: '#0d1117', border: '1px solid #1a1c24', color: '#e2e8f0', padding: '8px 9px', fontSize: 12, outline: 'none' }}
+                                                                                />
+                                                                            </label>
+                                                                        ))}
+                                                                    </div>
+                                                                    {tradeEditErrors[trade.id] && (
+                                                                        <span style={{ ...mono, fontSize: 10, color: '#ff4757', display: 'block', marginBottom: 10 }}>
+                                                                            {tradeEditErrors[trade.id]}
+                                                                        </span>
+                                                                    )}
+                                                                    <button
+                                                                        type="button"
+                                                                        onClick={() => saveManualTradeExecution(trade)}
+                                                                        style={{ ...mono, fontSize: 11, fontWeight: 800, letterSpacing: '0.06em', padding: '8px 14px', background: '#FDC800', color: '#000', border: 'none', cursor: 'pointer', textTransform: 'uppercase' }}
+                                                                    >
+                                                                        {tradeEditorCopy.saveChanges}
+                                                                    </button>
+                                                                </>
+                                                            )}
+                                                        </div>
                                                         
                                                         {/* Outcome Editor */}
                                                         <div style={{ padding: '12px 14px', borderBottom: divider, display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
@@ -1753,28 +2065,28 @@ export default function JournalPage() {
                                                         </div>
 
                                                         {/* Bias / Setup / Exit classifiers */}
-                                                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 1, background: '#1a1c24', borderTop: '1px solid #1a1c24' }}>
+                                                        <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr 1fr', gap: 1, background: '#1a1c24', borderTop: '1px solid #1a1c24' }}>
                                                             {[
                                                                 {
-                                                                    label: lang === 'fr' ? 'BIAIS COGNITIF' : 'COGNITIVE BIAS',
+                                                                    label: tradeEditorCopy.cognitiveBias,
                                                                     field: 'biasTag' as const,
-                                                                    options: ['Planned', 'FOMO', 'Revenge', 'Overconfidence', 'Loss Aversion'] as const,
+                                                                    options: TRADE_BIAS_OPTIONS,
                                                                     current: trade.biasTag,
-                                                                    colors: { Planned: '#FDC800', FOMO: '#F97316', Revenge: '#ff4757', Overconfidence: '#EAB308', 'Loss Aversion': '#8b5cf6' },
+                                                                    colors: { Planned: '#FDC800', None: '#6b7280', FOMO: '#F97316', Revenge: '#ff4757', Overconfidence: '#EAB308', 'Loss Aversion': '#8b5cf6', 'Confirmation Bias': '#38bdf8', 'Recency Bias': '#38bdf8', Anchoring: '#EAB308', Fear: '#ff4757', Greed: '#F97316', Hope: '#8b5cf6' },
                                                                 },
                                                                 {
-                                                                    label: lang === 'fr' ? 'QUALITÉ SETUP' : 'SETUP QUALITY',
+                                                                    label: tradeEditorCopy.setupQuality,
                                                                     field: 'setupType' as const,
-                                                                    options: ['A+', 'B', 'Impulse'] as const,
+                                                                    options: TRADE_SETUP_OPTIONS,
                                                                     current: trade.setupType,
-                                                                    colors: { 'A+': '#FDC800', B: '#EAB308', Impulse: '#ff4757' },
+                                                                    colors: { 'A+': '#FDC800', A: '#FDC800', B: '#EAB308', C: '#F97316', Impulse: '#ff4757', Chase: '#ff4757', News: '#38bdf8', Scalp: '#38bdf8' },
                                                                 },
                                                                 {
-                                                                    label: lang === 'fr' ? 'RAISON SORTIE' : 'EXIT REASON',
+                                                                    label: tradeEditorCopy.exitReason,
                                                                     field: 'exitReason' as const,
-                                                                    options: ['TP', 'SL', 'Manual', 'Margin'] as const,
+                                                                    options: TRADE_EXIT_OPTIONS,
                                                                     current: trade.exitReason,
-                                                                    colors: { TP: '#FDC800', SL: '#ff4757', Manual: '#EAB308', Margin: '#ff4757' },
+                                                                    colors: { TP: '#FDC800', SL: '#ff4757', Manual: '#EAB308', 'Trailing Stop': '#38bdf8', 'Break Even': '#38bdf8', Partial: '#FDC800', Time: '#EAB308', Margin: '#ff4757' },
                                                                 },
                                                             ].map(({ label, field, options, current, colors }) => (
                                                                 <div key={field} style={{ background: '#0b0e14', padding: '8px 10px' }}>
@@ -1791,7 +2103,7 @@ export default function JournalPage() {
                                                                                     color: current === opt ? (colors as unknown as Record<string, string>)[opt] : '#6b7280',
                                                                                     cursor: 'pointer', letterSpacing: '0.04em',
                                                                                 }}
-                                                                            >{opt}</button>
+                                                                            >{labelTradeOption(opt, tradeOptionLabels)}</button>
                                                                         ))}
                                                                     </div>
                                                                 </div>
@@ -1802,7 +2114,7 @@ export default function JournalPage() {
                                                         <div style={{ padding: isMobile ? '10px 12px' : '12px 16px' }}>
                                                             <span style={lbl}>{lang === 'fr' ? 'Note de trade' : 'Trade Note'}</span>
                                                             <textarea
-                                                                placeholder={`What was your setup rationale?\nHow did you feel entering this trade?\nWould you take this trade again?`}
+                                                                placeholder={tradeEditorCopy.notePlaceholder}
                                                                 value={trade.note ?? ''}
                                                                 onChange={e => updateTradeNote(trade.id, e.target.value)}
                                                                 rows={3}

@@ -66,11 +66,11 @@ export interface TradeSession {
     tags?: string[];
     source?: 'manual' | 'pdf' | 'csv' | 'dxtrade'; // undefined = manual (backward compat)
     /** Cognitive bias at trade entry — for psychological pattern tracking */
-    biasTag?: 'FOMO' | 'Revenge' | 'Overconfidence' | 'Loss Aversion' | 'Planned';
+    biasTag?: 'Planned' | 'None' | 'FOMO' | 'Revenge' | 'Overconfidence' | 'Loss Aversion' | 'Confirmation Bias' | 'Recency Bias' | 'Anchoring' | 'Fear' | 'Greed' | 'Hope';
     /** Setup quality tier — A+ = textbook, B = acceptable, Impulse = no plan */
-    setupType?: 'A+' | 'B' | 'Impulse';
+    setupType?: 'A+' | 'A' | 'B' | 'C' | 'Impulse' | 'Chase' | 'News' | 'Scalp';
     /** How the trade was exited */
-    exitReason?: 'TP' | 'SL' | 'Manual' | 'Margin';
+    exitReason?: 'TP' | 'SL' | 'Manual' | 'Trailing Stop' | 'Break Even' | 'Partial' | 'Time' | 'Margin';
 }
 
 export interface AccountSettings {
