@@ -362,6 +362,23 @@ export async function pushDailySessions(sessions: DailySession[], userId: string
     }
 }
 
+export async function pullDailySessions(userId: string): Promise<DailySession[]> {
+    const { data, error } = await supabase
+        .from('daily_sessions')
+        .select('date, risk_used, trades_planned, guard_triggered')
+        .eq('user_id', userId)
+        .order('date', { ascending: false })
+        .limit(90);
+
+    if (error) throw new Error(`pullDailySessions: ${error.message}`);
+    return (data ?? []).map(row => ({
+        date: row.date as string,
+        riskUsed: Number(row.risk_used),
+        tradesPlanned: Number(row.trades_planned),
+        guardTriggered: Boolean(row.guard_triggered),
+    }));
+}
+
 // ── Full bidirectional sync ───────────────────────────────────────
 
 /**
@@ -411,7 +428,9 @@ export async function importPdfTrades(
 export async function fullSync(
     localTrades: TradeSession[],
     userId: string,
+    options: { pushLocalOnly?: boolean } = {},
 ): Promise<TradeSession[]> {
+    const { pushLocalOnly = true } = options;
     const remote = await pullTrades(userId);
 
     // Merge: remote wins on conflicts (cloud is source of truth for existing trades)
@@ -422,7 +441,9 @@ export async function fullSync(
     // Why? Because if a PDF trade is in local but missing from remote, it was INTENTIONALLY
     // wiped by `importPdfTrades`. If we push it back, we resurrect ghost trades!
     // Manual trades (and possibly DXTrade offline syncs) DO get pushed.
-    const localOnly = localTrades.filter(t => !remoteIds.has(t.id) && !t.id.startsWith('tradeify-'));
+    const localOnly = pushLocalOnly
+        ? localTrades.filter(t => !remoteIds.has(t.id) && !t.id.startsWith('tradeify-'))
+        : [];
 
     // Push local-only trades up (non-fatal — don't block merge if push fails)
     if (localOnly.length > 0) {

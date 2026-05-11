@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState, useRef } from 'react';
-import { useAppStore } from '@/store/appStore';
+import { useAppStore, type DayJournalEntry } from '@/store/appStore';
 import Header from '@/components/layout/Header';
 import Sidebar from '@/components/layout/Sidebar';
 import BottomNav from '@/components/layout/BottomNav';
@@ -19,7 +19,7 @@ import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { AnimatePresence, motion } from 'framer-motion';
 import { ToastContainer } from '@/components/ui/Toast';
 import { supabase } from '@/lib/supabase';
-import { fullSync, pushAccountSettings, pushDailySessions, pullFullAccountSettings, pushTrades, pullTrades, pullDayData, pushDayData, deleteAllTrades } from '@/lib/supabaseSync';
+import { pushAccountSettings, pushDailySessions, pullFullAccountSettings, pushTrades, pullTrades, pullDayData, pushDayData, deleteAllTrades, pullDailySessions } from '@/lib/supabaseSync';
 
 // Force dynamic rendering — prevents prerender failures when Supabase env vars absent on deploy
 export const dynamic = 'force-dynamic';
@@ -36,6 +36,9 @@ export default function Home() {
   const [mounted, setMounted] = useState(false);
   // authChecked = true once we've confirmed the Supabase session status
   const [authChecked, setAuthChecked] = useState(false);
+  const [cloudReady, setCloudReady] = useState(false);
+  const syncRunRef = useRef(0);
+  const prevTradeCountRef = useRef(0);
   const {
     setActiveTab,
     activeTab,
@@ -45,10 +48,7 @@ export default function Home() {
     dailySessions,
     dayNotes,
     dayJournalEntries,
-    setTrades,
     updateAccount,
-    updateDayNote,
-    saveDayJournalEntry,
     language,
     tradingDayRollHour,
     setLanguage,
@@ -59,44 +59,66 @@ export default function Home() {
     showAuthModal,
     setShowAuthModal,
     resetOnboarding,
+    completeOnboarding,
   } = useAppStore();
 
   // ── Pull all cloud data into the store after login / session restore ──
   // Called on both explicit sign-in and automatic session restore on a new device.
-  // Uses Promise.allSettled so a partial failure (e.g. day_data table missing) never
-  // blocks the rest of the sync.
-  async function syncFromCloud(uid: string, isFirstLogin = false) {
-    // Account settings — remote wins on login; push local if no remote row yet
-    const remote = await pullFullAccountSettings(uid).catch(() => null);
+  // Cloud replaces local browser state by default so stale localStorage cannot
+  // resurrect old trades after reload or on a newly installed PWA.
+  async function syncFromCloud(uid: string) {
+    const runId = ++syncRunRef.current;
+    setCloudReady(false);
+
+    const remote = await pullFullAccountSettings(uid).catch((err) => {
+      console.error(err);
+      return null;
+    });
+    const remoteTrades = await pullTrades(uid).catch((err) => {
+      console.error(err);
+      return null;
+    });
+
+    if (runId !== syncRunRef.current) return;
+    if (remoteTrades === null) {
+      return;
+    }
+
     if (remote) {
       updateAccount(remote.account);
-      if (remote.tradingDayRollHour !== tradingDayRollHour) setTradingDayRollHour(remote.tradingDayRollHour);
-      if (remote.language !== language) setLanguage(remote.language);
-    } else if (isFirstLogin) {
-      // Fresh Supabase account (deleted + re-created, or first-time user).
-      // Check if there are any remote trades — if none, this is truly a fresh account
-      // and we must reset onboarding so the user goes through setup again
-      // (localStorage may still have stale hasOnboarded=true from old account).
-      const remoteTrades = await pullTrades(uid).catch(() => []);
-      if (remoteTrades.length === 0) {
-        resetOnboarding();
-        return; // Stop here — don't run fullSync on a freshly reset state
-      }
+      setTradingDayRollHour(remote.tradingDayRollHour);
+      setLanguage(remote.language);
     }
 
-    // Bidirectional trade sync
-    const tradeResult = await fullSync(trades, uid).catch(() => null);
-    if (tradeResult) setTrades(tradeResult);
+    const [dayData, remoteDailySessions] = await Promise.all([
+      pullDayData(uid).catch((err) => {
+        console.error(err);
+        return null;
+      }),
+      pullDailySessions(uid).catch((err) => {
+        console.error(err);
+        return [];
+      }),
+    ]);
 
-    // Day notes + journal entries (best-effort — table may not exist yet)
-    const dayData = await pullDayData(uid).catch(() => null);
-    if (dayData) {
-      Object.entries(dayData.dayNotes ?? {}).forEach(([date, note]) => updateDayNote(date, note as string));
-      Object.entries(dayData.dayJournalEntries ?? {}).forEach(([date, entry]) => {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        saveDayJournalEntry(date, entry as any);
-      });
+    if (runId !== syncRunRef.current) return;
+
+    useAppStore.setState({
+      trades: remoteTrades,
+      dailySessions: remoteDailySessions,
+      dayNotes: dayData?.dayNotes ?? {},
+      dayJournalEntries: (dayData?.dayJournalEntries ?? {}) as Record<string, DayJournalEntry>,
+    });
+
+    if (remote || remoteTrades.length > 0) {
+      completeOnboarding();
+      useAppStore.getState().autoSync();
+    } else {
+      resetOnboarding();
     }
+
+    prevTradeCountRef.current = useAppStore.getState().trades.length;
+    setCloudReady(true);
   }
 
   // ── Session bootstrap + auth state listener ──────────────────
@@ -120,6 +142,9 @@ export default function Home() {
           setMounted(true);
         });
       } else {
+        setUserId(null);
+        setUserEmail(null);
+        setCloudReady(false);
         setAuthChecked(true);
         setMounted(true);
       }
@@ -131,6 +156,7 @@ export default function Home() {
         setUserId(session.user.id);
         setUserEmail(session.user.email ?? '');
       } else {
+        setCloudReady(false);
         setUserId(null);
         setUserEmail(null);
       }
@@ -141,9 +167,11 @@ export default function Home() {
   }, []);
 
   // ── Auto-sync trades to Supabase on mutations (debounced 2s) ──
-  const prevTradeCountRef = useRef(trades.length);
   useEffect(() => {
-    if (!userId) return;
+    if (!userId || !cloudReady || !hasOnboarded) {
+      prevTradeCountRef.current = trades.length;
+      return;
+    }
     const prevCount = prevTradeCountRef.current;
     prevTradeCountRef.current = trades.length;
 
@@ -159,29 +187,29 @@ export default function Home() {
       pushTrades(trades, userId).catch(console.error);
     }, 2000);
     return () => clearTimeout(timer);
-  }, [trades, userId]);
+  }, [trades, userId, cloudReady, hasOnboarded]);
 
   // ── Auto-sync account settings on any change (debounced 3s) ──
   useEffect(() => {
-    if (!userId) return;
+    if (!userId || !cloudReady || !hasOnboarded) return;
     const timer = setTimeout(() => {
       pushAccountSettings(account, userId, tradingDayRollHour, language).catch(console.error);
     }, 3000);
     return () => clearTimeout(timer);
-  }, [account, userId, tradingDayRollHour, language]);
+  }, [account, userId, tradingDayRollHour, language, cloudReady, hasOnboarded]);
 
   // ── Auto-sync daily sessions on change (debounced 5s) ──
   useEffect(() => {
-    if (!userId || dailySessions.length === 0) return;
+    if (!userId || !cloudReady || !hasOnboarded || dailySessions.length === 0) return;
     const timer = setTimeout(() => {
       pushDailySessions(dailySessions, userId).catch(console.error);
     }, 5000);
     return () => clearTimeout(timer);
-  }, [dailySessions, userId]);
+  }, [dailySessions, userId, cloudReady, hasOnboarded]);
 
   // ── Auto-sync day notes + journal entries (debounced 4s) ──
   useEffect(() => {
-    if (!userId) return;
+    if (!userId || !cloudReady || !hasOnboarded) return;
     const hasNotes = Object.keys(dayNotes).length > 0;
     const hasEntries = Object.keys(dayJournalEntries).length > 0;
     if (!hasNotes && !hasEntries) return;
@@ -189,14 +217,14 @@ export default function Home() {
       pushDayData(dayNotes, dayJournalEntries, userId).catch(console.error);
     }, 4000);
     return () => clearTimeout(timer);
-  }, [dayNotes, dayJournalEntries, userId]);
+  }, [dayNotes, dayJournalEntries, userId, cloudReady, hasOnboarded]);
 
   // ── Auth success handler ──────────────────────────────────────
   async function handleAuthSuccess(uid: string, email: string) {
     setUserId(uid);
     setUserEmail(email);
     setShowAuthModal(false);
-    await syncFromCloud(uid, true);
+    await syncFromCloud(uid);
   }
 
   const pages: Record<string, React.ReactNode> = {
